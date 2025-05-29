@@ -2,11 +2,11 @@ l=../lib
 CFLAGS = -O -DPCIX
 
 all:
-        make init
-        make bootblok
-        make build
-        make mkfs
-        make fsck
+	make init
+	make bootblok
+	make build
+	make mkfs
+	make fsck
 
 init:	$l/libc.a init.o $l/head.o
 	ld -o init  $l/head.o init.o $l/libc.a  $l/end.o
@@ -26,7 +26,7 @@ init:	$l/libc.a init.o $l/head.o
 # probably that you have not made a good boot block.
 bootblok:	bootblok.c
 	# Compile the boot block using the C source
-	 $(CFLAGS) -o bootblok bootblok.c
+	$(CC) $(CFLAGS) -o bootblok bootblok.c
 	$(CC) $(CFLAGS) -o bootblokgen bootblok.c
 	@echo bootblok done.
 build:	build.o
