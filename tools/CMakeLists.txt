@@ -1,17 +1,7 @@
 file(GLOB TOOL_SRC *.c)
-file(GLOB TOOL_ASM *.s)
 foreach(src ${TOOL_SRC})
   get_filename_component(prog ${src} NAME_WE)
   set(target tool_${prog})
-  add_executable(${target} ${src})
-  target_link_libraries(${target} PRIVATE minixlib)
-endforeach()
-
-foreach(src ${TOOL_ASM})
-  get_filename_component(prog ${src} NAME_WE)
-  set(target tool_${prog})
-  # Assembly only tools require the language hint.
-  set_source_files_properties(${src} PROPERTIES LANGUAGE ASM_NASM)
   add_executable(${target} ${src})
   target_link_libraries(${target} PRIVATE minixlib)
 endforeach()
