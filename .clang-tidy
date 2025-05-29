@@ -1,4 +1,4 @@
 Checks: '-*,bugprone-*,portability-*'
 WarningsAsErrors: '*'
-FormatStyle: file
+FormatStyle: none
 HeaderFilterRegex: '.*'
