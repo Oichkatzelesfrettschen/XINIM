@@ -32,6 +32,24 @@ cmake --build build
 You can select the AT or PC/XT wini driver using the options described in the
 `README.md` file.
 
+## Cross Compiling for x86_64
+
+The build can target a bare x86\_64 system using a cross toolchain.  Specify the
+tool prefix through the `CROSS_PREFIX` variable.  When invoking CMake directly
+pass `-DCROSS_COMPILE_X86_64=ON` along with the prefix:
+
+```sh
+cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
+cmake --build build
+```
+
+The top-level `Makefile` accepts the same variable so the above commands can be
+simplified to:
+
+```sh
+make CROSS_PREFIX=x86_64-elf-
+```
+
 ## Testing the Build
 
 To quickly check that the toolchain works you can compile one of the sample
