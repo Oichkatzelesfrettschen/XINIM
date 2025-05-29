@@ -57,6 +57,7 @@ PUBLIC main()
    */
 
   lock();			/* we can't handle interrupts yet */
+  current_cpu = 0;              /* single CPU for now */
   paging_init();                /* set up initial page tables */
   idt_init();                   /* install 64-bit IDT */
   base_click = BASE >> CLICK_SHIFT;

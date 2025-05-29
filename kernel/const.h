@@ -33,6 +33,7 @@
 #define IDLE            -999	/* 'cur_proc' = IDLE means nobody is running */
 /* Scheduler configuration */
 #define SCHED_ROUND_ROBIN 0 /* set to 1 for simple round-robin */
+#define NR_CPUS 1           /* number of CPUs (SMP placeholder) */
 
 #if SCHED_ROUND_ROBIN
 #define NQ                 3    /* # of scheduling queues */

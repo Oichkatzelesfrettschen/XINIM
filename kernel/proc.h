@@ -43,8 +43,8 @@ EXTERN struct proc {
 
 EXTERN struct proc *proc_ptr;   /* &proc[cur_proc] */
 EXTERN struct proc *bill_ptr;   /* ptr to process to bill for clock ticks */
-EXTERN struct proc *rdy_head[SCHED_QUEUES]; /* pointers to ready list headers */
-EXTERN struct proc *rdy_tail[SCHED_QUEUES]; /* pointers to ready list tails */
+EXTERN struct proc *rdy_head[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list heads */
+EXTERN struct proc *rdy_tail[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list tails */
 
 EXTERN unsigned busy_map;               /* bit map of busy tasks */
 EXTERN message *task_mess[NR_TASKS+1];  /* ptrs to messages for busy tasks */
