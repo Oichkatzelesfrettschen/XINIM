@@ -65,9 +65,13 @@ pmode_start:
     mov esp, 0x90000
 
     ; Set up 64-bit page tables (identity map first 2MiB)
-    mov dword [pml4], pdpt | 0x03
+    mov eax, pdpt
+    or eax, 0x03
+    mov dword [pml4], eax
     mov dword [pml4+4], 0
-    mov dword [pdpt], pd | 0x03
+    mov eax, pd
+    or eax, 0x03
+    mov dword [pdpt], eax
     mov dword [pdpt+4], 0
     mov dword [pd], 0x00000083   ; 2MiB page
     mov dword [pd+4], 0

@@ -1,5 +1,7 @@
 l=../lib
 CFLAGS = -O -DPCIX
+ASM ?= nasm
+ASMFLAGS ?= -f elf64
 
 all:
 	make init
@@ -42,9 +44,9 @@ fsck:	fsck.o fsck1.o diskio.o
 	ld -o fsck  fsck1.o fsck.o diskio.o $l/libc.a
 	@echo fsck done.
 fsck1.o:	fsck1.s
-	nasm -f elf64 -o fsck1.o fsck1.s
+	$(ASM) $(ASMFLAGS) -o fsck1.o fsck1.s
 diskio.o:	diskio.s
-	nasm -f elf64 -o diskio.o diskio.s
+	$(ASM) $(ASMFLAGS) -o diskio.o diskio.s
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces
 # appears in the image file just as the original does on the disk, except that
