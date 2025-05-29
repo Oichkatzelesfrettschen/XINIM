@@ -67,12 +67,14 @@ message *m_ptr;			/* interrupt message to send to the task */
 
   /* If a task has just been readied and a user is running, run the task. */
 #if SCHED_ROUND_ROBIN
-  if (rdy_head[TASK_Q] != NIL_PROC && (cur_proc >= 0 || cur_proc == IDLE))
+  if (rdy_head[current_cpu][TASK_Q] != NIL_PROC &&
+      (cur_proc >= 0 || cur_proc == IDLE))
 #else
-  if (rdy_head[PRI_TASK] != NIL_PROC && (cur_proc >= 0 || cur_proc == IDLE))
+  if (rdy_head[current_cpu][PRI_TASK] != NIL_PROC &&
+      (cur_proc >= 0 || cur_proc == IDLE))
 #endif
         pick_proc();
-	pick_proc();
+        pick_proc();
 }
 
 
@@ -242,13 +244,16 @@ PUBLIC pick_proc()
 
   register int q;               /* which queue to use */
 #if SCHED_ROUND_ROBIN
-  if (rdy_head[TASK_Q] != NIL_PROC) q = TASK_Q;
-  else if (rdy_head[SERVER_Q] != NIL_PROC) q = SERVER_Q;
-  else q = USER_Q;
+  if (rdy_head[current_cpu][TASK_Q] != NIL_PROC)
+    q = TASK_Q;
+  else if (rdy_head[current_cpu][SERVER_Q] != NIL_PROC)
+    q = SERVER_Q;
+  else
+    q = USER_Q;
 #else
   for (q = 0; q < SCHED_QUEUES; q++) {
-        if (rdy_head[q] != NIL_PROC && rdy_head[q]->p_cpu == current_cpu)
-                break;
+    if (rdy_head[current_cpu][q] != NIL_PROC)
+      break;
   }
 #endif
 
@@ -262,16 +267,17 @@ PUBLIC pick_proc()
    * to always point to the process to be billed for CPU time.
    */
   prev_proc = cur_proc;
-  if (rdy_head[q] != NIL_PROC) {
-	/* Someone is runnable. */
-	cur_proc = rdy_head[q] - proc - NR_TASKS;
-	proc_ptr = rdy_head[q];
-	if (cur_proc >= LOW_USER) bill_ptr = proc_ptr;
+  if (rdy_head[current_cpu][q] != NIL_PROC) {
+    /* Someone is runnable. */
+    cur_proc = rdy_head[current_cpu][q] - proc - NR_TASKS;
+    proc_ptr = rdy_head[current_cpu][q];
+    if (cur_proc >= LOW_USER)
+      bill_ptr = proc_ptr;
   } else {
-	/* No one is runnable. */
-	cur_proc = IDLE;
-	proc_ptr = proc_addr(HARDWARE);
-	bill_ptr = proc_ptr;
+    /* No one is runnable. */
+    cur_proc = IDLE;
+    proc_ptr = proc_addr(HARDWARE);
+    bill_ptr = proc_ptr;
   }
 }
 
@@ -290,6 +296,7 @@ register struct proc *rp;	/* this process is now runnable */
 
   register int q;               /* queue index */
   int r;
+  int cpu = rp->p_cpu;
 
   lock();                       /* disable interrupts */
 #if SCHED_ROUND_ROBIN
@@ -302,11 +309,11 @@ register struct proc *rp;	/* this process is now runnable */
 #endif
 
   /* See if the relevant queue is empty. */
-  if (rdy_head[q] == NIL_PROC)
-	rdy_head[q] = rp;	/* add to empty queue */
+  if (rdy_head[cpu][q] == NIL_PROC)
+	rdy_head[cpu][q] = rp;	/* add to empty queue */
   else
-	rdy_tail[q]->p_nextready = rp;	/* add to tail of nonempty queue */
-  rdy_tail[q] = rp;		/* new entry has no successor */
+	rdy_tail[cpu][q]->p_nextready = rp;	/* add to tail of nonempty queue */
+  rdy_tail[cpu][q] = rp;		/* new entry has no successor */
   rp->p_nextready = NIL_PROC;
   restore();			/* restore interrupts to previous state */
 }
@@ -322,6 +329,7 @@ register struct proc *rp;	/* this process is no longer runnable */
 
   register struct proc *xp;
   int r, q;
+  int cpu = rp->p_cpu;
 
   lock();                       /* disable interrupts */
 #if SCHED_ROUND_ROBIN
@@ -332,10 +340,10 @@ register struct proc *rp;	/* this process is no longer runnable */
   if (q < 0) q = 0;
   if (q >= SCHED_QUEUES) q = SCHED_QUEUES - 1;
 #endif
-  if ((xp = rdy_head[q]) == NIL_PROC) return;
+  if ((xp = rdy_head[cpu][q]) == NIL_PROC) return;
   if (xp == rp) {
 	/* Remove head of queue */
-	rdy_head[q] = xp->p_nextready;
+	rdy_head[cpu][q] = xp->p_nextready;
 	pick_proc();
   } else {
 	/* Search body of queue.  A process can be made unready even if it is
@@ -345,7 +353,7 @@ register struct proc *rp;	/* this process is no longer runnable */
 		if ( (xp = xp->p_nextready) == NIL_PROC) return;
 	xp->p_nextready = xp->p_nextready->p_nextready;
 	while (xp->p_nextready != NIL_PROC) xp = xp->p_nextready;
-	rdy_tail[q] = xp;
+	rdy_tail[cpu][q] = xp;
   }
   restore();			/* restore interrupts to previous state */
 }
@@ -375,14 +383,15 @@ PUBLIC sched()
   rdy_tail[USER_Q]->p_nextready = NIL_PROC;
 #else
   int q = proc_ptr->p_priority;
-  if (rdy_head[q] == NIL_PROC || rdy_head[q]->p_nextready == NIL_PROC) {
+  int cpu = proc_ptr->p_cpu;
+  if (rdy_head[cpu][q] == NIL_PROC || rdy_head[cpu][q]->p_nextready == NIL_PROC) {
         restore();
         return;
   }
-  rdy_tail[q]->p_nextready = rdy_head[q];
-  rdy_tail[q] = rdy_head[q];
-  rdy_head[q] = rdy_head[q]->p_nextready;
-  rdy_tail[q]->p_nextready = NIL_PROC;
+  rdy_tail[cpu][q]->p_nextready = rdy_head[cpu][q];
+  rdy_tail[cpu][q] = rdy_head[cpu][q];
+  rdy_head[cpu][q] = rdy_head[cpu][q]->p_nextready;
+  rdy_tail[cpu][q]->p_nextready = NIL_PROC;
 #endif
   pick_proc();
   restore();                    /* restore interrupts to previous state */
