@@ -1,4 +1,6 @@
+*.asm text diff
 tools/c86/diskio.asm text diff
 tools/c86/bootblok.asm text diff
 tools/c86/fsck1.asm text diff
 *.s text diff
+

@@ -2,6 +2,8 @@
 # `WINI_DRIVER` variable to `pc` or `at` when invoking `make` to select the
 # correct driver.  If not specified the PC/XT driver is used.
 CFLAGS = -O
+ASM ?= nasm
+ASMFLAGS ?= -f elf64
 h=../h
 l=../lib
 
@@ -31,12 +33,10 @@ kernel:	makefile $(obj) $l/libc.a
 	@echo "Kernel done"
 
 klib88.o:	klib88.s
-	as -o klib88.o klib88.s
+	$(ASM) $(ASMFLAGS) -o $@ $<
 
-mpx88.o:	mpx88.s
-	as -o mpx88.o mpx88.s
 mpx64.o:        mpx64.s
-	as -o mpx64.o mpx64.s
+	$(ASM) $(ASMFLAGS) -o $@ $<
 
 idt64.o:        idt64.c
 	$(CC) $(CFLAGS) -c -o idt64.o idt64.c

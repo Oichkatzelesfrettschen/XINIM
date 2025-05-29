@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 project(minix1 C)
-enable_language(ASM)
+enable_language(ASM_NASM)
+set(CMAKE_ASM_NASM_OBJECT_FORMAT elf64)
 
 # Options for wini driver selection
 option(DRIVER_AT "Use AT wini driver" OFF)
