@@ -22,8 +22,8 @@ else
 WINI_SRC = xt_wini.c
 endif
 
-obj = mpx88.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o  \
-      printer.o table.o klib88.o dmp.o paging.o 
+obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o \
+      printer.o table.o klib88.o dmp.o paging.o
 
 kernel:	makefile $(obj) $l/libc.a
 	@echo "Start linking Kernel"
@@ -35,6 +35,12 @@ klib88.o:	klib88.s
 
 mpx88.o:	mpx88.s
 	as -o mpx88.o mpx88.s
+mpx64.o:        mpx64.s
+	as -o mpx64.o mpx64.s
+
+idt64.o:        idt64.c
+	$(CC) $(CFLAGS) -c -o idt64.o idt64.c
+
 
 clock.o:	const.h type.h $h/const.h $h/type.h
 clock.o:	$h/callnr.h
