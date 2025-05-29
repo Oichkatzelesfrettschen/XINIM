@@ -1,6 +1,7 @@
 #include "../include/stdio.h"
 
-_cleanup()
+/* Flush all open stdio files */
+void _cleanup(void)
 {
 	register int i;
 

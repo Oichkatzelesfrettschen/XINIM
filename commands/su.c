@@ -4,9 +4,8 @@
 #include "stdio.h"
 #include "pwd.h"
 
-main (argc, argv)
-int   argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 	register char   *name;
 	char   *crypt ();

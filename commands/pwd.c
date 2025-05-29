@@ -6,7 +6,8 @@ struct direct {
     unsigned short d_ino;
     char d_name[14];
 }
-main()
+/* Program entry point */
+int main(void)
 {
 	register int fd;
 	register char name[128], *n;
@@ -68,10 +69,8 @@ main()
 }
 
 
-char   *
-last_index (string, ch)
-register char  *string;
-register char   ch;
+/* Return pointer to last occurrence of CH in STRING */
+static char *last_index(char *string, char ch)
 {
     register char  *retval = 0;
 

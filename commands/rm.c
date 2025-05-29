@@ -13,9 +13,8 @@ int     iflag = 0;
 int     rflag = 0;
 int	exstatus;
 
-main (argc, argv)
-int     argc;
-char   *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
     char   *opt;
 
@@ -51,13 +50,14 @@ char   *argv[];
     exit(exstatus);
 }
 
-usage () {
+/* Print usage information */
+static void usage(void) {
     std_err ("Usage: rm [-fir] file\n");
     exit (1);
 }
 
-remove (name)
-char   *name;
+/* Remove a file or directory */
+static void remove(char *name)
 {
     struct stat s;
     struct direct   d;
@@ -118,8 +118,8 @@ char   *name;
     }
 }
 
-rem_dir (name)
-char   *name;
+/* Remove a directory using rmdir */
+static void rem_dir(char *name)
 {
     int     status;
 
@@ -139,7 +139,8 @@ char   *name;
     }
 }
 
-confirm () {
+/* Ask user for confirmation */
+static int confirm(void) {
     char    c,
             t;
     read (0, &c, 1);
@@ -150,8 +151,8 @@ confirm () {
     return (c == 'y' || c == 'Y');
 }
 
-octal(num)
-unsigned int num;
+/* Print NUM in octal */
+static void octal(unsigned int num)
 {
 	char a[4];
 
@@ -162,8 +163,8 @@ unsigned int num;
 	std_err(a);
 }
 
-stderr3(s1, s2, s3)
-char *s1, *s2, *s3;
+/* Print three error strings */
+static void stderr3(const char *s1, const char *s2, const char *s3)
 {
 	std_err(s1);
 	std_err(s2);

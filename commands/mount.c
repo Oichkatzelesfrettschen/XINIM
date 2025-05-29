@@ -3,9 +3,8 @@
 #include "errno.h"
 extern int errno;
 
-main(argc, argv)
-int argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 
   int ro;
@@ -29,7 +28,8 @@ char *argv[];
 }
 
 
-usage()
+/* Print usage information */
+static void usage(void)
 {
   std_err("Usage: mount special name [-r]\n");
   exit(1);

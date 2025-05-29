@@ -6,9 +6,8 @@
 int     error = 0;
 struct stat st;
 
-main (argc, argv)
-int     argc;
-char  **argv;
+/* Program entry point */
+int main(int argc, char **argv)
 {
     char   *destdir;
 
@@ -60,9 +59,8 @@ char  **argv;
     exit(0);
 }
 
-move (old, new)
-char   *old,
-       *new;
+/* Move file OLD to NEW */
+static void move(char *old, char *new)
 {
     int     retval;
 
@@ -104,8 +102,8 @@ char   *old,
     unlink(old);
 }
 
-cant(name)
-char *name;
+/* Print cannot move error and exit */
+static void cant(const char *name)
 {
 	std_err("mv: can't move ");
 	std_err (name);

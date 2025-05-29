@@ -17,7 +17,8 @@ PRIVATE int  _gfd = -1;
 PRIVATE int  _bufcnt;
 PRIVATE struct group grp;
 
-setgrent ()
+/* Rewind group database */
+int setgrent(void)
 {
         if (_gfd >= 0)
 	        lseek (_gfd, 0L, 0);
@@ -29,7 +30,8 @@ setgrent ()
 }
 
 
-endgrent () 
+/* Close group database */
+void endgrent(void)
 {
         if (_gfd >= 0)
 	        close (_gfd);
@@ -39,7 +41,8 @@ endgrent ()
 }
 
 
-static getline () 
+/* Read one line from the group file */
+static int getline(void)
 {
         if (_gfd < 0 && setgrent () < 0)
 	        return (0);
@@ -61,14 +64,16 @@ static getline ()
         return (1);
 }
 
-static skip_period () 
+/* Skip to next ':' in buffer */
+static void skip_period(void)
 {
         while (*_buf != ':')
 	        _buf++;
         *_buf++ = '\0';
 }
 
-struct group   *getgrent () 
+/* Return next group entry */
+struct group *getgrent(void)
 {
         if (getline () == 0)
                return (0);
@@ -82,8 +87,8 @@ struct group   *getgrent ()
         return (&grp);
 }
 
-struct group   *getgrnam (name)
-char   *name;
+/* Get group entry by name */
+struct group *getgrnam(char *name)
 {
         struct group *grp;
 
@@ -98,8 +103,8 @@ char   *name;
 	        return (0);
 }
 
-struct group   *getgrgid (gid)
-int     gid;
+/* Get group entry by gid */
+struct group *getgrgid(int gid)
 {
         struct group   *grp;
 

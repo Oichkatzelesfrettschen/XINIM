@@ -98,8 +98,8 @@ map_dmp()
 
 char *nayme[]= {"PRINTR", "TTY   ", "WINCHE", "FLOPPY", "RAMDSK", "CLOCK ", 
 		"SYS   ", "HARDWR", "MM    ", "FS    ", "INIT  "};
-prname(i)
-int i;
+/* Print process name by index */
+static void prname(int i)
 {
   if (i == ANY+NR_TASKS)
 	printf("ANY   ");
@@ -109,9 +109,8 @@ int i;
 	printf("%4d  ", i-NR_TASKS);
 }
 
-set_name(proc_nr, ptr)
-int proc_nr;
-char *ptr;
+/* Store command name for dumping */
+static void set_name(int proc_nr, char *ptr)
 {
 /* When an EXEC call is done, the kernel is told about the stack pointer.
  * It uses the stack pointer to find the command line, for dumping

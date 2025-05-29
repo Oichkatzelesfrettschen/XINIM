@@ -4,9 +4,8 @@
 
 int error = 0;
 
-main(argc, argv)
-int argc;
-char **argv;
+/* Program entry point */
+int main(int argc, char **argv)
 {
 	if (argc < 2) {
 		std_err("Usage: mkdir directory...\n");
@@ -22,8 +21,8 @@ char **argv;
 		exit(1);
 }
 
-makedir(dirname)
-char *dirname;
+/* Create a directory */
+static void makedir(char *dirname)
 {
 	char dots[128], parent[128];
 	int sl = 0, i = 0;
@@ -65,8 +64,8 @@ char *dirname;
 	}
 }
 
-stderr3(s1, s2, s3)
-char *s1, *s2, *s3;
+/* Print three error strings */
+static void stderr3(const char *s1, const char *s2, const char *s3)
 {
   std_err(s1);
   std_err(s2);

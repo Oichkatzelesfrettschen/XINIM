@@ -5,9 +5,8 @@
  *  by Patrick van Kleef
  */
 
-main (argc, argv)
-int   argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 	int i;
 	int status = 0;
@@ -33,8 +32,8 @@ char *argv[];
 	exit (status);
 }
 
-oatoi (arg)
-char   *arg;
+/* Convert octal string to int */
+static int oatoi(char *arg)
 {
 	register    c,
 	i;
@@ -47,7 +46,8 @@ char   *arg;
 	return (i);
 }
 
-Usage () {
+/* Print usage message */
+static void Usage(void) {
 	prints ("Usage: chmod [mode] file ...\n");
 	exit (255);
 }
