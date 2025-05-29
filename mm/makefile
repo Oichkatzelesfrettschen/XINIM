@@ -3,7 +3,7 @@ h=../h
 l=../lib
 
 obj =	main.o forkexit.o break.o exec.o signal.o getset.o  \
-	alloc.o utility.o table.o putc.o 
+	alloc.o utility.o table.o paging.o putc.o 
 
 mm:	makefile  $l/head.o $(obj) $l/libc.a $l/end.o
 	@echo "Start linking MM"
@@ -49,6 +49,7 @@ main.o:		$h/error.h
 main.o:		glo.h
 main.o:		mproc.h
 main.o:		param.h
+paging.o:       const.h ../include/paging.h
 
 putc.o:		$h/const.h $h/type.h
 putc.o:		$h/com.h

@@ -116,6 +116,7 @@ PRIVATE mm_init()
    */
   tot_mem = get_tot_mem();	/* # clicks in mem starting at absolute 0 */
   mem_init(tot_mem);		/* initialize tables to all physical mem */
+  mm_paging_init();
 
   /* Initialize MM's tables. */
   mproc[MM_PROC_NR].mp_flags |= IN_USE;
