@@ -19,6 +19,9 @@
 #include "type.h"
 #include "glo.h"
 #include "proc.h"
+#ifdef __x86_64__
+void init_syscall_msrs(void);
+#endif
 
 #define SAFETY             8	/* margin of safety for stack overflow (ints)*/
 #define VERY_BIG       39328	/* must be bigger than kernel size (clicks) */
@@ -127,9 +130,12 @@ PUBLIC main()
   set_vec(FLOPPY_VECTOR, disk_int, base_click);
   set_vec(PRINTER_VECTOR, lpr_int, base_click);
   if (pc_at)
-	  set_vec(AT_WINI_VECTOR, wini_int, base_click);
+          set_vec(AT_WINI_VECTOR, wini_int, base_click);
   else
-	  set_vec(XT_WINI_VECTOR, wini_int, base_click);
+          set_vec(XT_WINI_VECTOR, wini_int, base_click);
+#ifdef __x86_64__
+  init_syscall_msrs();
+#endif
 
   /* Put a ptr to proc table in a known place so it can be found in /dev/mem */
   set_vec( (BASE - 4)/4, proc, (phys_clicks) 0);

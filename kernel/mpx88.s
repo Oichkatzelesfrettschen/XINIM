@@ -85,14 +85,25 @@ M.1:	jmp M.1			| this should never be executed
 |*				s_call					     *
 |*===========================================================================*
 _s_call:			| System calls are vectored here.
-	call save		| save the machine state
-	mov bp,_proc_ptr	| use bp to access sys call parameters
-	push 2(bp)		| push(pointer to user message) (was bx)
-	push (bp)		| push(src/dest) (was ax)
-	push _cur_proc		| push caller
-	push 4(bp)		| push(SEND/RECEIVE/BOTH) (was cx)
-	call _sys_call		| sys_call(function, caller, src_dest, m_ptr)
-	jmp _restart		| jump to code to restart proc/task running
+#ifdef i8088
+        call save               | save the machine state
+        mov bp,_proc_ptr        | use bp to access sys call parameters
+        push 2(bp)              | push(pointer to user message) (was bx)
+        push (bp)               | push(src/dest) (was ax)
+        push _cur_proc          | push caller
+        push 4(bp)              | push(SEND/RECEIVE/BOTH) (was cx)
+        call _sys_call          | sys_call(function, caller, src_dest, m_ptr)
+        jmp _restart            | jump to code to restart proc/task running
+#else
+        call save
+        mov %rdi, %rax
+        mov %rdx, %rdi
+        mov _cur_proc(%rip), %esi
+        mov %rax, %rdx
+        mov %rsi, %rcx
+        call _sys_call
+        jmp _restart
+#endif
 
 
 |*===========================================================================*
