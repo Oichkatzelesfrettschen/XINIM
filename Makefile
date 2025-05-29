@@ -5,6 +5,9 @@ endif
 ifdef DRIVER_PC
 CMAKE_FLAGS += -DDRIVER_PC=$(DRIVER_PC)
 endif
+ifdef CROSS_PREFIX
+CMAKE_FLAGS += -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=$(CROSS_PREFIX)
+endif
 
 all:
 	cmake -B build -S . $(CMAKE_FLAGS)
