@@ -4,6 +4,12 @@ This repository contains the original sources of the Minix 1 operating system as
 released in 1987.  The tree is organized into the major components of the
 system such as the kernel, file system, libraries and user commands.
 
+Minix 1 was originally distributed as an appendix to Andrew S. Tanenbaum's
+book *Operating Systems: Design and Implementation*.  Providing a real
+operating system to accompany the text allowed students to explore the source
+while reading about its design.  This repository preserves that historical
+release.
+
 ## Build Requirements
 
 To compile the sources you need an ANSI C compiler, assembler and linker
