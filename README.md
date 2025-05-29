@@ -8,7 +8,12 @@ system such as the kernel, file system, libraries and user commands.
 
 To compile the sources you need an ANSI C compiler, assembler and linker
 suitable for the target architecture.  The code and makefiles assume a Unix
-like toolchain and environment.
+like toolchain and environment.  Recent versions of GCC (9 or later) work well
+for building the C sources.  Either NASM 2.14 or YASM 1.3 can be used to
+assemble the few hand written assembly files.
+
+More details on building and verifying the project are available in
+`BUILDING.md`.
 
 ## Building
 
