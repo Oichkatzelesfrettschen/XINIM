@@ -45,6 +45,14 @@ driver.  When using the root `Makefile` these variables can be specified on the
 command line, e.g. `make DRIVER_AT=ON`.  If neither option is specified the
 PC/XT driver is used by default.
 
+## Extent Table Helpers
+
+The compatibility layer in `fs/compat.c` now provides `alloc_extent_table()`
+alongside `init_extended_inode()`.  Call `init_extended_inode()` when a new
+inode is created and then invoke `alloc_extent_table()` to allocate and
+initialize the inode's extent table.  The function returns `OK` on success or
+an error code such as `ENOMEM` when memory is exhausted.
+
 ## License
 
 The historic Minix 1 sources were distributed under a permissive license from
