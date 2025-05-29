@@ -7,12 +7,9 @@ endif()
 
 set(KERNEL_SRC
     clock.c dmp.c floppy.c main.c memory.c printer.c proc.c system.c
-    table.c tty.c idt64.c ${WINI_SRC})
+    table.c tty.c idt64.c mpx64.c klib64.c syscall.c ${WINI_SRC})
 
-set(KERNEL_ASM
-    mpx64.s
-    klib64.s
-    syscall.s)
+set(KERNEL_ASM)
 
 add_executable(kernel ${KERNEL_SRC} ${KERNEL_ASM})
 
