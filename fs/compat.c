@@ -16,11 +16,41 @@ PUBLIC void init_extended_inode(struct inode *ip) {
   ip->i_extent_count = 0;
 }
 
-/* Allocate extent table for an inode. Placeholder for real allocator. */
+/* Allocate and zero an extent table for an inode. */
 PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count) {
-  /* Allocation is not implemented; ensure fields reflect failure. */
-  ip->i_extents = NIL_PTR;
-  ip->i_extent_count = 0;
-  (void)count;
-  return ENOSYS;
+  /* Function obtains storage for 'count' extents and attaches the table
+   * to 'ip'.  It returns OK on success or ENOMEM if the allocation fails.
+   */
+
+  extern char *malloc(); /* Memory allocator provided by lib. */
+  extent *table;         /* Pointer to newly allocated extent list. */
+  unsigned short i;      /* Loop counter for initialization.       */
+
+  /* Reject zero-sized tables to avoid undefined behaviour. */
+  if (count == 0) {
+    ip->i_extents = NIL_PTR;
+    ip->i_extent_count = 0;
+    return EINVAL;
+  }
+
+  /* Allocate memory for the extent table. */
+  table = (extent *)malloc((unsigned)(count * sizeof(extent)));
+  if (table == NIL_EXTENT) {
+    /* Allocation failed.  Ensure inode fields remain clear. */
+    ip->i_extents = NIL_PTR;
+    ip->i_extent_count = 0;
+    return ENOMEM;
+  }
+
+  /* Initialize all table entries so the caller starts with empty extents. */
+  for (i = 0; i < count; i++) {
+    table[i].e_start = NO_ZONE;
+    table[i].e_count = 0;
+  }
+
+  /* Attach the table to the inode. */
+  ip->i_extents = table;
+  ip->i_extent_count = count;
+
+  return OK;
 }
