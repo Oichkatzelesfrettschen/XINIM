@@ -9,7 +9,7 @@
 #undef getchar
 #undef NULL
 #undef EOF
-extern int _putchar();
+extern void _putchar(int c);
 extern char *CE, *VS, *SO, *SE, *CL, *AL, *CM;
 #define YMAX		23
 #else
@@ -233,8 +233,12 @@ extern long chars_saved;		/* Nr of chars saved in buffer */
 #define get_shift(cnt)		((cnt) & DUMMY_MASK)
 
 /* Forward declarations */
-extern LINE *proceed(), *install_line();
-extern LINE *match(), *line_insert();
-extern char *alloc(), *num_out(), *basename();
+extern LINE *proceed(LINE *line, int count);
+extern LINE *install_line(char *buffer, int length);
+extern LINE *match(REGEX *program, char *string, FLAG method);
+extern LINE *line_insert(LINE *line, char *string, int len);
+extern char *alloc(unsigned size);
+extern char *num_out(long number);
+extern char *basename(char *path);
 
 #endif YMAX
