@@ -1,3 +1,6 @@
+/*
+ * Compute the length of a string.
+ */
 int strlen(s)
 char *s;
 {

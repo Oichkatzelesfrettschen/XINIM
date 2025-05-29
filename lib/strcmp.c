@@ -1,3 +1,7 @@
+/*
+ * Compare two strings and return the difference between
+ * the first differing characters or zero if they match.
+ */
 int strcmp(s1, s2)
 register char *s1, *s2;
 {
