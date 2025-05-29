@@ -1,0 +1,21 @@
+# Ignore build artifacts
+build/
+*/build/
+
+# Ignore binary output directories
+bin/
+*/bin/
+
+# Ignore object files and assembly backups
+*.o
+*.s~
+
+# Ignore CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+
+# Ignore other temporary files
+*.log
+*.tmp
+*.d
