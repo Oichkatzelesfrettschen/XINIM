@@ -32,9 +32,11 @@ cmake --build build
 
 A simple root `Makefile` runs these commands as well, so you can just run `make` to build everything and `make clean` to remove the `build` directory.
 
-The kernel wini driver can be selected by passing `-DDRIVER_AT=ON` for the AT
-driver or `-DDRIVER_PC=ON` for the original PC/XT driver.  If neither option is
-specified the PC/XT driver is used.
+Both build systems support selecting the kernel wini driver.  Pass
+`-DDRIVER_AT=ON` for the AT driver or `-DDRIVER_PC=ON` for the original PC/XT
+driver.  When using the root `Makefile` these variables can be specified on the
+command line, e.g. `make DRIVER_AT=ON`.  If neither option is specified the
+PC/XT driver is used by default.
 
 ## Documentation Note
 
