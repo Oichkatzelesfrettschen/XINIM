@@ -1,9 +1,26 @@
-# The kernel directory contains files xt_wini.c and at_wini.c.  Before running
-# make you must copy one of these to wini.c, depending on whether you have a
-# PC or an AT.  You must do this even if you do not have a hard disk..
+# The kernel directory contains PC/XT and AT wini driver sources.  Set the
+# `WINI_DRIVER` variable to `pc` or `at` when invoking `make` to select the
+# correct driver.  If not specified the PC/XT driver is used.
 CFLAGS = -Di8088 -O
 h=../h
 l=../lib
+
+# Determine which driver source file to use
+WINI_DRIVER ?= pc
+ifeq ($(DRIVER_AT),ON)
+  ifeq ($(DRIVER_PC),ON)
+    $(error Select only one of DRIVER_AT or DRIVER_PC)
+  endif
+  WINI_DRIVER = at
+else ifeq ($(DRIVER_PC),ON)
+  WINI_DRIVER = pc
+endif
+
+ifeq ($(WINI_DRIVER),at)
+WINI_SRC = at_wini.c
+else
+WINI_SRC = xt_wini.c
+endif
 
 obj = mpx88.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o  \
       printer.o table.o klib88.o dmp.o 
@@ -88,8 +105,9 @@ tty.o:	$h/signal.h
 tty.o:	glo.h
 tty.o:	proc.h
 
-wini.o:	const.h type.h $h/const.h $h/type.h
-wini.o:	$h/callnr.h
-wini.o:	$h/com.h
-wini.o:	$h/error.h
-wini.o:	proc.h
+wini.o: $(WINI_SRC) const.h type.h $h/const.h $h/type.h
+wini.o: $h/callnr.h
+wini.o: $h/com.h
+wini.o: $h/error.h
+wini.o: proc.h
+	$(CC) $(CFLAGS) -c $(WINI_SRC) -o $@
