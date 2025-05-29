@@ -61,3 +61,10 @@ make -C test f=test0
 
 Successful compilation of these small programs indicates the compiler and
 assembler are functioning correctly.
+
+## Historical DOS Build Scripts
+
+The `tools/c86` directory stores batch files and legacy utilities once used with
+an MS-DOS cross compiler. They are kept for reference but are not executed by
+the current build. Modern equivalents written in C (for example `bootblok.c`)
+provide the needed functionality and are built automatically.
