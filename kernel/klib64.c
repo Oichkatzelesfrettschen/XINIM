@@ -1,3 +1,5 @@
+#include "../h/const.h"
+#include "../h/type.h"
 #include "const.h"
 #include "type.h"
 #include "glo.h"

@@ -2,8 +2,6 @@
 # `WINI_DRIVER` variable to `pc` or `at` when invoking `make` to select the
 # correct driver.  If not specified the PC/XT driver is used.
 CFLAGS = -O
-ASM ?= nasm
-ASMFLAGS ?= -f elf64
 h=../h
 l=../lib
 
@@ -25,18 +23,19 @@ WINI_SRC = xt_wini.c
 endif
 
 obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o \
-      printer.o table.o klib64.o dmp.o paging.o
+      printer.o table.o klib64.o dmp.o paging.o syscall.o
 
 kernel:	makefile $(obj) $l/libc.a
 	@echo "Start linking Kernel"
 	@ld -o kernel  $(obj) $l/libc.a $l/end.o
 	@echo "Kernel done"
 
-klib64.o:	klib64.s
-	$(ASM) $(ASMFLAGS) -o $@ $<
-
-mpx64.o:        mpx64.s
-	$(ASM) $(ASMFLAGS) -o $@ $<
+# Compile klib64 from its C source
+klib64.o:       klib64.c
+	$(CC) $(CFLAGS) -c -o $@ $<
+# Compile mpx64 from its C source
+mpx64.o:        mpx64.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 idt64.o:        idt64.c
 	$(CC) $(CFLAGS) -c -o idt64.o idt64.c
