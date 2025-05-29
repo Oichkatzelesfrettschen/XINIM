@@ -21,6 +21,11 @@ cd lib
 make
 ```
 
+The makefiles use relative paths to locate headers and the C library.
+Headers are taken from `../include` and the library defaults to
+`../lib/lib.a`.  Override `CC`, `CFLAGS`, or `LDFLAGS` on the command
+line to adjust the build.
+
 ## Building with CMake
 
 A more convenient option is to use CMake from the repository root:

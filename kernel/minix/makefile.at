@@ -1,14 +1,18 @@
-CFLAGS= -w -F -T.
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -w -F -T.
+CFLAGS += -I$(INC)
 h=../h
-l=/usr/lib
+l=../lib
 
 obj = mpx88.c main.s proc.s system.s tty.s clock.s memory.s floppy.s wini.s  \
       printer.s table.s klib88.c dmp.s
 
-kernel:	makefile $(obj) $l/libc.a
+kernel:	makefile $(obj) $(LIB)
 	@echo "Start linking Kernel.  "
 	@rm -f  /tmp/*
-	@asld -o kernel -T.  $(obj) $l/libc.a $l/end.s
+	@asld $(LDFLAGS) -o kernel -T.  $(obj) $(LIB) $l/end.s
 	@echo "Kernel done.  "
 
 clock.s:	const.h type.h $h/const.h $h/type.h

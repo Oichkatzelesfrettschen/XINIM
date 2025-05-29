@@ -3,7 +3,11 @@
 # correct driver.  If not specified the PC/XT driver is used.
 # Use clang to compile the kernel
 CC ?= clang
-CFLAGS = -O
+CFLAGS ?= -O
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS += -I$(INC)
 h=../h
 l=../lib
 
@@ -27,9 +31,9 @@ endif
 obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o \
       printer.o table.o klib64.o dmp.o paging.o syscall.o
 
-kernel:	makefile $(obj) $l/libc.a
+kernel:	makefile $(obj) $(LIB)
 	@echo "Start linking Kernel"
-	@ld -o kernel  $(obj) $l/libc.a $l/end.o
+	@ld $(LDFLAGS) -o kernel  $(obj) $(LIB) $l/end.o
 	@echo "Kernel done"
 
 # Compile klib64 from its C source

@@ -5,10 +5,16 @@
 
 # Use clang for building the test programs
 CC ?= clang
-CFLAGS = -O -I../include
+# Base compiler flags; users may extend these when invoking make
+CFLAGS ?= -O
+# Always search the shared include directory
+CFLAGS += -I$(INC)
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
 
 # Build the requested test program using the host C compiler.
 # The variable 'f' specifies the base filename of the test.
-file: $(f).c
-	$(CC) $(CFLAGS) -o $(f) $(f).c
+file: $(f).c $(LIB)
+        $(CC) $(CFLAGS) -o $(f) $(f).c $(LIB) $(LDFLAGS)
 

@@ -1,5 +1,9 @@
-l=/usr/lib
-CFLAGS = -F
+l=../lib
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -F
+CFLAGS += -I$(INC)
 
 all:
 	make init
@@ -8,8 +12,8 @@ all:
 	make mkfs
 	make fsck
 
-init:	$l/libc.a init.s $l/head.s
-	asld -o init  $l/head.s init.s $l/libc.a  $l/end.s
+init:	$(LIB) init.s $l/head.s
+	asld $(LDFLAGS) -o init  $l/head.s init.s $(LIB)  $l/end.s
 	@echo init done.
 
 # bootblok.s is the source of the MINIX boot block.  The bootblock is the
@@ -25,27 +29,27 @@ init:	$l/libc.a init.s $l/head.s
 # diskette does not start out by printing 'Booting MINIX 1.0' the problem is
 # probably that you have not made a good boot block.
 bootblok:	bootblok.s
-	@asld $l/crtso.s bootblok.s $l/end.s
+	@asld $(LDFLAGS) $l/crtso.s bootblok.s $l/end.s
 	@dd if=a.out of=bootblok bs=16w skip=1 count=16 2>/dev/null
 	@rm a.out
 	@echo bootblok done.
 
 build:	build.s
-	cc -o build build.s
+	$(CC) $(CFLAGS) $(LDFLAGS) -o build build.s
 	@echo build done.
 
 mkfs:	mkfs.s
-	cc -o mkfs mkfs.s
+	$(CC) $(CFLAGS) $(LDFLAGS) -o mkfs mkfs.s
 	@echo mkfs done.
 mkfs.s:	mkfs.c
-	cc -c -DUNIX mkfs.c
+	$(CC) $(CFLAGS) -c -DUNIX mkfs.c
 
 fsck:	fsck.s fsck1.s
 	@echo "Start linking fsck.  "
-	asld -o fsck -T.  fsck1.s fsck.s $l/libc.a $l/end.s
+	asld $(LDFLAGS) -o fsck -T.  fsck1.s fsck.s $(LIB) $l/end.s
 	@echo fsck done. 
 fsck.s: fsck.c
-	cc -c -w -F -T. fsck.c
+	$(CC) $(CFLAGS) -c fsck.c
 
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces

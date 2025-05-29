@@ -1,14 +1,18 @@
-CFLAGS = -w -F -T.
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -w -F -T.
+CFLAGS += -I$(INC)
 h=../h
-l=/usr/lib
+l=../lib
 
 obj =	main.s forkexit.s break.s exec.s signal.s getset.s  \
 	alloc.s utility.s table.s putc.s 
 
-mm:	makefile    $l/head.s $(obj) $l/libc.a $l/end.s
+mm:	makefile    $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking MM.  "
 	@rm -f /tmp/*
-	@asld -o mm -T. $l/head.s $(obj) $l/libc.a $l/end.s
+	@asld $(LDFLAGS) -o mm -T. $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "MM done.  "
 
 
