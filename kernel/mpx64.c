@@ -1,3 +1,5 @@
+#include "../h/const.h"
+#include "../h/type.h"
 #include "const.h"
 #include "type.h"
 #include "glo.h"
@@ -32,21 +34,21 @@ void save(void) __attribute__((naked));
 void save(void)
 {
     __asm__ volatile(
-        "push %rax\n\t"
-        "push %rbx\n\t"
-        "push %rcx\n\t"
-        "push %rdx\n\t"
-        "push %rsi\n\t"
-        "push %rdi\n\t"
-        "push %rbp\n\t"
-        "push %r8\n\t"
-        "push %r9\n\t"
-        "push %r10\n\t"
-        "push %r11\n\t"
-        "push %r12\n\t"
-        "push %r13\n\t"
-        "push %r14\n\t"
-        "push %r15\n\t"
+        "push %%rax\n\t"
+        "push %%rbx\n\t"
+        "push %%rcx\n\t"
+        "push %%rdx\n\t"
+        "push %%rsi\n\t"
+        "push %%rdi\n\t"
+        "push %%rbp\n\t"
+        "push %%r8\n\t"
+        "push %%r9\n\t"
+        "push %%r10\n\t"
+        "push %%r11\n\t"
+        "push %%r12\n\t"
+        "push %%r13\n\t"
+        "push %%r14\n\t"
+        "push %%r15\n\t"
         "movq _proc_ptr(%%rip), %%r15\n\t"
         "movq 120(%%rsp), %%rax\n\t"
         "movq %%rax, %c0(%%r15)\n\t"
@@ -84,14 +86,15 @@ void save(void)
         "movq %%rax, %c16(%%r15)\n\t"
         "movq (%%rsp), %%rax\n\t"
         "movq %%rax, %c17(%%r15)\n\t"
-        "lea k_stack+K_STACK_BYTES(%%rip), %%rsp\n\t"
+        "leaq k_stack(%%rip), %%rsp\n\t"
+        "add $%c18, %%rsp\n\t"
         "ret"
         :
         : "i"(PC_OFF), "i"(PSW_OFF), "i"(SP_OFF),
           "i"(RAX_OFF), "i"(RBX_OFF), "i"(RCX_OFF), "i"(RDX_OFF),
           "i"(RSI_OFF), "i"(RDI_OFF), "i"(RBP_OFF), "i"(R8_OFF),
           "i"(R9_OFF), "i"(R10_OFF), "i"(R11_OFF), "i"(R12_OFF),
-          "i"(R13_OFF), "i"(R14_OFF), "i"(R15_OFF)
+          "i"(R13_OFF), "i"(R14_OFF), "i"(R15_OFF), "i"(K_STACK_BYTES)
         : "memory", "rax", "r15");
 }
 
@@ -165,10 +168,10 @@ void s_call(void)
 {
     __asm__ volatile(
         "call save\n\t"
-        "movq _proc_ptr(%%rip), %%rdi\n\t"
-        "movq 16(%%rdi), %%rsi\n\t"
-        "movq (%%rdi), %%rdx\n\t"
-        "movq $0, %%rcx\n\t"
+        "movq _proc_ptr(%rip), %rdi\n\t"
+        "movq 16(%rdi), %rsi\n\t"
+        "movq (%rdi), %rdx\n\t"
+        "movq $0, %rcx\n\t"
         "call _sys_call\n\t"
         "jmp restart"
     );
@@ -189,8 +192,8 @@ void disk_int(void)
 {
     __asm__ volatile(
         "call save\n\t"
-        "movq _int_mess+2(%%rip), %%rax\n\t"
-        "movq %%rax, %%rdi\n\t"
+        "movq _int_mess+2(%rip), %rax\n\t"
+        "movq %rax, %rdi\n\t"
         "call _interrupt\n\t"
         "jmp restart"
     );
