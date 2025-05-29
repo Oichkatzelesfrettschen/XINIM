@@ -7,6 +7,10 @@
 PRIVATE struct pml4 kernel_pml4;
 PRIVATE virt_addr64 next_kernel_va;
 
+/*===========================================================================*
+ *                              paging_init                                  *
+ *===========================================================================*/
+/* Initialize kernel paging structures. */
 PUBLIC void paging_init(void)
 {
     int i;
@@ -15,6 +19,13 @@ PUBLIC void paging_init(void)
     next_kernel_va = 0xffff800000000000ULL;
 }
 
+/*===========================================================================*
+ *                              alloc_virtual                                *
+ *===========================================================================*/
+/* Allocate virtual kernel address space.
+ * bytes: size in bytes.
+ * flags: allocation flags (unused).
+ */
 PUBLIC void *alloc_virtual(unsigned long long bytes, int flags)
 {
     virt_addr64 va = next_kernel_va;
@@ -24,6 +35,14 @@ PUBLIC void *alloc_virtual(unsigned long long bytes, int flags)
     return (void *)va;
 }
 
+/*===========================================================================*
+ *                              map_page                                     *
+ *===========================================================================*/
+/* Record a mapping from virtual to physical address.
+ * va: virtual address to map.
+ * pa: physical address to map to.
+ * flags: mapping attributes (unused).
+ */
 PUBLIC int map_page(virt_addr64 va, phys_addr64 pa, int flags)
 {
     /* Mapping is not actually implemented.  We only preserve bookkeeping. */
