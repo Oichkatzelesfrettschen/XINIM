@@ -15,3 +15,7 @@ extern int callx(int proc, int syscallnr);
 extern int len(char *s);
 extern int errno;
 extern int begsig(void);            /* interrupts all vector here */
+
+/* Memory allocation wrappers */
+void *safe_malloc(size_t size);
+void safe_free(void *ptr);

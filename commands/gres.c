@@ -19,6 +19,7 @@
 
 #include "stdio.h"
 #include "regexp.h"
+#include "../include/lib.h"
 
 #define MAXLINE (1024)
 
@@ -119,8 +120,6 @@ getbuf(exp, repstr)
 regexp *exp;
 char *repstr;
 {
-	char *malloc();
-	void free();
 	static bufsize = 0;
 	static char *buf = 0;
 	int guess = 10;
@@ -144,10 +143,10 @@ char *repstr;
 		}
 		repstr++;
 	}
-	if(bufsize < guess) {
-		if(buf != 0)
-			free((char *)buf);
-		buf = malloc(guess);
+        if(bufsize < guess) {
+                if(buf != 0)
+                        safe_free((char *)buf);
+                buf = safe_malloc(guess);
 	}
 	return buf;
 }
