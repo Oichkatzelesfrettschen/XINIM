@@ -14,14 +14,14 @@
  */
 
 #include "../h/const.h"
-#include "../h/type.h"
+#include "../include/vm.h"
 #include "../h/callnr.h"
 #include "../h/com.h"
 #include "../h/error.h"
 #include "const.h"
-#include "glo.h"
 #include "mproc.h"
 #include "param.h"
+#include "glo.h"
 
 #define ENOUGH (phys_clicks) 4096	/* any # > max(FS size, INIT size) */
 #define CLICK_TO_K (1024L/CLICK_SIZE)	/* convert clicks to K */
@@ -117,6 +117,7 @@ PRIVATE mm_init()
   tot_mem = get_tot_mem();	/* # clicks in mem starting at absolute 0 */
   mem_init(tot_mem);		/* initialize tables to all physical mem */
   mm_paging_init();
+  vm_init();                    /* initialize virtual memory subsystem */
 
   /* Initialize MM's tables. */
   mproc[MM_PROC_NR].mp_flags |= IN_USE;
