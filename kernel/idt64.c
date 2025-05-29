@@ -52,6 +52,14 @@ extern void isr_default(void);
 extern void isr_clock(void);
 extern void isr_keyboard(void);
 
+/*===========================================================================*
+ *                              idt_set_gate                                 *
+ *===========================================================================*/
+/* Fill one entry of the IDT.
+ * n: interrupt vector number.
+ * handler: address of handler routine.
+ * ist: interrupt stack table index.
+ */
 static void idt_set_gate(int n, void (*handler)(), unsigned ist)
 {
     uint64_t addr = (uint64_t)handler;
@@ -64,6 +72,10 @@ static void idt_set_gate(int n, void (*handler)(), unsigned ist)
     idt[n].zero        = 0;
 }
 
+/*===========================================================================*
+ *                              idt_init                                     *
+ *===========================================================================*/
+/* Initialize the 64-bit IDT and TSS. */
 void idt_init(void)
 {
     int i;

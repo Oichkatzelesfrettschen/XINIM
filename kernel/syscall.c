@@ -6,6 +6,9 @@
 
 #ifdef __x86_64__
 
+/*===========================================================================*
+ *                              init_syscall_msrs                            *
+ *===========================================================================*/
 /* Configure system call Model Specific Registers. */
 void init_syscall_msrs(void)
 {
@@ -30,6 +33,9 @@ void init_syscall_msrs(void)
         : "eax", "ecx", "edx", "memory");
 }
 
+/*===========================================================================*
+ *                              syscall_entry                                *
+ *===========================================================================*/
 /* Entry point for user mode syscalls. */
 void syscall_entry(void) __attribute__((naked));
 void syscall_entry(void)

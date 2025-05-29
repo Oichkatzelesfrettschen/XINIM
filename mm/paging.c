@@ -5,12 +5,24 @@
 
 PRIVATE virt_addr64 next_user_va;
 
+/*===========================================================================*
+ *                              mm_paging_init                               *
+ *===========================================================================*/
+/* Initialize the user space paging allocator. */
+
 PUBLIC void mm_paging_init(void)
 {
     /* start at low canonical address */
     next_user_va = 0x0000000000400000ULL;
 }
 
+/*===========================================================================*
+ *                              vm_alloc                                     *
+ *===========================================================================*/
+/* Allocate 'bytes' of virtual address space.
+ * bytes: number of bytes requested.
+ * flags: allocation flags (unused).
+ */
 PUBLIC void *vm_alloc(unsigned long long bytes, int flags)
 {
     virt_addr64 va = next_user_va;

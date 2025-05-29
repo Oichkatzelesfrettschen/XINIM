@@ -9,18 +9,28 @@
 #include "extent.h"
 #include "inode.h"
 
-/* Initialize extended inode fields. */
-PUBLIC void init_extended_inode(struct inode *ip) {
+/*===========================================================================*
+ *                              init_extended_inode                           *
+ *===========================================================================*/
+/* Initialize the 64-bit fields of an inode.
+ * ip: inode to set up.
+ */
+PUBLIC void init_extended_inode(struct inode *ip)
+{
   ip->i_size64 = ip->i_size;
   ip->i_extents = NIL_PTR;
   ip->i_extent_count = 0;
 }
 
-/* Allocate and zero an extent table for an inode. */
-PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count) {
-  /* Function obtains storage for 'count' extents and attaches the table
-   * to 'ip'.  It returns OK on success or ENOMEM if the allocation fails.
-   */
+/*===========================================================================*
+ *                              alloc_extent_table                           *
+ *===========================================================================*/
+/* Allocate and zero 'count' extents for an inode.
+ * ip: inode receiving the extent table.
+ * count: number of extents to allocate.
+ */
+PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count)
+{
 
   extern char *malloc(); /* Memory allocator provided by lib. */
   extent *table;         /* Pointer to newly allocated extent list. */

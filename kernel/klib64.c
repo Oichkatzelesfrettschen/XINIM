@@ -8,7 +8,14 @@
 
 /* Minimal 64-bit implementations of low level kernel routines. */
 
-/* Copy a block of physical memory. */
+/*===========================================================================*
+ *                              phys_copy                                    *
+ *===========================================================================*/
+/* Copy a block of physical memory.
+ * src:  source address.
+ * dst:  destination address.
+ * bytes: number of bytes to copy.
+ */
 void phys_copy(void *src, void *dst, long bytes)
 {
     asm volatile(
@@ -18,7 +25,14 @@ void phys_copy(void *src, void *dst, long bytes)
         : "memory");
 }
 
-/* Copy a message from one buffer to another. */
+/*===========================================================================*
+ *                              cp_mess                                      *
+ *===========================================================================*/
+/* Copy a message from one buffer to another.
+ * src: source process number.
+ * src_click, src_off: unused address parts.
+ * dst_click, dst_off: destination buffer.
+ */
 void cp_mess(int src, void *src_click, void *src_off,
              void *dst_click, void *dst_off)
 {
@@ -37,13 +51,25 @@ void cp_mess(int src, void *src_click, void *src_off,
         : "rdi", "rsi", "rcx", "memory");
 }
 
-/* Output a byte to a port. */
+/*===========================================================================*
+ *                              port_out                                     *
+ *===========================================================================*/
+/* Output a byte to an I/O port.
+ * port: port number.
+ * val: value to output.
+ */
 void port_out(unsigned port, unsigned val)
 {
     asm volatile("outb %b0, (%w1)" : : "a"(val), "d"(port));
 }
 
-/* Input a byte from a port. */
+/*===========================================================================*
+ *                              port_in                                      *
+ *===========================================================================*/
+/* Input a byte from an I/O port.
+ * port: port number.
+ * val: location to store the read byte.
+ */
 void port_in(unsigned port, unsigned *val)
 {
     unsigned char tmp;
@@ -51,13 +77,25 @@ void port_in(unsigned port, unsigned *val)
     *val = tmp;
 }
 
-/* Output a word to a port. */
+/*===========================================================================*
+ *                              portw_out                                    *
+ *===========================================================================*/
+/* Output a word to an I/O port.
+ * port: port number.
+ * val: value to output.
+ */
 void portw_out(unsigned port, unsigned val)
 {
     asm volatile("outw %w0, (%w1)" : : "a"(val), "d"(port));
 }
 
-/* Input a word from a port. */
+/*===========================================================================*
+ *                              portw_in                                     *
+ *===========================================================================*/
+/* Input a word from an I/O port.
+ * port: port number.
+ * val: location to store the read word.
+ */
 void portw_in(unsigned port, unsigned *val)
 {
     unsigned short tmp;
@@ -65,6 +103,9 @@ void portw_in(unsigned port, unsigned *val)
     *val = tmp;
 }
 
+/*===========================================================================*
+ *                              lock                                         *
+ *===========================================================================*/
 /* Disable interrupts and save flags. */
 static uint64_t lockvar;
 void lock(void)
@@ -72,19 +113,32 @@ void lock(void)
     asm volatile("pushfq\n\tcli\n\tpop %0" : "=m"(lockvar) :: "memory");
 }
 
+/*===========================================================================*
+ *                              unlock                                       *
+ *===========================================================================*/
 /* Enable interrupts. */
 void unlock(void)
 {
     asm volatile("sti");
 }
 
+/*===========================================================================*
+ *                              restore                                      *
+ *===========================================================================*/
 /* Restore saved interrupt flags. */
 void restore(void)
 {
     asm volatile("push %0\n\tpopfq" : : "m"(lockvar) : "memory");
 }
 
-/* Build a signal frame. */
+/*===========================================================================*
+ *                              build_sig                                    *
+ *===========================================================================*/
+/* Build a signal frame.
+ * dst: buffer to construct the frame.
+ * rp:  process receiving the signal.
+ * sig: signal number.
+ */
 void build_sig(struct sig_info *dst, struct proc *rp, int sig)
 {
     dst->signo = sig;
@@ -92,13 +146,24 @@ void build_sig(struct sig_info *dst, struct proc *rp, int sig)
     dst->sigpcpsw.rflags = rp->p_pcpsw.rflags;
 }
 
-/* Get display type (stub returns 0). */
+/*===========================================================================*
+ *                              get_chrome                                   *
+ *===========================================================================*/
+/* Return display type (stubbed). */
 int get_chrome(void)
 {
     return 0;
 }
 
-/* Copy words to video memory. */
+/*===========================================================================*
+ *                              vid_copy                                     *
+ *===========================================================================*/
+/* Copy words to video memory.
+ * buf:   source buffer or NULL for blanks.
+ * base:  video memory base segment.
+ * off:   offset within video memory.
+ * words: number of words to copy.
+ */
 void vid_copy(void *buf, unsigned base, unsigned off, unsigned words)
 {
     if (!buf)
@@ -112,7 +177,13 @@ void vid_copy(void *buf, unsigned base, unsigned off, unsigned words)
         : "memory");
 }
 
-/* Fetch a byte from memory. */
+/*===========================================================================*
+ *                              get_byte                                     *
+ *===========================================================================*/
+/* Fetch a byte from memory.
+ * seg: segment value (unused).
+ * off: offset within segment.
+ */
 unsigned char get_byte(unsigned seg, unsigned off)
 {
     unsigned char *p = (unsigned char *)(uintptr_t)off;
@@ -120,12 +191,18 @@ unsigned char get_byte(unsigned seg, unsigned off)
     return *p;
 }
 
+/*===========================================================================*
+ *                              reboot                                       *
+ *===========================================================================*/
 /* Halt the CPU. */
 void reboot(void)
 {
     asm volatile("hlt");
 }
 
+/*===========================================================================*
+ *                              wreboot                                      *
+ *===========================================================================*/
 /* Halt the CPU (warm reboot placeholder). */
 void wreboot(void)
 {

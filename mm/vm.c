@@ -14,18 +14,24 @@ PRIVATE struct vm_proc vm_proc_table[NR_PROCS];
 /* State for a very small pseudo random generator used for ASLR. */
 PRIVATE unsigned long rng_state = 1;
 
-/*-------------------------------------------------------------------------
- * next_rand - generate pseudo random numbers.
- *------------------------------------------------------------------------*/
+/*===========================================================================*
+ *                              next_rand                                   *
+ *===========================================================================*/
+/* Generate a pseudo random number.
+ * no parameters.
+ */
 PRIVATE unsigned long next_rand(void)
 {
     rng_state = rng_state * 1103515245 + 12345;
     return rng_state;
 }
 
-/*-------------------------------------------------------------------------
- * vm_init - initialise virtual memory subsystem.
- *------------------------------------------------------------------------*/
+/*===========================================================================*
+ *                              vm_init                                      *
+ *===========================================================================*/
+/* Initialise the virtual memory subsystem.
+ * no parameters.
+ */
 PUBLIC void vm_init(void)
 {
     int i;
@@ -35,9 +41,13 @@ PUBLIC void vm_init(void)
     rng_state = 1;
 }
 
-/*-------------------------------------------------------------------------
- * vm_alloc - allocate virtual address space with ASLR.
- *------------------------------------------------------------------------*/
+/*===========================================================================*
+ *                              vm_alloc                                     *
+ *===========================================================================*/
+/* Allocate virtual address space with ASLR.
+ * bytes: size in bytes to allocate.
+ * flags: protection flags (unused).
+ */
 PUBLIC void *vm_alloc(unsigned long long bytes, int flags)
 {
     virt_addr64 base;
@@ -50,9 +60,13 @@ PUBLIC void *vm_alloc(unsigned long long bytes, int flags)
     return (void *)(base + pages * PAGE_SIZE_4K);
 }
 
-/*-------------------------------------------------------------------------
- * vm_handle_fault - demand page allocation on fault.
- *------------------------------------------------------------------------*/
+/*===========================================================================*
+ *                              vm_handle_fault                              *
+ *===========================================================================*/
+/* Handle a page fault by recording the accessed region.
+ * proc: process index causing the fault.
+ * addr: faulting virtual address.
+ */
 PUBLIC void vm_handle_fault(int proc, virt_addr64 addr)
 {
     /* This routine would allocate a page frame and map it.  Here it is
@@ -67,18 +81,28 @@ PUBLIC void vm_handle_fault(int proc, virt_addr64 addr)
     }
 }
 
-/*-------------------------------------------------------------------------
- * vm_fork - implement copy-on-write fork bookkeeping.
- *------------------------------------------------------------------------*/
+/*===========================================================================*
+ *                              vm_fork                                      *
+ *===========================================================================*/
+/* Duplicate parent's memory bookkeeping for a child process.
+ * parent: index of the parent process.
+ * child: index of the child process.
+ */
 PUBLIC int vm_fork(int parent, int child)
 {
     vm_proc_table[child] = vm_proc_table[parent];
     return OK;
 }
 
-/*-------------------------------------------------------------------------
- * vm_mmap - map a region of memory.
- *------------------------------------------------------------------------*/
+/*===========================================================================*
+ *                              vm_mmap                                      *
+ *===========================================================================*/
+/* Map a region of memory into a process.
+ * proc:   process index to map into.
+ * addr:   desired base address or NULL.
+ * length: length of mapping in bytes.
+ * flags:  mapping flags.
+ */
 PUBLIC void *vm_mmap(int proc, void *addr, unsigned long long length, int flags)
 {
     struct vm_proc *p = &vm_proc_table[proc];
