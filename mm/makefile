@@ -1,15 +1,19 @@
 # Use clang to compile mm
 CC ?= clang
-CFLAGS= -O
+CFLAGS ?= -O
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS += -I$(INC)
 h=../h
 l=../lib
 
 obj =	main.o forkexit.o break.o exec.o signal.o getset.o  \
 	alloc.o utility.o table.o paging.o vm.o putc.o 
 
-mm:	makefile  $l/head.o $(obj) $l/libc.a $l/end.o
+mm:	makefile  $l/head.o $(obj) $(LIB) $l/end.o
 	@echo "Start linking MM"
-	@ld -o mm $l/head.o $(obj) $l/libc.a $l/end.o
+	@ld $(LDFLAGS) -o mm $l/head.o $(obj) $(LIB) $l/end.o
 	@echo "MM done"
 
 

@@ -1,15 +1,19 @@
-CFLAGS= -w -F -T.
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -w -F -T.
+CFLAGS += -I$(INC)
 h=../h
-l=/usr/lib
+l=../lib
 
 obj =	main.s open.s read.s write.s pipe.s device.s \
 	path.s mount.s link.s super.s inode.s cache.s filedes.s \
 	stadir.s protect.s time.s misc.s utility.s table.s putc.s
 
-fs:	makefile   $l/head.s $(obj) $l/libc.a $l/end.s
+fs:	makefile   $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking FS.  "
 	@rm -f  /tmp/*
-	asld -o fs -T. $l/head.s $(obj) $l/libc.a $l/end.s
+	asld $(LDFLAGS) -o fs -T. $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "FS done.  "
 
 cache.s:	const.h type.h $h/const.h $h/type.h

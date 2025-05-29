@@ -1,7 +1,12 @@
 # Use clang to build the tooling
 CC ?= clang
 l=../lib
-CFLAGS = -O -DPCIX
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+# Default optimization flags
+CFLAGS ?= -O -DPCIX
+CFLAGS += -I$(INC)
 
 all:
 	make init
@@ -10,8 +15,8 @@ all:
 	make mkfs
 	make fsck
 
-init:	$l/libc.a init.o $l/head.o
-	ld -o init  $l/head.o init.o $l/libc.a  $l/end.o
+init:	$(LIB) init.o $l/head.o
+	ld $(LDFLAGS) -o init  $l/head.o init.o $(LIB)  $l/end.o
 	@echo init done.
 
 # bootblok.c is the source of the MINIX boot block.  The bootblock is the
@@ -28,21 +33,21 @@ init:	$l/libc.a init.o $l/head.o
 # probably that you have not made a good boot block.
 bootblok:	bootblok.c
 	# Compile the boot block using the C source
-	$(CC) $(CFLAGS) -o bootblok bootblok.c
-	$(CC) $(CFLAGS) -o bootblokgen bootblok.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblok bootblok.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblokgen bootblok.c
 	@echo bootblok done.
 build:	build.o
-	$(CC) -o build build.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o build build.o
 	@echo build done.
 
 mkfs:	mkfs.o
-	$(CC) -o mkfs mkfs.o
+	$(CC) $(CFLAGS) $(LDFLAGS) -o mkfs mkfs.o
 	@echo mkfs done.
 mkfs.o:	mkfs.c
-	$(CC) -c -O -DUNIX mkfs.c
+	$(CC) $(CFLAGS) -DUNIX -c mkfs.c
 
 fsck:	fsck.o fsck1.o diskio.o
-	ld -o fsck  fsck1.o fsck.o diskio.o $l/libc.a
+	ld $(LDFLAGS) -o fsck  fsck1.o fsck.o diskio.o $(LIB)
 	@echo fsck done.
 fsck1.o:	fsck1.c
 	$(CC) $(CFLAGS) -c fsck1.c

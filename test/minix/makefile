@@ -5,10 +5,14 @@
 # Use clang for the 16-bit tests
 CC ?= clang
 
-l=/usr/lib
+l=../lib
 
-CFLAGS = -I/usr/include -F
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -F
+CFLAGS += -I$(INC)
 
-file:	$l/libc.a $f.s
-	@asld -o $f $l/crtso.s  $f.s $l/libc.a $l/end.s
+file:	$(LIB) $(f).s
+	@asld $(LDFLAGS) -o $f $(l)/crtso.s  $(f).s $(LIB) $(l)/end.s
 

@@ -1,7 +1,11 @@
 # Use clang for the legacy tooling
 CC ?= clang
-l=/usr/lib
-CFLAGS = -F
+l=../lib
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -F
+CFLAGS += -I$(INC)
 
 all:
 	make init
@@ -10,8 +14,8 @@ all:
 	make mkfs
 	make fsck
 
-init:	$l/libc.a init.s $l/head.s
-	asld -o init  $l/head.s init.s $l/libc.a  $l/end.s
+init:	$(LIB) init.s $l/head.s
+	asld $(LDFLAGS) -o init  $l/head.s init.s $(LIB)  $l/end.s
 	@echo init done.
 
 # bootblok.c is the source of the MINIX boot block.  The bootblock is the
@@ -27,21 +31,21 @@ init:	$l/libc.a init.s $l/head.s
 # diskette does not start out by printing 'Booting MINIX 1.0' the problem is
 # probably that you have not made a good boot block.
 bootblok:	bootblok.c
-	$(CC) $(CFLAGS) -o bootblok bootblok.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblok bootblok.c
 	@echo bootblok done.
 
 build:	build.c
-	$(CC) $(CFLAGS) -o build build.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o build build.c
 	@echo build done.
 mkfs: mkfs.c
-	$(CC) $(CFLAGS) -DUNIX -o mkfs mkfs.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -DUNIX -o mkfs mkfs.c
 	@echo mkfs done.
 fsck:	fsck.s fsck1.s
 	@echo "Start linking fsck.  /lib/cem will be removed to make space on RAM disk"
-	asld -o fsck  fsck1.s fsck.s $l/libc.a $l/end.s
+	asld $(LDFLAGS) -o fsck  fsck1.s fsck.s $(LIB) $l/end.s
 	@echo fsck done. Please restore /lib/cem manually.
 fsck.s: fsck.c
-	$(CC) -c -w -F -T. fsck.c
+	$(CC) $(CFLAGS) -c fsck.c
 	
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces

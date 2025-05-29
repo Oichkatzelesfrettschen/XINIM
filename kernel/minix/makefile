@@ -3,17 +3,21 @@
 # PC or an AT.  You must do this even if you do not have a hard disk..
 # Use clang for the 16-bit kernel build
 CC ?= clang
-CFLAGS= -w -F -T.
+CFLAGS ?= -w -F -T.
+CFLAGS += -I$(INC)
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
 h=../h
-l=/usr/lib
+l=../lib
 
 obj = mpx88.c main.s proc.s system.s tty.s clock.s memory.s floppy.s wini.s  \
       printer.s table.s klib88.c dmp.s
 
-kernel:	makefile $(obj) $l/libc.a
+kernel:	makefile $(obj) $(LIB)
 	@echo "Start linking Kernel.  /lib/cem will be removed to make space on RAM disk"
 	@rm -f /lib/cem /tmp/*
-	@asld -o kernel  $(obj) $l/libc.a $l/end.s
+	@asld $(LDFLAGS) -o kernel  $(obj) $(LIB) $l/end.s
 	@echo "Kernel done.  Please restore /lib/cem manually"
 
 clock.s:	const.h type.h $h/const.h $h/type.h

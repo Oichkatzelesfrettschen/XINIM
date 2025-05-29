@@ -1,17 +1,21 @@
 # Use clang for the 16-bit fs build
 CC ?= clang
-CFLAGS= -w -F -T.
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS ?= -w -F -T.
+CFLAGS += -I$(INC)
 h=../h
-l=/usr/lib
+l=../lib
 
 obj =	main.s open.s read.s write.s pipe.s device.s \
 	path.s mount.s link.s super.s inode.s cache.s filedes.s \
 	stadir.s protect.s time.s misc.s utility.s table.s putc.s
 
-fs:	makefile   $l/head.s $(obj) $l/libc.a $l/end.s
+fs:	makefile   $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking FS.  /lib/cem will be removed to make space on RAM disk"
 	@rm -f /lib/cem /tmp/*
-	asld -o fs $l/head.s $(obj) $l/libc.a $l/end.s
+	asld $(LDFLAGS) -o fs $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "FS done.  Please restore /lib/cem manually"
 
 cache.s:	const.h type.h $h/const.h $h/type.h

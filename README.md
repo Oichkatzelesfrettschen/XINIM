@@ -29,7 +29,14 @@ The boot utilities now include a rewritten `bootblok.s` capable of loading a 64-
 Every directory contains a `makefile` for building that part of the system.
 Running `make` inside a component (for example `kernel` or `lib`) produces the
 corresponding binaries or libraries.  The `test` directory also provides
-makefiles for compiling small test programs.
+makefiles for compiling small test programs.  All component makefiles search
+for headers under `../include` and link against `../lib/lib.a` by default.
+You can override the `CC`, `CFLAGS`, or `LDFLAGS` variables on the command
+line to customize the build, for example:
+
+```sh
+make -C kernel CC=gcc CFLAGS='-g'
+```
 
 Alternatively the sources can be built with CMake.  From the repository root
 run:
