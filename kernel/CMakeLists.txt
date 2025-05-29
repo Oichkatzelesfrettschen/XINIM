@@ -7,7 +7,7 @@ endif()
 
 set(KERNEL_SRC
     clock.c dmp.c floppy.c main.c memory.c printer.c proc.c system.c
-    table.c tty.c ${WINI_SRC})
+    table.c tty.c idt64.c ${WINI_SRC})
 
 file(GLOB KERNEL_ASM CONFIGURE_DEPENDS *.s *.asm)
 

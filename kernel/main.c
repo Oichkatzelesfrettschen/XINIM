@@ -21,6 +21,7 @@
 #include "proc.h"
 #ifdef __x86_64__
 void init_syscall_msrs(void);
+
 #endif
 
 #define SAFETY             8	/* margin of safety for stack overflow (ints)*/
@@ -58,6 +59,9 @@ PUBLIC main()
 
   lock();			/* we can't handle interrupts yet */
   paging_init();                /* set up initial page tables */
+#ifndef i8088
+  idt_init();                   /* install 64-bit IDT */
+#endif
   base_click = BASE >> CLICK_SHIFT;
   size = sizes[0] + sizes[1];	/* kernel text + data size in clicks */
   mm_base = base_click + size;	/* place where MM starts (in clicks) */

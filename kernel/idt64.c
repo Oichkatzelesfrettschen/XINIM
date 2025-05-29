@@ -1,0 +1,86 @@
+#include "const.h"
+#include "type.h"
+#include <stdint.h>
+
+/* 64-bit Interrupt Descriptor Table and simple TSS setup.  This replaces the
+ * real mode interrupt vector copying done on the 8086 version.  The code only
+ * allocates the tables and loads them; the individual interrupt handlers are
+ * still implemented in assembly.
+ */
+
+struct idt_entry {
+    uint16_t offset_low;
+    uint16_t selector;
+    uint8_t  ist;
+    uint8_t  type_attr;
+    uint16_t offset_mid;
+    uint32_t offset_high;
+    uint32_t zero;
+} __attribute__((packed));
+
+struct idt_ptr {
+    uint16_t limit;
+    uint64_t base;
+} __attribute__((packed));
+
+struct tss64 {
+    uint32_t reserved0;
+    uint64_t rsp0;
+    uint64_t rsp1;
+    uint64_t rsp2;
+    uint64_t reserved1;
+    uint64_t ist1;
+    uint64_t ist2;
+    uint64_t ist3;
+    uint64_t ist4;
+    uint64_t ist5;
+    uint64_t ist6;
+    uint64_t ist7;
+    uint64_t reserved2;
+    uint16_t reserved3;
+    uint16_t io_map_base;
+} __attribute__((packed));
+
+/* Single shared interrupt stack. */
+static uint8_t int_stack[4096];
+
+static struct tss64 kernel_tss;
+static struct idt_entry idt[256];
+static struct idt_ptr   idt_desc;
+
+extern void isr_default(void);
+extern void isr_clock(void);
+extern void isr_keyboard(void);
+
+static void idt_set_gate(int n, void (*handler)(), unsigned ist)
+{
+    uint64_t addr = (uint64_t)handler;
+    idt[n].offset_low  = addr & 0xFFFF;
+    idt[n].selector    = 0x08;            /* kernel code segment */
+    idt[n].ist         = ist & 0x7;
+    idt[n].type_attr   = 0x8E;            /* interrupt gate */
+    idt[n].offset_mid  = (addr >> 16) & 0xFFFF;
+    idt[n].offset_high = (addr >> 32) & 0xFFFFFFFF;
+    idt[n].zero        = 0;
+}
+
+void idt_init(void)
+{
+    int i;
+
+    /* Set up interrupt stack in TSS.  IST1 is used for all interrupts. */
+    kernel_tss.ist1 = (uint64_t)(int_stack + sizeof(int_stack));
+    kernel_tss.io_map_base = sizeof(struct tss64);
+
+    for (i = 0; i < 256; i++)
+        idt_set_gate(i, isr_default, 1);
+
+    idt_set_gate(CLOCK_VECTOR, isr_clock, 1);
+    idt_set_gate(KEYBOARD_VECTOR, isr_keyboard, 1);
+
+    idt_desc.limit = sizeof(idt) - 1;
+    idt_desc.base  = (uint64_t)idt;
+
+    asm volatile("lidt %0" : : "m"(idt_desc));
+    asm volatile("ltr %%ax" : : "a"(0x28)); /* TSS descriptor is at GDT entry 5 */
+}
