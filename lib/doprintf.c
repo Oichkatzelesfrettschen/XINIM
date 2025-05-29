@@ -1,5 +1,10 @@
 #include "../include/stdio.h"
 
+/* Forward declarations for helper routines. */
+static void _bintoascii(long num, int radix, char *a);
+static void _printit(char *str, int w1, int w2, char padchar, int length,
+                     FILE *file);
+
 #define MAXDIGITS 12
 #define PRIVATE   static
 
@@ -116,10 +121,8 @@ int args;
 
 
 
-PRIVATE _bintoascii (num, radix, a)
-long    num;
-int     radix;
-char    *a;
+/* Convert a number to an ASCII string in the given radix. */
+static void _bintoascii(long num, int radix, char *a)
 {
 	char b[MAXDIGITS];
 	int hit, negative;
@@ -182,12 +185,9 @@ char    *a;
 }
 
 
-PRIVATE _printit(str, w1, w2, padchar, length, file)
-char *str;
-int w1, w2;
-char padchar;
-int length;
-FILE *file;
+/* Output a formatted string with padding control. */
+static void _printit(char *str, int w1, int w2, char padchar, int length,
+                     FILE *file)
 {
 	int len2 = length;
 	int temp;
