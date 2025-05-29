@@ -14,7 +14,7 @@ l=../lib
 obj = mpx88.c main.s proc.s system.s tty.s clock.s memory.s floppy.s wini.s  \
       printer.s table.s klib88.c dmp.s
 
-kernel:	makefile $(obj) $(LIB)
+kernel:     Makefile $(obj) $(LIB)
 	@echo "Start linking Kernel.  /lib/cem will be removed to make space on RAM disk"
 	@rm -f /lib/cem /tmp/*
 	@asld $(LDFLAGS) -o kernel  $(obj) $(LIB) $l/end.s

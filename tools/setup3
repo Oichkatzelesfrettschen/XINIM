@@ -81,8 +81,8 @@ echo "Insert 1.2M disk 5"
 getlf
 /etc/mount /dev/at0 /usr
 mv /copy/bin/* /usr/tools
-rm -f /usr/tools/MINIX/makefile
-mv /etc/tools.make /usr/tools/MINIX/makefile
+rm -f /usr/tools/MINIX/Makefile
+mv /etc/tools.make /usr/tools/MINIX/Makefile
 rm -f /copy/bin/*
 /etc/umount /dev/at0
 echo "Tools copied.  Now start on commands"

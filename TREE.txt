@@ -37,7 +37,7 @@
 │   ├── lpr.c
 │   ├── ls.c
 │   ├── make.c
-│   ├── makefile
+│   ├── Makefile
 │   ├── mined.h
 │   ├── mined1.c
 │   ├── mined2.c
@@ -102,8 +102,8 @@
 │   ├── link.c
 │   ├── main.c
 │   ├── minix
-│   │   ├── makefile
-│   │   └── makefile.at
+│   │   ├── Makefile
+│   │   └── Makefile.at
 │   ├── misc.c
 │   ├── mount.c
 │   ├── open.c
@@ -162,11 +162,11 @@
 │   ├── linklist
 │   ├── main.c
 │   ├── make.bat
-│   ├── makefile
+│   ├── Makefile
 │   ├── memory.c
 │   ├── minix
-│   │   ├── makefile
-│   │   └── makefile.at
+│   │   ├── Makefile
+│   │   └── Makefile.at
 │   ├── mpx64.c
 │   ├── mpx88.c
 │   ├── paging.c
@@ -249,7 +249,7 @@
 │   ├── kill.c
 │   ├── link.c
 │   ├── lseek.c
-│   ├── makefile
+│   ├── Makefile
 │   ├── malloc.c
 │   ├── message.c
 │   ├── minix
@@ -320,10 +320,10 @@
 │   ├── getset.c
 │   ├── glo.h
 │   ├── main.c
-│   ├── makefile
+│   ├── Makefile
 │   ├── minix
-│   │   ├── makefile
-│   │   └── makefile.at
+│   │   ├── Makefile
+│   │   └── Makefile.at
 │   ├── mproc.h
 │   ├── paging.c
 │   ├── param.h
@@ -336,9 +336,9 @@
 ├── test
 │   ├── c86
 │   │   └── nullfile
-│   ├── makefile
+│   ├── Makefile
 │   ├── minix
-│   │   └── makefile
+│   │   └── Makefile
 │   ├── run
 │   ├── t10a.c
 │   ├── t11a.c
@@ -381,10 +381,10 @@
     ├── fsck1.c
     ├── getcore.c
     ├── init.c
-    ├── makefile
+    ├── Makefile
     ├── minix
-    │   ├── makefile
-    │   └── makefile.at
+    │   ├── Makefile
+    │   └── Makefile.at
     ├── mkfs.c
     ├── passwd
     ├── proto.dis

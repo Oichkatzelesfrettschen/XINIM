@@ -10,7 +10,7 @@ obj =	main.s open.s read.s write.s pipe.s device.s \
 	path.s mount.s link.s super.s inode.s cache.s filedes.s \
 	stadir.s protect.s time.s misc.s utility.s table.s putc.s
 
-fs:	makefile   $l/head.s $(obj) $(LIB) $l/end.s
+fs:     Makefile   $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking FS.  "
 	@rm -f  /tmp/*
 	asld $(LDFLAGS) -o fs -T. $l/head.s $(obj) $(LIB) $l/end.s
