@@ -1,7 +1,5 @@
 l=../lib
 CFLAGS = -O -DPCIX
-ASM ?= nasm
-ASMFLAGS ?= -f elf64
 
 all:
         make init
@@ -28,7 +26,8 @@ init:	$l/libc.a init.o $l/head.o
 # probably that you have not made a good boot block.
 bootblok:	bootblok.c
 	# Compile the boot block using the C source
-	$(CC) $(CFLAGS) -o bootblok bootblok.c
+	 $(CFLAGS) -o bootblok bootblok.c
+	$(CC) $(CFLAGS) -o bootblokgen bootblok.c
 	@echo bootblok done.
 build:	build.o
 	cc -o build build.o
@@ -43,10 +42,10 @@ mkfs.o:	mkfs.c
 fsck:	fsck.o fsck1.o diskio.o
 	ld -o fsck  fsck1.o fsck.o diskio.o $l/libc.a
 	@echo fsck done.
-fsck1.o:	fsck1.s
-	$(ASM) $(ASMFLAGS) -o fsck1.o fsck1.s
-diskio.o:	diskio.s
-	$(ASM) $(ASMFLAGS) -o diskio.o diskio.s
+fsck1.o:	fsck1.c
+	cc $(CFLAGS) -c fsck1.c
+diskio.o:	diskio.c
+	cc $(CFLAGS) -c diskio.c
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces
 # appears in the image file just as the original does on the disk, except that
