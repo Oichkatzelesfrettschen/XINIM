@@ -41,6 +41,7 @@ CLOCK_TICK	=    2
 .globl _sizes, begtext, begdata, begbss
 
 | The following constants are offsets into the proc table.
+#ifdef i8088
 esreg = 14
 dsreg = 16
 csreg = 18
@@ -51,8 +52,14 @@ PSW   = 28
 SPLIM = 50
 OFF   = 18
 ROFF  = 12
-
-.text
+#else
+SP    = 120
+PC    = 128
+PSW   = 136
+SPLIM = 166
+OFF   = 0
+ROFF  = 0
+#endif
 begtext:
 |*===========================================================================*
 |*				MINIX					     *
@@ -178,6 +185,7 @@ _divide:			| This is where divide overflow traps come.
 |*===========================================================================*
 |*				save					     *
 |*===========================================================================*
+#ifdef i8088
 save:				| save the machine state in the proc table.  
 	push ds			| stack: psw/cs/pc/ret addr/ds
 	push cs			| prepare to restore ds
@@ -212,11 +220,25 @@ save:				| save the machine state in the proc table.
 	add splimit,#8		| splimit checks for stack overflow
 	mov ax,ret_save		| ax = address to return to
 	jmp (ax)		| return to caller; Note: sp points to saved ax
+#else
+save:
+        pushq %rax
+        movq _proc_ptr(%rip), %rbx
+        movq %rsp, SP(%rbx)
+        popq %rax
+        pushfq
+        popq %rax
+        movq %rax, PSW(%rbx)
+        movq (%rsp), %rax
+        movq %rax, PC(%rbx)
+        ret
+#endif
 
 
 |*===========================================================================*
 |*				restart					     *
 |*===========================================================================*
+#ifdef i8088
 _restart:			| This routine sets up and runs a proc or task.
 	cmp _cur_proc,#IDLE	| restart user; if cur_proc = IDLE, go idle
 	je idle			| no user is runnable, jump to idle routine
@@ -243,6 +265,14 @@ _restart:			| This routine sets up and runs a proc or task.
 	push PC-ROFF(bx)	| push pc
 	lds bx,lds_low		| restore ds and bx in one fell swoop
 	iret			| return to user or task
+#else
+_restart:
+        movq _proc_ptr(%rip), %rbx
+        movq SP(%rbx), %rsp
+        pushq PSW(%rbx)
+        pushq PC(%rbx)
+        ret
+#endif
 
 
 |*===========================================================================*

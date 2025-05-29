@@ -292,9 +292,10 @@ _restore:
 |* the hardware generated interrupt format on the stack.  The call is:
 |*     build_sig(sig_stuff, rp, sig)
 
-| Offsets within proc table
-PC    = 24
-csreg = 18
+#ifdef i8088
+ | Offsets within proc table
+ PC    = 24
+ csreg = 18
 PSW   = 28
 
 _build_sig:
@@ -316,6 +317,24 @@ _build_sig:
 	pop bx			| restore bx
 	pop bp			| restore bp
 	ret			| return to caller
+#else
+| Offsets within proc table
+PC    = 128
+PSW   = 136
+
+_build_sig:
+        pushq %rbp
+        movq %rsp,%rbp
+        movq %rdi,%rax
+        movq %rsi,%rbx
+        movl %edx,(%rax)
+        movq PC(%rbx),%rcx
+        movq %rcx,8(%rax)
+        movq PSW(%rbx),%rcx
+        movq %rcx,16(%rax)
+        popq %rbp
+        ret
+#endif
 
 
 |*===========================================================================*

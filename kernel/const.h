@@ -34,7 +34,31 @@
 #define INT2_CTL	0xA0	/* I/O port for second interrupt controller */
 #define INT2_MASK	0xA1	/* setting bits in this port disables ints */
 #define ENABLE          0x20	/* code used to re-enable after an interrupt */
-#endif
+#else /* assume x86_64 */
+/* Register order: rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11, r12, r13, r14, r15 */
+#define NR_REGS           15
+#define INIT_PSW      0x0200
+#define INIT_SP (uint64_t*)0x0
+#define ES_REG             0
+#define DS_REG             0
+#define CS_REG             0
+#define SS_REG             0
+#define VECTOR_BYTES     1024
+#define MEM_BYTES    0x100000000ULL
+#define DIVIDE_VECTOR      0
+#define CLOCK_VECTOR       32
+#define KEYBOARD_VECTOR    33
+#define XT_WINI_VECTOR     34
+#define FLOPPY_VECTOR      35
+#define PRINTER_VECTOR     36
+#define SYS_VECTOR        48
+#define AT_WINI_VECTOR   119
+#define INT_CTL         0x20
+#define INT_CTLMASK     0x21
+#define INT2_CTL        0xA0
+#define INT2_MASK       0xA1
+#define ENABLE          0x20
+
 
 #define TASK_STACK_BYTES 256	/* how many bytes for each task stack */
 #define K_STACK_BYTES    256	/* how many bytes for the kernel stack */
@@ -49,3 +73,4 @@
 #define USER_Q             2	/* ready users are scheduled via queue 2 */
 
 #define printf        printk	/* the kernel really uses printk, not printf */
+#endif

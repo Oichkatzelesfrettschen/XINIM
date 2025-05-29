@@ -4,17 +4,27 @@
  * trap or interrupt, as well as for causing interrupts for signals.
  */
 
-
 #ifdef i8088
 struct pc_psw {
-  int (*pc)();			/* storage for program counter */
-  phys_clicks cs;		/* code segment register */
-  unsigned psw;			/* program status word */
+  int (*pc)();                  /* storage for program counter */
+  phys_clicks cs;               /* code segment register */
+  unsigned psw;                 /* program status word */
 };
 
 /* This struct is used to build data structure pushed by kernel upon signal. */
 struct sig_info {
-  int signo;			/* sig number at end of stack */
+  int signo;                    /* sig number at end of stack */
+  struct pc_psw sigpcpsw;
+};
+#else /* assume x86_64 */
+#include <stdint.h>
+struct pc_psw {
+  uint64_t rip;                 /* instruction pointer */
+  uint64_t rflags;              /* rflags register */
+};
+
+struct sig_info {
+  int signo;
   struct pc_psw sigpcpsw;
 };
 #endif
