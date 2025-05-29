@@ -33,7 +33,7 @@ kernel:	makefile $(obj) $l/libc.a
 # Compile klib64 from its C source
 klib64.o:       klib64.c
 	$(CC) $(CFLAGS) -c -o $@ $<
-# Compile mpx64 from its C source
+
 mpx64.o:        mpx64.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 

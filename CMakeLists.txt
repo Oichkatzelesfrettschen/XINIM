@@ -1,10 +1,8 @@
 cmake_minimum_required(VERSION 3.5)
 project(minix1 C)
-enable_language(ASM_NASM)
-set(CMAKE_ASM_NASM_OBJECT_FORMAT elf64)
 
-# Enforce a strict C99 environment across the project
-set(CMAKE_C_STANDARD 99)
+# Enforce a strict C90 environment across the project
+set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
 
@@ -20,7 +18,6 @@ if(CROSS_COMPILE_X86_64)
   set(CMAKE_SYSTEM_NAME Generic)
   set(CMAKE_SYSTEM_PROCESSOR x86_64)
   set(CMAKE_C_COMPILER "${CROSS_PREFIX}gcc")
-  set(CMAKE_ASM_NASM_COMPILER "${CROSS_PREFIX}nasm")
   set(CMAKE_AR "${CROSS_PREFIX}ar")
   set(CMAKE_RANLIB "${CROSS_PREFIX}ranlib")
   set(CMAKE_LINKER "${CROSS_PREFIX}ld")
