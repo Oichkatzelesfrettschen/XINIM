@@ -8,9 +8,8 @@
 #include "stat.h"
 
   
-main(argc, argv)
-int argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 
   register int i;
@@ -26,8 +25,8 @@ char *argv[];
 }
 
 
-df(name)
-char *name;
+/* Print disk usage for NAME */
+static void df(char *name)
 {
   register int fd;
   int i_count, z_count, totblocks, busyblocks, i;
@@ -101,10 +100,8 @@ char *name;
   close(fd);
 }
 
-bit_count(blocks, bits, fd)
-int blocks;
-int bits;
-int fd;
+/* Count set bits in maps */
+static int bit_count(int blocks, int bits, int fd)
 {
   register int i, b;
   int busy, count, w;
@@ -134,15 +131,15 @@ int fd;
 }
 
 
-stderr2(s1, s2)
-char *s1, *s2;
+/* Print two error strings */
+static void stderr2(const char *s1, const char *s2)
 {
   std_err(s1);
   std_err(s2);
 }
 
-num3(n)
-int n;
+/* Print a number with padding */
+static void num3(int n)
 {
   if (n < 10) prints("  %s", itoa(n));
   else if (n < 100) prints(" %s", itoa(n));

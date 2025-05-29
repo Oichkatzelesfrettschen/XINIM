@@ -1,6 +1,5 @@
-bcopy(old, new, n)
-register char *old, *new;
-int n;
+/* Copy a block of memory */
+void bcopy(char *old, char *new, int n)
 {
 /* Copy a block of data. */
 

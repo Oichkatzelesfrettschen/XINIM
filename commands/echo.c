@@ -3,9 +3,8 @@
 #define SIZE 2048
 char buf[SIZE];
 int count;
-main(argc, argv)
-int argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
   register int i, nflag;
 
@@ -28,8 +27,8 @@ char *argv[];
   exit(0);
 }
 
-collect(s)
-char *s;
+/* Accumulate output into buffer */
+static void collect(char *s)
 {
 /* Collect characters.  For efficiency, write them in large chunks. */
   char c;

@@ -515,8 +515,8 @@ int drive;
   sort(&wini[drive + 1]);
 }
 
-sort(wn)
-register struct wini *wn;
+/* Sort drive order */
+static void sort(register struct wini *wn)
 {
   register int i,j;
 
@@ -528,8 +528,8 @@ register struct wini *wn;
 			swap(&wn[j], &wn[j+1]);
 }
 
-swap(first, second)
-register struct wini *first, *second;
+/* Swap two wini structures */
+static void swap(register struct wini *first, register struct wini *second)
 {
   register struct wini tmp;
 

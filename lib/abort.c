@@ -1,4 +1,5 @@
 /* Minimal abort implementation */
 #include <stdlib.h>
 
-abort() { exit(99); }
+/* Abort the program */
+void abort(void) { exit(99); }

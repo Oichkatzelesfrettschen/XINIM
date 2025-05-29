@@ -9,9 +9,8 @@ struct direct {
 };
 int     error = 0;
 
-main (argc, argv)
-register int argc;
-register char  **argv;
+/* Program entry point */
+int main(int argc, char **argv)
 {
     if (argc < 2) {
 	prints ("Usage: rmdir dir ...\n");
@@ -27,8 +26,8 @@ register char  **argv;
 	exit (1);
 }
 
-remove (dirname)
-char   *dirname;
+/* Remove a directory */
+static void remove(char *dirname)
 {
     struct direct   d;
     struct stat s,
@@ -90,8 +89,8 @@ char   *dirname;
     }
 }
 
-stderr2(s1, s2)
-char *s1, *s2;
+/* Print two error strings */
+static void stderr2(const char *s1, const char *s2)
 {
 	std_err("rmdir: ");
 	std_err(s1);

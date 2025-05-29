@@ -10,9 +10,8 @@
 #define MAGIC       0x0301	/* magic number for executable progs */
 #define MAX         65536L	/* maximum allocation size */
 
-main(argc, argv)
-int argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 /* The 8088 architecture does not make it possible to catch stacks that grow
  * big.  The only way to deal with this problem is to let the stack grow down
@@ -65,14 +64,15 @@ char *argv[];
   exit(0);
 }
 
-usage()
+/* Print usage information */
+static void usage(void)
 {
   std_err("chmem {=+-} amount file\n");
   exit(1);
 }
 
-stderr3(s1, s2, s3)
-char *s1, *s2, *s3;
+/* Print three error strings and exit */
+static void stderr3(const char *s1, const char *s2, const char *s3)
 {
   std_err(s1);
   std_err(s2);

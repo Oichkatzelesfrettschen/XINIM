@@ -10,9 +10,8 @@
 #include "stat.h"
 #include "stdio.h"
 
-main (argc, argv)
-int   argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 	int     i,
 	status = 0;

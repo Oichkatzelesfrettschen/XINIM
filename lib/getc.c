@@ -2,8 +2,8 @@
 
 
 
-getc(iop)
-FILE *iop;
+/* Get a character from stream */
+int getc(FILE *iop)
 {
 	int ch;
 

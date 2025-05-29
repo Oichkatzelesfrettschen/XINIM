@@ -8,9 +8,8 @@ char    pw_tmp[] = "/etc/pwtemp";
 char    bad[] = "Permission denied\n";
 char buf[512];
 
-main (argc, argv)
-int   argc;
-char *argv[];
+/* Program entry point */
+int main(int argc, char *argv[])
 {
 	int     uid, cn, n;
 	int     fpin, fpout;
