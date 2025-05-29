@@ -12,7 +12,6 @@ lib.a: $(OBJS)
 %.o: %.s
 	$(AS) $(ASMFLAGS) -o $@ $<
 
-
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<
 
