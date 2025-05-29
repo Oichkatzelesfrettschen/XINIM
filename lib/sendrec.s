@@ -1,30 +1,23 @@
-| See ../h/com.h for C definitions
-SEND = 1
-RECEIVE = 2
-BOTH = 3
-SYSVEC = 32
+.globl send, receive, send_rec, sendrec
+SEND=1
+RECEIVE=2
+BOTH=3
+.text
+send:
+    mov $0, %rax
+    mov $SEND, %rdx
+    syscall
+    ret
 
-|*========================================================================*
-|                           send and receive                              *
-|*========================================================================*
-| send(), receive(), sendrec() all save bp, but destroy ax, bx, and cx.
-.globl _send, _receive, _sendrec
-_send:	mov cx,*SEND		| send(dest, ptr)
-	jmp L0
+receive:
+    mov $0, %rax
+    mov $RECEIVE, %rdx
+    syscall
+    ret
 
-_receive:
-	mov cx,*RECEIVE		| receive(src, ptr)
-	jmp L0
-
-_sendrec:
-	mov cx,*BOTH		| sendrec(srcdest, ptr)
-	jmp L0
-
-  L0:	push bp			| save bp
-	mov bp,sp		| can't index off sp
-	mov ax,4(bp)		| ax = dest-src
-	mov bx,6(bp)		| bx = message pointer
-	int SYSVEC		| trap to the kernel
-	pop bp			| restore bp
-	ret			| return
-
+sendrec:
+send_rec:
+    mov $0, %rax
+    mov $BOTH, %rdx
+    syscall
+    ret

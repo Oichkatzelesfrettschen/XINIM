@@ -1,34 +1,22 @@
 .globl _setjmp, _longjmp
-.globl csv
 .text
-_setjmp:	mov	bx,sp
-		mov	ax,(bx)
-		mov	bx,*2(bx)
-		mov	(bx),bp
-		mov	*2(bx),sp
-		mov	*4(bx),ax
-		xor	ax,ax
-		ret
+_setjmp:
+    movq %rbx, (%rdi)
+    movq %rbp, 8(%rdi)
+    movq %rsp, 16(%rdi)
+    movq (%rsp), %rax
+    movq %rax, 24(%rdi)
+    xor %eax, %eax
+    ret
 
-_longjmp:	xor	ax,ax
-		call	csv
-		mov	bx,*4(bp)
-		mov	ax,*6(bp)
-		or	ax,ax
-		jne	L1
-		inc	ax
-L1:		mov	cx,(bx)
-L2:		cmp	cx,*0(bp)
-		je	L3
-		mov	bp,*0(bp)
-		or	bp,bp
-		jne	L2
-		hlt
-L3:		mov	di,*-2(bp)
-		mov	si,*-4(bp)
-		mov	bp,*0(bp)
-		mov	sp,*2(bx)
-		mov	cx,*4(bx)
-		mov	bx,sp
-		mov	(bx),cx
-		ret
+_longjmp:
+    movq (%rdi), %rbx
+    movq 8(%rdi), %rbp
+    movq 16(%rdi), %rsp
+    movq 24(%rdi), %rcx
+    test %esi, %esi
+    jne 1f
+    movl $1, %esi
+1:
+    mov %esi, %eax
+    jmp *%rcx

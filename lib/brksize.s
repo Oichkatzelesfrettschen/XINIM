@@ -1,3 +1,5 @@
 .data
-.globl endbss, _brksize
-_brksize: .word endbss
+.globl _brksize
+.globl endbss
+_brksize:
+    .quad endbss
