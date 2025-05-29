@@ -69,3 +69,9 @@ The repository originally included short `read_me` files under `doc` and `lib`.
 These files have been removed for brevity but their history remains available in
 Git if needed.
 
+## Repository Tree
+
+The file `TREE.txt` records the directory layout of the repository. To refresh
+it run `python3 tools/ascii_tree.py --exclude TREE.txt > TREE.txt` from the
+project root.
+

@@ -1,0 +1,401 @@
+/workspace/minix1
+├── BUILDING.md
+├── CMakeLists.txt
+├── LICENSE
+├── Makefile
+├── README.md
+├── commands
+│   ├── CMakeLists.txt
+│   ├── ar.c
+│   ├── basename.c
+│   ├── c86
+│   │   └── make.bat
+│   ├── cal.c
+│   ├── cat.c
+│   ├── cc.c
+│   ├── chmem.c
+│   ├── chmod.c
+│   ├── chown.c
+│   ├── clr.c
+│   ├── cmp.c
+│   ├── comm.c
+│   ├── cp.c
+│   ├── date.c
+│   ├── dd.c
+│   ├── df.c
+│   ├── dosread.c
+│   ├── echo.c
+│   ├── getlf.c
+│   ├── grep.c
+│   ├── gres.c
+│   ├── head.c
+│   ├── kill.c
+│   ├── libpack.c
+│   ├── libupack.c
+│   ├── ln.c
+│   ├── login.c
+│   ├── lpr.c
+│   ├── ls.c
+│   ├── make.c
+│   ├── makefile
+│   ├── mined.h
+│   ├── mined1.c
+│   ├── mined2.c
+│   ├── mkdir.c
+│   ├── mkfs.c
+│   ├── mknod.c
+│   ├── mount.c
+│   ├── mv.c
+│   ├── od.c
+│   ├── passwd.c
+│   ├── pr.c
+│   ├── pwd.c
+│   ├── rev.c
+│   ├── rm.c
+│   ├── rmdir.c
+│   ├── roff.c
+│   ├── sh1.c
+│   ├── sh2.c
+│   ├── sh3.c
+│   ├── sh4.c
+│   ├── sh5.c
+│   ├── shar.c
+│   ├── size.c
+│   ├── sleep.c
+│   ├── sort.c
+│   ├── split.c
+│   ├── stty.c
+│   ├── su.c
+│   ├── sum.c
+│   ├── sync.c
+│   ├── tail.c
+│   ├── tar.c
+│   ├── tee.c
+│   ├── time.c
+│   ├── touch.c
+│   ├── tr.c
+│   ├── umount.c
+│   ├── uniq.c
+│   ├── update.c
+│   ├── wc.c
+│   └── x.c
+├── fs
+│   ├── CMakeLists.txt
+│   ├── buf.h
+│   ├── c86
+│   │   ├── _link.bat
+│   │   ├── linklist
+│   │   └── make.bat
+│   ├── cache.c
+│   ├── compat.c
+│   ├── compat.h
+│   ├── const.h
+│   ├── dev.h
+│   ├── device.c
+│   ├── extent.h
+│   ├── file.h
+│   ├── filedes.c
+│   ├── fproc.h
+│   ├── glo.h
+│   ├── inode.c
+│   ├── inode.h
+│   ├── link.c
+│   ├── main.c
+│   ├── minix
+│   │   ├── makefile
+│   │   └── makefile.at
+│   ├── misc.c
+│   ├── mount.c
+│   ├── open.c
+│   ├── param.h
+│   ├── path.c
+│   ├── pipe.c
+│   ├── protect.c
+│   ├── putc.c
+│   ├── read.c
+│   ├── stadir.c
+│   ├── super.c
+│   ├── super.h
+│   ├── table.c
+│   ├── time.c
+│   ├── type.h
+│   ├── utility.c
+│   └── write.c
+├── h
+│   ├── callnr.h
+│   ├── com.h
+│   ├── const.h
+│   ├── error.h
+│   ├── sgtty.h
+│   ├── signal.h
+│   ├── stat.h
+│   └── type.h
+├── include
+│   ├── blocksiz.h
+│   ├── ctype.h
+│   ├── errno.h
+│   ├── grp.h
+│   ├── lib.h
+│   ├── mined.h
+│   ├── paging.h
+│   ├── pwd.h
+│   ├── regexp.h
+│   ├── setjmp.h
+│   ├── sgtty.h
+│   ├── sh.h
+│   ├── signal.h
+│   ├── stat.h
+│   ├── stdio.h
+│   └── vm.h
+├── kernel
+│   ├── CMakeLists.txt
+│   ├── _link.bat
+│   ├── at_wini.c
+│   ├── clock.c
+│   ├── const.h
+│   ├── dmp.c
+│   ├── floppy.c
+│   ├── glo.h
+│   ├── idt64.c
+│   ├── klib64.c
+│   ├── klib88.c
+│   ├── linklist
+│   ├── main.c
+│   ├── make.bat
+│   ├── makefile
+│   ├── memory.c
+│   ├── minix
+│   │   ├── makefile
+│   │   └── makefile.at
+│   ├── mpx64.c
+│   ├── mpx88.c
+│   ├── paging.c
+│   ├── printer.c
+│   ├── proc.c
+│   ├── proc.h
+│   ├── syscall.c
+│   ├── system.c
+│   ├── table.c
+│   ├── tty.c
+│   ├── type.h
+│   ├── wini.c
+│   └── xt_wini.c
+├── lib
+│   ├── CMakeLists.txt
+│   ├── abort.c
+│   ├── abs.c
+│   ├── access.c
+│   ├── alarm.c
+│   ├── atoi.c
+│   ├── atol.c
+│   ├── bcopy.c
+│   ├── brk.c
+│   ├── brk2.c
+│   ├── brksize.c
+│   ├── c86
+│   │   ├── make.bat
+│   │   └── prologue.h
+│   ├── call.c
+│   ├── catchsig.c
+│   ├── chdir.c
+│   ├── chmod.c
+│   ├── chown.c
+│   ├── chroot.c
+│   ├── cleanup.c
+│   ├── close.c
+│   ├── creat.c
+│   ├── crt0.c
+│   ├── crtso.c
+│   ├── crypt.c
+│   ├── csv.c
+│   ├── ctype.c
+│   ├── doprintf.c
+│   ├── doscanf.c
+│   ├── dup.c
+│   ├── dup2.c
+│   ├── end.c
+│   ├── exec.c
+│   ├── exit.c
+│   ├── fclose.c
+│   ├── fflush.c
+│   ├── fgets.c
+│   ├── fopen.c
+│   ├── fork.c
+│   ├── fprintf.c
+│   ├── fputs.c
+│   ├── fread.c
+│   ├── freopen.c
+│   ├── fseek.c
+│   ├── fstat.c
+│   ├── ftell.c
+│   ├── fwrite.c
+│   ├── getc.c
+│   ├── getegid.c
+│   ├── getenv.c
+│   ├── geteuid.c
+│   ├── getgid.c
+│   ├── getgrent.c
+│   ├── getpass.c
+│   ├── getpid.c
+│   ├── getpwent.c
+│   ├── gets.c
+│   ├── getuid.c
+│   ├── getutil.c
+│   ├── head.c
+│   ├── index.c
+│   ├── ioctl.c
+│   ├── isatty.c
+│   ├── itoa.c
+│   ├── kill.c
+│   ├── link.c
+│   ├── lseek.c
+│   ├── makefile
+│   ├── malloc.c
+│   ├── message.c
+│   ├── minix
+│   │   ├── crtso.c
+│   │   ├── end.c
+│   │   ├── head.c
+│   │   └── setjmp.c
+│   ├── mknod.c
+│   ├── mktemp.c
+│   ├── mount.c
+│   ├── open.c
+│   ├── pause.c
+│   ├── perror.c
+│   ├── pipe.c
+│   ├── printdat.c
+│   ├── printk.c
+│   ├── prints.c
+│   ├── putc.c
+│   ├── rand.c
+│   ├── read.c
+│   ├── regexp.c
+│   ├── regsub.c
+│   ├── rindex.c
+│   ├── run
+│   ├── scanf.c
+│   ├── sendrec.c
+│   ├── setbuf.c
+│   ├── setgid.c
+│   ├── setjmp.c
+│   ├── setuid.c
+│   ├── signal.c
+│   ├── sleep.c
+│   ├── sprintf.c
+│   ├── stat.c
+│   ├── stb.c
+│   ├── stderr.c
+│   ├── stime.c
+│   ├── strcat.c
+│   ├── strcmp.c
+│   ├── strcpy.c
+│   ├── strlen.c
+│   ├── strncat.c
+│   ├── strncmp.c
+│   ├── strncpy.c
+│   ├── sync.c
+│   ├── syscall_x86_64.c
+│   ├── syslib.c
+│   ├── time.c
+│   ├── times.c
+│   ├── umask.c
+│   ├── umount.c
+│   ├── ungetc.c
+│   ├── unlink.c
+│   ├── utime.c
+│   ├── wait.c
+│   └── write.c
+├── mm
+│   ├── CMakeLists.txt
+│   ├── alloc.c
+│   ├── break.c
+│   ├── c86
+│   │   ├── _link.bat
+│   │   ├── linklist
+│   │   └── make.bat
+│   ├── const.h
+│   ├── exec.c
+│   ├── forkexit.c
+│   ├── getset.c
+│   ├── glo.h
+│   ├── main.c
+│   ├── makefile
+│   ├── minix
+│   │   ├── makefile
+│   │   └── makefile.at
+│   ├── mproc.h
+│   ├── paging.c
+│   ├── param.h
+│   ├── putc.c
+│   ├── signal.c
+│   ├── table.c
+│   ├── type.h
+│   ├── utility.c
+│   └── vm.c
+├── test
+│   ├── c86
+│   │   └── nullfile
+│   ├── makefile
+│   ├── minix
+│   │   └── makefile
+│   ├── run
+│   ├── t10a.c
+│   ├── t11a.c
+│   ├── t11b.c
+│   ├── t15a.c
+│   ├── t16a.c
+│   ├── t16b.c
+│   ├── test0.c
+│   ├── test1.c
+│   ├── test10.c
+│   ├── test11.c
+│   ├── test12.c
+│   ├── test2.c
+│   ├── test3.c
+│   ├── test4.c
+│   ├── test5.c
+│   ├── test6.c
+│   ├── test7.c
+│   ├── test8.c
+│   └── test9.c
+└── tools
+    ├── CMakeLists.txt
+    ├── ascii_tree.py
+    ├── bootblok.c
+    ├── build.c
+    ├── c86
+    │   ├── _bootblo.bat
+    │   ├── _build.bat
+    │   ├── _dos2out.bat
+    │   ├── _fsck.bat
+    │   ├── _image.bat
+    │   ├── _init.bat
+    │   ├── _mkfs.bat
+    │   ├── bootblok
+    │   ├── dos2out.c
+    │   └── make.bat
+    ├── changeme
+    ├── diskio.c
+    ├── fsck.c
+    ├── fsck1.c
+    ├── getcore.c
+    ├── init.c
+    ├── makefile
+    ├── minix
+    │   ├── makefile
+    │   └── makefile.at
+    ├── mkfs.c
+    ├── passwd
+    ├── proto.dis
+    ├── proto.ram
+    ├── proto.use
+    ├── proto.usr
+    ├── r.c
+    ├── rc.at
+    ├── run
+    ├── setup1
+    ├── setup2
+    ├── setup3
+    ├── ttys
+    └── versions
