@@ -4,32 +4,32 @@ ASM ?= nasm
 ASMFLAGS ?= -f elf64
 
 all:
-	make init
-	make bootblok
-	make build
-	make mkfs
-	make fsck
+        make init
+        make bootblok
+        make build
+        make mkfs
+        make fsck
 
 init:	$l/libc.a init.o $l/head.o
 	ld -o init  $l/head.o init.o $l/libc.a  $l/end.o
 	@echo init done.
 
-# bootblok.s is the source of the MINIX boot block.  The bootblock is the
-# first 512 bytes on the image file and on the boot diskette.  When bootblok.s
+# bootblok.c is the source of the MINIX boot block.  The bootblock is the
+# first 512 bytes on the image file and on the boot diskette.  When bootblok.c
 # is assembled, it generates a short binary file (less than 400 bytes) that
 # must be stripped of its header and copied to the file bootblok.  The dd
 # command below does this.  If everything has been done right, the bootblok
 # file should begin with the following 8 words, in hex:
 # c0b8 8e07 33d8 b8f6 2fe0 c08e ff33 00b9
-# The exact procedure for going from bootblok.s to the binary file stripped of
+# The exact procedure for going from bootblok.c to the binary file stripped of
 # its header is somewhat operating system dependent.  Some assemblers make
 # an object (.o) file; others make an a.out file directly. If your boot 
 # diskette does not start out by printing 'Booting MINIX 1.0' the problem is
 # probably that you have not made a good boot block.
-bootblok:	bootblok.s
-	nasm -f bin -o bootblok bootblok.s
+bootblok:	bootblok.c
+	# Compile the boot block using the C source
+	$(CC) $(CFLAGS) -o bootblok bootblok.c
 	@echo bootblok done.
-
 build:	build.o
 	cc -o build build.o
 	@echo build done.

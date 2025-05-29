@@ -4,9 +4,9 @@
 # Get the idea?
 
 CFLAGS = -O -I../include
-h=../h
-l=../lib
 
-file:	$l/libc.a $f.o
-	@ld -s -o $f $l/crtso.o  $f.o $l/libc.a $l/end.o
+# Build the requested test program using the host C compiler.
+# The variable 'f' specifies the base filename of the test.
+file: $(f).c
+	$(CC) $(CFLAGS) -o $(f) $(f).c
 
