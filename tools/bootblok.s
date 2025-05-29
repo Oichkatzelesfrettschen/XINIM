@@ -1,16 +1,14 @@
 [BITS 16]
 [ORG 0x7C00]
 
-; ------------------------------------------------------------------
-; Minimal boot block for loading a 64-bit kernel
-; ------------------------------------------------------------------
-; This rewritten boot sector first loads the kernel from disk using
-; BIOS services, then performs the transition from real mode to
-; protected mode and finally long mode.  A single 2&nbsp;MiB identity
-; mapped page is created so the kernel can be entered in 64&nbsp;bit mode.
-; The number of sectors to read and the 32&nbsp;bit entry address of the
-; kernel are patched in by the build utility.
-; ------------------------------------------------------------------
+; ----------------------------------------------------------------------
+; Simple 64-bit boot block
+; ----------------------------------------------------------------------
+; This NASM style boot sector loads a 64-bit kernel using BIOS
+; INT 13h extensions and then switches the CPU from real mode to
+; long mode.  The build utility patches the sector count, the LBA
+; of the kernel and the 64-bit kernel entry address.
+; ----------------------------------------------------------------------
 
 start:
     cli
@@ -20,35 +18,27 @@ start:
     mov ss, ax
     mov sp, 0x7C00
 
-    ; Load kernel at 0x100000 using BIOS INT 13h
-    mov si, [sector_count]
-    mov di, 0x1000            ; load segment 0x1000:0 => 0x10000
-    mov bx, 0x0000
-.load_loop:
-    push si
-    mov ah, 0x02
-    mov al, 1                 ; one sector
-    mov ch, byte [track]
-    mov cl, byte [sector]
-    mov dh, byte [head]
-    mov dl, 0x00
+    ; fill disk address packet
+    mov ax, [sector_count]
+    mov [dap+2], ax
+    mov eax, dword [kernel_lba]
+    mov [dap+8], eax
+    mov eax, dword [kernel_lba+4]
+    mov [dap+12], eax
+
+    mov dl, [drive]
+    mov si, dap
+    mov ah, 0x42
     int 0x13
     jc disk_error
-    pop si
-    add word [sector], 1
-    add bx, 512
-    dec si
-    jnz .load_loop
 
-    ; Enable A20 (via port 0x92)
+    ; enable A20 via port 0x92
     in al, 0x92
     or al, 2
     out 0x92, al
 
-    ; Set up GDT
+    ; set up GDT and enter protected mode
     lgdt [gdt_desc]
-
-    ; Enter protected mode
     mov eax, cr0
     or eax, 1
     mov cr0, eax
@@ -64,28 +54,27 @@ pmode_start:
     mov ss, ax
     mov esp, 0x90000
 
-    ; Set up 64-bit page tables (identity map first 2MiB)
-    mov dword [pml4], pdpt | 0x03
+    ; build minimal page tables mapping first 2MiB
+    mov dword [pml4], pdpt + 0x03
     mov dword [pml4+4], 0
-    mov dword [pdpt], pd | 0x03
+    mov dword [pdpt], pd + 0x03
     mov dword [pdpt+4], 0
-    mov dword [pd], 0x00000083   ; 2MiB page
+    mov dword [pd], 0x00000083
     mov dword [pd+4], 0
 
     mov eax, pml4
     mov cr3, eax
     mov eax, cr4
-    or eax, 1 << 5       ; PAE
+    or eax, 1 << 5            ; PAE
     mov cr4, eax
 
-    ; enable long mode
     mov ecx, 0xC0000080
     rdmsr
     or eax, 1 << 8
     wrmsr
 
     mov eax, cr0
-    or eax, 0x80000001   ; PG | PE
+    or eax, 0x80000001        ; PG|PE
     mov cr0, eax
     jmp 0x18:lmode_start
 
@@ -102,14 +91,26 @@ lmode_start:
 disk_error:
     hlt
 
-; ------------------------------------------------------------------
+; ----------------------------------------------------------------------
 ; Data and tables
-; ------------------------------------------------------------------
-sector_count:   dw 0      ; patched by build
-kernel_entry:   dd 0      ; patched by build (low 32 bits)
-track:          db 0
-sector:         db 2      ; first sector after the boot block
-head:           db 0
+; ----------------------------------------------------------------------
+
+kernel_load_addr equ 0x00100000
+
+sector_count:   dw 0        ; patched by build
+kernel_entry:   dq 0        ; patched by build
+kernel_lba:     dq 2        ; start sector of kernel
+drive:          db 0
+
+align 4
+; disk address packet for INT 13h extensions
+; offset 0: size (16), offset 2: count, offset 4: buffer, offset 8: lba
+
+dap:
+    db 16,0
+    dw 0
+    dd kernel_load_addr
+    dq 0
 
 align 8
 pml4:   dq 0
@@ -129,6 +130,6 @@ gdt_desc:
     dw GDT_end - GDT - 1
     dd GDT
 
-; Pad and boot signature
-times 510-($-$$) db 0
+; boot signature
+    times 510-($-$$) db 0
     dw 0xAA55

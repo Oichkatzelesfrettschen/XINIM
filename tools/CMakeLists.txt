@@ -1,5 +1,5 @@
 file(GLOB TOOL_SRC *.c)
-file(GLOB TOOL_ASM *.s *.asm)
+file(GLOB TOOL_ASM *.s)
 foreach(src ${TOOL_SRC})
   get_filename_component(prog ${src} NAME_WE)
   set(target tool_${prog})
