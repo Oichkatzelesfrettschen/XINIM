@@ -407,6 +407,7 @@
 #include "mined.h"
 #include "signal.h"
 #include "sgtty.h"
+#include "../include/lib.h"
 #ifdef UNIX
 #include <errno.h>
 #else
@@ -1241,15 +1242,14 @@ register char *p;
 char *alloc(bytes)
 int bytes;
 {
-  extern char *malloc();
 
-  return malloc((unsigned) bytes);
+  return safe_malloc((unsigned) bytes);
 }
 
 free_space(p)
 char *p;
 {
-  free(p);
+  safe_free(p);
 }
 #endif lint
 

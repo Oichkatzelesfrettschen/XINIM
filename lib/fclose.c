@@ -1,4 +1,5 @@
 #include "../include/stdio.h"
+#include "../include/lib.h"
 
 fclose(fp)
 FILE *fp;
@@ -14,9 +15,9 @@ FILE *fp;
 		return(EOF);
 	fflush(fp);
 	close(fp->_fd);
-	if ( testflag(fp,IOMYBUF) && fp->_buf )
-		free( fp->_buf );
-	free(fp);
+        if ( testflag(fp,IOMYBUF) && fp->_buf )
+                safe_free( fp->_buf );
+        safe_free(fp);
 	return(NULL);
 }
 

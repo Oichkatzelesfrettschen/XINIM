@@ -1,4 +1,5 @@
 #include "../include/stdio.h"
+#include "../include/lib.h"
 
 #define PMODE 0644
 
@@ -14,7 +15,6 @@ FILE *fopen(const char *name, const char *mode)
 {
     int i;          /* index into _io_table */
     FILE *fp;       /* resulting stream */
-    char *malloc();
     int fd;         /* file descriptor from open/creat */
     int flags = 0;  /* stream flags */
 
@@ -58,20 +58,15 @@ FILE *fopen(const char *name, const char *mode)
 
 
     /* Allocate the FILE structure. */
-    fp = (FILE *)malloc(sizeof(FILE));
-    if (fp == NULL)
-        return NULL;
+    fp = (FILE *)safe_malloc(sizeof(FILE));
 
 
     /* Initialize the stream structure. */
     fp->_count = 0;
     fp->_fd = fd;
     fp->_flags = flags;
-    fp->_buf = malloc(BUFSIZ);
-    if (fp->_buf == NULL)
-        fp->_flags |= UNBUFF;    /* fallback to unbuffered if allocation fails */
-    else
-        fp->_flags |= IOMYBUF;
+    fp->_buf = safe_malloc(BUFSIZ);
+    fp->_flags |= IOMYBUF;
 
     fp->_ptr = fp->_buf;
     _io_table[i] = fp;

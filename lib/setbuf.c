@@ -1,12 +1,13 @@
-#include	"../include/stdio.h"
+#include "../include/stdio.h"
+#include "../include/lib.h"
 
 
 setbuf(iop, buffer)
 FILE *iop;
 char *buffer;
 {
-	if ( iop->_buf && testflag(iop,IOMYBUF) )
-		free(iop->_buf);
+        if ( iop->_buf && testflag(iop,IOMYBUF) )
+                safe_free(iop->_buf);
 
 	iop->_flags &= ~(IOMYBUF | UNBUFF | PERPRINTF);
 

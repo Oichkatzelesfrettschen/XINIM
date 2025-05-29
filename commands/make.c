@@ -1,5 +1,6 @@
 #include "stdio.h"
 #include "errno.h"
+#include "../include/lib.h"
 extern int errno;
 
 #ifdef LC
@@ -504,9 +505,9 @@ struct m_preq   ma;
 	if (defnp->howto != NULL)   /* we had instructions */
 	    madesomething = TRUE;
     }
-    if ( m_comp != NULL ) free( m_comp );
-    if ( m_ood  != NULL ) free( m_ood );
-    if ( m_obj  != NULL ) free( m_obj );
+    if ( m_comp != NULL ) safe_free( m_comp );
+    if ( m_ood  != NULL ) safe_free( m_ood );
+    if ( m_obj  != NULL ) safe_free( m_obj );
     return(defnp->modified);
 
 }
@@ -1041,7 +1042,7 @@ char *ptr;
     strcat(ptr," ");
     strcat(ptr,f2);
     strcat(ptr,f3);
-    if ( f1 != NULL ) free( f1 );
+    if ( f1 != NULL ) safe_free( f1 );
     return( ptr );
 }
 
@@ -1744,19 +1745,19 @@ struct llist *ptr;
 
     if ( head == NULL ) return;
     else if ( head->next == NULL ) {
-	free( head->name );
-	free( (char *)head );
+        safe_free( head->name );
+        safe_free( (char *)head );
 	return;
     }
     else {
 	while ( TRUE ) {
 	    for ( ptr = head; ptr->next->next != NULL; ptr = ptr->next ) ;
-	    free(ptr->next->name);
-	    free((char *)ptr->next);
+            safe_free(ptr->next->name);
+            safe_free((char *)ptr->next);
 	    ptr->next = NULL;
 	    if ( ptr == head ) {
-		free( ptr->name );
-		free( (char *)ptr);
+                safe_free( ptr->name );
+                safe_free( (char *)ptr);
 		return;
 	    }
 	}
@@ -1860,7 +1861,7 @@ char wholenam[INMAXSH];
 	execv(wholenam,vargs);
 	done( -1 );
     }
-    free( (char *)vargs );
+    safe_free( (char *)vargs );
     free_list( largs );
 
     if ( pid < 0 ) {
@@ -1880,7 +1881,7 @@ char wholenam[INMAXSH];
 	    perror(whoami);
 	    panicstop();
     }
-    free( (char *)vargs );
+    safe_free( (char *)vargs );
     free_list( largs );
     ccode = wait();
     return( pr_warning(&ccode) );
@@ -1982,20 +1983,17 @@ struct llist *arglist;
 char *get_mem(size)
 UI size;
 {
-char *p,*malloc();
+char *p;
 
-    if ((p = malloc(size)) == 0)
-	panic("Ran out of memory");
+    p = safe_malloc(size);
     return(p);
 }
 
 struct llist *MkListMem()
 {
 struct llist *p;
-char *malloc();
 
-    if ((p = (struct llist *)malloc(sizeof(struct llist))) == 0 )
-	panic("Ran out of memory");
+    p = (struct llist *)safe_malloc(sizeof(struct llist));
     return(p);
 }
 

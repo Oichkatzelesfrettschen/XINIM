@@ -1,5 +1,6 @@
 #include <setjmp.h>
 #include <stdlib.h>
+#include "../include/lib.h"
 #include "../include/setjmp.h"
 
 /*
@@ -8,10 +9,7 @@
  */
 PUBLIC int _setjmp(jmp_buf env)
 {
-    jmp_buf *real = malloc(sizeof(jmp_buf));
-    if (!real) {
-        return -1;
-    }
+    jmp_buf *real = safe_malloc(sizeof(jmp_buf));
     *(jmp_buf **)env = real;
     return setjmp(*real);
 }

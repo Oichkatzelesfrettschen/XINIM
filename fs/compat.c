@@ -8,6 +8,7 @@
 #include "../h/type.h"
 #include "extent.h"
 #include "inode.h"
+#include "../include/lib.h"
 
 /*===========================================================================*
  *                              init_extended_inode                           *
@@ -32,7 +33,6 @@ PUBLIC void init_extended_inode(struct inode *ip)
 PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count)
 {
 
-  extern char *malloc(); /* Memory allocator provided by lib. */
   extent *table;         /* Pointer to newly allocated extent list. */
   unsigned short i;      /* Loop counter for initialization.       */
 
@@ -44,7 +44,7 @@ PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count)
   }
 
   /* Allocate memory for the extent table. */
-  table = (extent *)malloc((unsigned)(count * sizeof(extent)));
+  table = (extent *)safe_malloc((unsigned)(count * sizeof(extent)));
   if (table == NIL_EXTENT) {
     /* Allocation failed.  Ensure inode fields remain clear. */
     ip->i_extents = NIL_PTR;

@@ -28,6 +28,7 @@
 
 #include "../include/stdio.h"
 #include "../include/regexp.h"
+#include "../include/lib.h"
 
 /*
  * The first byte of the regexp internal "program" is actually this magic
@@ -198,7 +199,6 @@ char *exp;
   register char *longest;
   register int len;
   int flags;
-  extern char *malloc();
 
   if (exp == NULL)
 	FAIL("NULL argument");
@@ -217,9 +217,7 @@ char *exp;
 	FAIL("regexp too big");
 
   /* Allocate space. */
-  r = (regexp *)malloc(sizeof(regexp) + (unsigned)regsize);
-  if (r == NULL)
-	FAIL("out of space");
+  r = (regexp *)safe_malloc(sizeof(regexp) + (unsigned)regsize);
 
   /* Second pass: emit code. */
   regparse = exp;

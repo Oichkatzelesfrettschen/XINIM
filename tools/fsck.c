@@ -4,6 +4,7 @@
 #include "../h/type.h"
 #include "../fs/const.h"
 #include "../fs/type.h"
+#include "../include/lib.h"
 
 /* #define DOS			/* compile to run under MS-DOS */
 #define STANDALONE		/* compile for the boot-diskette */
@@ -499,7 +500,7 @@ unsigned nelem, elsize;
 dealloc(p)
 char *p;
 {
-	free(p);
+        safe_free(p);
 }
 #endif
 
