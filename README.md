@@ -17,6 +17,18 @@ Running `make` inside a component (for example `kernel` or `lib`) produces the
 corresponding binaries or libraries.  The `test` directory also provides
 makefiles for compiling small test programs.
 
+Alternatively the sources can be built with CMake.  From the repository root
+run:
+
+```sh
+cmake -B build
+cmake --build build
+```
+
+The kernel wini driver can be selected by passing `-DDRIVER_AT=ON` for the AT
+driver or `-DDRIVER_PC=ON` for the original PC/XT driver.  If neither option is
+specified the PC/XT driver is used.
+
 ## Documentation Note
 
 The repository originally included short `read_me` files under `doc` and `lib`.
