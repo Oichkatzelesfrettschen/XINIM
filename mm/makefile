@@ -1,4 +1,4 @@
-CFLAGS= -Di8088 -O
+CFLAGS= -O
 h=../h
 l=../lib
 

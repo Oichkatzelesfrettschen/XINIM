@@ -1,4 +1,4 @@
-CFLAGS= -Di8088 -w -F -T.
+CFLAGS= -w -F -T.
 h=../h
 l=/usr/lib
 

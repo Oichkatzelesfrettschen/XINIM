@@ -45,7 +45,7 @@ fsck:	fsck.s fsck1.s
 	asld -o fsck  fsck1.s fsck.s $l/libc.a $l/end.s
 	@echo fsck done. Please restore /lib/cem manually.
 fsck.s: fsck.c
-	cc -c -Di8088 -w -F -T. fsck.c
+	cc -c -w -F -T. fsck.c
 
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces

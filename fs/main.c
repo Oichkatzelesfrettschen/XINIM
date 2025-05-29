@@ -182,26 +182,6 @@ PRIVATE buf_pool()
   buf[NR_BUFS - 1].b_next = NIL_BUF;
 
   /* Delete any buffers that span a 64K boundary. */
-#ifdef i8088
-  for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
-	org = get_base() << CLICK_SHIFT;	/* phys addr where FS is */
-	low_off = (vir_bytes) bp->b_data;
-	high_off = low_off + BLOCK_SIZE - 1;
-	if (((org + low_off) & M64K) != ((org + high_off) & M64K)) {
-		if (bp == &buf[0]) {
-			front = &buf[1];
-			buf[1].b_prev = NIL_BUF;
-		} else if (bp == &buf[NR_BUFS - 1]) {
-			rear = &buf[NR_BUFS - 2];
-			buf[NR_BUFS - 2].b_next = NIL_BUF;
-		} else {
-			/* Delete a buffer in the middle. */
-			bp->b_prev->b_next = bp + 1;
-			bp->b_next->b_prev = bp - 1;
-		}
-	}
-  }
-#endif
 
   for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) bp->b_hash = bp->b_next;
   buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;

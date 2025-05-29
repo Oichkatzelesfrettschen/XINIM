@@ -176,13 +176,6 @@ message *m_ptr;			/* pointer to request message */
 	panic("bad call to sys_newmap (dst)", NO_NUM);
   phys_copy(src_phys, dst_phys, pn);
 
-#ifdef i8088
-  /* On 8088, set segment registers. */
-  rp->p_reg[CS_REG] = rp->p_map[T].mem_phys;	/* set cs */
-  rp->p_reg[DS_REG] = rp->p_map[D].mem_phys;	/* set ds */
-  rp->p_reg[SS_REG] = rp->p_map[D].mem_phys;	/* set ss */
-  rp->p_reg[ES_REG] = rp->p_map[D].mem_phys;	/* set es */
-#endif
 
   old_flags = rp->p_flags;	/* save the previous value of the flags */
   rp->p_flags &= ~NO_MAP;
