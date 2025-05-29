@@ -1,5 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 project(minix1 C)
+enable_language(ASM)
 
 # Options for wini driver selection
 option(DRIVER_AT "Use AT wini driver" OFF)
