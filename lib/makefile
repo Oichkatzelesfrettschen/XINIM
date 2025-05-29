@@ -1,16 +1,11 @@
 CC ?= cc
-AS ?= nasm
 AR ?= ar
 CFLAGS ?= -O2
-ASMFLAGS ?= -f elf64
-OBJS := $(patsubst %.c,%.o,$(wildcard *.c)) \
-         $(patsubst %.s,%.o,$(wildcard *.s))
+# Object files derived only from C sources.
+OBJS := $(patsubst %.c,%.o,$(wildcard *.c))
 
 lib.a: $(OBJS)
 	$(AR) rcs $@ $(OBJS)
-
-%.o: %.s
-	$(AS) $(ASMFLAGS) -o $@ $<
 
 %.o: %.c
 	$(CC) $(CFLAGS) -c -o $@ $<

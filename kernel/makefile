@@ -32,11 +32,11 @@ kernel:	makefile $(obj) $l/libc.a
 	@ld -o kernel  $(obj) $l/libc.a $l/end.o
 	@echo "Kernel done"
 
-klib64.o:	klib64.s
-	$(ASM) $(ASMFLAGS) -o $@ $<
+klib64.o:	klib64.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-mpx64.o:        mpx64.s
-	$(ASM) $(ASMFLAGS) -o $@ $<
+mpx64.o:        mpx64.c
+	$(CC) $(CFLAGS) -c -o $@ $<
 
 idt64.o:        idt64.c
 	$(CC) $(CFLAGS) -c -o idt64.o idt64.c
