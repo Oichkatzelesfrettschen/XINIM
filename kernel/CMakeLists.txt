@@ -9,7 +9,9 @@ set(KERNEL_SRC
     clock.c dmp.c floppy.c main.c memory.c printer.c proc.c system.c
     table.c tty.c ${WINI_SRC})
 
-add_executable(kernel ${KERNEL_SRC})
+file(GLOB KERNEL_ASM CONFIGURE_DEPENDS *.s *.asm)
+
+add_executable(kernel ${KERNEL_SRC} ${KERNEL_ASM})
 
 target_link_libraries(kernel PRIVATE minixlib)
 

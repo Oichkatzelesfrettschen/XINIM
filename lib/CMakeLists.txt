@@ -1,3 +1,4 @@
 file(GLOB LIB_SRC CONFIGURE_DEPENDS *.c)
-add_library(minixlib STATIC ${LIB_SRC})
+file(GLOB LIB_ASM CONFIGURE_DEPENDS *.s *.asm)
+add_library(minixlib STATIC ${LIB_SRC} ${LIB_ASM})
 
