@@ -13,6 +13,8 @@ EXTERN message int_mess;	/* interrupt routines build message here */
 /* CPU type. */
 EXTERN int olivetti;		/* TRUE for Olivetti-style keyboard */
 EXTERN int pc_at;		/*  PC-AT type diskette drives (360K/1.2M) ? */
+/* Current CPU id (for future SMP support) */
+EXTERN int current_cpu;
 
 /* The kernel and task stacks. */
 EXTERN struct t_stack {

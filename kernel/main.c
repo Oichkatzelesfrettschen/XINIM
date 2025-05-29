@@ -75,8 +75,14 @@ PUBLIC main()
 		rp->p_splimit -= (TASK_STACK_BYTES - SAFETY)/sizeof(int);
 	rp->p_pcpsw.pc = task[t + NR_TASKS];
 	if (rp->p_pcpsw.pc != 0 || t >= 0) ready(rp);
-	rp->p_pcpsw.psw = INIT_PSW;
-	rp->p_flags = 0;
+        rp->p_pcpsw.psw = INIT_PSW;
+        rp->p_flags = 0;
+#if SCHED_ROUND_ROBIN
+        rp->p_priority = (t < 0 ? TASK_Q : t < LOW_USER ? SERVER_Q : USER_Q);
+#else
+        rp->p_priority = (t < 0 ? PRI_TASK : t < LOW_USER ? PRI_SERVER : PRI_USER);
+#endif
+        rp->p_cpu = 0;
 
 	/* Set up memory map for tasks and MM, FS, INIT. */
 	if (t < 0) {
