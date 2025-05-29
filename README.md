@@ -25,6 +25,8 @@ cmake -B build
 cmake --build build
 ```
 
+A simple root `Makefile` runs these commands as well, so you can just run `make` to build everything and `make clean` to remove the `build` directory.
+
 The kernel wini driver can be selected by passing `-DDRIVER_AT=ON` for the AT
 driver or `-DDRIVER_PC=ON` for the original PC/XT driver.  If neither option is
 specified the PC/XT driver is used.
