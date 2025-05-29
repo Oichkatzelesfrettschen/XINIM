@@ -13,13 +13,8 @@ static void _printit(char *str, int w1, int w2, char padchar, int length,
 
 #define GET_ARG(arglist, mode) ((mode *)(arglist += sizeof(mode)))[-1]
 
-PRIVATE _bintoascii(long num, int radix, char *a);
-PRIVATE _printit(char *str, int w1, int w2, char padchar, int length,
-                 FILE *file);
-
-_doprintf(fp, format, args) FILE *fp;
-register char *format;
-int args;
+/* The main driver that handles formatted output similar to printf. */
+static void _doprintf(FILE *fp, char *format, int args)
 {
   register char *vl;
   int r, w1, w2, sign;
@@ -123,12 +118,6 @@ int args;
   }
 }
 
-PRIVATE _bintoascii(num, radix, a)
-long num;
-int radix;
-char *a;
-
-
 /* Convert a number to an ASCII string in the given radix. */
 static void _bintoascii(long num, int radix, char *a)
 {
@@ -191,13 +180,6 @@ static void _bintoascii(long num, int radix, char *a)
 
   *a = '\0';
 }
-
-PRIVATE _printit(str, w1, w2, padchar, length, file)
-char *str;
-int w1, w2;
-char padchar;
-int length;
-FILE *file;
 
 /* Output a formatted string with padding control. */
 static void _printit(char *str, int w1, int w2, char padchar, int length,
