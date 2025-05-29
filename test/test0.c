@@ -3,42 +3,44 @@ extern int errno;
 int errct;
 int testnr;
 extern long lseek();
-static void clraa();
 
+/* Clear temporary array used by tests. */
+static void clraa(void);
+/* Execute the first set of file system tests. */
+static void test00(void);
+/* Execute the second set of file system tests. */
+static void test01(void);
+/* Log an error occurrence. */
+static void e(int n);
 
 #define NB          30L
-main()
-{
+
+/* Entry point for the file system regression test. */
+int main(void) {
   int i;
   char let;
 
   printf("Test  0 ");
   for (i = 0; i < 4; i++) {
-	test00();
-	test01();
+    test00();
+    test01();
   }
   if (errct == 0)
-	printf("ok\n");
+    printf("ok\n");
   else
-	printf(" %d errors\n", errct);
+    printf(" %d errors\n", errct);
+  return errct;
 }
 
-
-
-
-
-
 char aa[100];
-char b[4] = {0,1,2,3}, c[4] = {10,20,30,40}, d[4] = {6,7,8,9};
+char b[4] = {0, 1, 2, 3}, c[4] = {10, 20, 30, 40}, d[4] = {6, 7, 8, 9};
 long t1;
 
-test00()
-{
- /* Test program for open(), close(), creat(), read(), write(), lseek(). */
+/* Run a series of open/close/read/write/lseek tests. */
+static void test00(void) {
   int i, n, n1, n2;
   long t, time(), abuf[4];
   struct stat s;
-
 
   testnr = 1;
   if ((n = creat("foop", 0777)) != 3) {
@@ -149,19 +151,15 @@ test00()
   }
 }
 
-
-static clraa()
-{
+/* Clear the array used for read/write verification. */
+static void clraa(void) {
   int i;
-  for (i = 0; i < 100; i++) aa[i] = 0;
+  for (i = 0; i < 100; i++)
+    aa[i] = 0;
 }
 
-
-test01()
-{
-/* Test link, unlink, stat, fstat, dup, umask,
- * mknod.
- */
+/* Test link, unlink, stat, fstat, dup, umask and mknod. */
+static void test01(void) {
 
   int i, j, n, n1, flag;
   char a[255], b[255];
@@ -226,14 +224,11 @@ test01()
 	if (unlink("T3b") < 0) e(41);
 	if (close(n) < 0) e(42);
 	if (close(n1) < 0) e(43);
-
   }
 }
 
-
-e(n)
-int n;
-{
+/* Print a test failure message and increment the error count. */
+static void e(int n) {
   printf("Subtest %d,  error %d  errno=%d  ", testnr, n, errno);
   perror("");
   errct++;
