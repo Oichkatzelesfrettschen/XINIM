@@ -70,7 +70,12 @@ message *m_ptr;			/* interrupt message to send to the task */
   }
 
   /* If a task has just been readied and a user is running, run the task. */
+#if SCHED_ROUND_ROBIN
   if (rdy_head[TASK_Q] != NIL_PROC && (cur_proc >= 0 || cur_proc == IDLE))
+#else
+  if (rdy_head[PRI_TASK] != NIL_PROC && (cur_proc >= 0 || cur_proc == IDLE))
+#endif
+        pick_proc();
 	pick_proc();
 }
 
@@ -239,11 +244,17 @@ PUBLIC pick_proc()
 {
 /* Decide who to run now. */
 
-  register int q;		/* which queue to use */
-
+  register int q;               /* which queue to use */
+#if SCHED_ROUND_ROBIN
   if (rdy_head[TASK_Q] != NIL_PROC) q = TASK_Q;
   else if (rdy_head[SERVER_Q] != NIL_PROC) q = SERVER_Q;
   else q = USER_Q;
+#else
+  for (q = 0; q < SCHED_QUEUES; q++) {
+        if (rdy_head[q] != NIL_PROC && rdy_head[q]->p_cpu == current_cpu)
+                break;
+  }
+#endif
 
   /* Set 'cur_proc' and 'proc_ptr'. If system is idle, set 'cur_proc' to a
    * special value (IDLE), and set 'proc_ptr' to point to an unused proc table
@@ -281,12 +292,18 @@ register struct proc *rp;	/* this process is now runnable */
  *   USER_Q   - (lowest priority) for user processes
  */
 
-  register int q;		/* TASK_Q, SERVER_Q, or USER_Q */
+  register int q;               /* queue index */
   int r;
 
-  lock();			/* disable interrupts */
-  r = (rp - proc) - NR_TASKS;	/* task or proc number */
+  lock();                       /* disable interrupts */
+#if SCHED_ROUND_ROBIN
+  r = (rp - proc) - NR_TASKS;   /* task or proc number */
   q = (r < 0 ? TASK_Q : r < LOW_USER ? SERVER_Q : USER_Q);
+#else
+  q = rp->p_priority;
+  if (q < 0) q = 0;
+  if (q >= SCHED_QUEUES) q = SCHED_QUEUES - 1;
+#endif
 
   /* See if the relevant queue is empty. */
   if (rdy_head[q] == NIL_PROC)
@@ -310,10 +327,16 @@ register struct proc *rp;	/* this process is no longer runnable */
   register struct proc *xp;
   int r, q;
 
-  lock();			/* disable interrupts */
+  lock();                       /* disable interrupts */
+#if SCHED_ROUND_ROBIN
   r = rp - proc - NR_TASKS;
   q = (r < 0 ? TASK_Q : r < LOW_USER ? SERVER_Q : USER_Q);
-  if ( (xp = rdy_head[q]) == NIL_PROC) return;
+#else
+  q = rp->p_priority;
+  if (q < 0) q = 0;
+  if (q >= SCHED_QUEUES) q = SCHED_QUEUES - 1;
+#endif
+  if ((xp = rdy_head[q]) == NIL_PROC) return;
   if (xp == rp) {
 	/* Remove head of queue */
 	rdy_head[q] = xp->p_nextready;
@@ -342,10 +365,11 @@ PUBLIC sched()
  * possibly promoting another user to head of the queue.
  */
 
-  lock();			/* disable interrupts */
+  lock();                       /* disable interrupts */
+#if SCHED_ROUND_ROBIN
   if (rdy_head[USER_Q] == NIL_PROC) {
-	restore();		/* restore interrupts to previous state */
-	return;
+        restore();              /* restore interrupts to previous state */
+        return;
   }
 
   /* One or more user processes queued. */
@@ -353,6 +377,17 @@ PUBLIC sched()
   rdy_tail[USER_Q] = rdy_head[USER_Q];
   rdy_head[USER_Q] = rdy_head[USER_Q]->p_nextready;
   rdy_tail[USER_Q]->p_nextready = NIL_PROC;
+#else
+  int q = proc_ptr->p_priority;
+  if (rdy_head[q] == NIL_PROC || rdy_head[q]->p_nextready == NIL_PROC) {
+        restore();
+        return;
+  }
+  rdy_tail[q]->p_nextready = rdy_head[q];
+  rdy_tail[q] = rdy_head[q];
+  rdy_head[q] = rdy_head[q]->p_nextready;
+  rdy_tail[q]->p_nextready = NIL_PROC;
+#endif
   pick_proc();
-  restore();			/* restore interrupts to previous state */
+  restore();                    /* restore interrupts to previous state */
 }

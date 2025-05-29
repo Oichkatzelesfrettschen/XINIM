@@ -39,6 +39,8 @@ EXTERN struct proc {
 #ifndef i8088
   uint64_t cr3;                 /* page table base */
 #endif
+  int p_priority;               /* scheduling priority */
+  int p_cpu;                    /* CPU affinity */
 } proc[NR_TASKS+NR_PROCS];
 
 /* Bits for p_flags in proc[].  A process is runnable iff p_flags == 0 */
@@ -52,8 +54,8 @@ EXTERN struct proc {
 
 EXTERN struct proc *proc_ptr;   /* &proc[cur_proc] */
 EXTERN struct proc *bill_ptr;   /* ptr to process to bill for clock ticks */
-EXTERN struct proc *rdy_head[NQ];       /* pointers to ready list headers */
-EXTERN struct proc *rdy_tail[NQ];       /* pointers to ready list tails */
+EXTERN struct proc *rdy_head[SCHED_QUEUES]; /* pointers to ready list headers */
+EXTERN struct proc *rdy_tail[SCHED_QUEUES]; /* pointers to ready list tails */
 
 EXTERN unsigned busy_map;               /* bit map of busy tasks */
 EXTERN message *task_mess[NR_TASKS+1];  /* ptrs to messages for busy tasks */

@@ -65,12 +65,23 @@
 
 #define RET_REG            0	/* system call return codes go in this reg */
 #define IDLE            -999	/* 'cur_proc' = IDLE means nobody is running */
+/* Scheduler configuration */
+#define SCHED_ROUND_ROBIN 0 /* set to 1 for simple round-robin */
 
-/* The following items pertain to the 3 scheduling queues. */
-#define NQ                 3	/* # of scheduling queues */
-#define TASK_Q             0	/* ready tasks are scheduled via queue 0 */
-#define SERVER_Q           1	/* ready servers are scheduled via queue 1 */
-#define USER_Q             2	/* ready users are scheduled via queue 2 */
+#if SCHED_ROUND_ROBIN
+#define NQ                 3    /* # of scheduling queues */
+#define TASK_Q             0    /* ready tasks are scheduled via queue 0 */
+#define SERVER_Q           1    /* ready servers are scheduled via queue 1 */
+#define USER_Q             2    /* ready users are scheduled via queue 2 */
+#define SCHED_QUEUES       NQ
+#else
+#define NR_SCHED_QUEUES   16    /* number of priority queues */
+#define PRI_TASK          0     /* task priority */
+#define PRI_SERVER        2     /* servers such as MM/FS */
+#define PRI_USER          8     /* default user process priority */
+#define SCHED_QUEUES      NR_SCHED_QUEUES
+#endif
+
 
 #define printf        printk	/* the kernel really uses printk, not printf */
 #endif
