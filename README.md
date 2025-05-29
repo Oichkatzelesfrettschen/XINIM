@@ -75,3 +75,10 @@ The file `TREE.txt` records the directory layout of the repository. To refresh
 it run `python3 tools/ascii_tree.py --exclude TREE.txt > TREE.txt` from the
 project root.
 
+
+## Code Style
+
+All C sources adhere to a consistent formatting defined in `.clang-format`.  The
+repository follows the LLVM style with four space indentation.  Static analysis
+is configured via `.clang-tidy` enabling the `bugprone-*` and `portability-*`
+check groups and treating all warnings as errors.
