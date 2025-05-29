@@ -11,7 +11,7 @@ l=../lib
 obj =	main.o forkexit.o break.o exec.o signal.o getset.o  \
 	alloc.o utility.o table.o paging.o vm.o putc.o 
 
-mm:	makefile  $l/head.o $(obj) $(LIB) $l/end.o
+mm:     Makefile  $l/head.o $(obj) $(LIB) $l/end.o
 	@echo "Start linking MM"
 	@ld $(LDFLAGS) -o mm $l/head.o $(obj) $(LIB) $l/end.o
 	@echo "MM done"

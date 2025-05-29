@@ -44,7 +44,7 @@ d--755 1 1
 	t11b.c	---644 2 1	../test/t11b.c
 	run	---755 2 1	../test/run
 	MINIX	d--755 2 1	../test/MINIX
-		makefile	---644 2 1	../test/MINIX/makefile
+		Makefile	---644 2 1	../test/MINIX/Makefile
 	$
    $
    commands	d--755 2 1

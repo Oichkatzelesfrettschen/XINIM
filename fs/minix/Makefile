@@ -12,7 +12,7 @@ obj =	main.s open.s read.s write.s pipe.s device.s \
 	path.s mount.s link.s super.s inode.s cache.s filedes.s \
 	stadir.s protect.s time.s misc.s utility.s table.s putc.s
 
-fs:	makefile   $l/head.s $(obj) $(LIB) $l/end.s
+fs:     Makefile   $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking FS.  /lib/cem will be removed to make space on RAM disk"
 	@rm -f /lib/cem /tmp/*
 	asld $(LDFLAGS) -o fs $l/head.s $(obj) $(LIB) $l/end.s

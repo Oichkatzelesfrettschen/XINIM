@@ -66,10 +66,10 @@ d--755 1 1
 	bin	d--777 2 1
 	$
 	MINIX	d--777 2 1
-		makefile	---644 2 1 	../commands/MINIX/makefile
+		Makefile	---644 2 1 	../commands/MINIX/Makefile
 	$
 	PCIX	d--777 2 1
-		makefile	---644 2 1 	../commands/makefile
+		Makefile	---644 2 1 	../commands/Makefile
 	$
 	C86	d--777 2 1
 		make.bat	---644 2 1	../commands/C86/make.bat

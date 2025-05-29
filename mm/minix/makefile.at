@@ -9,7 +9,7 @@ l=../lib
 obj =	main.s forkexit.s break.s exec.s signal.s getset.s  \
 	alloc.s utility.s table.s putc.s 
 
-mm:	makefile    $l/head.s $(obj) $(LIB) $l/end.s
+mm:     Makefile    $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking MM.  "
 	@rm -f /tmp/*
 	@asld $(LDFLAGS) -o mm -T. $l/head.s $(obj) $(LIB) $l/end.s

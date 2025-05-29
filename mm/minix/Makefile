@@ -11,7 +11,7 @@ l=../lib
 obj =	main.s forkexit.s break.s exec.s signal.s getset.s  \
 	alloc.s utility.s table.s putc.s 
 
-mm:	makefile    $l/head.s $(obj) $(LIB) $l/end.s
+mm:     Makefile    $l/head.s $(obj) $(LIB) $l/end.s
 	@echo "Start linking MM.  /lib/cem will be removed to make space on RAM disk"
 	@rm -f /lib/cem /tmp/*
 	@asld $(LDFLAGS) -o mm $l/head.s $(obj) $(LIB) $l/end.s

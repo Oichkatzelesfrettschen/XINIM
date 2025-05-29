@@ -31,7 +31,7 @@ endif
 obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o \
       printer.o table.o klib64.o dmp.o paging.o syscall.o
 
-kernel:	makefile $(obj) $(LIB)
+kernel: Makefile $(obj) $(LIB)
 	@echo "Start linking Kernel"
 	@ld $(LDFLAGS) -o kernel  $(obj) $(LIB) $l/end.o
 	@echo "Kernel done"

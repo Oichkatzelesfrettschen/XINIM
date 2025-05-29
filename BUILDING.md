@@ -6,14 +6,14 @@ build environment works on a Unix-like host.
 ## Prerequisites
 
 A 64-bit x86 compiler toolchain is required.  Clang is used by default across
-all makefiles and CMake scripts.  GCC 9 or later can still be used if desired,
+all Makefiles and CMake scripts.  GCC 9 or later can still be used if desired,
 and either NASM 2.14 or YASM 1.3 are known to work.  CMake 3.5 or newer is
 needed when using the CMake build system.
 
 ## Building with Makefiles
 
 Each top level component (for example `kernel`, `lib` and `mm`) contains a
-traditional `makefile`.  Change into the directory and run `make` to build the
+traditional `Makefile`.  Change into the directory and run `make` to build the
 component.  For example:
 
 ```sh
@@ -21,7 +21,7 @@ cd lib
 make
 ```
 
-The makefiles use relative paths to locate headers and the C library.
+The Makefiles use relative paths to locate headers and the C library.
 Headers are taken from `../include` and the library defaults to
 `../lib/lib.a`.  Override `CC`, `CFLAGS`, or `LDFLAGS` on the command
 line to adjust the build.
@@ -59,7 +59,7 @@ simplified to:
 make CROSS_PREFIX=x86_64-elf-
 ```
 
-The makefile passes the prefix to clang automatically.
+The Makefile passes the prefix to clang automatically.
 
 ## Testing the Build
 

@@ -121,13 +121,13 @@ mv /copy/bin/* /usr/lib
 mv /copy/MINIX/* /usr/lib/MINIX
 mv /copy/PCIX/* /usr/lib/PCIX
 mv /copy/C86/* /usr/lib/C86
-echo "Now replace the PC makefiles with AT makefiles"
-rm /usr/kernel/MINIX/makefile
-rm /usr/mm/MINIX/makefile
-rm /usr/fs/MINIX/makefile
-mv /etc/kernel.make /usr/kernel/MINIX/makefile
-mv /etc/mm.make /usr/mm/MINIX/makefile
-mv /etc/fs.make /usr/fs/MINIX/makefile
+echo "Now replace the PC Makefiles with AT Makefiles"
+rm /usr/kernel/MINIX/Makefile
+rm /usr/mm/MINIX/Makefile
+rm /usr/fs/MINIX/Makefile
+mv /etc/kernel.make /usr/kernel/MINIX/Makefile
+mv /etc/mm.make /usr/mm/MINIX/Makefile
+mv /etc/fs.make /usr/fs/MINIX/Makefile
 /etc/umount /dev/at0
 
 echo "Insert 360K disk 7.  MM will now be copied"
