@@ -36,6 +36,14 @@ The kernel wini driver can be selected by passing `-DDRIVER_AT=ON` for the AT
 driver or `-DDRIVER_PC=ON` for the original PC/XT driver.  If neither option is
 specified the PC/XT driver is used.
 
+## License
+
+The historic Minix 1 sources were distributed under a permissive license from
+Prentice Hall allowing educational use and redistribution.  As of version 2.0.3
+(May 2001) the project adopted the BSD&nbsp;3-Clause license, retroactively
+applying it to all earlier releases.  See the [LICENSE](LICENSE) file for the
+full text.
+
 ## Documentation Note
 
 The repository originally included short `read_me` files under `doc` and `lib`.
