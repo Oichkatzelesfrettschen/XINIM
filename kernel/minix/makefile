@@ -1,6 +1,8 @@
 # The kernel directory contains files xt_wini.c and at_wini.c.  Before running
 # make you must copy one of these to wini.c, depending on whether you have a
 # PC or an AT.  You must do this even if you do not have a hard disk..
+# Use clang for the 16-bit kernel build
+CC ?= clang
 CFLAGS= -w -F -T.
 h=../h
 l=/usr/lib

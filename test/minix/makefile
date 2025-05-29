@@ -2,6 +2,8 @@
 # To make  'test1', type:   make f=test1
 # To make  'test2', type:   make f=test2
 # Get the idea?
+# Use clang for the 16-bit tests
+CC ?= clang
 
 l=/usr/lib
 

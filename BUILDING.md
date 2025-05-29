@@ -5,9 +5,10 @@ build environment works on a Unix-like host.
 
 ## Prerequisites
 
-A 64-bit x86 compiler toolchain is required.  GCC 9 or later and either NASM
-2.14 or YASM 1.3 are known to work.  CMake 3.5 or newer is needed when using the
-CMake build system.
+A 64-bit x86 compiler toolchain is required.  Clang is used by default across
+all makefiles and CMake scripts.  GCC 9 or later can still be used if desired,
+and either NASM 2.14 or YASM 1.3 are known to work.  CMake 3.5 or newer is
+needed when using the CMake build system.
 
 ## Building with Makefiles
 
@@ -36,12 +37,15 @@ You can select the AT or PC/XT wini driver using the options described in the
 
 The build can target a bare x86\_64 system using a cross toolchain.  Specify the
 tool prefix through the `CROSS_PREFIX` variable.  When invoking CMake directly
-pass `-DCROSS_COMPILE_X86_64=ON` along with the prefix:
+pass `-DCROSS_COMPILE_X86_64=ON` along with the prefix.  Clang will be invoked
+with that prefix for cross compiling:
 
 ```sh
 cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
 cmake --build build
 ```
+
+These commands will call `${CROSS_PREFIX}clang` for compilation.
 
 The top-level `Makefile` accepts the same variable so the above commands can be
 simplified to:
@@ -49,6 +53,8 @@ simplified to:
 ```sh
 make CROSS_PREFIX=x86_64-elf-
 ```
+
+The makefile passes the prefix to clang automatically.
 
 ## Testing the Build
 
