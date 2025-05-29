@@ -23,7 +23,7 @@ WINI_SRC = xt_wini.c
 endif
 
 obj = mpx88.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o  \
-      printer.o table.o klib88.o dmp.o 
+      printer.o table.o klib88.o dmp.o paging.o 
 
 kernel:	makefile $(obj) $l/libc.a
 	@echo "Start linking Kernel"
@@ -59,6 +59,7 @@ dmp.o:		$h/error.h
 dmp.o:		glo.h
 dmp.o:		proc.h
 
+paging.o:       const.h type.h ../include/paging.h
 main.o:		const.h type.h $h/const.h $h/type.h
 main.o:		$h/callnr.h
 main.o:		$h/com.h
