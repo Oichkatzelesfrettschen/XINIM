@@ -322,31 +322,23 @@ clear_buf()
 patch1(all_size)
 long all_size;
 {
-/* Put the ip and cs values for fsck in the last two words of the boot blk.
- * If fsck is sep I&D we must also provide the ds-value (addr. 506).
- * Put in bootblok-offset 504 the number of sectors to load.
+/* Patch the boot block with the number of sectors to load and the 64‑bit
+ * kernel entry address.  The last four words of the sector contain these
+ * values in little endian order.  Older fields for fsck are no longer used.
  */
 
-  long fsck_org;
-  unsigned short ip, cs, ds, ubuf[SECTOR_SIZE/2], sectrs;
+  unsigned short ubuf[SECTOR_SIZE/2];
+  unsigned short sectrs;
+  unsigned long entry = 0x00100000L; /* 64-bit kernel entry */
 
-  if (cum_size % 16 != 0) pexit("MINIX is not multiple of 16 bytes", "");
-  fsck_org = PROG_ORG + cum_size;       /* where does fsck begin */
-  ip = 0;
-  cs = fsck_org >> CLICK_SHIFT;
-  if (sizes[FSCK].sep_id)
-     ds = cs + (sizes[FSCK].text_size >> CLICK_SHIFT);
-  else
-     ds = cs;
-
-  /* calc nr of sectors to load (starting at 0) */
+  /* calc number of sectors (starting at 0) */
   sectrs = (unsigned) (all_size / 512L);
 
   read_block(0, ubuf);          /* read in boot block */
-  ubuf[(SECTOR_SIZE/2) - 4] = sectrs + 1;
-  ubuf[(SECTOR_SIZE/2) - 3] = ds;
-  ubuf[(SECTOR_SIZE/2) - 2] = ip;
-  ubuf[(SECTOR_SIZE/2) - 1] = cs;
+  ubuf[(SECTOR_SIZE/2) - 4] = sectrs + 1;             /* sector count */
+  ubuf[(SECTOR_SIZE/2) - 3] = entry & 0xFFFF;         /* entry low */
+  ubuf[(SECTOR_SIZE/2) - 2] = (entry >> 16) & 0xFFFF; /* entry high */
+  ubuf[(SECTOR_SIZE/2) - 1] = 0;                      /* reserved */
   write_block(0, ubuf);
 }
 

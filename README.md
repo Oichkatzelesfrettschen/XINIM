@@ -21,6 +21,9 @@ assemble the few hand written assembly files.
 More details on building and verifying the project are available in
 `BUILDING.md`.
 
+## 64-bit Bootloader
+The boot utilities now include a rewritten `bootblok.s` capable of loading a 64-bit kernel. The code performs the classic real mode to protected mode transition and then enables long mode with a minimal page mapping so both BIOS and UEFI firmware can boot the kernel.
+
 ## Building
 
 Every directory contains a `makefile` for building that part of the system.

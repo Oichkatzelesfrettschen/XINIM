@@ -1,233 +1,134 @@
-| When the PC is powered on, it reads the first block from the floppy
-| disk into address 0x7C00 and jumps to it.  This boot block must contain
-| the boot program in this file.  The boot program first copies itself to
-| address 192K - 512 (to get itself out of the way).  Then it loads the 
-| operating system from the boot diskette into memory, and then jumps to fsck.
-| Loading is not trivial because the PC is unable to read a track into
-| memory across a 64K boundary, so the positioning of everything is critical.
-| The number of sectors to load is contained at address 504 of this block.
-| The value is put there by the build program after it has discovered how
-| big the operating system is.  When the bootblok program is finished loading,
-| it jumps indirectly to the program (fsck) which address is given by the
-| last two words in the boot block. 
-|
-| Summary of the words patched into the boot block by build:
-| Word at 504: # sectors to load
-| Word at 506: # DS value for fsck
-| Word at 508: # PC value for fsck
-| Word at 510: # CS value for fsck
-|
-| This version of the boot block must be assembled without separate I & D
-| space.  
+[BITS 16]
+[ORG 0x7C00]
 
-        LOADSEG = 0x0060         | here the boot block will start loading
-        BIOSSEG = 0x07C0         | here the boot block itself is loaded
-        BOOTSEG = 0x2FE0         | here it will copy itself (192K-512b)
-        DSKBASE = 120            | 120 = 4 * 0x1E = ptr to disk parameters
-
-final   = 504
-fsck_ds = 506
-fsck_pc = 508
-fsck_cs = 510
-
-
-.globl begtext, begdata, begbss, endtext, enddata, endbss  | asld needs these
-.text
-begtext:
-.data
-begdata:
-.bss
-begbss:
-.text
-
-| copy bootblock to bootseg
-        mov     ax,#BIOSSEG
-        mov     ds,ax
-        xor     si,si           | ds:si - original block
-        mov     ax,#BOOTSEG
-        mov     es,ax
-        xor     di,di           | es:di - new block
-        mov     cx,#256         | #  words to move
-        rep     
-	movw 		        | copy loop
-
-| start boot procedure
-        jmpi    start,BOOTSEG   | set cs to bootseg
+; ------------------------------------------------------------------
+; Minimal boot block for loading a 64-bit kernel
+; ------------------------------------------------------------------
+; This rewritten boot sector first loads the kernel from disk using
+; BIOS services, then performs the transition from real mode to
+; protected mode and finally long mode.  A single 2&nbsp;MiB identity
+; mapped page is created so the kernel can be entered in 64&nbsp;bit mode.
+; The number of sectors to read and the 32&nbsp;bit entry address of the
+; kernel are patched in by the build utility.
+; ------------------------------------------------------------------
 
 start:
-        mov     dx,cs
-        mov     ds,dx           | set ds to cs
-        xor     ax,ax
-        mov     es,ax           | set es to 0
-        mov     ss,ax           | set ss to 0
-        mov     sp,#1024        | initialize sp (top of vector table)
+    cli
+    xor ax, ax
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov sp, 0x7C00
 
-| initialize disk parameters
-	mov	ax,#atpar	| tenatively assume 1.2M diskette
-	seg	es
-	mov	DSKBASE,ax	
-	seg	es
-	mov	DSKBASE+2,dx
+    ; Load kernel at 0x100000 using BIOS INT 13h
+    mov si, [sector_count]
+    mov di, 0x1000            ; load segment 0x1000:0 => 0x10000
+    mov bx, 0x0000
+.load_loop:
+    push si
+    mov ah, 0x02
+    mov al, 1                 ; one sector
+    mov ch, byte [track]
+    mov cl, byte [sector]
+    mov dh, byte [head]
+    mov dl, 0x00
+    int 0x13
+    jc disk_error
+    pop si
+    add word [sector], 1
+    add bx, 512
+    dec si
+    jnz .load_loop
 
-| print greeting
-	mov 	ax,#2		| reset video
-	int  	0x10
-        mov     ax,#0x0200	| BIOS call in put cursor in ul corner
-        xor     bx,bx
-        xor     dx,dx
-        int     0x10
-        mov     bx,#greet
-        call    print
+    ; Enable A20 (via port 0x92)
+    in al, 0x92
+    or al, 2
+    out 0x92, al
 
-| Determine if this is a 1.2M diskette by trying to read sector 15.
-	xor	ax,ax
-	int	0x13
-	xor	ax,ax
-	mov	es,ax
-	mov	ax,#0x0201
-	mov	bx,#0x0600
-	mov	cx,#0x000F
-	mov	dx,#0x0000
-	int	0x13
-	jnb	L1
+    ; Set up GDT
+    lgdt [gdt_desc]
 
-| Error.  It wasn't 1.2M.  Now set up for 360K.
-	mov	tracksiz,#9	| 360K uses 9 sectors/track
-	xor	ax,ax
-	mov	es,ax
-	mov	ax,#pcpar
-	seg	es
-	mov	DSKBASE,ax
-	int	0x13		| diskette reset
-L1:
+    ; Enter protected mode
+    mov eax, cr0
+    or eax, 1
+    mov cr0, eax
+    jmp 0x08:pmode_start
 
-| Load the operating system from diskette.
-load:
-	call	setreg		| set up ah, cx, dx
-	mov	bx,disksec	| bx = number of next sector to read
-	add	bx,#2		| diskette sector 1 goes at 1536 ("sector" 3)
-	shl	bx,#1		| multiply sector number by 32
-	shl	bx,#1		| ditto
-	shl	bx,#1		| ditto
-	shl	bx,#1		| ditto
-	shl	bx,#1		| ditto
-	mov	es,bx		| core address is es:bx (with bx = 0)
-	xor	bx,bx		| see above
-	add	disksec,ax	| ax tells how many sectors to read
-	movb	ah,#2		| opcode for read
-	int	0x13		| call the BIOS for a read
-	jb	error		| jump on diskette error
-	mov	ax,disksec	| see if we are done loading
-	cmp	ax,final	| ditto
-	jb	load		| jump if there is more to load
+[BITS 32]
+pmode_start:
+    mov ax, 0x10
+    mov ds, ax
+    mov es, ax
+    mov fs, ax
+    mov gs, ax
+    mov ss, ax
+    mov esp, 0x90000
 
-| Loading done.  Finish up.
-        mov     dx,#0x03F2      | kill the motor
-        mov     ax,#0x000C
-        out
-        cli
-	mov	bx,tracksiz	| fsck expects # sectors/track in bx
-        mov     ax,fsck_ds      | set segment registers
-        mov     ds,ax           | when sep I&D DS != CS
-        mov     es,ax           | otherwise they are the same.
-        mov     ss,ax           | words 504 - 510 are patched by build
+    ; Set up 64-bit page tables (identity map first 2MiB)
+    mov dword [pml4], pdpt | 0x03
+    mov dword [pml4+4], 0
+    mov dword [pdpt], pd | 0x03
+    mov dword [pdpt+4], 0
+    mov dword [pd], 0x00000083   ; 2MiB page
+    mov dword [pd+4], 0
 
-	seg cs
-	jmpi	@fsck_pc	| jmp to fsck
+    mov eax, pml4
+    mov cr3, eax
+    mov eax, cr4
+    or eax, 1 << 5       ; PAE
+    mov cr4, eax
 
-| Given the number of the next disk block to read, disksec, compute the
-| cylinder, sector, head, and number of sectors to read as follows:
-| ah = # sectors to read;  cl = sector #;  ch = cyl;  dh = head; dl = 0
-setreg:	
-	mov	si,tracksiz	| 9 (PC) or 15 (AT) sectors per track
-	mov 	ax,disksec	| ax = next sector to read
-	xor	dx,dx		| dx:ax = 32-bit dividend
-	div	si		| divide sector # by track size
-	mov	cx,ax		| cx = track #; dx = sector (0-origin)
-	mov	bx,dx		| bx = sector number (0-origin)
-	mov	ax,disksec	| ax = next sector to read
-	add	ax,si		| ax = last sector to read + 1
-	dec	ax		| ax = last sector to read
-	xor	dx,dx		| dx:ax = 32-bit dividend
-	div	tracksiz	| divide last sector by track size
-	cmpb	al,cl		| is starting track = ending track
-	je	set1		| jump if whole read on 1 cylinder
-	sub	si,dx		| compute lower sector count
-	dec	si		| si = # sectors to read
+    ; enable long mode
+    mov ecx, 0xC0000080
+    rdmsr
+    or eax, 1 << 8
+    wrmsr
 
-| Check to see if this read crosses a 64K boundary (128 sectors).
-| Such calls must be avoided.  The BIOS gets them wrong.
-set1:	mov	ax,disksec	| ax = next sector to read
-	add	ax,#2		| disk sector 1 goes in core sector 3
-	mov	dx,ax		| dx = next sector to read
-	add	dx,si		| dx = one sector beyond end of read
-	dec	dx		| dx = last sector to read
-	shl	ax,#1		| ah = which 64K bank does read start at
-	shl	dx,#1		| dh = which 64K bank foes read end in
-	cmpb	ah,dh		| ah != dh means read crosses 64K boundary
-	je	set2		| jump if no boundary crossed
-	shrb	dl,#1		| dl = excess beyond 64K boundary
-	xorb	dh,dh		| dx = excess beyond 64K boundary
-	sub	si,dx		| adjust si
-	dec	si		| si = number of sectors to read
+    mov eax, cr0
+    or eax, 0x80000001   ; PG | PE
+    mov cr0, eax
+    jmp 0x18:lmode_start
 
-set2:	mov	ax,si		| ax = number of sectors to read
-	xor	dx,dx		| dh = head, dl = drive
-	movb	dh,cl		| dh = track
-	andb	dh,#0x01	| dh = head
-	movb	ch,cl		| ch = track to read
-	shrb	ch,#1		| ch = cylinder
-	movb	cl,bl		| cl = sector number (0-origin)
-	incb	cl		| cl = sector number (1-origin)
-	xorb	dl,dl		| dl = drive number (0)
-	ret			| return values in ax, cx, dx
+[BITS 64]
+lmode_start:
+    mov ax, 0x20
+    mov ds, ax
+    mov es, ax
+    mov ss, ax
+    mov rsp, 0x90000
+    mov rax, [kernel_entry]
+    jmp rax
 
+disk_error:
+    hlt
 
-|-------------------------------+
-|    error & print routines     |
-|-------------------------------+
+; ------------------------------------------------------------------
+; Data and tables
+; ------------------------------------------------------------------
+sector_count:   dw 0      ; patched by build
+kernel_entry:   dd 0      ; patched by build (low 32 bits)
+track:          db 0
+sector:         db 2      ; first sector after the boot block
+head:           db 0
 
-error:
-        push    ax
-        mov     bx,#fderr
-        call    print           | print msg
-	xor	cx,cx
-err1:	mul	0		| delay
-	loop	err1
-	int	0x19
+align 8
+pml4:   dq 0
+pdpt:   dq 0
+pd:     dq 0
 
+align 16
+GDT:
+    dq 0
+    dq 0x00CF9A000000FFFF      ; 0x08 32-bit code
+    dq 0x00CF92000000FFFF      ; 0x10 32-bit data
+    dq 0x00A09A0000000000      ; 0x18 64-bit code
+    dq 0x00A0920000000000      ; 0x20 64-bit data
+GDT_end:
 
-print:                          | print string (bx)
-        movb	al,(bx)	        | al contains char to be printed
-        testb   al,al           | null char?
-        jne     prt1            | no
-        ret                     | else return
-prt1:   movb    ah,*14          | 14 = print char
-        inc     bx              | increment string pointer
-        push    bx              | save bx
-        movb    bl,*1           | foreground color
-	xorb	bh,bh		| page 0
-        int     0x10            | call BIOS VIDEO_IO
-        pop     bx              | restore bx
-        jmp     print           | next character
+gdt_desc:
+    dw GDT_end - GDT - 1
+    dd GDT
 
-
-
-disksec:.word 1
-tracksiz:	.word 15	| changed to 9 for 360K diskettes
-pcpar:	.byte	0xDF, 0x02, 25, 2, 9, 0x2A, 0xFF, 0x50, 0xF6, 1, 3   | for PC
-atpar:	.byte	0xDF, 0x02, 25, 2,15, 0x1B, 0xFF, 0x54, 0xF6, 1, 8   | for AT
-
-fderr:	.asciz	"Read error.  Automatic reboot.\r\n"
-greet:	.asciz "\rBooting MINIX 1.1\r\n"
-
-
-
-| Don't forget that words 504 - 510 are filled in by build.  The regular
-| code had better not get that far.
-.text
-endtext:
-.data
-enddata:
-.bss
-endbss:
+; Pad and boot signature
+times 510-($-$$) db 0
+    dw 0xAA55
