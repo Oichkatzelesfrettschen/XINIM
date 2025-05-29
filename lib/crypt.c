@@ -2,7 +2,7 @@ char *crypt(pw, salt)
 char *pw, *salt;
 {
 	static char buf[14];
-	register char bits[67];
+        char bits[67];
 	register int i;
 	register int j, rot;
 
