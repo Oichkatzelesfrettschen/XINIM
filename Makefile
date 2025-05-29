@@ -1,4 +1,8 @@
-CMAKE_FLAGS :=
+# Use clang as the default C compiler for all builds
+CC ?= clang
+
+# Pass the selected compiler to CMake
+CMAKE_FLAGS := -DCMAKE_C_COMPILER=$(CC)
 ifdef DRIVER_AT
 CMAKE_FLAGS += -DDRIVER_AT=$(DRIVER_AT)
 endif

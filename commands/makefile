@@ -5,10 +5,13 @@
 
 l=/usr/lib
 i=/usr/include
+# Use clang to compile commands
+CC ?= clang
+ 
 CFLAGS=  -I/usr/include -F
 
 file:	$l/libc.a $f.s
-	@cc -o bin/$f $f.s
+	@$(CC) -o bin/$f $f.s
 	@chmem =2048 bin/$f >/dev/null
 	@echo "$f done ."
 

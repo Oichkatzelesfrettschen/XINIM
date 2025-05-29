@@ -3,6 +3,8 @@
 # To make  'test2', type:   make f=test2
 # Get the idea?
 
+# Use clang for building the test programs
+CC ?= clang
 CFLAGS = -O -I../include
 
 # Build the requested test program using the host C compiler.

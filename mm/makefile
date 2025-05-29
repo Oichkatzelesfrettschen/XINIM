@@ -1,3 +1,5 @@
+# Use clang to compile mm
+CC ?= clang
 CFLAGS= -O
 h=../h
 l=../lib

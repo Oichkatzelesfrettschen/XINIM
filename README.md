@@ -12,9 +12,11 @@ release.
 
 ## Build Requirements
 
-Building now requires a 64-bit x86 compiler toolchain.  Recent versions of GCC
-(9 or later) together with NASM 2.14 or YASM 1.3 work well for compiling the C
-and assembly sources.  Older 16-bit configurations are no longer supported.
+Building now requires a 64-bit x86 compiler toolchain.  Clang is the default
+compiler throughout the repository.  Recent versions of GCC (9 or later) also
+work, but every build file now selects clang unless explicitly overridden.
+NASM 2.14 or YASM 1.3 remain the recommended assemblers.  Older 16-bit
+configurations are no longer supported.
 
 More details on building and verifying the project are available in
 `BUILDING.md`.

@@ -1,3 +1,5 @@
+# Use clang for the 16-bit mm build
+CC ?= clang
 CFLAGS = -w -F -T.
 h=../h
 l=/usr/lib

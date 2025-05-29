@@ -1,6 +1,11 @@
 cmake_minimum_required(VERSION 3.5)
 project(minix1 C)
 
+# Default to clang when no explicit compiler is configured
+if(NOT CMAKE_C_COMPILER)
+  set(CMAKE_C_COMPILER clang)
+endif()
+
 # Enforce a strict C90 environment across the project
 set(CMAKE_C_STANDARD 90)
 set(CMAKE_C_STANDARD_REQUIRED ON)
@@ -17,7 +22,8 @@ if(CROSS_COMPILE_X86_64)
   endif()
   set(CMAKE_SYSTEM_NAME Generic)
   set(CMAKE_SYSTEM_PROCESSOR x86_64)
-  set(CMAKE_C_COMPILER "${CROSS_PREFIX}gcc")
+  # Use clang for cross compilation as well
+  set(CMAKE_C_COMPILER "${CROSS_PREFIX}clang")
   set(CMAKE_AR "${CROSS_PREFIX}ar")
   set(CMAKE_RANLIB "${CROSS_PREFIX}ranlib")
   set(CMAKE_LINKER "${CROSS_PREFIX}ld")

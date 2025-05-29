@@ -1,3 +1,5 @@
+# Use clang to build the tooling
+CC ?= clang
 l=../lib
 CFLAGS = -O -DPCIX
 
@@ -30,22 +32,22 @@ bootblok:	bootblok.c
 	$(CC) $(CFLAGS) -o bootblokgen bootblok.c
 	@echo bootblok done.
 build:	build.o
-	cc -o build build.o
+	$(CC) -o build build.o
 	@echo build done.
 
 mkfs:	mkfs.o
-	cc -o mkfs mkfs.o
+	$(CC) -o mkfs mkfs.o
 	@echo mkfs done.
 mkfs.o:	mkfs.c
-	cc -c -O -DUNIX mkfs.c
+	$(CC) -c -O -DUNIX mkfs.c
 
 fsck:	fsck.o fsck1.o diskio.o
 	ld -o fsck  fsck1.o fsck.o diskio.o $l/libc.a
 	@echo fsck done.
 fsck1.o:	fsck1.c
-	cc $(CFLAGS) -c fsck1.c
+	$(CC) $(CFLAGS) -c fsck1.c
 diskio.o:	diskio.c
-	cc $(CFLAGS) -c diskio.c
+	$(CC) $(CFLAGS) -c diskio.c
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces
 # appears in the image file just as the original does on the disk, except that

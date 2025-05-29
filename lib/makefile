@@ -1,4 +1,5 @@
-CC ?= cc
+# Default to clang for building the library
+CC ?= clang
 AR ?= ar
 CFLAGS ?= -O2
 # Object files derived only from C sources.
