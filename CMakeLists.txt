@@ -3,6 +3,11 @@ project(minix1 C)
 enable_language(ASM_NASM)
 set(CMAKE_ASM_NASM_OBJECT_FORMAT elf64)
 
+# Enforce a strict C99 environment across the project
+set(CMAKE_C_STANDARD 99)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
 # Optional cross compilation support for x86_64.
 option(CROSS_COMPILE_X86_64 "Cross compile for bare x86_64" OFF)
 set(CROSS_PREFIX "" CACHE STRING "Prefix for cross compilation tools")
