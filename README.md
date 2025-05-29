@@ -12,11 +12,9 @@ release.
 
 ## Build Requirements
 
-To compile the sources you need an ANSI C compiler, assembler and linker
-suitable for the target architecture.  The code and makefiles assume a Unix
-like toolchain and environment.  Recent versions of GCC (9 or later) work well
-for building the C sources.  Either NASM 2.14 or YASM 1.3 can be used to
-assemble the few hand written assembly files.
+Building now requires a 64-bit x86 compiler toolchain.  Recent versions of GCC
+(9 or later) together with NASM 2.14 or YASM 1.3 work well for compiling the C
+and assembly sources.  Older 16-bit configurations are no longer supported.
 
 More details on building and verifying the project are available in
 `BUILDING.md`.

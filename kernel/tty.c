@@ -393,7 +393,6 @@ char ch;			/* scan code for character that arrived */
 }
 
 
-#ifdef i8088
 /*===========================================================================*
  *				make_break				     *
  *===========================================================================*/
@@ -442,7 +441,6 @@ char ch;			/* scan code of key just struck or released */
   }
   return(0);
 }
-#endif
 
 
 /*===========================================================================*
@@ -759,7 +757,6 @@ long other;			/* used for IOCTL replies */
 /*****************************************************************************/
 /*****************************************************************************/
 
-#ifdef i8088
 /* Now begins the code and data for the device-dependent tty drivers. */
 
 /* Definitions used by the console driver. */

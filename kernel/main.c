@@ -22,7 +22,6 @@
 #ifdef __x86_64__
 void init_syscall_msrs(void);
 
-#endif
 
 #define SAFETY             8	/* margin of safety for stack overflow (ints)*/
 #define VERY_BIG       39328	/* must be bigger than kernel size (clicks) */
@@ -59,9 +58,7 @@ PUBLIC main()
 
   lock();			/* we can't handle interrupts yet */
   paging_init();                /* set up initial page tables */
-#ifndef i8088
   idt_init();                   /* install 64-bit IDT */
-#endif
   base_click = BASE >> CLICK_SHIFT;
   size = sizes[0] + sizes[1];	/* kernel text + data size in clicks */
   mm_base = base_click + size;	/* place where MM starts (in clicks) */
@@ -81,7 +78,6 @@ PUBLIC main()
         rp->p_priority = (t < 0 ? TASK_Q : t < LOW_USER ? SERVER_Q : USER_Q);
 #else
         rp->p_priority = (t < 0 ? PRI_TASK : t < LOW_USER ? PRI_SERVER : PRI_USER);
-#endif
         rp->p_cpu = 0;
 
 	/* Set up memory map for tasks and MM, FS, INIT. */
@@ -105,13 +101,6 @@ PUBLIC main()
 		rp->p_map[S].mem_phys = rp->p_map[D].mem_phys + sizes[2*t + 3];
 	}
 
-#ifdef i8088
-	rp->p_reg[CS_REG] = rp->p_map[T].mem_phys;
-	rp->p_reg[DS_REG] = rp->p_map[D].mem_phys;
-	rp->p_reg[SS_REG] = rp->p_map[D].mem_phys;
-	rp->p_reg[ES_REG] = rp->p_map[D].mem_phys;
-#endif
-  }
 
   proc[NR_TASKS+(HARDWARE)].p_sp = (int *) k_stack;
   proc[NR_TASKS+(HARDWARE)].p_sp += K_STACK_BYTES/2;
@@ -126,31 +115,9 @@ PUBLIC main()
   t = get_byte(CPU_TY1, CPU_TY2);	/* is this PC, XT, AT ... ? */
   if (t == PC_AT) pc_at = TRUE;
 
-  /* Save the old interrupt vectors. */
-  phys_b = umap(proc_addr(HARDWARE), D, (vir_bytes) vec_table, VECTOR_BYTES);
-  phys_copy(0L, phys_b, (long) VECTOR_BYTES);	/* save all the vectors */
-
-  /* Set up the new interrupt vectors. */
-  for (t = 0; t < 16; t++) set_vec(t, surprise, base_click);
-  for (t = 16; t < 256; t++) set_vec(t, trp, base_click);
-  set_vec(DIVIDE_VECTOR, divide, base_click);
-  set_vec(SYS_VECTOR, s_call, base_click);
-  set_vec(CLOCK_VECTOR, clock_int, base_click);
-  set_vec(KEYBOARD_VECTOR, tty_int, base_click);
-  set_vec(FLOPPY_VECTOR, disk_int, base_click);
-  set_vec(PRINTER_VECTOR, lpr_int, base_click);
-  if (pc_at)
-          set_vec(AT_WINI_VECTOR, wini_int, base_click);
-  else
-          set_vec(XT_WINI_VECTOR, wini_int, base_click);
+  bill_ptr = proc_addr(HARDWARE);	/* it has to point somewhere */
 #ifdef __x86_64__
   init_syscall_msrs();
-#endif
-
-  /* Put a ptr to proc table in a known place so it can be found in /dev/mem */
-  set_vec( (BASE - 4)/4, proc, (phys_clicks) 0);
-
-  bill_ptr = proc_addr(HARDWARE);	/* it has to point somewhere */
   pick_proc();
 
   /* Now go to the assembly code to start running the current process. */
@@ -224,30 +191,3 @@ int n;
 
 }
 
-#ifdef i8088
-/*===========================================================================*
- *                                   set_vec                                 * 
- *===========================================================================*/
-PRIVATE set_vec(vec_nr, addr, base_click)
-int vec_nr;			/* which vector */
-int (*addr)();			/* where to start */
-phys_clicks base_click;		/* click where kernel sits in memory */
-{
-/* Set up an interrupt vector. */
-
-  unsigned vec[2];
-  unsigned u;
-  phys_bytes phys_b;
-  extern unsigned sizes[8];
-
-  /* Build the vector in the array 'vec'. */
-  vec[0] = (unsigned) addr;
-  vec[1] = (unsigned) base_click;
-  u = (unsigned) vec;
-
-  /* Copy the vector into place. */
-  phys_b = ( (phys_bytes) base_click + (phys_bytes) sizes[0]) << CLICK_SHIFT;
-  phys_b += u;
-  phys_copy(phys_b, (phys_bytes) 4*vec_nr, (phys_bytes) 4);
-}
-#endif

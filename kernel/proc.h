@@ -6,21 +6,12 @@
  */
 
 EXTERN struct proc {
-#ifdef i8088
-  int p_reg[NR_REGS];           /* process' registers */
-  int *p_sp;                    /* stack pointer */
-#else
   uint64_t p_reg[NR_REGS];      /* process' registers */
   uint64_t p_sp;                /* stack pointer */
-#endif
   struct pc_psw p_pcpsw;        /* pc and psw as pushed by interrupt */
   int p_flags;                  /* P_SLOT_FREE, SENDING, RECEIVING, etc. */
   struct mem_map p_map[NR_SEGS];/* memory map */
-#ifdef i8088
-  int *p_splimit;               /* lowest legal stack value */
-#else
   uint64_t p_splimit;           /* lowest legal stack value */
-#endif
   int p_pid;                    /* process id passed in from MM */
 
   real_time user_time;          /* user time in ticks */
@@ -36,9 +27,7 @@ EXTERN struct proc {
 
   struct proc *p_nextready;     /* pointer to next ready process */
   int p_pending;                /* bit map for pending signals 1-16 */
-#ifndef i8088
   uint64_t cr3;                 /* page table base */
-#endif
   int p_priority;               /* scheduling priority */
   int p_cpu;                    /* CPU affinity */
 } proc[NR_TASKS+NR_PROCS];

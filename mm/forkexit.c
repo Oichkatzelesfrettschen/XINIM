@@ -55,9 +55,6 @@ PUBLIC int do_fork()
   /* Determine how much memory to allocate. */
   prog_clicks = (phys_clicks) rmp->mp_seg[T].mem_len + rmp->mp_seg[D].mem_len +
 						      rmp->mp_seg[S].mem_len;
-#ifdef i8088
-  prog_clicks += rmp->mp_seg[S].mem_vir - rmp->mp_seg[D].mem_len; /* gap too */
-#endif
   prog_bytes = (long) prog_clicks << CLICK_SHIFT;
   if ( (child_base = alloc_mem(prog_clicks)) == NO_MEM) return(EAGAIN);
 

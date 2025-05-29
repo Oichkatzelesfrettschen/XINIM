@@ -221,7 +221,6 @@ PRIVATE accounting()
 }
 
 
-#ifdef i8088
 /*===========================================================================*
  *				init_clock				     *
  *===========================================================================*/
@@ -238,4 +237,3 @@ PRIVATE init_clock()
   port_out(TIMER0, low_byte);		/* load timer low byte */
   port_out(TIMER0, high_byte);		/* load timer high byte */
 }
-#endif

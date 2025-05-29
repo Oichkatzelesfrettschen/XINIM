@@ -1,7 +1,7 @@
 # The kernel directory contains PC/XT and AT wini driver sources.  Set the
 # `WINI_DRIVER` variable to `pc` or `at` when invoking `make` to select the
 # correct driver.  If not specified the PC/XT driver is used.
-CFLAGS = -Di8088 -O
+CFLAGS = -O
 h=../h
 l=../lib
 
