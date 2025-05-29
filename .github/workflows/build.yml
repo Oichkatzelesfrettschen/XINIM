@@ -14,3 +14,9 @@ jobs:
       run: cmake -B build
     - name: Build
       run: cmake --build build -- -j$(nproc)
+    - name: Run sample tests
+      run: |
+        for t in $(sed '/^echo/d' test/run); do
+          make -C test f=$t
+          ./test/$t
+        done

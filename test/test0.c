@@ -3,6 +3,7 @@ extern int errno;
 int errct;
 int testnr;
 extern long lseek();
+static void clraa();
 
 
 #define NB          30L
