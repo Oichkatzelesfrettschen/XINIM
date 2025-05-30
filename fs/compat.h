@@ -6,15 +6,10 @@
 #include "inode.h"
 
 /* Retrieve the 64-bit size of an inode. */
-static inline file_pos64 compat_get_size(const struct inode *ip) {
-  return ip->i_size64 ? ip->i_size64 : (file_pos64)ip->i_size;
-}
+PUBLIC file_pos64 compat_get_size(const struct inode *ip);
 
 /* Update both 64-bit and 32-bit size fields. */
-static inline void compat_set_size(struct inode *ip, file_pos64 sz) {
-  ip->i_size64 = sz;
-  ip->i_size = (file_pos)sz;
-}
+PUBLIC void compat_set_size(struct inode *ip, file_pos64 sz);
 
 /* Initialize extended fields of an inode. */
 PUBLIC void init_extended_inode(struct inode *ip);
