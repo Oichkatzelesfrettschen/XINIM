@@ -1,16 +1,10 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+// Modernized for C++23
 
 #include "errno.hpp"
 #include "stat.hpp"
 int no_creat = 0;
 
-main(argc, argv) int argc;
-char *argv[];
-{
+int main(int argc, char *argv[]) {
     char *path;
     int i = 1;
 
@@ -39,8 +33,7 @@ char *argv[];
     exit(0);
 }
 
-doit(name) char *name;
-{
+static int doit(const char *name) {
     int fd;
     long *t, tim;
     struct stat buf;
@@ -75,9 +68,9 @@ doit(name) char *name;
     }
 }
 
-usage() {
+static void usage() {
     std_err("Usage: touch [-c] file...\n");
     exit(1);
 }
 
-std_err(s) { prints("%s", s); }
+static void std_err(const char *s) { prints("%s", s); }

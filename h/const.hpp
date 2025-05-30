@@ -1,8 +1,5 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+#pragma once
+// Modernized for C++23
 
 /* Copyright (C) 1987 by Prentice-Hall, Inc.  Permission is hereby granted to
  * private individuals and educational institutions to modify and
@@ -18,8 +15,10 @@
 #define PUBLIC         /* PUBLIC is the opposite of PRIVATE */
 #define FORWARD        /* some compilers require this to be 'static' */
 
-#define TRUE 1  /* used for turning integers into Booleans */
-#define FALSE 0 /* used for turning integers into Booleans */
+#define TRUE 1                        /* used for turning integers into Booleans */
+#define FALSE 0                       /* used for turning integers into Booleans */
+inline constexpr bool kTrue = true;   // C++23 boolean constant
+inline constexpr bool kFalse = false; // C++23 boolean constant
 
 #define HZ 60             /* clock freq (software settable on IBM-PC) */
 #define BLOCK_SIZE 1024   /* # bytes in a disk block */
@@ -35,7 +34,8 @@
 #define D 1         /* proc[i].mem_map[D] is for data */
 #define S 2         /* proc[i].mem_map[S] is for stack */
 
-#define MAX_P_LONG 2147483647 /* maximum positive long, i.e. 2**31 - 1 */
+#define MAX_P_LONG 2147483647                  /* maximum positive long, i.e. 2**31 - 1 */
+inline constexpr long kMaxPLong = 2147483647L; // C++23 long constant
 
 /* Memory is allocated in clicks. */
 #define CLICK_SIZE 0020 /* unit in which memory is allocated */

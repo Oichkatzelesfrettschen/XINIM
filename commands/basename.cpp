@@ -1,26 +1,21 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+// Modernized for C++23
+
+#include <cstring>
 
 /* basename - print the last part of a path:	Author: Blaine Garfolo */
-
-#define NULL 0
 
 int main(int argc, char *argv[]) {
     int j, suflen;
     char *c;
     char *d;
-    extern char *rindex();
 
     if (argc < 2) {
         std_err("Usage: basename string [suffix]  \n");
         exit(1);
     }
     c = argv[1];
-    d = rindex(argv[1], '/');
-    if (d == NULL)
+    d = std::strrchr(argv[1], '/');
+    if (d == nullptr)
         d = argv[1];
     else
         d++;
