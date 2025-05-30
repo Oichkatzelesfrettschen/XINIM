@@ -3,10 +3,15 @@
 #include "../h/error.h"
 #include <unistd.h>
 
+/* Global errno provided by the C library. */
 extern int errno;
+
+/* Return the length of a string without relying on strlen(). */
 static int slen(const char *s);
 
 /* Error message strings corresponding to errno values. */
+/* Table mapping errno values to human readable messages. */
+
 const char *error_message[NERROR + 1] = {"Error 0",
 
                                          "Not owner",
@@ -79,8 +84,14 @@ const char *error_message[NERROR + 1] = {"Error 0",
 
 };
 
+/*
+ * Print the supplied message followed by the text representation of errno.
+ * The output is
+ * written directly to file descriptor 2.
+ */
 void perror(const char *s) {
     if (errno < 0 || errno > NERROR) {
+        /* errno outside the valid range */
         write(2, "Invalid errno\n", 14);
     } else {
         write(2, s, slen(s));
@@ -89,6 +100,8 @@ void perror(const char *s) {
         write(2, "\n", 1);
     }
 }
+
+/* Simple strlen replacement used by perror. */
 static int slen(const char *s) {
     int k = 0;
     while (*s++)
@@ -129,6 +142,7 @@ perror(s) char *s;
 	write(2, "\n", 1);
   }
 }
+
 
 static int slen(s)
 char *s;
