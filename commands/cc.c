@@ -17,24 +17,23 @@
 #include <errno.h>
 #include <signal.h>
 
-#define MAXARGC	64	/* maximum number of arguments allowed in a list */
-#define USTR_SIZE	64	/* maximum length of string variable */
+#define MAXARGC 64   /* maximum number of arguments allowed in a list */
+#define USTR_SIZE 64 /* maximum length of string variable */
 
 typedef char USTRING[USTR_SIZE];
 
 struct arglist {
-	int al_argc;
-	char *al_argv[MAXARGC];
+    int al_argc;
+    char *al_argv[MAXARGC];
 };
 
-!!!!_SEE_BELOW_!!!
 /* This is not an error.  It is a dirty trick to force the user to read this
  * comment.  The program cc calls the various passes of the compiler.  To call
  * them, it must know where they are.  On the 640K PC MINIX, cpp and cem are
  * kept in /lib, on the root device.  Thus the symbol PP is defined as
  * /lib/cpp, etc.  On the 512K AT, there is no room on the root device, so cpp
  * and cem are kept in /usr/lib, which means that PP must be /usr/lib/cpp,
- * etc.  One of the following two definitions must be uncommented, to 
+ * etc.  One of the following two definitions must be uncommented, to
  * generate the right paths.  For 640K machines (PCs or Ats), MEM640K should
  * be defined.  For 512K machines, MEM512K should be defined.
  */
