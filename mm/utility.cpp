@@ -17,71 +17,91 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 
+#include <cerrno>     // errno
+#include <cstdio>     // printf
+#include <filesystem> // std::filesystem utilities
+#include <memory>     // std::unique_ptr
+
 PRIVATE message copy_mess;
+
+namespace {
+// Simple RAII wrapper to ensure file descriptors are closed on scope exit.
+struct FileDescriptor {
+    int fd{-1};
+    explicit FileDescriptor(int f) : fd(f) {}
+    ~FileDescriptor() {
+        if (fd >= 0) {
+            close(fd);
+        }
+    }
+    // Disallow copy to avoid double close.
+    FileDescriptor(const FileDescriptor &) = delete;
+    FileDescriptor &operator=(const FileDescriptor &) = delete;
+    // Allow move semantics for flexibility.
+    FileDescriptor(FileDescriptor &&other) noexcept : fd(other.fd) { other.fd = -1; }
+    FileDescriptor &operator=(FileDescriptor &&other) noexcept {
+        if (this != &other) {
+            if (fd >= 0)
+                close(fd);
+            fd = other.fd;
+            other.fd = -1;
+        }
+        return *this;
+    }
+    // Release ownership of the descriptor without closing it
+    [[nodiscard]] int release() noexcept {
+        int old = fd;
+        fd = -1;
+        return old;
+    }
+};
+} // namespace
 
 /*===========================================================================*
  *				allowed					     *
  *===========================================================================*/
-PUBLIC int allowed(name_buf, s_buf, mask)
-char *name_buf;     /* pointer to file name to be EXECed */
-struct stat *s_buf; /* buffer for doing and returning stat struct */
-int mask;           /* R_BIT, W_BIT, or X_BIT */
-{
-    /* Check to see if file can be accessed.  Return EACCES or ENOENT if the access
-     * is prohibited.  If it is legal open the file and return a file descriptor.
-     */
-
-    register int fd, shift;
-    int mode;
-    extern errno;
-
-    /* Open the file and stat it. */
-    if ((fd = open(name_buf, 0)) < 0)
-        return (-errno);
-    if (fstat(fd, s_buf) < 0)
+// Determine if the given file is accessible using the specified mask.
+// Returns a file descriptor on success or a negative errno value on failure.
+PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
+    // Use RAII to ensure the descriptor is closed when leaving the scope.
+    int raw_fd = open(name_buf, 0);
+    if (raw_fd < 0) {
+        return -errno; // propagate errno to caller
+    }
+    FileDescriptor fd(raw_fd);
+    if (fstat(fd.fd, s_buf) < 0) {
         panic("allowed: fstat failed", NO_NUM);
+    }
 
     /* Only regular files can be executed. */
-    mode = s_buf->st_mode & I_TYPE;
+    const int mode = s_buf->st_mode & I_TYPE;
     if (mask == X_BIT && mode != I_REGULAR) {
-        close(fd);
         return (EACCES);
     }
     /* Even for superuser, at least 1 X bit must be on. */
     if (mp->mp_effuid == SUPER_USER && mask == X_BIT &&
         (s_buf->st_mode & (X_BIT << 6 | X_BIT << 3 | X_BIT)))
-        return (fd);
+        return fd.release();
 
     /* Right adjust the relevant set of permission bits. */
+    int shift = 0;
     if (mp->mp_effuid == s_buf->st_uid)
         shift = 6;
     else if (mp->mp_effgid == s_buf->st_gid)
         shift = 3;
-    else
-        shift = 0;
 
     if (mp->mp_effuid == SUPER_USER && mask != X_BIT)
-        return (fd);
+        return fd.release();
     if (s_buf->st_mode >> shift & mask) /* test the relevant bits */
-        return (fd);                    /* permission granted */
-    else {
-        close(fd); /* permission denied */
-        return (EACCES);
-    }
+        return fd.release();            /* permission granted */
+    return (EACCES);                    /* permission denied */
 }
 
 /*===========================================================================*
  *				mem_copy				     *
  *===========================================================================*/
-PUBLIC int mem_copy(src_proc, src_seg, src_vir, dst_proc, dst_seg, dst_vir, bytes)
-int src_proc; /* source process */
-int src_seg;  /* source segment: T, D, or S */
-long src_vir; /* source virtual address (clicks for ABS) */
-int dst_proc; /* dest process */
-int dst_seg;  /* dest segment: T, D, or S */
-long dst_vir; /* dest virtual address (clicks for ABS) */
-long bytes;   /* how many bytes (clicks for ABS) */
-{
+PUBLIC int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int dst_seg,
+                    long dst_vir, long bytes) {
     /* Transfer a block of data.  The source and destination can each either be a
      * process (including MM) or absolute memory, indicate by setting 'src_proc'
      * or 'dst_proc' to ABS.
@@ -89,11 +109,11 @@ long bytes;   /* how many bytes (clicks for ABS) */
 
     if (bytes == 0L)
         return (OK);
-    copy_mess.SRC_SPACE = (char)src_seg;
+    copy_mess.SRC_SPACE = static_cast<char>(src_seg);
     copy_mess.SRC_PROC_NR = src_proc;
     copy_mess.SRC_BUFFER = src_vir;
 
-    copy_mess.DST_SPACE = (char)dst_seg;
+    copy_mess.DST_SPACE = static_cast<char>(dst_seg);
     copy_mess.DST_PROC_NR = dst_proc;
     copy_mess.DST_BUFFER = dst_vir;
 
@@ -113,10 +133,7 @@ PUBLIC int no_sys() {
 /*===========================================================================*
  *				panic					     *
  *===========================================================================*/
-PUBLIC panic(format, num)
-char *format; /* format string */
-int num;      /* number to go with format string */
-{
+PUBLIC void panic(const char *format, int num) {
     /* Something awful has happened.  Panics are caused when an internal
      * inconsistency is detected, e.g., a programm_ing error or illegal value of a
      * defined constant.

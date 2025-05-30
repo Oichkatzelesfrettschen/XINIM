@@ -25,8 +25,8 @@
 #include "mproc.hpp"
 #include "param.hpp"
 
-#define DATA_CHANGED 1  /* flag value when data segment size changed */
-#define STACK_CHANGED 2 /* flag value when stack size changed */
+constexpr int DATA_CHANGED = 1;  /* flag value when data segment size changed */
+constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
 
 /*===========================================================================*
  *				do_brk  				     *
@@ -59,10 +59,7 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				adjust  				     *
  *===========================================================================*/
-PUBLIC int adjust(rmp, data_clicks, sp)
-register struct mproc *rmp; /* whose memory is being adjusted? */
-vir_clicks data_clicks;     /* how big is data segment to become? */
-vir_bytes sp;               /* new value of sp */
+[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, vir_clicks data_clicks, vir_bytes sp)
 {
     /* See if data and stack segments can coexist, adjusting them if need be.
      * Memory is never allocated or freed.  Instead it is added or removed from the
@@ -131,13 +128,7 @@ vir_bytes sp;               /* new value of sp */
 /*===========================================================================*
  *				size_ok  				     *
  *===========================================================================*/
-PUBLIC int size_ok(file_type, tc, dc, sc, dvir, s_vir)
-int file_type;    /* SEPARATE or 0 */
-vir_clicks tc;    /* text size in clicks */
-vir_clicks dc;    /* data size in clicks */
-vir_clicks sc;    /* stack size in clicks */
-vir_clicks dvir;  /* virtual address for start of data seg */
-vir_clicks s_vir; /* virtual address for start of stack seg */
+[[nodiscard]] PUBLIC int size_ok(int file_type, vir_clicks tc, vir_clicks dc, vir_clicks sc, vir_clicks dvir, vir_clicks s_vir)
 {
     /* Check to see if the sizes are feasible and enough segmentation registers
      * exist.  On a machine with eight 8K pages, text, data, stack sizes of
@@ -169,8 +160,7 @@ vir_clicks s_vir; /* virtual address for start of stack seg */
 /*===========================================================================*
  *				stack_fault  				     *
  *===========================================================================*/
-PUBLIC stack_fault(proc_nr)
-int proc_nr; /* tells who got the stack fault */
+PRIVATE void stack_fault(int proc_nr)
 {
     /* Handle a stack fault by growing the stack segment until sp is inside of it.
      * If this is impossible because data segment is in the way, kill the process.

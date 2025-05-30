@@ -19,8 +19,8 @@
 #include "../h/type.h"
 #include "const.hpp"
 
-#define NR_HOLES         128	/* max # entries in hole table */
-#define NIL_HOLE (struct hole *) 0
+constexpr int NR_HOLES = 128;           /* max # entries in hole table */
+constexpr struct hole *NIL_HOLE = nullptr;
 
 PRIVATE struct hole {
   phys_clicks h_base;		/* where does the hole begin? */
@@ -35,8 +35,7 @@ PRIVATE struct hole *free_slots;	/* ptr to list of unused table slots */
 /*===========================================================================*
  *				alloc_mem				     *
  *===========================================================================*/
-PUBLIC phys_clicks alloc_mem(clicks)
-phys_clicks clicks;		/* amount of memory requested */
+[[nodiscard]] PUBLIC phys_clicks alloc_mem(phys_clicks clicks)
 {
 /* Allocate a block of memory from the free list using first fit. The block
  * consists of a sequence of contiguous bytes, whose length in clicks is
@@ -74,9 +73,7 @@ phys_clicks clicks;		/* amount of memory requested */
 /*===========================================================================*
  *				free_mem				     *
  *===========================================================================*/
-PUBLIC free_mem(base, clicks)
-phys_clicks base;		/* base address of block to free */
-phys_clicks clicks;		/* number of clicks to free */
+PUBLIC void free_mem(phys_clicks base, phys_clicks clicks)
 {
 /* Return a block of free memory to the hole list.  The parameters tell where
  * the block starts in physical memory and how big it is.  The block is added
@@ -120,10 +117,7 @@ phys_clicks clicks;		/* number of clicks to free */
 /*===========================================================================*
  *				del_slot				     *
  *===========================================================================*/
-PRIVATE del_slot(prev_ptr, hp)
-register struct hole *prev_ptr;	/* pointer to hole entry just ahead of 'hp' */
-register struct hole *hp;	/* pointer to hole entry to be removed */
-{
+PRIVATE void del_slot(struct hole *prev_ptr, struct hole *hp) {
 /* Remove an entry from the hole list.  This procedure is called when a
  * request to allocate memory removes a hole in its entirety, thus reducing
  * the numbers of holes in memory, and requiring the elimination of one
@@ -143,9 +137,7 @@ register struct hole *hp;	/* pointer to hole entry to be removed */
 /*===========================================================================*
  *				merge					     *
  *===========================================================================*/
-PRIVATE merge(hp)
-register struct hole *hp;	/* ptr to hole to merge with its successors */
-{
+PRIVATE void merge(struct hole *hp) {
 /* Check for contiguous holes and merge any found.  Contiguous holes can occur
  * when a block of memory is freed, and it happens to abut another hole on
  * either or both ends.  The pointer 'hp' points to the first of a series of
@@ -179,8 +171,8 @@ register struct hole *hp;	/* ptr to hole to merge with its successors */
 /*===========================================================================*
  *				max_hole				     *
  *===========================================================================*/
-PUBLIC phys_clicks max_hole()
-{
+// Return the size of the largest hole currently available.
+[[nodiscard]] PUBLIC phys_clicks max_hole() {
 /* Scan the hole list and return the largest hole. */
 
   register struct hole *hp;
@@ -199,9 +191,7 @@ PUBLIC phys_clicks max_hole()
 /*===========================================================================*
  *				mem_init				     *
  *===========================================================================*/
-PUBLIC mem_init(clicks)
-phys_clicks clicks;		/* amount of memory available */
-{
+PUBLIC void mem_init(phys_clicks clicks) {
 /* Initialize hole lists.  There are two lists: 'hole_head' points to a linked
  * list of all the holes (unused memory) in the system; 'free_slots' points to
  * a linked list of table entries that are not in use.  Initially, the former
