@@ -1,6 +1,6 @@
-#include <assert.h>
+#include <cassert> // for assert
+#include <cstring> // for strcmp
 #include <fcntl.h>
-#include <string.h>
 #include <unistd.h>
 
 /* Exercise simple open/read/write/close syscalls. */
@@ -12,7 +12,8 @@ int main(void) {
     lseek(fd, 0, SEEK_SET);
     char buf[3] = {0};
     assert(read(fd, buf, 2) == 2);
-    assert(strcmp(buf, msg) == 0);
+    // Cast away const to match POSIX strcmp prototype.
+    assert(strcmp(buf, const_cast<char *>(msg)) == 0);
     close(fd);
     unlink("tempfile");
     return 0;
