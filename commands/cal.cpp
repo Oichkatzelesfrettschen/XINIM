@@ -7,17 +7,19 @@
 /* cal - print a calendar		Author: Maritn Minow */
 
 #include "../include/stdio.h"
+#include <array>
+#include <string_view>
 
 #define do3months domonth
-#define IO_SUCCESS 0 /* Unix definitions		*/
-#define IO_ERROR 1
-#define EOS 0
+constexpr int IO_SUCCESS = 0;
+constexpr int IO_ERROR = 1;
+constexpr char EOS = 0;
 
-#define ENTRY_SIZE 3      /* 3 bytes per value		*/
-#define DAYS_PER_WEEK 7   /* Sunday, etc.			*/
-#define WEEKS_PER_MONTH 6 /* Max. weeks in a month	*/
-#define MONTHS_PER_LINE 3 /* Three months across		*/
-#define MONTH_SPACE 3     /* Between each month		*/
+constexpr int ENTRY_SIZE = 3;      /* 3 bytes per value		*/
+constexpr int DAYS_PER_WEEK = 7;   /* Sunday, etc.			*/
+constexpr int WEEKS_PER_MONTH = 6; /* Max. weeks in a month	*/
+constexpr int MONTHS_PER_LINE = 3; /* Three months across		*/
+constexpr int MONTH_SPACE = 3;     /* Between each month		*/
 
 char *badarg = {"Bad argument\n"};
 char *how = {"Usage: cal [month] year\n"};
@@ -29,10 +31,8 @@ char *how = {"Usage: cal [month] year\n"};
 char layout[MONTHS_PER_LINE][WEEKS_PER_MONTH][DAYS_PER_WEEK][ENTRY_SIZE];
 char outline[(MONTHS_PER_LINE * DAYS_PER_WEEK * ENTRY_SIZE) + (MONTHS_PER_LINE * MONTH_SPACE) + 1];
 
-char *weekday = " S  M Tu  W Th  F  S";
-char *monthname[] = {"???", /* No month 0	*/
-                     "Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                     "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
+constexpr std::array<std::string_view, 13> monthname = {"???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 int main(int argc, char *argv[]) {
     register int month;
