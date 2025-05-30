@@ -1,5 +1,5 @@
-#include "const.h"
 #include "../include/vm.h"
+#include "const.h"
 #include "mproc.h"
 
 /*
@@ -20,8 +20,7 @@ PRIVATE unsigned long rng_state = 1;
 /* Generate a pseudo random number.
  * no parameters.
  */
-PRIVATE unsigned long next_rand(void)
-{
+PRIVATE unsigned long next_rand(void) {
     rng_state = rng_state * 1103515245 + 12345;
     return rng_state;
 }
@@ -32,8 +31,7 @@ PRIVATE unsigned long next_rand(void)
 /* Initialise the virtual memory subsystem.
  * no parameters.
  */
-PUBLIC void vm_init(void)
-{
+PUBLIC void vm_init(void) {
     int i;
     for (i = 0; i < NR_PROCS; i++) {
         vm_proc_table[i].area_count = 0;
@@ -48,13 +46,12 @@ PUBLIC void vm_init(void)
  * bytes: size in bytes to allocate.
  * flags: protection flags (unused).
  */
-PUBLIC void *vm_alloc(unsigned long long bytes, int flags)
-{
+PUBLIC void *vm_alloc(u64_t bytes, int flags) {
     virt_addr64 base;
     unsigned long pages;
 
     /* randomise base for a little ASLR */
-    base = 0x0000000010000000ULL + (next_rand() & 0xFFFFF000);
+    base = U64_C(0x0000000010000000) + (next_rand() & 0xFFFFF000);
     pages = (bytes + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K;
     (void)flags; /* protection flags unused in this stub */
     return (void *)(base + pages * PAGE_SIZE_4K);
@@ -67,8 +64,7 @@ PUBLIC void *vm_alloc(unsigned long long bytes, int flags)
  * proc: process index causing the fault.
  * addr: faulting virtual address.
  */
-PUBLIC void vm_handle_fault(int proc, virt_addr64 addr)
-{
+PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
     /* This routine would allocate a page frame and map it.  Here it is
      * recorded only for bookkeeping.
      */
@@ -88,8 +84,7 @@ PUBLIC void vm_handle_fault(int proc, virt_addr64 addr)
  * parent: index of the parent process.
  * child: index of the child process.
  */
-PUBLIC int vm_fork(int parent, int child)
-{
+PUBLIC int vm_fork(int parent, int child) {
     vm_proc_table[child] = vm_proc_table[parent];
     return OK;
 }
@@ -103,8 +98,7 @@ PUBLIC int vm_fork(int parent, int child)
  * length: length of mapping in bytes.
  * flags:  mapping flags.
  */
-PUBLIC void *vm_mmap(int proc, void *addr, unsigned long long length, int flags)
-{
+PUBLIC void *vm_mmap(int proc, void *addr, u64_t length, int flags) {
     struct vm_proc *p = &vm_proc_table[proc];
     virt_addr64 base = (virt_addr64)addr;
 

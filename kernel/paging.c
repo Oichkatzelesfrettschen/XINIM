@@ -1,6 +1,6 @@
+#include "../include/paging.h"
 #include "const.h"
 #include "type.h"
-#include "../include/paging.h"
 
 /* Simple 4-level page table allocator used only for illustration. */
 
@@ -11,12 +11,12 @@ PRIVATE virt_addr64 next_kernel_va;
  *                              paging_init                                  *
  *===========================================================================*/
 /* Initialize kernel paging structures. */
-PUBLIC void paging_init(void)
-{
+PUBLIC void paging_init(void) {
     int i;
-    for (i = 0; i < PT_ENTRIES; i++) kernel_pml4.ptrs[i] = NIL_PTR;
+    for (i = 0; i < PT_ENTRIES; i++)
+        kernel_pml4.ptrs[i] = NIL_PTR;
     /* place kernel in higher half */
-    next_kernel_va = 0xffff800000000000ULL;
+    next_kernel_va = U64_C(0xffff800000000000);
 }
 
 /*===========================================================================*
@@ -26,8 +26,7 @@ PUBLIC void paging_init(void)
  * bytes: size in bytes.
  * flags: allocation flags (unused).
  */
-PUBLIC void *alloc_virtual(unsigned long long bytes, int flags)
-{
+PUBLIC void *alloc_virtual(u64_t bytes, int flags) {
     virt_addr64 va = next_kernel_va;
     unsigned long pages = (bytes + PAGE_SIZE_4K - 1) / PAGE_SIZE_4K;
     next_kernel_va += pages * PAGE_SIZE_4K;
@@ -43,15 +42,16 @@ PUBLIC void *alloc_virtual(unsigned long long bytes, int flags)
  * pa: physical address to map to.
  * flags: mapping attributes (unused).
  */
-PUBLIC int map_page(virt_addr64 va, phys_addr64 pa, int flags)
-{
+PUBLIC int map_page(virt_addr64 va, phys_addr64 pa, int flags) {
     /* Mapping is not actually implemented.  We only preserve bookkeeping. */
     unsigned idx4 = (va >> 39) & 0x1FF;
     if (!kernel_pml4.ptrs[idx4]) {
-        kernel_pml4.ptrs[idx4] = (struct page_dir_ptr*) alloc_mem((sizeof(struct page_dir_ptr)+CLICK_SIZE-1)>>CLICK_SHIFT);
+        kernel_pml4.ptrs[idx4] = (struct page_dir_ptr *)alloc_mem(
+            (sizeof(struct page_dir_ptr) + CLICK_SIZE - 1) >> CLICK_SHIFT);
         memset(kernel_pml4.ptrs[idx4], 0, sizeof(struct page_dir_ptr));
     }
     /* Further levels would be allocated here in a complete system. */
-    (void)pa; (void)flags;
+    (void)pa;
+    (void)flags;
     return OK;
 }

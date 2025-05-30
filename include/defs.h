@@ -20,6 +20,11 @@ typedef __UINTPTR_TYPE__ uptr_t; /* unsigned pointer sized integer */
 #define PACKED __attribute__((packed)) /* structure packing */
 #define NAKED  __attribute__((naked))  /* naked function */
 
+/* Macros for defining 64-bit constants without littering the code with
+ * long long suffixes. */
+#define U64_C(val) val##ULL
+#define I64_C(val) val##LL
+
 #else
 #error "Unsupported compiler"
 #endif
