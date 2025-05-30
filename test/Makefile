@@ -16,5 +16,5 @@ LDFLAGS ?=
 # Build the requested test program using the host C compiler.
 # The variable 'f' specifies the base filename of the test.
 file: $(f).c $(LIB)
-        $(CC) $(CFLAGS) -o $(f) $(f).c $(LIB) $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $(f) $(f).c $(LIB) $(LDFLAGS)
 

@@ -89,3 +89,12 @@ All C sources adhere to a consistent formatting defined in `.clang-format`.  The
 repository follows the LLVM style with four space indentation.  Static analysis
 is configured via `.clang-tidy` enabling the `bugprone-*` and `portability-*`
 check groups and treating all warnings as errors.
+
+## Rust Utilities
+
+An experimental `rust` directory provides Rust-based rewrites of select commands. The first example is a port of `cat`. Build it with `cargo`:
+
+```sh
+cargo build --manifest-path rust/cat/Cargo.toml
+```
+
