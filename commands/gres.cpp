@@ -24,8 +24,8 @@
  */
 
 #include "../include/lib.h"
-#include "regexp.h"
-#include "stdio.h"
+#include "regexp.hpp"
+#include "stdio.hpp"
 
 #define MAXLINE (1024)
 

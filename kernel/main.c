@@ -17,7 +17,7 @@
 #include "../h/type.h"
 #include "const.hpp"
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
 #include "type.hpp"
 #ifdef __x86_64__
 void init_syscall_msrs(void);

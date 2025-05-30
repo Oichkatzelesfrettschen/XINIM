@@ -6,7 +6,7 @@
 
 /* date - print or set the date		Author: Adri Koppes */
 
-#include "stdio.h"
+#include "stdio.hpp"
 
 int qflag;
 

@@ -5,7 +5,7 @@
 >>>*/
 
 #include "signal.hpp"
-#include "stdio.h"
+#include "stdio.hpp"
 
 #define EOS '\0'
 #define BOOLEAN int

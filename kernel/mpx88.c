@@ -1,7 +1,7 @@
 #include "const.hpp"
-#include "type.hpp"
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
+#include "type.hpp"
 
 /*
  * Simplified C replacement for the 8088 assembly scheduler/interrupt logic.
@@ -21,8 +21,7 @@ extern void div_trap(void);
  *                              save                                         *
  *===========================================================================*/
 /* Stub saving of process context. */
-PUBLIC void save(void)
-{
+PUBLIC void save(void) {
     /* Real hardware register saving is not performed in this portable C
      * version.  The function only exists so that higher level code can
      * compile without change.
@@ -33,8 +32,7 @@ PUBLIC void save(void)
  *                              restart                                      *
  *===========================================================================*/
 /* Stub restart after interrupt. */
-PUBLIC void restart(void)
-{
+PUBLIC void restart(void) {
     /* Normally restores a process context and returns from interrupt.  In this
      * stub nothing is done.
      */
@@ -48,8 +46,7 @@ PUBLIC void restart(void)
  * src_dest: calling process.
  * m_ptr: pointer to message.
  */
-PUBLIC void s_call(int function, int src_dest, message *m_ptr)
-{
+PUBLIC void s_call(int function, int src_dest, message *m_ptr) {
     save();
     sys_call(function, cur_proc, src_dest, m_ptr);
     restart();
@@ -59,8 +56,7 @@ PUBLIC void s_call(int function, int src_dest, message *m_ptr)
  *                              tty_int                                      *
  *===========================================================================*/
 /* Keyboard interrupt handler stub. */
-PUBLIC void tty_int(void)
-{
+PUBLIC void tty_int(void) {
     save();
     keyboard();
     restart();
@@ -70,8 +66,7 @@ PUBLIC void tty_int(void)
  *                              lpr_int                                      *
  *===========================================================================*/
 /* Printer interrupt handler stub. */
-PUBLIC void lpr_int(void)
-{
+PUBLIC void lpr_int(void) {
     save();
     pr_char();
     restart();
@@ -81,8 +76,7 @@ PUBLIC void lpr_int(void)
  *                              disk_int                                     *
  *===========================================================================*/
 /* Floppy disk interrupt handler stub. */
-PUBLIC void disk_int(void)
-{
+PUBLIC void disk_int(void) {
     message m;
     save();
     m.m_type = DISKINT;
@@ -94,8 +88,7 @@ PUBLIC void disk_int(void)
  *                              wini_int                                     *
  *===========================================================================*/
 /* Winchester disk interrupt handler stub. */
-PUBLIC void wini_int(void)
-{
+PUBLIC void wini_int(void) {
     message m;
     save();
     m.m_type = DISKINT;
@@ -107,8 +100,7 @@ PUBLIC void wini_int(void)
  *                              clock_int                                    *
  *===========================================================================*/
 /* Clock tick interrupt handler stub. */
-PUBLIC void clock_int(void)
-{
+PUBLIC void clock_int(void) {
     message m;
     save();
     m.m_type = CLOCK_TICK;
@@ -120,8 +112,7 @@ PUBLIC void clock_int(void)
  *                              surprise                                     *
  *===========================================================================*/
 /* Unexpected interrupt handler stub. */
-PUBLIC void surprise(void)
-{
+PUBLIC void surprise(void) {
     save();
     unexpected_int();
     restart();
@@ -131,8 +122,7 @@ PUBLIC void surprise(void)
  *                              trp                                          *
  *===========================================================================*/
 /* General trap handler stub. */
-PUBLIC void trp(void)
-{
+PUBLIC void trp(void) {
     save();
     trap();
     restart();
@@ -142,8 +132,7 @@ PUBLIC void trp(void)
  *                              divide                                       *
  *===========================================================================*/
 /* Divide trap handler stub. */
-PUBLIC void divide(void)
-{
+PUBLIC void divide(void) {
     save();
     div_trap();
     restart();
@@ -153,11 +142,9 @@ PUBLIC void divide(void)
  *                              idle                                         *
  *===========================================================================*/
 /* Simple halt loop when no work is available. */
-PUBLIC void idle(void)
-{
+PUBLIC void idle(void) {
     /* Idle loop executed when no work is available. */
     for (;;) {
         asm volatile("hlt");
     }
 }
-

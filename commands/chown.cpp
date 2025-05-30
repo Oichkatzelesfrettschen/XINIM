@@ -14,7 +14,7 @@
 #include "../h/type.h"
 #include "pwd.hpp"
 #include "stat.hpp"
-#include "stdio.h"
+#include "stdio.hpp"
 
 /* Program entry point */
 int main(int argc, char *argv[]) {

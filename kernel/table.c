@@ -1,4 +1,4 @@
-/* The object file of "table.c" contains all the data.  In the *.h files, 
+/* The object file of "table.c" contains all the data.  In the *.h files,
  * declared variables appear with EXTERN in front of them, as in
  *
  *    EXTERN int x;
@@ -27,19 +27,26 @@
 #include "../h/type.h"
 #include "const.hpp"
 #include "type.hpp"
-#undef   EXTERN
-#define  EXTERN
+#undef EXTERN
+#define EXTERN
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
 
-extern int sys_task(), clock_task(), mem_task(), floppy_task(),
-           winchester_task(), tty_task(), printer_task();
+extern int sys_task(), clock_task(), mem_task(), floppy_task(), winchester_task(), tty_task(),
+    printer_task();
 
 /* The startup routine of each task is given below, from -NR_TASKS upwards.
  * The order of the names here MUST agree with the numerical values assigned to
  * the tasks in ../h/com.h.
  */
-int (*task[NR_TASKS+INIT_PROC_NR+1])() = {
- printer_task, tty_task, winchester_task, floppy_task, mem_task,
- clock_task, sys_task, 0, 0, 0, 0
-};
+int (*task[NR_TASKS + INIT_PROC_NR + 1])() = {printer_task,
+                                              tty_task,
+                                              winchester_task,
+                                              floppy_task,
+                                              mem_task,
+                                              clock_task,
+                                              sys_task,
+                                              0,
+                                              0,
+                                              0,
+                                              0};

@@ -11,7 +11,7 @@
 
 /* Print a process name by index. */
 static void prname(int i);
-#include "proc.h"
+#include "proc.hpp"
 
 #define NSIZE 20
 phys_bytes aout[NR_PROCS]; /* pointers to the program names */
