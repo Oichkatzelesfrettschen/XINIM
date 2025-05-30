@@ -1,3 +1,6 @@
+#pragma once
+#include <cstdio>
+#include <unistd.h>
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
@@ -10,23 +13,25 @@
 #define EOF (-1)
 #define CMASK 0377
 
-#define READMODE 1
-#define WRITEMODE 2
-#define UNBUFF 4
-#define _EOF 8
-#define _ERR 16
-#define IOMYBUF 32
-#define PERPRINTF 64
-#define STRINGS 128
+constexpr int READMODE = 1;
+constexpr int WRITEMODE = 2;
+constexpr int UNBUFF = 4;
+constexpr int _EOF = 8;
+constexpr int _ERR = 16;
+constexpr int IOMYBUF = 32;
+constexpr int PERPRINTF = 64;
+constexpr int STRINGS = 128;
 
 #ifndef FILE
+// Table of file streams managed by the simple stdio layer
+//
 
 extern struct _io_buf {
-    int _fd;
-    int _count;
-    int _flags;
-    char *_buf;
-    char *_ptr;
+    int _fd;    /** file descriptor */
+    int _count; /** bytes remaining in buffer */
+    int _flags; /** status flags */
+    char *_buf; /** buffer start */
+    char *_ptr; /** next char in buffer */
 } *_io_table[NFILES];
 
 #endif /* FILE */
@@ -59,3 +64,62 @@ extern struct _io_buf {
 
 #define noperprintf(p) ((p)->_flags &= ~PERPRINTF)
 #define perprintf(p) ((p)->_flags |= PERPRINTF)
+
+// Inline wrappers replacing historical getc/putc macros
+inline int getc(FILE *iop) {
+    int ch;
+    if (testflag(iop, (_EOF | _ERR)))
+        return EOF;
+    if (!testflag(iop, READMODE))
+        return EOF;
+    if (--iop->_count <= 0) {
+        if (testflag(iop, UNBUFF))
+            iop->_count = read(iop->_fd, &ch, 1);
+        else
+            iop->_count = read(iop->_fd, iop->_buf, BUFSIZ);
+        if (iop->_count <= 0) {
+            if (iop->_count == 0)
+                iop->_flags |= _EOF;
+            else
+                iop->_flags |= _ERR;
+            return EOF;
+        } else {
+            iop->_ptr = iop->_buf;
+        }
+    }
+    if (testflag(iop, UNBUFF))
+        return ch & CMASK;
+    return *iop->_ptr++ & CMASK;
+}
+
+inline int putc(int ch, FILE *iop) {
+    int n = 0;
+    bool didwrite = false;
+    if (testflag(iop, (_ERR | _EOF)))
+        return EOF;
+    if (!testflag(iop, WRITEMODE))
+        return EOF;
+    if (testflag(iop, UNBUFF)) {
+        n = write(iop->_fd, &ch, 1);
+        iop->_count = 1;
+        didwrite = true;
+    } else {
+        *iop->_ptr++ = ch;
+        if (++iop->_count >= BUFSIZ && !testflag(iop, STRINGS)) {
+            n = write(iop->_fd, iop->_buf, iop->_count);
+            iop->_ptr = iop->_buf;
+            didwrite = true;
+        }
+    }
+    if (didwrite) {
+        if (n <= 0 || iop->_count != n) {
+            if (n < 0)
+                iop->_flags |= _ERR;
+            else
+                iop->_flags |= _EOF;
+            return EOF;
+        }
+        iop->_count = 0;
+    }
+    return 0;
+}
