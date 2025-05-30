@@ -4,16 +4,16 @@
  * It contains the process' registers, memory map, accounting, and message
  * send/receive information.
  */
+#include "../include/defs.h"
 #include "type.h"
-#include <stdint.h>
 
 EXTERN struct proc {
-    uint64_t p_reg[NR_REGS];       /* process' registers */
-    uint64_t p_sp;                 /* stack pointer */
+    u64_t p_reg[NR_REGS];          /* process' registers */
+    u64_t p_sp;                    /* stack pointer */
     struct pc_psw p_pcpsw;         /* pc and psw as pushed by interrupt */
     int p_flags;                   /* P_SLOT_FREE, SENDING, RECEIVING, etc. */
     struct mem_map p_map[NR_SEGS]; /* memory map */
-    uint64_t p_splimit;            /* lowest legal stack value */
+    u64_t p_splimit;               /* lowest legal stack value */
     int p_pid;                     /* process id passed in from MM */
 
     real_time user_time;   /* user time in ticks */
@@ -29,7 +29,7 @@ EXTERN struct proc {
 
     struct proc *p_nextready; /* pointer to next ready process */
     int p_pending;            /* bit map for pending signals 1-16 */
-    uint64_t cr3;             /* page table base */
+    u64_t cr3;                /* page table base */
     int p_priority;           /* scheduling priority */
     int p_cpu;                /* CPU affinity */
 } proc[NR_TASKS + NR_PROCS];
