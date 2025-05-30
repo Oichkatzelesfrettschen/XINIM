@@ -6,8 +6,8 @@ static void _bintoascii(long num, int radix, char *a);
 static void _printit(char *str, int w1, int w2, char padchar, int length,
                      FILE *file);
 
-#define MAXDIGITS 12
-#define PRIVATE static
+// Use a constant for the maximum number of digits handled.
+inline constexpr int kMaxDigits = 12;
 
 /* This is the same as varargs , on BSD systems */
 
@@ -22,7 +22,7 @@ static void _doprintf(FILE *fp, char *format, int args)
   char c;
   char *s;
   char padchar;
-  char a[MAXDIGITS];
+  char a[kMaxDigits];
 
   vl = (char *)args;
 
@@ -121,7 +121,7 @@ static void _doprintf(FILE *fp, char *format, int args)
 /* Convert a number to an ASCII string in the given radix. */
 static void _bintoascii(long num, int radix, char *a)
 {
-  char b[MAXDIGITS];
+  char b[kMaxDigits];
   int hit, negative;
   register int n, i;
 
@@ -138,7 +138,7 @@ static void _bintoascii(long num, int radix, char *a)
     }
   }
 
-  for (n = 0; n < MAXDIGITS; n++)
+  for (n = 0; n < kMaxDigits; n++)
     b[n] = 0;
 
   n = 0;
