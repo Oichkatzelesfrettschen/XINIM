@@ -1,0 +1,419 @@
+.
+  .clang-format
+  .clang-tidy
+  .gitattributes
+  .gitignore
+  BUILDING.md
+  CMakeLists.txt
+  LICENSE
+  Makefile
+  README.md
+  TREE.txt
+  TREE_CLASSIFIED.txt
+  classify_style.py
+  setup.sh
+  .github
+    workflows
+      build.yml
+  commands
+    CMakeLists.txt
+    Makefile
+    ar.c (K&R)
+    basename.c (K&R)
+    cal.c (K&R)
+    cat.c (C90)
+    cc.c (K&R)
+    chmem.c (C90)
+    chmod.c (C90)
+    chown.c (C90)
+    clr.c (K&R)
+    cmp.c (K&R)
+    comm.c (K&R)
+    cp.c (K&R)
+    date.c (K&R)
+    dd.c (K&R)
+    df.c (C90)
+    dosread.c (C90)
+    echo.c (C90)
+    getlf.c (K&R)
+    grep.c (K&R)
+    gres.c (K&R)
+    head.c (K&R)
+    kill.c (K&R)
+    libpack.c (K&R)
+    libupack.c (K&R)
+    ln.c (K&R)
+    login.c (K&R)
+    lpr.c (K&R)
+    ls.c (K&R)
+    make.c (K&R)
+    mined.h (unknown)
+    mined1.c (C90)
+    mined2.c (K&R)
+    mkdir.c (C90)
+    mkfs.c (K&R)
+    mknod.c (K&R)
+    mount.c (C90)
+    mv.c (C90)
+    od.c (K&R)
+    passwd.c (C90)
+    pr.c (K&R)
+    pwd.c (C90)
+    rev.c (C90)
+    rm.c (C90)
+    rmdir.c (C90)
+    roff.c (K&R)
+    sh1.c (K&R)
+    sh2.c (K&R)
+    sh3.c (K&R)
+    sh4.c (K&R)
+    sh5.c (K&R)
+    shar.c (K&R)
+    size.c (K&R)
+    sleep.c (K&R)
+    sort.c (C90)
+    split.c (K&R)
+    stty.c (K&R)
+    su.c (C90)
+    sum.c (K&R)
+    sync.c (K&R)
+    tail.c (K&R)
+    tar.c (C90)
+    tee.c (K&R)
+    time.c (K&R)
+    touch.c (K&R)
+    tr.c (K&R)
+    umount.c (K&R)
+    uniq.c (K&R)
+    update.c (K&R)
+    wc.c (K&R)
+    x.c (K&R)
+    c86
+      make.bat
+  fs
+    CMakeLists.txt
+    buf.h (K&R)
+    cache.c (K&R)
+    compat.c (C90)
+    compat.h (unknown)
+    const.h (unknown)
+    dev.h (unknown)
+    device.c (K&R)
+    extent.h (unknown)
+    file.h (unknown)
+    filedes.c (K&R)
+    fproc.h (unknown)
+    glo.h (unknown)
+    inode.c (K&R)
+    inode.h (K&R)
+    link.c (K&R)
+    main.c (K&R)
+    misc.c (K&R)
+    mount.c (K&R)
+    open.c (K&R)
+    param.h (unknown)
+    path.c (K&R)
+    pipe.c (K&R)
+    protect.c (K&R)
+    putc.c (K&R)
+    read.c (K&R)
+    stadir.c (K&R)
+    super.c (K&R)
+    super.h (unknown)
+    table.c (K&R)
+    time.c (K&R)
+    type.h (K&R)
+    utility.c (K&R)
+    write.c (K&R)
+    c86
+      _link.bat
+      linklist
+      make.bat
+    minix
+      Makefile
+      makefile.at
+  h
+    callnr.h (unknown)
+    com.h (unknown)
+    const.h (unknown)
+    error.h (unknown)
+    sgtty.h (K&R)
+    signal.h (unknown)
+    stat.h (unknown)
+    type.h (unknown)
+  include
+    blocksiz.h (unknown)
+    ctype.h (unknown)
+    defs.h (unknown)
+    errno.h (unknown)
+    grp.h (unknown)
+    lib.h (unknown)
+    mined.h (unknown)
+    paging.h (unknown)
+    pwd.h (unknown)
+    regexp.h (unknown)
+    setjmp.h (unknown)
+    sgtty.h (K&R)
+    sh.h (K&R)
+    signal.h (unknown)
+    stat.h (unknown)
+    stdio.h (unknown)
+    vm.h (unknown)
+  kernel
+    CMakeLists.txt
+    Makefile
+    _link.bat
+    at_wini.c (K&R)
+    clock.c (K&R)
+    const.h (unknown)
+    dmp.c (K&R)
+    floppy.c (K&R)
+    glo.h (K&R)
+    idt64.c (C90)
+    klib64.c (C90)
+    klib88.c (K&R)
+    linklist
+    main.c (K&R)
+    make.bat
+    memory.c (K&R)
+    mpx64.c (C90)
+    mpx88.c (C90)
+    paging.c (C90)
+    printer.c (K&R)
+    proc.c (C90)
+    proc.h (K&R)
+    syscall.c (C90)
+    system.c (K&R)
+    table.c (K&R)
+    tty.c (K&R)
+    type.h (unknown)
+    wini.c (K&R)
+    xt_wini.c (K&R)
+    minix
+      Makefile
+      makefile.at
+  lib
+    CMakeLists.txt
+    Makefile
+    abort.c (C90)
+    abs.c (K&R)
+    access.c (K&R)
+    alarm.c (K&R)
+    atoi.c (K&R)
+    atol.c (K&R)
+    bcopy.c (C90)
+    brk.c (K&R)
+    brk2.c (C90)
+    brksize.c (unknown)
+    call.c (C90)
+    catchsig.c (K&R)
+    chdir.c (K&R)
+    chmod.c (K&R)
+    chown.c (K&R)
+    chroot.c (K&R)
+    cleanup.c (C90)
+    close.c (K&R)
+    creat.c (K&R)
+    crt0.c (C90)
+    crtso.c (C90)
+    crypt.c (K&R)
+    csv.c (C90)
+    ctype.c (unknown)
+    doprintf.c (C90)
+    doscanf.c (unknown)
+    dup.c (K&R)
+    dup2.c (K&R)
+    end.c (unknown)
+    exec.c (K&R)
+    exit.c (K&R)
+    fclose.c (unknown)
+    fflush.c (K&R)
+    fgets.c (K&R)
+    fopen.c (C90)
+    fork.c (K&R)
+    fprintf.c (K&R)
+    fputs.c (K&R)
+    fread.c (K&R)
+    freopen.c (K&R)
+    fseek.c (K&R)
+    fstat.c (K&R)
+    ftell.c (K&R)
+    fwrite.c (K&R)
+    getc.c (K&R)
+    getegid.c (K&R)
+    getenv.c (K&R)
+    geteuid.c (K&R)
+    getgid.c (K&R)
+    getgrent.c (C90)
+    getpass.c (K&R)
+    getpid.c (K&R)
+    getpwent.c (C90)
+    gets.c (K&R)
+    getuid.c (K&R)
+    getutil.c (C90)
+    head.c (C90)
+    index.c (K&R)
+    ioctl.c (K&R)
+    isatty.c (K&R)
+    itoa.c (K&R)
+    kill.c (K&R)
+    link.c (K&R)
+    lseek.c (K&R)
+    malloc.c (K&R)
+    message.c (unknown)
+    mknod.c (K&R)
+    mktemp.c (K&R)
+    mount.c (K&R)
+    open.c (K&R)
+    pause.c (K&R)
+    perror.c (K&R)
+    pipe.c (K&R)
+    printdat.c (unknown)
+    printk.c (C90)
+    prints.c (K&R)
+    putc.c (K&R)
+    rand.c (K&R)
+    read.c (K&R)
+    regexp.c (K&R)
+    regsub.c (K&R)
+    rindex.c (K&R)
+    run
+    safe_alloc.c (C90)
+    scanf.c (C90)
+    sendrec.c (C90)
+    setbuf.c (K&R)
+    setgid.c (K&R)
+    setjmp.c (C90)
+    setuid.c (K&R)
+    signal.c (C90)
+    sleep.c (C90)
+    sprintf.c (K&R)
+    stat.c (K&R)
+    stb.c (K&R)
+    stderr.c (K&R)
+    stime.c (K&R)
+    strcat.c (K&R)
+    strcmp.c (C90)
+    strcpy.c (C90)
+    strlen.c (C90)
+    strncat.c (K&R)
+    strncmp.c (K&R)
+    strncpy.c (K&R)
+    sync.c (K&R)
+    syscall_x86_64.c (C90)
+    syslib.c (K&R)
+    time.c (K&R)
+    times.c (K&R)
+    umask.c (K&R)
+    umount.c (K&R)
+    ungetc.c (K&R)
+    unlink.c (K&R)
+    utime.c (K&R)
+    wait.c (K&R)
+    write.c (K&R)
+    c86
+      make.bat
+      prologue.h (unknown)
+    minix
+      crtso.c (C90)
+      end.c (unknown)
+      head.c (C90)
+      setjmp.c (C90)
+  mm
+    CMakeLists.txt
+    Makefile
+    alloc.c (K&R)
+    break.c (K&R)
+    const.h (unknown)
+    exec.c (K&R)
+    forkexit.c (K&R)
+    getset.c (K&R)
+    glo.h (unknown)
+    main.c (K&R)
+    mproc.h (unknown)
+    paging.c (C90)
+    param.h (unknown)
+    putc.c (K&R)
+    signal.c (K&R)
+    table.c (unknown)
+    type.h (unknown)
+    utility.c (K&R)
+    vm.c (C90)
+    c86
+      _link.bat
+      linklist
+      make.bat
+    minix
+      Makefile
+      makefile.at
+  test
+    Makefile
+    run
+    t10a.c (K&R)
+    t11a.c (K&R)
+    t11b.c (K&R)
+    t15a.c (K&R)
+    t16a.c (K&R)
+    t16b.c (K&R)
+    test0.c (C90)
+    test1.c (K&R)
+    test10.c (K&R)
+    test11.c (K&R)
+    test12.c (C90)
+    test2.c (K&R)
+    test3.c (K&R)
+    test4.c (K&R)
+    test5.c (K&R)
+    test6.c (K&R)
+    test7.c (K&R)
+    test8.c (K&R)
+    test9.c (K&R)
+    c86
+      nullfile
+    minix
+      Makefile
+  tests
+    CMakeLists.txt
+    test_lib.c (C90)
+    test_syscall.c (C90)
+  tools
+    CMakeLists.txt
+    Makefile
+    ascii_tree.py
+    bootblok.c (C90)
+    build.c (K&R)
+    changeme
+    diskio.c (C90)
+    fsck.c (K&R)
+    fsck1.c (C90)
+    getcore.c (K&R)
+    init.c (K&R)
+    mkfs.c (K&R)
+    passwd
+    proto.dis
+    proto.ram
+    proto.use
+    proto.usr
+    r.c (C90)
+    rc.at
+    run
+    run_clang_tidy.sh
+    setup1
+    setup2
+    setup3
+    ttys
+    versions
+    c86
+      _bootblo.bat
+      _build.bat
+      _dos2out.bat
+      _fsck.bat
+      _image.bat
+      _init.bat
+      _mkfs.bat
+      bootblok
+      dos2out.c (C90)
+      make.bat
+    minix
+      Makefile
+      makefile.at
