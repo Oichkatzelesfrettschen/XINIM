@@ -51,7 +51,7 @@ struct filp **fpt; /* place to return filp slot */
 
     /* Check to see if a file descriptor has been found. */
     if (*k < 0)
-        return (EMFILE); /* this is why we initialized k to -1 */
+        return (ErrorCode::EMFILE); /* this is why we initialized k to -1 */
 
     /* Now that a file descriptor has been found, look for a free filp slot. */
     for (f = &filp[0]; f < &filp[NR_FILPS]; f++) {
@@ -64,7 +64,7 @@ struct filp **fpt; /* place to return filp slot */
     }
 
     /* If control passes here, the filp table must be full.  Report that back. */
-    return (ENFILE);
+    return (ErrorCode::ENFILE);
 }
 
 /*===========================================================================*
@@ -75,7 +75,7 @@ int fild; /* file descriptor */
 {
     /* See if 'fild' refers to a valid file descr.  If so, return its filp ptr. */
 
-    err_code = EBADF;
+    err_code = ErrorCode::EBADF;
     if (fild < 0 || fild >= NR_FDS)
         return (NIL_FILP);
     return (fp->fp_filp[fild]); /* may also be NIL_FILP */

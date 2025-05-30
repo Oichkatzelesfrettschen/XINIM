@@ -221,7 +221,7 @@ PUBLIC tty_task() {
             break;
         case TTY_O_DONE: /* reserved for future use (RS-232 terminals)*/
         default:
-            tty_reply(TASK_REPLY, tty_mess.m_source, tty_mess.PROC_NR, EINVAL, 0L, 0L);
+            tty_reply(TASK_REPLY, tty_mess.m_source, tty_mess.PROC_NR, ErrorCode::EINVAL, 0L, 0L);
         }
     }
 }
@@ -364,7 +364,7 @@ char ch;  /* scan code for character that arrived */
         if (ch == tp->tty_intr || ch == tp->tty_quit) {
             sig = (ch == tp->tty_intr ? SIGINT : SIGQUIT);
             tp->tty_inhibited = RUNNING;      /* do implied CRTL-Q */
-            finish(tp, EINTR);                /* send reply */
+            finish(tp, ErrorCode::EINTR);     /* send reply */
             tp->tty_inhead = tp->tty_inqueue; /* discard input */
             tp->tty_intail = tp->tty_inqueue;
             tp->tty_incount = 0;
@@ -519,7 +519,7 @@ message *m_ptr;                 /* pointer to message sent to the task */
     int code, caller;
 
     if (tp->tty_inleft > 0) { /* if someone else is hanging, give up */
-        tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, E_TRY_AGAIN, 0L, 0L);
+        tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, ErrorCode::E_TRY_AGAIN, 0L, 0L);
         return;
     }
 
@@ -561,7 +561,7 @@ register struct tty_struct *tp; /* pointer to terminal to read from */
     in_vir = (vir_bytes)tp->tty_in_vir;
     left = (vir_bytes)tp->tty_inleft;
     if ((user_phys = umap(rp, D, in_vir, left)) == 0)
-        return (E_BAD_ADDR);
+        return (ErrorCode::E_BAD_ADDR);
     tty_phys = umap(proc_addr(TTY), D, (vir_bytes)tty_buf, TTY_BUF_SIZE);
     cum = 0;
     enough = 0;
@@ -658,7 +658,7 @@ message *m_ptr;                 /* pointer to message sent to the task */
     out_left = (vir_bytes)tp->tty_outleft;
     if ((tp->tty_phys = umap(rp, D, out_vir, out_left)) == 0) {
         /* Buffer address provided by user is outside its address space. */
-        tp->tty_cum = E_BAD_ADDR;
+        tp->tty_cum = ErrorCode::E_BAD_ADDR;
         tp->tty_outleft = 0;
     }
 
@@ -718,7 +718,7 @@ message *m_ptr;                 /* pointer to message sent to task */
         break;
 
     default:
-        r = EINVAL;
+        r = ErrorCode::EINVAL;
     }
 
     /* Send the reply. */
@@ -751,7 +751,7 @@ message *m_ptr;                 /* pointer to message sent to task */
     tp->tty_outleft = 0;
     tp->tty_waiting = NOT_WAITING; /* don't send reply */
     tp->tty_inhibited = RUNNING;
-    tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, EINTR, 0L, 0L);
+    tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, ErrorCode::EINTR, 0L, 0L);
 }
 
 /*===========================================================================*

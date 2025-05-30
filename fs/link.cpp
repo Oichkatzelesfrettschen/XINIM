@@ -44,12 +44,12 @@ PUBLIC int do_link() {
     /* Check to see if the file has maximum number of links already. */
     r = OK;
     if ((rip->i_nlinks & BYTE) == MAX_LINKS)
-        r = EMLINK;
+        r = ErrorCode::EMLINK;
 
     /* Only super_user may link to directories. */
     if (r == OK)
         if ((rip->i_mode & I_TYPE) == I_DIRECTORY && !super_user)
-            r = EPERM;
+            r = ErrorCode::EPERM;
 
     /* If error with 'name', return the inode. */
     if (r != OK) {
@@ -67,18 +67,18 @@ PUBLIC int do_link() {
     if (r == OK) {
         if ((new_ip = advance(ip, string)) == NIL_INODE) {
             r = err_code;
-            if (r == ENOENT)
+            if (r == ErrorCode::ENOENT)
                 r = OK;
         } else {
             put_inode(new_ip);
-            r = EEXIST;
+            r = ErrorCode::EEXIST;
         }
     }
 
     /* Check for links across devices. */
     if (r == OK)
         if (rip->i_dev != ip->i_dev)
-            r = EXDEV;
+            r = ErrorCode::EXDEV;
 
     /* Try to link. */
     if (r == OK)
@@ -127,7 +127,7 @@ PUBLIC int do_unlink() {
 
     /* See if the file is a directory. */
     if ((rip->i_mode & I_TYPE) == I_DIRECTORY && !super_user)
-        r = EPERM; /* only super_user can unlink directory */
+        r = ErrorCode::EPERM; /* only super_user can unlink directory */
     if (r == OK)
         r = search_dir(rlast_dir_ptr, string, &numb, DELETE);
 

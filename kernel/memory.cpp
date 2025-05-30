@@ -75,7 +75,7 @@ PUBLIC mem_task() {
             r = do_setup(&mess);
             break;
         default:
-            r = EINVAL;
+            r = ErrorCode::EINVAL;
             break;
         }
 
@@ -104,13 +104,13 @@ register message *m_ptr; /* pointer to read or write message */
     /* Get minor device number and check for /dev/null. */
     device = m_ptr->DEVICE;
     if (device < 0 || device >= NR_RAMS)
-        return (ENXIO); /* bad minor device */
+        return (ErrorCode::ENXIO); /* bad minor device */
     if (device == NULL_DEV)
         return (m_ptr->m_type == DISK_READ ? EOF : m_ptr->COUNT);
 
     /* Set up 'mem_phys' for /dev/mem, /dev/kmem, or /dev/ram. */
     if (m_ptr->POSITION < 0)
-        return (ENXIO);
+        return (ErrorCode::ENXIO);
     mem_phys = ram_origin[device] + m_ptr->POSITION;
     if (mem_phys >= ram_limit[device])
         return (EOF);
@@ -122,7 +122,7 @@ register message *m_ptr; /* pointer to read or write message */
     rp = proc_addr(m_ptr->PROC_NR);
     user_phys = umap(rp, D, (vir_bytes)m_ptr->ADDRESS, (vir_bytes)count);
     if (user_phys == 0)
-        return (E_BAD_ADDR);
+        return (ErrorCode::E_BAD_ADDR);
 
     /* Copy the data. */
     if (m_ptr->m_type == DISK_READ)
@@ -144,7 +144,7 @@ message *m_ptr; /* pointer to read or write message */
 
     device = m_ptr->DEVICE;
     if (device < 0 || device >= NR_RAMS)
-        return (ENXIO); /* bad minor device */
+        return (ErrorCode::ENXIO); /* bad minor device */
     ram_origin[device] = m_ptr->POSITION;
     ram_limit[device] = m_ptr->POSITION + (long)m_ptr->COUNT * BLOCK_SIZE;
     return (OK);

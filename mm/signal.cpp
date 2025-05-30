@@ -44,7 +44,7 @@ PUBLIC int do_signal() {
     int mask;
 
     if (sig < 1 || sig > NR_SIGS)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     if (sig == SIGKILL)
         return (OK);       /* SIGKILL may not ignored/caught */
     mask = 1 << (sig - 1); /* singleton set with 'sig' bit on */
@@ -90,7 +90,7 @@ PUBLIC int do_ksig() {
 
     /* Only kernel and FS may make this call. */
     if (who != HARDWARE && who != FS_PROC_NR)
-        return (EPERM);
+        return (ErrorCode::EPERM);
 
     proc_nr = mm_in.PROC1;
     rmp = &mproc[proc_nr];
@@ -140,7 +140,7 @@ uid send_uid; /* identity of process sending the signal */
     extern unshort core_bits;
 
     if (sig_nr < 1 || sig_nr > NR_SIGS)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     count = 0; /* count # of signals sent */
     mask = 1 << (sig_nr - 1);
 
@@ -191,7 +191,7 @@ uid send_uid; /* identity of process sending the signal */
     /* If the calling process has killed itself, don't reply. */
     if ((mp->mp_flags & IN_USE) == 0 || (mp->mp_flags & HANGING))
         dont_reply = TRUE;
-    return (count > 0 ? OK : ESRCH);
+    return (count > 0 ? OK : ErrorCode::ESRCH);
 }
 
 /*===========================================================================*
@@ -294,7 +294,7 @@ PUBLIC unpause(pro)
 int pro; /* which process number */
 {
     /* A signal is to be sent to a process.  It that process is hanging on a
-     * system call, the system call must be terminated with EINTR.  Possible
+     * system call, the system call must be terminated with ErrorCode::EINTR.  Possible
      * calls are PAUSE, WAIT, READ and WRITE, the latter two for pipes and ttys.
      * First check if the process is hanging on PAUSE or WAIT.  If not, tell FS,
      * so it can check for READs and WRITEs from pipes, ttys and the like.
@@ -307,14 +307,14 @@ int pro; /* which process number */
     /* Check to see if process is hanging on PAUSE call. */
     if ((rmp->mp_flags & PAUSED) && (rmp->mp_flags & HANGING) == 0) {
         rmp->mp_flags &= ~PAUSED; /* turn off PAUSED bit */
-        reply(pro, EINTR, 0, NIL_PTR);
+        reply(pro, ErrorCode::EINTR, 0, NIL_PTR);
         return;
     }
 
     /* Check to see if process is hanging on a WAIT call. */
     if ((rmp->mp_flags & WAITING) && (rmp->mp_flags & HANGING) == 0) {
         rmp->mp_flags &= ~WAITING; /* turn off WAITING bit */
-        reply(pro, EINTR, 0, NIL_PTR);
+        reply(pro, ErrorCode::EINTR, 0, NIL_PTR);
         return;
     }
 
@@ -359,7 +359,7 @@ register struct mproc *rmp; /* whose core is to be dumped */
     if (rmp->mp_effuid == SUPER_USER)
         r = 0; /* su can always dump core */
 
-    if (s >= 0 && (r >= 0 || r == ENOENT)) {
+    if (s >= 0 && (r >= 0 || r == ErrorCode::ENOENT)) {
         /* Either file is writable or it doesn't exist & dir is writable */
         r = creat(core_name, CORE_MODE);
         tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */

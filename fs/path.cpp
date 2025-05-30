@@ -143,7 +143,7 @@ char string[NAME_SIZE]; /* component extracted from 'old_name' */
         *np++ = '\0';
 
     if (rnp >= &user_path[MAX_PATH]) {
-        err_code = E_LONG_STRING;
+        err_code = ErrorCode::E_LONG_STRING;
         return ((char *)0);
     }
     return (rnp);
@@ -250,7 +250,7 @@ int flag;                        /* LOOK_UP, ENTER, or DELETE */
 
     /* If 'ldir_ptr' is not a pointer to a searchable dir inode, error. */
     if ((ldir_ptr->i_mode & I_TYPE) != I_DIRECTORY)
-        return (ENOTDIR);
+        return (ErrorCode::ENOTDIR);
     bits = (flag == LOOK_UP ? X_BIT : W_BIT | X_BIT);
     if ((r = forbidden(ldir_ptr, bits, 0)) != OK)
         return (r);
@@ -299,7 +299,7 @@ int flag;                        /* LOOK_UP, ENTER, or DELETE */
 
     /* The whole directory has now been searched. */
     if (flag != ENTER)
-        return (ENOENT);
+        return (ErrorCode::ENOENT);
 
     /* This call is for ENTER.  If no free slot has been found so far, try to
      * extend directory.
@@ -307,7 +307,7 @@ int flag;                        /* LOOK_UP, ENTER, or DELETE */
     if (e_hit == FALSE) { /* directory is full and no room left in last block */
         new_slots++;      /* increase directory size by 1 entry */
         if (new_slots == 0)
-            return (EFBIG); /* dir size limited by slot count */
+            return (ErrorCode::EFBIG); /* dir size limited by slot count */
         if ((bp = new_block(ldir_ptr, compat_get_size(ldir_ptr))) == NIL_BUF)
             return (err_code);
         dp = &bp->b_dir[0];

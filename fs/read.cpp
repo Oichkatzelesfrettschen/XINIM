@@ -31,7 +31,7 @@
 #define FD_MASK 077 /* max file descriptor is 63 */
 
 PRIVATE message umess; /* message for asking SYSTASK for user copy */
-PUBLIC int rdwt_err;   /* set to EIO if disk error occurs */
+PUBLIC int rdwt_err;   /* set to ErrorCode::EIO if disk error occurs */
 
 /*===========================================================================*
  *				do_read					     *
@@ -71,14 +71,14 @@ int rw_flag; /* READING or WRITING */
     if (nbytes == 0)
         return (0); /* so char special files need not check for 0*/
     if (who != MM_PROC_NR && nbytes < 0)
-        return (EINVAL); /* only MM > 32K */
+        return (ErrorCode::EINVAL); /* only MM > 32K */
     if ((f = get_filp(fd)) == NIL_FILP)
         return (err_code);
     if (((f->filp_mode) & (rw_flag == READING ? R_BIT : W_BIT)) == 0)
-        return (EBADF);
+        return (ErrorCode::EBADF);
     position = f->filp_pos;
     if (position < (file_pos)0)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     rip = f->filp_ino;
     f_size = compat_get_size(rip);
     r = OK;
@@ -87,7 +87,7 @@ int rw_flag; /* READING or WRITING */
     mode_word = rip->i_mode & I_TYPE;
     if (mode_word == I_BLOCK_SPECIAL && f_size == 0)
         f_size = MAX_P_LONG;
-    rdwt_err = OK; /* set to EIO if disk error occurs */
+    rdwt_err = OK; /* set to ErrorCode::EIO if disk error occurs */
 
     /* Check for character special files. */
     if (mode_word == I_CHAR_SPECIAL) {
@@ -101,7 +101,7 @@ int rw_flag; /* READING or WRITING */
         if (rw_flag == WRITING && mode_word != I_BLOCK_SPECIAL) {
             /* Check in advance to see if file will grow too big. */
             if (position > get_super(rip->i_dev)->s_max_size - nbytes)
-                return (EFBIG);
+                return (ErrorCode::EFBIG);
 
             /* Clear the zone containing present EOF if hole about
              * to be created.  This is necessary because all unwritten

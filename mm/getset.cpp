@@ -42,7 +42,7 @@ PUBLIC int do_getset() {
 
     case SETUID:
         if (rmp->mp_realuid != usr_id && rmp->mp_effuid != SUPER_USER)
-            return (EPERM);
+            return (ErrorCode::EPERM);
         rmp->mp_realuid = usr_id;
         rmp->mp_effuid = usr_id;
         tell_fs(SETUID, who, usr_id, usr_id);
@@ -51,7 +51,7 @@ PUBLIC int do_getset() {
 
     case SETGID:
         if (rmp->mp_realgid != grpid && rmp->mp_effuid != SUPER_USER)
-            return (EPERM);
+            return (ErrorCode::EPERM);
         rmp->mp_realgid = grpid;
         rmp->mp_effgid = grpid;
         tell_fs(SETGID, who, grpid, grpid);

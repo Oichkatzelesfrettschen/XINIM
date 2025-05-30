@@ -60,7 +60,7 @@ inode_nr numb; /* inode number */
 
     /* Inode we want is not currently in use.  Did we find a free slot? */
     if (xp == NIL_INODE) { /* inode table completely full */
-        err_code = ENFILE;
+        err_code = ErrorCode::ENFILE;
         return (NIL_INODE);
     }
 
@@ -123,7 +123,7 @@ mask_bits bits; /* mode of the inode */
     sp = get_super(dev); /* get pointer to super_block */
     b = alloc_bit(sp->s_imap, (bit_nr)sp->s_ninodes + 1, sp->s_imap_blocks, (bit_nr)0);
     if (b == NO_BIT) {
-        err_code = ENFILE;
+        err_code = ErrorCode::ENFILE;
         major = (int)(sp->s_dev >> MAJOR) & BYTE;
         minor = (int)(sp->s_dev >> MINOR) & BYTE;
         if (sp->s_dev == ROOT_DEV)

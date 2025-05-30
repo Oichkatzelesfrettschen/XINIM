@@ -17,7 +17,7 @@ char *argv[];
     if (argc != 2)
         usage();
     if (umount(argv[1]) < 0) {
-        if (errno == EINVAL)
+        if (errno == ErrorCode::EINVAL)
             std_err("Device not mounted\n");
         else
             perror("umount");

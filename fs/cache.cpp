@@ -220,7 +220,7 @@ zone_nr z;  /* try to allocate new zone near this one */
     b = alloc_bit(sp->s_zmap, (bit_nr)sp->s_nzones - sp->s_firstdatazone + 1, sp->s_zmap_blocks,
                   bit);
     if (b == NO_BIT) {
-        err_code = ENOSPC;
+        err_code = ErrorCode::ENOSPC;
         major = (int)(sp->s_dev >> MAJOR) & BYTE;
         minor = (int)(sp->s_dev >> MINOR) & BYTE;
         if (sp->s_dev == ROOT_DEV)

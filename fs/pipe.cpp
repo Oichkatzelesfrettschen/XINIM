@@ -116,14 +116,14 @@ register file_pos *position; /* pointer to current file position */
     } else {
         /* Process is writing to a pipe. */
         if (bytes > PIPE_SIZE)
-            return (EFBIG);
+            return (ErrorCode::EFBIG);
         if (find_filp(rip, R_BIT) == NIL_FILP) {
             /* Tell MM to generate a SIGPIPE signal. */
             mess.m_type = KSIG;
             mess.PROC1 = fp - fproc;
             mess.SIG_MAP = 1 << (SIGPIPE - 1);
             send(MM_PROC_NR, &mess);
-            return (EPIPE);
+            return (ErrorCode::EPIPE);
         }
 
         if (*position + bytes > PIPE_SIZE) {
@@ -229,7 +229,7 @@ int bytes;   /* if hanging on task, how many bytes read */
  *===========================================================================*/
 PUBLIC int do_unpause() {
     /* A signal has been sent to a user who is paused on the file system.
-     * Abort the system call with the EINTR error message.
+     * Abort the system call with the ErrorCode::EINTR error message.
      */
 
     register struct fproc *rfp;
@@ -239,7 +239,7 @@ PUBLIC int do_unpause() {
     extern struct filp *get_filp();
 
     if (who > MM_PROC_NR)
-        return (EPERM);
+        return (ErrorCode::EPERM);
     proc_nr = pro;
     if (proc_nr < 0 || proc_nr >= NR_PROCS)
         panic("unpause err 1", proc_nr);
@@ -261,7 +261,7 @@ PUBLIC int do_unpause() {
             if (receive(task, &m) != OK)
                 panic("unpause err 3", NO_NUM);
         }
-        revive(proc_nr, EINTR); /* signal interrupted call */
+        revive(proc_nr, ErrorCode::EINTR); /* signal interrupted call */
     }
 
     return (OK);

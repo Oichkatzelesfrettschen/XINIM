@@ -59,7 +59,7 @@ PUBLIC int do_chroot() {
     register int r;
 
     if (!super_user)
-        return (EPERM); /* only su may chroot() */
+        return (ErrorCode::EPERM); /* only su may chroot() */
     r = change(&fp->fp_rootdir, name, name_length);
     return (r);
 }
@@ -86,7 +86,7 @@ int len;            /* length of the directory name string */
 
     /* It must be a directory and also be searchable. */
     if ((rip->i_mode & I_TYPE) != I_DIRECTORY)
-        r = ENOTDIR;
+        r = ErrorCode::ENOTDIR;
     else
         r = forbidden(rip, X_BIT, 0); /* check if dir is searchable */
 

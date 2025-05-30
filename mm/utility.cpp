@@ -76,7 +76,7 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
     /* Only regular files can be executed. */
     const int mode = s_buf->st_mode & I_TYPE;
     if (mask == X_BIT && mode != I_REGULAR) {
-        return (EACCES);
+        return (ErrorCode::EACCES);
     }
     /* Even for superuser, at least 1 X bit must be on. */
     if (mp->mp_effuid == SUPER_USER && mask == X_BIT &&
@@ -94,7 +94,7 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
         return fd.release();
     if (s_buf->st_mode >> shift & mask) /* test the relevant bits */
         return fd.release();            /* permission granted */
-    return (EACCES);                    /* permission denied */
+    return (ErrorCode::EACCES);         /* permission denied */
 }
 
 /*===========================================================================*
@@ -127,7 +127,7 @@ PUBLIC int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int d
 PUBLIC int no_sys() {
     /* A system call number not implemented by MM has been requested. */
 
-    return (EINVAL);
+    return (ErrorCode::EINVAL);
 }
 
 /*===========================================================================*

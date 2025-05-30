@@ -50,14 +50,14 @@ PUBLIC int do_creat() {
     bits = I_REGULAR | (mode & ALL_MODES & fp->fp_umask);
     rip = new_node(user_path, bits, NO_ZONE);
     r = err_code;
-    if (r != OK && r != EEXIST)
+    if (r != OK && r != ErrorCode::EEXIST)
         return (r);
 
     /* At this point two possibilities exist: the given path did not exist
      * and has been created, or it pre-existed.  In the later case, truncate
      * if possible, otherwise return an error.
      */
-    if (r == EEXIST) {
+    if (r == ErrorCode::EEXIST) {
         /* File exists already. */
         switch (rip->i_mode & I_TYPE) {
         case I_REGULAR: /* truncate regular file */
@@ -66,7 +66,7 @@ PUBLIC int do_creat() {
             break;
 
         case I_DIRECTORY: /* can't truncate directory */
-            r = EISDIR;
+            r = ErrorCode::EISDIR;
             break;
 
         case I_CHAR_SPECIAL: /* special files are special */
@@ -100,7 +100,7 @@ PUBLIC int do_mknod() {
     register mask_bits bits;
 
     if (!super_user)
-        return (EPERM); /* only super_user may make nodes */
+        return (ErrorCode::EPERM); /* only super_user may make nodes */
     if (fetch_name(name1, name1_length, M1) != OK)
         return (err_code);
     bits = (mode & I_TYPE) | (mode & ALL_MODES & fp->fp_umask);
@@ -119,7 +119,7 @@ zone_nr z0;     /* zone number 0 for new inode */
     /* This function is called by do_creat() and do_mknod().  In both cases it
      * allocates a new inode, makes a directory entry for it on the path 'path',
      * and initializes it.  It returns a pointer to the inode if it can do this;
-     * err_code is set to OK or EEXIST. If it can't, it returns NIL_INODE and
+     * err_code is set to OK or ErrorCode::EEXIST. If it can't, it returns NIL_INODE and
      * 'err_code' contains the appropriate message.
      */
 
@@ -134,7 +134,7 @@ zone_nr z0;     /* zone number 0 for new inode */
 
     /* The final directory is accessible. Get final component of the path. */
     rip = advance(rlast_dir_ptr, string);
-    if (rip == NIL_INODE && err_code == ENOENT) {
+    if (rip == NIL_INODE && err_code == ErrorCode::ENOENT) {
         /* Last path component does not exist.  Make new directory entry. */
         if ((rip = alloc_inode(rlast_dir_ptr->i_dev, bits)) == NIL_INODE) {
             /* Can't creat new inode: out of inodes. */
@@ -163,7 +163,7 @@ zone_nr z0;     /* zone number 0 for new inode */
     } else {
         /* Either last component exists, or there is some problem. */
         if (rip != NIL_INODE)
-            r = EEXIST;
+            r = ErrorCode::EEXIST;
         else
             r = err_code;
     }
@@ -192,7 +192,7 @@ PUBLIC int do_open() {
      * 'bits' needs to be R_BIT, W_BIT, and R_BIT|W_BIT respectively.
      */
     if (mode < 0 || mode > 2)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     if (fetch_name(name, name_length, M3) != OK)
         return (err_code);
     bits = (mask_bits)mode_map[mode];
@@ -213,7 +213,7 @@ PUBLIC int do_open() {
     case I_DIRECTORY:
         if (bits & W_BIT) {
             put_inode(rip);
-            return (EISDIR);
+            return (ErrorCode::EISDIR);
         }
         break;
 
@@ -295,7 +295,7 @@ PUBLIC int do_lseek() {
 
     /* No lseek on pipes. */
     if (rfilp->filp_ino->i_pipe == I_PIPE)
-        return (ESPIPE);
+        return (ErrorCode::ESPIPE);
 
     /* The value of 'whence' determines the algorithm to use. */
     switch (whence) {
@@ -309,10 +309,10 @@ PUBLIC int do_lseek() {
         pos = compat_get_size(rfilp->filp_ino) + offset;
         break;
     default:
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     }
     if (pos < (file_pos64)0)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
 
     rfilp->filp_ino->i_seek = ISEEK; /* inhibit read ahead */
     rfilp->filp_pos = pos;

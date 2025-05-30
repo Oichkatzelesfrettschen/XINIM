@@ -20,9 +20,9 @@
     Author: Erik Baalbergen
 */
 
+#include <array>
 #include <errno.h>
 #include <signal.h>
-#include <array>
 
 constexpr int MAXARGC = 64;   /* maximum number of arguments allowed in a list */
 constexpr int USTR_SIZE = 64; /* maximum length of string variable */
@@ -499,7 +499,7 @@ static void ex_vec(struct arglist *vec) {
 #endif
     vec->al_argv[vec->al_argc] = 0;
     execv(vec->al_argv[1], &(vec->al_argv[1]));
-    if (errno == ENOEXEC) { /* not an a.out, try it with the SHELL */
+    if (errno == ErrorCode::ENOEXEC) { /* not an a.out, try it with the SHELL */
         vec->al_argv[0] = SHELL;
         execv(SHELL, &(vec->al_argv[0]));
     }

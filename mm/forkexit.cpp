@@ -49,16 +49,16 @@ PUBLIC int do_fork() {
 
     rmp = mp;
     if (procs_in_use == NR_PROCS)
-        return (EAGAIN);
+        return (ErrorCode::EAGAIN);
     if (procs_in_use >= NR_PROCS - LAST_FEW && rmp->mp_effuid != 0)
-        return (EAGAIN);
+        return (ErrorCode::EAGAIN);
 
     /* Determine how much memory to allocate. */
     prog_clicks =
         (phys_clicks)rmp->mp_seg[T].mem_len + rmp->mp_seg[D].mem_len + rmp->mp_seg[S].mem_len;
     prog_bytes = (long)prog_clicks << CLICK_SHIFT;
     if ((child_base = alloc_mem(prog_clicks)) == NO_MEM)
-        return (EAGAIN);
+        return (ErrorCode::EAGAIN);
 
     /* Create a copy of the parent's core image for the child. */
     child_abs = (long)child_base << CLICK_SHIFT;
@@ -189,7 +189,7 @@ PUBLIC int do_wait() {
         dont_reply = TRUE;
         return (OK); /* yes - wait for one to exit */
     } else
-        return (ECHILD); /* no - parent has no children */
+        return (ErrorCode::ECHILD); /* no - parent has no children */
 }
 
 /*===========================================================================*

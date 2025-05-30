@@ -103,15 +103,15 @@ message *m_ptr; /* pointer to the newly arrived message */
 
     /* Reject command if printer is busy or count is not positive. */
     if (pr_busy)
-        r = EAGAIN;
+        r = ErrorCode::EAGAIN;
     if (m_ptr->COUNT <= 0)
-        r = EINVAL;
+        r = ErrorCode::EINVAL;
 
     /* Compute the physical address of the data buffer within user space. */
     rp = proc_addr(m_ptr->PROC_NR);
     phys = umap(rp, D, (vir_bytes)m_ptr->ADDRESS, m_ptr->COUNT);
     if (phys == 0)
-        r = E_BAD_ADDR;
+        r = ErrorCode::E_BAD_ADDR;
 
     if (r == OK) {
         /* Save information needed later. */
@@ -138,7 +138,7 @@ message *m_ptr; /* pointer to the newly arrived message */
                     continue;
                 }
                 pr_error(value);
-                r = EIO;
+                r = ErrorCode::EIO;
                 break;
             }
         }
@@ -146,7 +146,7 @@ message *m_ptr; /* pointer to the newly arrived message */
 
     /* Reply to FS, no matter what happened. */
     if (value == BUSY_STATUS)
-        r = EAGAIN;
+        r = ErrorCode::EAGAIN;
     reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, r);
 }
 
@@ -160,10 +160,10 @@ message *m_ptr; /* pointer to the newly arrived message */
 
     int status;
 
-    status = (m_ptr->REP_STATUS == OK ? orig_count : EIO);
+    status = (m_ptr->REP_STATUS == OK ? orig_count : ErrorCode::EIO);
     if (proc_nr != CANCELED) {
         reply(REVIVE, caller, proc_nr, status);
-        if (status == EIO)
+        if (status == ErrorCode::EIO)
             pr_error(m_ptr->REP_STATUS);
     }
     pr_busy = FALSE;
@@ -184,7 +184,7 @@ message *m_ptr; /* pointer to the newly arrived message */
     pr_busy = FALSE;    /* mark printer as idle */
     pcount = 0;         /* causes printing to stop at next interrupt*/
     proc_nr = CANCELED; /* marks process as canceled */
-    reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, EINTR);
+    reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, ErrorCode::EINTR);
 }
 
 /*===========================================================================*
@@ -201,7 +201,7 @@ int status;  /* number of  chars printed or error code */
     message pr_mess;
 
     pr_mess.m_type = code;         /* TASK_REPLY or REVIVE */
-    pr_mess.REP_STATUS = status;   /* count or EIO */
+    pr_mess.REP_STATUS = status;   /* count or ErrorCode::EIO */
     pr_mess.REP_PROC_NR = process; /* which user does this pertain to */
     send(replyee, &pr_mess);       /* send the message */
 }

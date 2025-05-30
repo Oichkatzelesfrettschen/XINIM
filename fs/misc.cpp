@@ -59,7 +59,7 @@ PUBLIC int do_dup() {
     } else {
         /* dup2(fd, fd2) */
         if (fd2 < 0 || fd2 >= NR_FDS)
-            return (EBADF);
+            return (ErrorCode::EBADF);
         if (rfd == fd2)
             return (fd2); /* ignore the call: dup2(x, x) */
         fd = fd2;         /* prepare to close fd2 */
@@ -236,7 +236,7 @@ PUBLIC int do_revive() {
      */
 
     if (who > 0)
-        return (EPERM);
+        return (ErrorCode::EPERM);
     revive(m.REP_PROC_NR, m.REP_STATUS);
     dont_reply = TRUE; /* don't reply to the TTY task */
     return (OK);

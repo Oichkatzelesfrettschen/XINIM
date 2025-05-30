@@ -93,7 +93,7 @@ static void flush() {
         n = write(1, out_buf, out_count);
         if (n == out_count)
             break;
-        if (n != EAGAIN) {
+        if (n != ErrorCode::EAGAIN) {
             std_err("Printer error\n");
             exit(1);
         }

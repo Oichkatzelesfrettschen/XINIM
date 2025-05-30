@@ -112,7 +112,7 @@ PUBLIC sys_task() {
             r = do_copy(&m);
             break;
         default:
-            r = E_BAD_FCN;
+            r = ErrorCode::E_BAD_FCN;
         }
 
         m.m_type = r;         /* 'r' reports status of call */
@@ -140,7 +140,7 @@ message *m_ptr; /* pointer to request message */
     pid = m_ptr->PID;  /* extract child process id */
 
     if (k1 < 0 || k1 >= NR_PROCS || k2 < 0 || k2 >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rpc = proc_addr(k2);
 
     /* Copy parent 'proc' struct to child. */
@@ -182,7 +182,7 @@ message *m_ptr; /* pointer to request message */
     k = m_ptr->PROC1;
     map_ptr = (struct mem_map *)m_ptr->MEM_PTR;
     if (k < -NR_TASKS || k >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);        /* ptr to entry of user getting new map */
     rsrc = proc_addr(caller); /* ptr to MM's proc entry */
     vn = NR_SEGS * sizeof(struct mem_map);
@@ -217,7 +217,7 @@ message *m_ptr; /* pointer to request message */
     k = m_ptr->PROC1; /* 'k' tells which process did EXEC */
     sp = (int *)m_ptr->STACK_PTR;
     if (k < 0 || k >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
     rp->p_sp = sp;                 /* set the stack pointer */
     rp->p_pcpsw.pc = (int (*)())0; /* reset pc */
@@ -245,7 +245,7 @@ message *m_ptr; /* pointer to request message */
     parent = m_ptr->PROC1;  /* slot number of parent process */
     proc_nr = m_ptr->PROC2; /* slot number of exiting process */
     if (parent < 0 || parent >= NR_PROCS || proc_nr < 0 || proc_nr >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(parent);
     rc = proc_addr(proc_nr);
     rp->child_utime += rc->user_time + rc->child_utime; /* accum child times */
@@ -297,7 +297,7 @@ message *m_ptr; /* pointer to request message */
 
     k = m_ptr->PROC1;
     if (k < 0 || k >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
     m.STACK_PTR = (char *)rp->p_sp; /* return sp here */
     return (OK);
@@ -316,7 +316,7 @@ message *m_ptr; /* pointer to request message */
 
     k = m_ptr->PROC1; /* k tells whose times are wanted */
     if (k < 0 || k >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
 
     /* Insert the four times needed by the TIMES system call in the message. */
@@ -358,7 +358,7 @@ message *m_ptr; /* pointer to request message */
     sig = m_ptr->SIGNUM;       /* signal number, 1 to 16 */
     sig_handler = m_ptr->FUNC; /* run time system addr for catching sigs */
     if (proc_nr < LOW_USER || proc_nr >= NR_PROCS)
-        return (E_BAD_PROC);
+        return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(proc_nr);
     vir_addr = (vir_bytes)sig_stuff; /* info to be pushed is in 'sig_stuff' */
     new_sp = (vir_bytes)rp->p_sp;
@@ -414,7 +414,7 @@ message *m_ptr; /* pointer to request message */
         dst_phys = umap(proc_addr(dst_proc), dst_space, dst_vir, (vir_bytes)bytes);
 
     if (src_phys == 0 || dst_phys == 0)
-        return (EFAULT);
+        return (ErrorCode::EFAULT);
     phys_copy(src_phys, dst_phys, bytes);
     return (OK);
 }

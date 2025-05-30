@@ -97,11 +97,11 @@ message *m_ptr; /* pointer to message */
     /* Check for bad system call parameters. */
     rp = proc_addr(caller);
     if (src_dest < -NR_TASKS || (src_dest >= NR_PROCS && src_dest != ANY)) {
-        rp->p_reg[RET_REG] = E_BAD_SRC;
+        rp->p_reg[RET_REG] = ErrorCode::E_BAD_SRC;
         return;
     }
     if (function != BOTH && caller >= LOW_USER) {
-        rp->p_reg[RET_REG] = E_NO_PERM; /* users only do BOTH */
+        rp->p_reg[RET_REG] = ErrorCode::E_NO_PERM; /* users only do BOTH */
         return;
     }
 
@@ -140,11 +140,11 @@ message *m_ptr; /* pointer to message buffer */
 
     /* User processes are only allowed to send to FS and MM.  Check for this. */
     if (caller >= LOW_USER && (dest != FS_PROC_NR && dest != MM_PROC_NR))
-        return (E_BAD_DEST);
+        return (ErrorCode::E_BAD_DEST);
     caller_ptr = proc_addr(caller); /* pointer to source's proc entry */
     dest_ptr = proc_addr(dest);     /* pointer to destination's proc entry */
     if (dest_ptr->p_flags & P_SLOT_FREE)
-        return (E_BAD_DEST); /* dead dest */
+        return (ErrorCode::E_BAD_DEST); /* dead dest */
 
     /* Check for messages wrapping around top of memory or outside data seg. */
     len = caller_ptr->p_map[D].mem_len;
@@ -152,7 +152,7 @@ message *m_ptr; /* pointer to message buffer */
     vlo = vb >> CLICK_SHIFT;                   /* vir click for bottom of message */
     vhi = (vb + MESS_SIZE - 1) >> CLICK_SHIFT; /* vir click for top of message */
     if (vhi < vlo || vhi - caller_ptr->p_map[D].mem_vir >= len)
-        return (E_BAD_ADDR);
+        return (ErrorCode::E_BAD_ADDR);
 
     /* Check to see if 'dest' is blocked waiting for this message. */
     if ((dest_ptr->p_flags & RECEIVING) &&
@@ -166,7 +166,7 @@ message *m_ptr; /* pointer to message buffer */
     } else {
         /* Destination is not waiting.  Block and queue caller. */
         if (caller == HARDWARE)
-            return (E_OVERRUN);
+            return (ErrorCode::E_OVERRUN);
         caller_ptr->p_messbuf = m_ptr;
         caller_ptr->p_flags |= SENDING;
         unready(caller_ptr);

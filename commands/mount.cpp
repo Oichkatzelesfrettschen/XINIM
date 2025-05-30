@@ -20,7 +20,7 @@ int main(int argc, char *argv[]) {
         usage();
     ro = (argc == 4 ? 1 : 0);
     if (mount(argv[1], argv[2], ro) < 0) {
-        if (errno == EINVAL) {
+        if (errno == ErrorCode::EINVAL) {
             std_err("mount: ");
             std_err(argv[1]);
             std_err(" is not a valid file system.\n");

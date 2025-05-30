@@ -143,7 +143,7 @@ int flag;   /* M3 means path may be in message */
 
     /* String is not contained in the message.  Go get it from user space. */
     if (len > MAX_PATH) {
-        err_code = E_LONG_STRING;
+        err_code = ErrorCode::E_LONG_STRING;
         return (ERROR);
     }
     vpath = (vir_bytes)path;
@@ -157,7 +157,7 @@ int flag;   /* M3 means path may be in message */
 PUBLIC int no_sys() {
     /* Somebody has used an illegal system call number */
 
-    return (EINVAL);
+    return (ErrorCode::EINVAL);
 }
 
 /*===========================================================================*

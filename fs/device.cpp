@@ -107,7 +107,7 @@ PUBLIC do_ioctl() {
         return (err_code);
     rip = f->filp_ino; /* get inode pointer */
     if ((rip->i_mode & I_TYPE) != I_CHAR_SPECIAL)
-        return (ENOTTY);
+        return (ErrorCode::ENOTTY);
     find_dev(rip->i_zone[0]);
 
     dev_mess.m_type = TTY_IOCTL;

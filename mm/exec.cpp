@@ -55,9 +55,9 @@ PUBLIC int do_exec() {
     rmp = mp;
     stk_bytes = (vir_bytes)stack_bytes;
     if (stk_bytes > MAX_ISTACK_BYTES)
-        return (ENOMEM); /* stack too big */
+        return (ErrorCode::ENOMEM); /* stack too big */
     if (exec_len <= 0 || exec_len > MAX_PATH)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
 
     /* Get the exec file name and see if the file is executable. */
     src = (vir_bytes)exec_name;
@@ -76,7 +76,7 @@ PUBLIC int do_exec() {
     m = read_header(fd, &ft, &text_bytes, &data_bytes, &bss_bytes, &tot_bytes, sc);
     if (m < 0) {
         close(fd); /* something wrong with header */
-        return (ENOEXEC);
+        return (ErrorCode::ENOEXEC);
     }
 
     /* Fetch the stack from the user before destroying the old core image. */
@@ -85,7 +85,7 @@ PUBLIC int do_exec() {
     r = mem_copy(who, D, (long)src, MM_PROC_NR, D, (long)dst, (long)stk_bytes);
     if (r != OK) {
         close(fd); /* can't fetch stack (e.g. bad virtual addr) */
-        return (EACCES);
+        return (ErrorCode::EACCES);
     }
 
     /* Allocate new memory and release old memory.  Fix map and tell kernel. */
@@ -163,9 +163,9 @@ vir_clicks sc;         /* stack size in clicks */
      */
 
     if (read(fd, buf, HDR_SIZE) != HDR_SIZE)
-        return (ENOEXEC);
+        return (ErrorCode::ENOEXEC);
     if ((buf[0] & 0xFF0FFFFFL) != MAGIC)
-        return (ENOEXEC);
+        return (ErrorCode::ENOEXEC);
     *ft = (buf[0] & SEP ? SEPARATE : 0); /* separate I & D or not */
 
     /* Get text and data sizes. */
@@ -181,14 +181,14 @@ vir_clicks sc;         /* stack size in clicks */
     *bss_bytes = (vir_bytes)buf[BSSB]; /* bss size in bytes */
     *tot_bytes = buf[TOTB];            /* total bytes to allocate for program */
     if (*tot_bytes == 0)
-        return (ENOEXEC);
+        return (ErrorCode::ENOEXEC);
 
     /* Check to see if segment sizes are feasible. */
     tc = (*text_bytes + CLICK_SHIFT - 1) >> CLICK_SHIFT;
     dc = (*data_bytes + *bss_bytes + CLICK_SHIFT - 1) >> CLICK_SHIFT;
     totc = (*tot_bytes + CLICK_SIZE - 1) >> CLICK_SHIFT;
     if (dc >= totc)
-        return (ENOEXEC); /* stack must be at least 1 click */
+        return (ErrorCode::ENOEXEC); /* stack must be at least 1 click */
     dvir = (*ft == SEPARATE ? 0 : tc);
     s_vir = dvir + (totc - sc);
     m = size_ok(*ft, tc, dc, sc, dvir, s_vir);
@@ -234,14 +234,14 @@ int zs;                /* true size of 'bf' */
     tot_clicks = (tot_bytes + CLICK_SIZE - 1) >> CLICK_SHIFT;
     gap_clicks = tot_clicks - data_clicks - stack_clicks;
     if ((int)gap_clicks < 0)
-        return (ENOMEM);
+        return (ErrorCode::ENOMEM);
 
     /* Check to see if there is a hole big enough.  If so, we can risk first
      * releasing the old core image before allocating the new one, since we
      * know it will succeed.  If there is not enough, return failure.
      */
     if (text_clicks + tot_clicks > max_hole())
-        return (EAGAIN);
+        return (ErrorCode::EAGAIN);
 
     /* There is enough memory for the new core image.  Release the old one. */
     rmp = mp;

@@ -57,7 +57,7 @@ union {
 
     default:
         n = -1;
-        errno = -(EINVAL);
+        errno = -static_cast<int>(ErrorCode::EINVAL);
         return (n);
     }
 }

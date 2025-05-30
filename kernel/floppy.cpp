@@ -180,7 +180,7 @@ PUBLIC floppy_task() {
             r = do_rdwt(&mess);
             break;
         default:
-            r = EINVAL;
+            r = ErrorCode::EINVAL;
             break;
         }
 
@@ -205,12 +205,12 @@ PRIVATE int do_rdwt(message *m_ptr) {
     /* Decode the message parameters. */
     drive = m_ptr->DEVICE;
     if (drive < 0 || drive >= NR_DRIVES)
-        return (EIO);
+        return (ErrorCode::EIO);
     fp = &floppy[drive];           /* 'fp' points to entry for this drive */
     fp->fl_drive = drive;          /* save drive number explicitly */
     fp->fl_opcode = m_ptr->m_type; /* DISK_READ or DISK_WRITE */
     if (m_ptr->POSITION % BLOCK_SIZE != 0)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     block = m_ptr->POSITION / SECTOR_SIZE;
     if (block >= HC_SIZE)
         return (EOF);   /* sector is beyond end of 1.2M disk */
@@ -222,7 +222,7 @@ PRIVATE int do_rdwt(message *m_ptr) {
     fp->fl_address = (vir_bytes)m_ptr->ADDRESS;
     fp->fl_procnr = m_ptr->PROC_NR;
     if (fp->fl_count != BLOCK_SIZE)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
 
     errors = 0;
 
@@ -270,7 +270,7 @@ PRIVATE int do_rdwt(message *m_ptr) {
     clock_mess(MOTOR_OFF, stop_motor);
     if (r == OK && fp->fl_cylinder > 0)
         initialized = 1; /* seek works */
-    return (r == OK ? BLOCK_SIZE : EIO);
+    return (r == OK ? BLOCK_SIZE : ErrorCode::EIO);
 }
 
 /*===========================================================================*

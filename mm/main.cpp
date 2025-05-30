@@ -52,7 +52,7 @@ PUBLIC main() {
 
         /* If the call number is valid, perform the call. */
         if (mm_call < 0 || mm_call >= NCALLS)
-            error = E_BAD_CALL;
+            error = ErrorCode::E_BAD_CALL;
         else
             error = (*call_vec[mm_call])();
 
@@ -147,7 +147,7 @@ PUBLIC do_brk2() {
     phys_clicks init_text_clicks, init_data_clicks;
 
     if (who != FS_PROC_NR)
-        return (EPERM); /* only FS make do BRK2 */
+        return (ErrorCode::EPERM); /* only FS make do BRK2 */
 
     /* Remove the memory used by MINIX and RAM disk from the memory map. */
     init_text_clicks = mm_in.m1_i1;      /* size of INIT in clicks */

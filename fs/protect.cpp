@@ -48,7 +48,7 @@ PUBLIC int do_chmod() {
      * No one may change the mode of a file on a read-only file system.
      */
     if (rip->i_uid != fp->fp_effuid && !super_user)
-        r = EPERM;
+        r = ErrorCode::EPERM;
     else
         r = read_only(rip);
 
@@ -78,7 +78,7 @@ PUBLIC int do_chown() {
 
     /* Only the super_user may perform the chown() call. */
     if (!super_user)
-        return (EPERM);
+        return (ErrorCode::EPERM);
 
     /* Temporarily open the file. */
     if (fetch_name(name1, name1_length, M1) != OK)
@@ -143,7 +143,7 @@ int real_uid;               /* set iff real uid to be tested */
     /* Given a pointer to an inode, 'rip', and the accessed desired, determine
      * if the access is allowed, and if not why not.  The routine looks up the
      * caller's uid in the 'fproc' table.  If the access is allowed, OK is returned
-     * if it is forbidden, EACCES is returned.
+     * if it is forbidden, ErrorCode::EACCES is returned.
      */
 
     register mask_bits bits, perm_bits, xmask;
@@ -168,12 +168,12 @@ int real_uid;               /* set iff real uid to be tested */
     /* If access desired is not a subset of what is allowed, it is refused. */
     r = OK;
     if ((perm_bits | access_desired) != perm_bits)
-        r = EACCES;
+        r = ErrorCode::EACCES;
 
     /* If none of the X bits are on, not even the super-user can execute it. */
     xmask = (X_BIT << 6) | (X_BIT << 3) | X_BIT; /* all 3 X bits */
     if ((access_desired & X_BIT) && (bits & xmask) == 0)
-        r = EACCES;
+        r = ErrorCode::EACCES;
 
     /* Check to see if someone is trying to write on a file system that is
      * mounted read-only.
@@ -192,12 +192,12 @@ PRIVATE int read_only(ip)
 struct inode *ip; /* ptr to inode whose file sys is to be cked */
 {
     /* Check to see if the file system on which the inode 'ip' resides is mounted
-     * read only.  If so, return EROFS, else return OK.
+     * read only.  If so, return ErrorCode::EROFS, else return OK.
      */
 
     register struct super_block *sp;
     extern struct super_block *get_super();
 
     sp = get_super(ip->i_dev);
-    return (sp->s_rd_only ? EROFS : OK);
+    return (sp->s_rd_only ? ErrorCode::EROFS : OK);
 }

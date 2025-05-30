@@ -40,7 +40,7 @@ PUBLIC int do_mount() {
 
     /* Only the super-user may do MOUNT. */
     if (!super_user)
-        return (EPERM);
+        return (ErrorCode::EPERM);
 
     /* If 'name' is not for a block special file, return error. */
     if (fetch_name(name1, name1_length, M1) != OK)
@@ -58,9 +58,9 @@ PUBLIC int do_mount() {
             sp = xp; /* record free slot */
     }
     if (found)
-        return (EBUSY); /* already mounted */
+        return (ErrorCode::EBUSY); /* already mounted */
     if (sp == NIL_SUPER)
-        return (ENFILE); /* no super block available */
+        return (ErrorCode::ENFILE); /* no super block available */
 
     /* Fill in the super block. */
     sp->s_dev = dev; /* rw_super() needs to know which dev */
@@ -71,7 +71,7 @@ PUBLIC int do_mount() {
     if (sp->s_magic != SUPER_MAGIC || sp->s_ninodes < 1 || sp->s_nzones < 1 ||
         sp->s_imap_blocks < 1 || sp->s_zmap_blocks < 1) {
         sp->s_dev = NO_DEV;
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     }
 
     /* Now get the inode of the file to be mounted on. */
@@ -87,12 +87,12 @@ PUBLIC int do_mount() {
     /* It may not be busy. */
     r = OK;
     if (rip->i_count > 1)
-        r = EBUSY;
+        r = ErrorCode::EBUSY;
 
     /* It may not be special. */
     bits = rip->i_mode & I_TYPE;
     if (bits == I_BLOCK_SPECIAL || bits == I_CHAR_SPECIAL)
-        r = ENOTDIR;
+        r = ErrorCode::ENOTDIR;
 
     /* Get the root inode of the mounted file system. */
     root_ip = NIL_INODE; /* if 'r' not OK, make sure this is defined */
@@ -101,20 +101,20 @@ PUBLIC int do_mount() {
             r = err_code;
     }
     if (root_ip != NIL_INODE && root_ip->i_mode == 0)
-        r = EINVAL;
+        r = ErrorCode::EINVAL;
 
     /* Load the i-node and zone bit maps from the new device. */
     loaded = FALSE;
     if (r == OK) {
         if (load_bit_maps(dev) != OK)
-            r = ENFILE; /* load bit maps */
+            r = ErrorCode::ENFILE; /* load bit maps */
         loaded = TRUE;
     }
 
     /* File types of 'rip' and 'root_ip' may not conflict. */
     if ((r == OK) && ((rip->i_mode & I_TYPE) == I_DIRECTORY) &&
         ((root_ip->i_mode & I_TYPE) != I_DIRECTORY))
-        r = ENOTDIR;
+        r = ErrorCode::ENOTDIR;
 
     /* If error, return the super block and both inodes; release the maps. */
     if (r != OK) {
@@ -150,7 +150,7 @@ PUBLIC int do_umount() {
 
     /* Only the super-user may do UMOUNT. */
     if (!super_user)
-        return (EPERM);
+        return (ErrorCode::EPERM);
 
     /* If 'name' is not for a block special file, return error. */
     if (fetch_name(name, name_length, M3) != OK)
@@ -166,7 +166,7 @@ PUBLIC int do_umount() {
         if (rip->i_count > 0 && rip->i_dev == dev)
             count += rip->i_count;
     if (count > 1)
-        return (EBUSY); /* can't umount a busy file system */
+        return (ErrorCode::EBUSY); /* can't umount a busy file system */
 
     /* Find the super block. */
     sp = NIL_SUPER;
@@ -184,7 +184,7 @@ PUBLIC int do_umount() {
     do_sync();       /* force any cached blocks out of memory */
     invalidate(dev); /* invalidate cache entries for this dev */
     if (sp == NIL_SUPER)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
 
     /* Finish off the unmount. */
     sp->s_imount->i_mount = NO_MOUNT; /* inode returns to normal */
@@ -215,7 +215,7 @@ char *path; /* pointer to path name */
 
     /* If 'path' is not a block special file, return error. */
     if ((rip->i_mode & I_TYPE) != I_BLOCK_SPECIAL) {
-        err_code = ENOTBLK;
+        err_code = ErrorCode::ENOTBLK;
         put_inode(rip);
         return (NO_DEV);
     }

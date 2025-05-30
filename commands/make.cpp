@@ -2089,7 +2089,7 @@ char *s;
     struct stat statb;
 
     if (stat(s, &statb) != 0) {
-        if (errno == ENOENT)
+        if (errno == ErrorCode::ENOENT)
             return ((TIME)0);
         else {
             perror(whoami);
