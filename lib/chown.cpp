@@ -1,8 +1,7 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int chown(name, owner, grp)
-char *name;
-int owner, grp;
-{
-    return callm1(FS, CHOWN, len(name), owner, grp, name, NIL_PTR, NIL_PTR);
+// Change owner and group of a file.
+PUBLIC int chown(const char *name, int owner, int grp) {
+    return callm1(FS, CHOWN, len(const_cast<char *>(name)), owner, grp, const_cast<char *>(name),
+                  NIL_PTR, NIL_PTR);
 }

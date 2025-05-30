@@ -21,7 +21,9 @@ int main(int argc, char **argv) {
         std_err("\n");
         exit(1);
     }
-    if (stat(argv[1], &stb) >= 0 && (stb.st_mode & S_IFMT) == S_IFDIR)
+    if (stat(argv[1], &stb) >= 0 &&
+        (stb.st_mode & FileMode::S_IFMT) ==
+            static_cast<unsigned short>(FileMode::S_IFDIR))
         usage();
     file1 = argv[1];
 
@@ -32,7 +34,9 @@ int main(int argc, char **argv) {
         file2 = argv[2];
 
     /* Check to see if target is a directory. */
-    if (stat(file2, &stb) >= 0 && (stb.st_mode & S_IFMT) == S_IFDIR) {
+    if (stat(file2, &stb) >= 0 &&
+        (stb.st_mode & FileMode::S_IFMT) ==
+            static_cast<unsigned short>(FileMode::S_IFDIR)) {
         strcpy(name, file2);
         strcat(name, "/");
         strcat(name, last_comp(file1));

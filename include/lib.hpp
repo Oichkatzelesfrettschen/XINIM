@@ -30,6 +30,9 @@ extern int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *p
 extern int callm3(int proc, int syscallnr, int int1, char *name);
 extern int callx(int proc, int syscallnr);
 extern int len(char *s);
+extern int send(int dst, message *m_ptr);
+extern int receive(int src, message *m_ptr);
+extern int sendrec(int srcdest, message *m_ptr);
 extern int errno;
 extern int begsig(void); /* interrupts all vector here */
 

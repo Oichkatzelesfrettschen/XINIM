@@ -159,7 +159,7 @@ char *user_addr;            /* user space address where stat buf goes */
     stp = &statbuf; /* set up pointer to the buffer */
     stp->st_dev = (int)rip->i_dev;
     stp->st_ino = rip->i_num;
-    stp->st_mode = rip->i_mode;
+    stp->st_mode = static_cast<FileMode>(rip->i_mode);
     stp->st_nlink = rip->i_nlinks & BYTE;
     stp->st_uid = rip->i_uid;
     stp->st_gid = rip->i_gid & BYTE;

@@ -2,16 +2,9 @@
 
 PUBLIC int errno; /* place where error numbers go */
 
-PUBLIC int callm1(proc, syscallnr, int1, int2, int3, ptr1, ptr2, ptr3)
-int proc;      /* FS or MM */
-int syscallnr; /* which system call */
-int int1;      /* first integer parameter */
-int int2;      /* second integer parameter */
-int int3;      /* third integer parameter */
-char *ptr1;    /* pointer parameter */
-char *ptr2;    /* pointer parameter */
-char *ptr3;    /* pointer parameter */
-{
+// Send a message with three integer and three pointer parameters.
+PUBLIC int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, char *ptr2,
+                  char *ptr3) {
     /* Send a message and get the response.  The 'M.m_type' field of the
      * reply contains a value (>= 0) or an error code (<0). Use message format m1.
      */
@@ -24,12 +17,8 @@ char *ptr3;    /* pointer parameter */
     return callx(proc, syscallnr);
 }
 
-PUBLIC int callm3(proc, syscallnr, int1, name)
-int proc;      /* FS or MM */
-int syscallnr; /* which system call */
-int int1;      /* integer parameter */
-char *name;    /* string */
-{
+// Send a message with one integer and a string parameter.
+PUBLIC int callm3(int proc, int syscallnr, int int1, char *name) {
     /* This form of system call is used for those calls that contain at most
      * one integer parameter along with a string.  If the string fits in the
      * message, it is copied there.  If not, a pointer to it is passed.
@@ -47,10 +36,8 @@ char *name;    /* string */
     return callx(proc, syscallnr);
 }
 
-PUBLIC int callx(proc, syscallnr)
-int proc;      /* FS or MM */
-int syscallnr; /* which system call */
-{
+// Low-level send/receive routine.
+PUBLIC int callx(int proc, int syscallnr) {
     /* Send a message and get the response.  The 'M.m_type' field of the
      * reply contains a value (>= 0) or an error code (<0).
      */
@@ -67,9 +54,8 @@ int syscallnr; /* which system call */
     return (M.m_type);
 }
 
-PUBLIC int len(s)
-register char *s; /* character string whose length is needed */
-{
+// Compute the length of a string including the trailing null.
+PUBLIC int len(char *s) {
     /* Return the length of a character string, including the 0 at the end. */
     register int k;
 

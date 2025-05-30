@@ -411,14 +411,17 @@ static void print_mode(int mode) {
 
     mode_buf[9] = ' ';
     for (i = 0; i < 3; i++) {
-        mode_buf[i * 3] = (tmp & S_IREAD) ? 'r' : '-';
-        mode_buf[i * 3 + 1] = (tmp & S_IWRITE) ? 'w' : '-';
-        mode_buf[i * 3 + 2] = (tmp & S_IEXEC) ? 'x' : '-';
+        mode_buf[i * 3] =
+            (tmp & static_cast<unsigned short>(FileMode::S_IREAD)) ? 'r' : '-';
+        mode_buf[i * 3 + 1] =
+            (tmp & static_cast<unsigned short>(FileMode::S_IWRITE)) ? 'w' : '-';
+        mode_buf[i * 3 + 2] =
+            (tmp & static_cast<unsigned short>(FileMode::S_IEXEC)) ? 'x' : '-';
         tmp <<= 3;
     }
-    if (mode & S_ISUID)
+    if (mode & static_cast<unsigned short>(FileMode::S_ISUID))
         mode_buf[2] = 's';
-    if (mode & S_ISGID)
+    if (mode & static_cast<unsigned short>(FileMode::S_ISGID))
         mode_buf[5] = 's';
     print(mode_buf);
 }

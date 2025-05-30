@@ -43,7 +43,8 @@ static void remove(char *dirname) {
         error++;
         return;
     }
-    if ((s.st_mode & S_IFMT) != S_IFDIR) {
+    if ((s.st_mode & FileMode::S_IFMT) !=
+        static_cast<unsigned short>(FileMode::S_IFDIR)) {
         stderr2(dirname, " not a directory\n");
         error++;
         return;

@@ -28,10 +28,12 @@ extern struct _io_buf {
     char *_buf;
     char *_ptr;
 } *_io_table[NFILES];
-
 #endif /* FILE */
 
 #define FILE struct _io_buf
+
+/* Standard I/O prototypes */
+int fflush(FILE *iop);
 
 #define stdin (_io_table[0])
 #define stdout (_io_table[1])

@@ -78,7 +78,8 @@ static void remove(char *name) {
         if (!confirm())
             return;
     }
-    if ((s.st_mode & S_IFMT) == S_IFDIR) {
+    if ((s.st_mode & FileMode::S_IFMT) ==
+        static_cast<unsigned short>(FileMode::S_IFDIR)) {
         if (rflag) {
             if ((fd = open(name, 0)) < 0) {
                 if (!fflag)
@@ -105,7 +106,7 @@ static void remove(char *name) {
     } else {
         if (access(name, 2) && !fflag) {
             stderr3("rm: remove ", name, " with mode ");
-            octal(s.st_mode & 0777);
+            octal(static_cast<unsigned short>(s.st_mode) & 0777);
             std_err("? ");
             if (!confirm())
                 return;

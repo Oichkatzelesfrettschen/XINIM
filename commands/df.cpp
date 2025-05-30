@@ -48,7 +48,8 @@ static void df(char *name) {
         stderr2(name, ": Cannot stat\n");
         return;
     }
-    if ((statbuf.st_mode & S_IFMT) != S_IFBLK) {
+    if ((statbuf.st_mode & FileMode::S_IFMT) !=
+        static_cast<unsigned short>(FileMode::S_IFBLK)) {
         stderr2(name, ": not a block special file\n");
         return;
     }

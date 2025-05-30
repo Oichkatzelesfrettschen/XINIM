@@ -13,7 +13,8 @@ char cpbuf[TRANSFER_UNIT];
 int isfloppy; /* set to 1 for cp x /dev/fd? */
 
 int main(int argc, char *argv[]) {
-    int fd1, fd2, m, s;
+    int fd1, fd2, s;
+    FileMode m;
     struct stat sbuf, sbuf2;
 
     if (argc < 3)
@@ -21,14 +22,15 @@ int main(int argc, char *argv[]) {
 
     /* Get the status of the last named file.  See if it is a directory. */
     s = stat(argv[argc - 1], &sbuf);
-    m = sbuf.st_mode & S_IFMT;
-    if (s >= 0 && m == S_IFDIR) {
+    m = static_cast<FileMode>(sbuf.st_mode & FileMode::S_IFMT);
+    if (s >= 0 && m == FileMode::S_IFDIR) {
         /* Last argument is a directory. */
         cp_to_dir(argc, argv);
     } else if (argc > 3) {
         /* More than 2 arguments and last one is not a directory. */
         usage();
-    } else if (s < 0 || m == S_IFREG || m == S_IFCHR || m == S_IFBLK) {
+    } else if (s < 0 || m == FileMode::S_IFREG || m == FileMode::S_IFCHR ||
+               m == FileMode::S_IFBLK) {
         /* Exactly two arguments.  Check for cp f1 f1. */
         if (equal(argv[1], argv[2])) {
             std_err("Cannot copy a file to itself\n");
@@ -42,13 +44,14 @@ int main(int argc, char *argv[]) {
             exit(1);
         }
         fstat(fd1, &sbuf);
-        fd2 = creat(argv[2], sbuf.st_mode & 0777);
+        fd2 = creat(argv[2], static_cast<unsigned short>(sbuf.st_mode) & 0777);
         if (fd2 < 0) {
             stderr3("Cannot create ", argv[2], "\n");
             exit(2);
         }
         fstat(fd2, &sbuf2);
-        if ((sbuf2.st_mode & S_IFMT) == S_IFBLK)
+        if (static_cast<FileMode>(sbuf2.st_mode & FileMode::S_IFMT) ==
+            FileMode::S_IFBLK)
             isfloppy = 1;
         copyfile(fd1, fd2);
     } else {
@@ -88,7 +91,7 @@ static void cp_to_dir(int argc, char *argv[]) {
             *dp++ = *ptr++;
         *dp++ = 0;
         fstat(fd1, &sbuf);
-        fd2 = creat(dirname, sbuf.st_mode & 0777);
+        fd2 = creat(dirname, static_cast<unsigned short>(sbuf.st_mode) & 0777);
         if (fd2 < 0) {
             stderr3("Cannot create ", dirname, "\n");
             continue;

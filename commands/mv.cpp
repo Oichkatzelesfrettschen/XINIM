@@ -27,8 +27,11 @@ int main(int argc, char **argv) {
             std_err(" doesn't exist\n");
             exit(1);
         }
-        if ((st.st_mode & S_IFMT) == S_IFDIR) {
-            if (!stat(argv[2], &st) && (st.st_mode & S_IFMT) == S_IFDIR) {
+        if ((st.st_mode & FileMode::S_IFMT) ==
+            static_cast<unsigned short>(FileMode::S_IFDIR)) {
+            if (!stat(argv[2], &st) &&
+                (st.st_mode & FileMode::S_IFMT) ==
+                    static_cast<unsigned short>(FileMode::S_IFDIR)) {
                 std_err("mv: target ");
                 std_err(argv[2]);
                 std_err(" exists\n");
@@ -49,7 +52,8 @@ int main(int argc, char **argv) {
             std_err(" doesn't exist\n");
             exit(1);
         }
-        if ((st.st_mode & S_IFMT) != S_IFDIR) {
+        if ((st.st_mode & FileMode::S_IFMT) !=
+            static_cast<unsigned short>(FileMode::S_IFDIR)) {
             std_err("mv: target ");
             std_err(destdir);
             std_err(" not a directory\n");
@@ -68,7 +72,8 @@ static void move(char *old, char *new) {
     int retval;
 
     if (!stat(new, &st))
-        if ((st.st_mode & S_IFMT) != S_IFDIR)
+        if ((st.st_mode & FileMode::S_IFMT) !=
+            static_cast<unsigned short>(FileMode::S_IFDIR))
             unlink(new);
         else {
             char name[64], *p, *rindex();
@@ -86,7 +91,8 @@ static void move(char *old, char *new) {
         }
     stat(old, &st);
     if (link(old, new))
-        if ((st.st_mode & S_IFMT) != S_IFDIR) {
+        if ((st.st_mode & FileMode::S_IFMT) !=
+            static_cast<unsigned short>(FileMode::S_IFDIR)) {
             switch (fork()) {
             case 0:
                 execl("/bin/cp", "cp", old, new, 0);

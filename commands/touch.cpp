@@ -43,8 +43,8 @@ static int doit(const char *name) {
 
     if (!access(name, 0)) { /* change date if possible */
         stat(name, &buf);
-        tmp = (buf.st_mode & S_IFREG);
-        if (tmp != S_IFREG)
+        tmp = (buf.st_mode & FileMode::S_IFREG);
+        if (tmp != static_cast<unsigned short>(FileMode::S_IFREG))
             return (1);
 
         tim = time(0L);

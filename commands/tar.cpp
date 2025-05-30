@@ -322,9 +322,9 @@ add_file(file) register char *file;
 
     make_header(path_name(file), &st);
     mwrite(tar_fd, &header, sizeof(header));
-    if (st.st_mode & S_IFREG)
+    if (static_cast<unsigned short>(st.st_mode & FileMode::S_IFREG))
         copy(path_name(file), fd, tar_fd, st.st_size);
-    else if (st.st_mode & S_IFDIR) {
+    else if (static_cast<unsigned short>(st.st_mode & FileMode::S_IFDIR)) {
         if (chdir(file) < 0)
             string_print(NIL_PTR, "Cannot chdir to %s\n", file);
         else {
@@ -353,12 +353,13 @@ register struct stat *st;
     while (*ptr++ = *file++)
         ;
 
-    if (st->st_mode & S_IFDIR) {
+    if (static_cast<unsigned short>(st->st_mode & FileMode::S_IFDIR)) {
         *(ptr - 1) = '/';
         st->st_size = 0L;
     }
 
-    string_print(header.member.m_mode, "%I ", st->st_mode & 07777);
+    string_print(header.member.m_mode, "%I ",
+                 static_cast<unsigned short>(st->st_mode) & 07777);
     string_print(header.member.m_uid, "%I ", st->st_uid);
     string_print(header.member.m_gid, "%I ", st->st_gid);
     string_print(header.member.m_size, "%L ", st->st_size);

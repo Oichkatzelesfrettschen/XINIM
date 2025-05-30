@@ -108,7 +108,8 @@ char *argv[];
     if (argc != 3 && argc != 4)
         badusage = 1;
     if (stat(argv[argc - 1], &statbuf) == 0) {
-        if ((statbuf.st_mode & S_IFMT) != S_IFREG)
+        if ((statbuf.st_mode & FileMode::S_IFMT) !=
+            static_cast<unsigned short>(FileMode::S_IFREG))
             badusage = 1;
     }
     if (badusage) {
