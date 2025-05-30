@@ -1,13 +1,13 @@
 import argparse
 import os
-from typing import List
+from typing import List, Optional
 
 
 def list_directory(
     path: str,
     prefix: str = "",
     show_hidden: bool = False,
-    exclude: List[str] | None = None,
+    exclude: Optional[List[str]] = None,
 ) -> List[str]:
     """Recursively build an ASCII representation of ``path``.
 
@@ -17,6 +17,10 @@ def list_directory(
         Directory to walk.
     prefix:
         Indentation prefix for the current level.
+    show_hidden:
+        Whether to include hidden files.
+    exclude:
+        A list of file or directory names to skip.
 
     Returns
     -------
