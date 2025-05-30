@@ -2,7 +2,7 @@
  * initializes the system and starts the ball rolling by setting up the proc
  * table, interrupt vectors, and scheduling each task to run to initialize
  * itself.
- * 
+ *
  * The entries into this file are:
  *   main:		MINIX main program
  *   unexpected_int:	called when an interrupt to an unused vector < 16 occurs
@@ -10,69 +10,70 @@
  *   panic:		abort MINIX due to a fatal error
  */
 
-#include "../h/const.h"
-#include "../h/type.h"
 #include "../h/callnr.h"
 #include "../h/com.h"
+#include "../h/const.h"
 #include "../h/error.h"
+#include "../h/type.h"
 #include "const.h"
-#include "type.h"
 #include "glo.h"
 #include "proc.h"
+#include "type.h"
 #ifdef __x86_64__
 void init_syscall_msrs(void);
+#endif /* __x86_64__ */
 
-
-#define SAFETY             8	/* margin of safety for stack overflow (ints)*/
-#define VERY_BIG       39328	/* must be bigger than kernel size (clicks) */
-#define BASE            1536	/* address where MINIX starts in memory */
-#define SIZES              8	/* sizes array has 8 entries */
-#define CPU_TY1       0xFFFF	/* BIOS segment that tells CPU type */
-#define CPU_TY2       0x000E	/* BIOS offset that tells CPU type */
-#define PC_AT           0xFC	/* IBM code for PC-AT (in BIOS at 0xFFFFE) */
+#define SAFETY 8       /* margin of safety for stack overflow (ints)*/
+#define VERY_BIG 39328 /* must be bigger than kernel size (clicks) */
+#define BASE 1536      /* address where MINIX starts in memory */
+#define SIZES 8        /* sizes array has 8 entries */
+#define CPU_TY1 0xFFFF /* BIOS segment that tells CPU type */
+#define CPU_TY2 0x000E /* BIOS offset that tells CPU type */
+#define PC_AT 0xFC     /* IBM code for PC-AT (in BIOS at 0xFFFFE) */
 
 /*===========================================================================*
- *                                   main                                    * 
+ *                                   main                                    *
  *===========================================================================*/
-PUBLIC main()
-{
-/* Start the ball rolling. */
+PUBLIC main() {
+    /* Start the ball rolling. */
 
-  register struct proc *rp;
-  register int t;
-  vir_clicks size;
-  phys_clicks base_click, mm_base, previous_base;
-  phys_bytes phys_b;
-  extern unsigned sizes[8];	/* table filled in by build */
-  extern int color, vec_table[], get_chrome(), (*task[])();
-  extern int s_call(), disk_int(), tty_int(), clock_int(), disk_int();
-  extern int wini_int(), lpr_int(), surprise(), trp(), divide();
-  extern phys_bytes umap();
+    register struct proc *rp;
+    register int t;
+    vir_clicks size;
+    phys_clicks base_click, mm_base, previous_base;
+    phys_bytes phys_b;
+    extern unsigned sizes[8]; /* table filled in by build */
+    extern int color, vec_table[], get_chrome(), (*task[])();
+    extern int s_call(), disk_int(), tty_int(), clock_int(), disk_int();
+    extern int wini_int(), lpr_int(), surprise(), trp(), divide();
+    extern phys_bytes umap();
 
-  /* Set up proc table entry for user processes.  Be very careful about
-   * sp, since the 3 words prior to it will be clobbered when the kernel pushes
-   * pc, cs, and psw onto the USER's stack when starting the user the first
-   * time.  This means that with initial sp = 0x10, user programs must leave 
-   * the words at 0x000A, 0x000C, and 0x000E free.
-   */
+    /* Set up proc table entry for user processes.  Be very careful about
+     * sp, since the 3 words prior to it will be clobbered when the kernel pushes
+     * pc, cs, and psw onto the USER's stack when starting the user the first
+     * time.  This means that with initial sp = 0x10, user programs must leave
+     * the words at 0x000A, 0x000C, and 0x000E free.
+     */
 
-  lock();			/* we can't handle interrupts yet */
-  current_cpu = 0;              /* single CPU for now */
-  paging_init();                /* set up initial page tables */
-  idt_init();                   /* install 64-bit IDT */
-  base_click = BASE >> CLICK_SHIFT;
-  size = sizes[0] + sizes[1];	/* kernel text + data size in clicks */
-  mm_base = base_click + size;	/* place where MM starts (in clicks) */
+    lock();          /* we can't handle interrupts yet */
+    current_cpu = 0; /* single CPU for now */
+    paging_init();   /* set up initial page tables */
+    idt_init();      /* install 64-bit IDT */
+    base_click = BASE >> CLICK_SHIFT;
+    size = sizes[0] + sizes[1];  /* kernel text + data size in clicks */
+    mm_base = base_click + size; /* place where MM starts (in clicks) */
 
-  for (rp = &proc[0]; rp <= &proc[NR_TASKS+LOW_USER]; rp++) {
-	for (t=0; t< NR_REGS; t++) rp->p_reg[t] = 0100*t;	/* debugging */
-	t = rp - proc - NR_TASKS;	/* task number */
-	rp->p_sp = (rp < &proc[NR_TASKS] ? t_stack[NR_TASKS+t+1].stk : INIT_SP);
-	rp->p_splimit = rp->p_sp;
-	if (rp->p_splimit != INIT_SP)
-		rp->p_splimit -= (TASK_STACK_BYTES - SAFETY)/sizeof(int);
-	rp->p_pcpsw.pc = task[t + NR_TASKS];
-	if (rp->p_pcpsw.pc != 0 || t >= 0) ready(rp);
+    for (rp = &proc[0]; rp <= &proc[NR_TASKS + LOW_USER]; rp++) {
+        for (t = 0; t < NR_REGS; t++)
+            rp->p_reg[t] = 0100 * t; /* debugging */
+        t = rp - proc - NR_TASKS;    /* task number */
+        rp->p_sp = (rp < &proc[NR_TASKS] ? t_stack[NR_TASKS + t + 1].stk : INIT_SP);
+        rp->p_splimit = rp->p_sp;
+        if (rp->p_splimit != INIT_SP)
+            rp->p_splimit -= (TASK_STACK_BYTES - SAFETY) / sizeof(int);
+        rp->p_pcpsw.pc = task[t + NR_TASKS];
+        if (rp->p_pcpsw.pc != 0 || t >= 0)
+            ready(rp);
         rp->p_pcpsw.psw = INIT_PSW;
         rp->p_flags = 0;
 #if SCHED_ROUND_ROBIN
@@ -125,6 +126,7 @@ PUBLIC main()
   port_out(INT_CTLMASK, 0);	/* do not mask out any interrupts in 8259A */
   port_out(INT2_MASK, 0);	/* same for second interrupt controller */
   restart();
+#endif /* __x86_64__ */
 }
 
 
@@ -191,4 +193,3 @@ int n;
   wreboot();
 
 }
-
