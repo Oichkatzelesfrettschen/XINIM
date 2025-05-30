@@ -112,7 +112,7 @@ tty.o:	const.h type.h $h/const.h $h/type.h
 tty.o:	$h/callnr.h
 tty.o:	$h/com.h
 tty.o:	$h/error.h
-tty.o:	$h/sgtty.h
+tty.o:	$(INC)/sgtty.hpp
 tty.o:	$h/signal.h
 tty.o:	glo.h
 tty.o:	proc.h
