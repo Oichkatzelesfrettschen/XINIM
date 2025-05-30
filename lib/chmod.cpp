@@ -4,5 +4,5 @@ PUBLIC int chmod(name, mode)
 char *name;
 int mode;
 {
-    return callm3(FS, CHMOD, mode, name);
+    return callm3(FS, static_cast<int>(SysCall::CHMOD), mode, name);
 }

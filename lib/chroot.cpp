@@ -3,5 +3,5 @@
 PUBLIC int chroot(name)
 char *name;
 {
-    return callm3(FS, CHROOT, 0, name);
+    return callm3(FS, static_cast<int>(SysCall::CHROOT), 0, name);
 }

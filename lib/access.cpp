@@ -4,5 +4,5 @@ PUBLIC int access(name, mode)
 char *name;
 int mode;
 {
-    return callm3(FS, ACCESS, mode, name);
+    return callm3(FS, static_cast<int>(SysCall::ACCESS), mode, name);
 }

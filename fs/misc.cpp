@@ -210,11 +210,11 @@ PUBLIC int do_set() {
         return (ERROR);
 
     tfp = &fproc[slot1];
-    if (fs_call == SETUID) {
+    if (fs_call == static_cast<int>(SysCall::SETUID)) {
         tfp->fp_realuid = (uid)real_user_id;
         tfp->fp_effuid = (uid)eff_user_id;
     }
-    if (fs_call == SETGID) {
+    if (fs_call == static_cast<int>(SysCall::SETGID)) {
         tfp->fp_effgid = (gid)eff_grp_id;
         tfp->fp_realgid = (gid)real_grp_id;
     }

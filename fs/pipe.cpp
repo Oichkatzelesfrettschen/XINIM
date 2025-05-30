@@ -109,7 +109,7 @@ register file_pos *position; /* pointer to current file position */
 
                 /* If need be, activate sleeping writer. */
                 if (susp_count > 0)
-                    release(rip, WRITE, 1);
+                    release(rip, static_cast<int>(SysCall::WRITE), 1);
             }
             return (0);
         }
@@ -119,7 +119,7 @@ register file_pos *position; /* pointer to current file position */
             return (ErrorCode::EFBIG);
         if (find_filp(rip, R_BIT) == NIL_FILP) {
             /* Tell MM to generate a SIGPIPE signal. */
-            mess.m_type = KSIG;
+            mess.m_type = static_cast<int>(SysCall::KSIG);
             mess.PROC1 = fp - fproc;
             mess.SIG_MAP = 1 << (SIGPIPE - 1);
             send(MM_PROC_NR, &mess);
@@ -133,7 +133,7 @@ register file_pos *position; /* pointer to current file position */
 
         /* Writing to an empty pipe.  Search for suspended reader. */
         if (*position == 0)
-            release(rip, READ, 1);
+            release(rip, static_cast<int>(SysCall::READ), 1);
     }
 
     return (1);

@@ -20,6 +20,6 @@ PUBLIC sighandler_t signal(int signr, sighandler_t func) {
     vectab[signr - 1] = func;
     M.m6_i1 = signr;
     M.m6_f1 = ((func == SIG_IGN || func == SIG_DFL) ? func : begsig);
-    r = callx(MM, SIGNAL);
+    r = callx(MM, static_cast<int>(SysCall::SIGNAL));
     return ((r < 0 ? (sighandler_t)r : old));
 }

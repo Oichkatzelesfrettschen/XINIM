@@ -59,7 +59,7 @@ PUBLIC main() {
         /* Send the results back to the user to indicate completion. */
         if (dont_reply)
             continue; /* no reply for EXIT and WAIT */
-        if (mm_call == EXEC && error == OK)
+        if (mm_call == static_cast<int>(SysCall::EXEC) && error == OK)
             continue;
         reply(who, error, result2, res_ptr);
     }

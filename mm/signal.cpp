@@ -319,7 +319,7 @@ int pro; /* which process number */
     }
 
     /* Process is not hanging on an MM call.  Ask FS to take a look. */
-    tell_fs(UNPAUSE, pro, 0, 0);
+    tell_fs(static_cast<int>(SysCall::UNPAUSE), pro, 0, 0);
 
     return;
 }
@@ -342,7 +342,7 @@ register struct mproc *rmp; /* whose core is to be dumped */
 
     /* Change to working directory of dumpee. */
     slot = rmp - mproc;
-    tell_fs(CHDIR, slot, 0, 0);
+    tell_fs(static_cast<int>(SysCall::CHDIR), slot, 0, 0);
 
     /* Can core file be written? */
     if (rmp->mp_realuid != rmp->mp_effuid)
@@ -362,7 +362,7 @@ register struct mproc *rmp; /* whose core is to be dumped */
     if (s >= 0 && (r >= 0 || r == ErrorCode::ENOENT)) {
         /* Either file is writable or it doesn't exist & dir is writable */
         r = creat(core_name, CORE_MODE);
-        tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */
+        tell_fs(static_cast<int>(SysCall::CHDIR), 0, 1, 0); /* go back to MM's own dir */
         if (r < 0)
             return;
         rmp->mp_sigstatus |= DUMPED;
@@ -397,7 +397,7 @@ register struct mproc *rmp; /* whose core is to be dumped */
             }
         }
     } else {
-        tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */
+        tell_fs(static_cast<int>(SysCall::CHDIR), 0, 1, 0); /* go back to MM's own dir */
         close(r);
         return;
     }

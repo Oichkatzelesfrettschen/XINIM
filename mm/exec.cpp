@@ -64,10 +64,11 @@ PUBLIC int do_exec() {
     dst = (vir_bytes)u.name_buf;
     r = mem_copy(who, D, (long)src, MM_PROC_NR, D, (long)dst, (long)exec_len);
     if (r != OK)
-        return (r);                          /* file name not in user data segment */
-    tell_fs(CHDIR, who, 0, 0);               /* temporarily switch to user's directory */
-    fd = allowed(u.name_buf, &s_buf, X_BIT); /* is file executable? */
-    tell_fs(CHDIR, 0, 1, 0);                 /* switch back to MM's own directory */
+        return (r); /* file name not in user data segment */
+    tell_fs(static_cast<int>(SysCall::CHDIR), who, 0,
+            0);                                         /* temporarily switch to user's directory */
+    fd = allowed(u.name_buf, &s_buf, X_BIT);            /* is file executable? */
+    tell_fs(static_cast<int>(SysCall::CHDIR), 0, 1, 0); /* switch back to MM's own directory */
     if (fd < 0)
         return (fd); /* file was not executable */
 
@@ -111,11 +112,11 @@ PUBLIC int do_exec() {
     /* Take care of setuid/setgid bits. */
     if (s_buf.st_mode & I_SET_UID_BIT) {
         rmp->mp_effuid = s_buf.st_uid;
-        tell_fs(SETUID, who, (int)rmp->mp_realuid, (int)rmp->mp_effuid);
+        tell_fs(static_cast<int>(SysCall::SETUID), who, (int)rmp->mp_realuid, (int)rmp->mp_effuid);
     }
     if (s_buf.st_mode & I_SET_GID_BIT) {
         rmp->mp_effgid = s_buf.st_gid;
-        tell_fs(SETGID, who, (int)rmp->mp_realgid, (int)rmp->mp_effgid);
+        tell_fs(static_cast<int>(SysCall::SETGID), who, (int)rmp->mp_realgid, (int)rmp->mp_effgid);
     }
 
     /* Fix up some 'mproc' fields and tell kernel that exec is done. */

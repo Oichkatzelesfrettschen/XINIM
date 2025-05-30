@@ -23,7 +23,7 @@ union {
         kill = u.argp->sg_kill & 0377;
         M.TTY_SPEK = (erase << 8) | kill;
         M.TTY_FLAGS = u.argp->sg_flags;
-        n = callx(FS, IOCTL);
+        n = callx(FS, static_cast<int>(SysCall::IOCTL));
         return (n);
 
     case TIOCSETC:
@@ -35,18 +35,18 @@ union {
         brk = u.argt->t_brkc & 0377; /* not used at the moment */
         M.TTY_SPEK = (intr << 24) | (quit << 16) | (xon << 8) | (xoff << 0);
         M.TTY_FLAGS = (eof << 8) | (brk << 0);
-        n = callx(FS, IOCTL);
+        n = callx(FS, static_cast<int>(SysCall::IOCTL));
         return (n);
 
     case TIOCGETP:
-        n = callx(FS, IOCTL);
+        n = callx(FS, static_cast<int>(SysCall::IOCTL));
         u.argp->sg_erase = (M.TTY_SPEK >> 8) & 0377;
         u.argp->sg_kill = (M.TTY_SPEK >> 0) & 0377;
         u.argp->sg_flags = M.TTY_FLAGS;
         return (n);
 
     case TIOCGETC:
-        n = callx(FS, IOCTL);
+        n = callx(FS, static_cast<int>(SysCall::IOCTL));
         u.argt->t_intrc = (M.TTY_SPEK >> 24) & 0377;
         u.argt->t_quitc = (M.TTY_SPEK >> 16) & 0377;
         u.argt->t_startc = (M.TTY_SPEK >> 8) & 0377;

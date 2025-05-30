@@ -143,6 +143,6 @@ PUBLIC void panic(const char *format, int num) {
     if (num != NO_NUM)
         printf("%d", num);
     printf("\n");
-    tell_fs(SYNC, 0, 0, 0); /* flush the cache to the disk */
+    tell_fs(static_cast<int>(SysCall::SYNC), 0, 0, 0); /* flush the cache to the disk */
     sys_abort();
 }

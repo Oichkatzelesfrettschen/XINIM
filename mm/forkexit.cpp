@@ -103,7 +103,7 @@ PUBLIC int do_fork() {
 
     /* Tell kernel and file system about the (now successful) FORK. */
     sys_fork(who, child_nr, rmc->mp_pid);
-    tell_fs(FORK, who, child_nr, 0);
+    tell_fs(static_cast<int>(SysCall::FORK), who, child_nr, 0);
 
     /* Report child's memory map to kernel. */
     sys_newmap(child_nr, rmc->mp_seg);
@@ -151,7 +151,8 @@ int exit_status;            /* the process' exit status (for parent) */
 
     /* Tell the kernel and FS that the process is no longer runnable. */
     sys_xit(rmp->mp_parent, rmp - mproc);
-    tell_fs(EXIT, rmp - mproc, 0, 0); /* file system can free the proc slot */
+    tell_fs(static_cast<int>(SysCall::EXIT), rmp - mproc, 0,
+            0); /* file system can free the proc slot */
 }
 
 /*===========================================================================*

@@ -1,53 +1,57 @@
 #pragma once
 // Modernized for C++17
 
-#define NCALLS 69 /* number of system calls allowed */
+// Number of system calls allowed.
+constexpr int NCALLS = 69;
 
-#define EXIT 1
-#define FORK 2
-#define READ 3
-#define WRITE 4
-#define OPEN 5
-#define CLOSE 6
-#define WAIT 7
-#define CREAT 8
-#define LINK 9
-#define UNLINK 10
-#define CHDIR 12
-#define TIME 13
-#define MKNOD 14
-#define CHMOD 15
-#define CHOWN 16
-#define BRK 17
-#define STAT 18
-#define LSEEK 19
-#define GETPID 20
-#define MOUNT 21
-#define UMOUNT 22
-#define SETUID 23
-#define GETUID 24
-#define STIME 25
-#define ALARM 27
-#define FSTAT 28
-#define PAUSE 29
-#define UTIME 30
-#define ACCESS 33
-#define SYNC 36
-#define KILL 37
-#define DUP 41
-#define PIPE 42
-#define TIMES 43
-#define SETGID 46
-#define GETGID 47
-#define SIGNAL 48
-#define IOCTL 54
-#define EXEC 59
-#define UMASK 60
-#define CHROOT 61
+// Enumeration of all kernel-visible system calls.
+enum class SysCall : int {
+    EXIT = 1,    ///< exit
+    FORK = 2,    ///< fork
+    READ = 3,    ///< read
+    WRITE = 4,   ///< write
+    OPEN = 5,    ///< open
+    CLOSE = 6,   ///< close
+    WAIT = 7,    ///< wait
+    CREAT = 8,   ///< creat
+    LINK = 9,    ///< link
+    UNLINK = 10, ///< unlink
+    CHDIR = 12,  ///< change directory
+    TIME = 13,   ///< get time
+    MKNOD = 14,  ///< make node
+    CHMOD = 15,  ///< change mode
+    CHOWN = 16,  ///< change owner
+    BRK = 17,    ///< adjust data segment
+    STAT = 18,   ///< get file status
+    LSEEK = 19,  ///< seek
+    GETPID = 20, ///< get process id
+    MOUNT = 21,  ///< mount file system
+    UMOUNT = 22, ///< unmount file system
+    SETUID = 23, ///< set user id
+    GETUID = 24, ///< get user id
+    STIME = 25,  ///< set time
+    ALARM = 27,  ///< alarm clock
+    FSTAT = 28,  ///< file status
+    PAUSE = 29,  ///< pause
+    UTIME = 30,  ///< change file times
+    ACCESS = 33, ///< access check
+    SYNC = 36,   ///< sync disks
+    KILL = 37,   ///< kill process
+    DUP = 41,    ///< duplicate file descriptor
+    PIPE = 42,   ///< create pipe
+    TIMES = 43,  ///< process times
+    SETGID = 46, ///< set group id
+    GETGID = 47, ///< get group id
+    SIGNAL = 48, ///< signal operations
+    IOCTL = 54,  ///< device ioctl
+    EXEC = 59,   ///< execute program
+    UMASK = 60,  ///< set file creation mask
+    CHROOT = 61, ///< change root
 
-/* The following are not system calls, but are processed like them. */
-#define KSIG 64       /* kernel detected a signal */
-#define UNPAUSE 65    /* to MM or FS: check for ErrorCode::EINTR */
-#define BRK2 66       /* to MM: used to say how big FS & INIT are */
-#define REVIVE 67     /* to FS: revive a sleeping process */
-#define TASK_REPLY 68 /* to FS: reply code from tty task */
+    // Processed like system calls but not part of the user API.
+    KSIG = 64,      ///< kernel detected signal
+    UNPAUSE = 65,   ///< check for EINTR
+    BRK2 = 66,      ///< memory map setup
+    REVIVE = 67,    ///< revive sleeping process
+    TASK_REPLY = 68 ///< tty task reply
+};

@@ -469,7 +469,7 @@ int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
     /* MM is waiting for new input.  Find a process with pending signals. */
     for (rp = proc_addr(0); rp < proc_addr(NR_PROCS); rp++)
         if (rp->p_pending != 0) {
-            m.m_type = KSIG;
+            m.m_type = static_cast<int>(SysCall::KSIG);
             m.PROC1 = rp - proc - NR_TASKS;
             m.SIG_MAP = rp->p_pending;
             sig_procs--;

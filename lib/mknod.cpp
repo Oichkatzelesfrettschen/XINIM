@@ -4,5 +4,6 @@ PUBLIC int mknod(name, mode, addr)
 char *name;
 int mode, addr;
 {
-    return callm1(FS, MKNOD, len(name), mode, addr, name, NIL_PTR, NIL_PTR);
+    return callm1(FS, static_cast<int>(SysCall::MKNOD), len(name), mode, addr, name, NIL_PTR,
+                  NIL_PTR);
 }
