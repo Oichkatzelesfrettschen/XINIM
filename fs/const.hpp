@@ -1,21 +1,19 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+#pragma once
+// Modernized for C++23
 
 /* Tables sizes */
-#define NR_ZONE_NUMS 9     /* # zone numbers in an inode */
-#define NR_BUFS 20         /* # blocks in the buffer cache */
-#define NR_BUF_HASH 32     /* size of buf hash table; MUST BE POWER OF 2*/
-#define NR_FDS 20          /* max file descriptors per process */
-#define NR_FILPS 64        /* # slots in filp table */
-#define I_MAP_SLOTS 4      /* max # of blocks in the inode bit map */
-#define ZMAP_SLOTS 6       /* max # of blocks in the zone bit map */
-#define NR_INODES 32       /* # slots in "in core" inode table */
-#define NR_SUPERS 5        /* # slots in super block table */
-#define NAME_SIZE 14       /* # bytes in a directory component */
-#define FS_STACK_BYTES 512 /* size of file system stack */
+#define NR_ZONE_NUMS 9                /* # zone numbers in an inode */
+#define NR_BUFS 20                    /* # blocks in the buffer cache */
+#define NR_BUF_HASH 32                /* size of buf hash table; MUST BE POWER OF 2*/
+inline constexpr int kNrBufHash = 32; // C++23 constant
+#define NR_FDS 20                     /* max file descriptors per process */
+#define NR_FILPS 64                   /* # slots in filp table */
+#define I_MAP_SLOTS 4                 /* max # of blocks in the inode bit map */
+#define ZMAP_SLOTS 6                  /* max # of blocks in the zone bit map */
+#define NR_INODES 32                  /* # slots in "in core" inode table */
+#define NR_SUPERS 5                   /* # slots in super block table */
+#define NAME_SIZE 14                  /* # bytes in a directory component */
+#define FS_STACK_BYTES 512            /* size of file system stack */
 
 /* Miscellaneous constants */
 #define SUPER_MAGIC 0x137F /* magic number contained in super-block */
