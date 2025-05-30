@@ -3,14 +3,12 @@
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/type.h"
+#include "../include/lib.hpp" // for message structure and constants
 #include <signal.h>
 
 #ifndef sighandler_t
 typedef void (*sighandler_t)(int);
 #endif
-
-#define FS FS_PROC_NR
-#define MM MMPROCNR
 
 extern int errno;
 extern message M;

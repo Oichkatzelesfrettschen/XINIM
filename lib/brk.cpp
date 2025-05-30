@@ -2,9 +2,8 @@
 
 extern char *brksize;
 
-PUBLIC char *brk(addr)
-char *addr;
-{
+// Set the program break to the address specified by 'addr'.
+PUBLIC char *brk(char *addr) {
     int k;
 
     k = callm1(MM, BRK, 0, 0, 0, addr, NIL_PTR, NIL_PTR);
@@ -16,14 +15,13 @@ char *addr;
     }
 }
 
-PUBLIC char *sbrk(incr)
-char *incr;
-{
+// Increment the program break by 'incr' bytes.
+PUBLIC char *sbrk(int incr) {
     char *newsize, *oldsize;
     extern int endv, dorgv;
 
     oldsize = brksize;
-    newsize = brksize + (int)incr;
+    newsize = brksize + incr;
     if (brk(newsize) == 0)
         return (oldsize);
     else

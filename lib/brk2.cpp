@@ -1,6 +1,9 @@
 #include "../include/lib.hpp" // C++17 header
 
-/* Request memory segment move */
+// Forward declaration from getutil.cpp
+extern phys_clicks get_size(void);
+
+/* Request memory segment move to the end of BSS. */
 PUBLIC void brk2(void) {
     char *p1, *p2;
 
