@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* System calls. */
 #define SEND 1               /* function code for sending messages */

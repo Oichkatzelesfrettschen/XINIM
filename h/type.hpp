@@ -1,11 +1,11 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 #ifndef TYPE_H
 #define TYPE_H
 
 /* Pull in the fixed-width integer typedefs. */
-#include "../include/defs.h"
+#include "../include/defs.hpp" // project-wide integer definitions
 
 /* Macros */
 #define MAX(a, b) (a > b ? a : b)

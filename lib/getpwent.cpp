@@ -1,7 +1,7 @@
 /* getpwent.cpp
  *
  * Simple password file access routines.
- * Converted to C90 style and updated field names.
+ * Converted to C++17 style and updated field names.
  */
 
 #include <fcntl.h>

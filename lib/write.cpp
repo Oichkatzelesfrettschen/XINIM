@@ -1,4 +1,4 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 #include <unistd.h>
 
 /* Perform the write() system call through the message interface. */

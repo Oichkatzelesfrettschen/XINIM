@@ -1,9 +1,8 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 PUBLIC int chmod(name, mode)
-char* name;
+char *name;
 int mode;
 {
-  return callm3(FS, CHMOD, mode, name);
-
+    return callm3(FS, CHMOD, mode, name);
 }

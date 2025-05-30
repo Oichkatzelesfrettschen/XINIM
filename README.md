@@ -12,12 +12,12 @@ release.
 
 This project is a **work in progress** to reproduce the original Minix
 simplicity on modern 32-bit and 64-bit ARM and x86/x86_64 hardware using
-C++23.  The effort starts with arm64 and x86_64 targets.
+C++17.  The effort starts with arm64 and x86_64 targets.
 
 ## Build Requirements
 
 Building now requires a 64-bit x86 compiler toolchain.  Clang++ with the
-C++23 standard is the official compiler throughout the repository.  Recent
+C++17 standard is the official compiler throughout the repository.  Recent
 versions of GCC (9 or later) also work, but every build file now selects
 clang++ unless explicitly overridden.
 NASM 2.14 or YASM 1.3 remain the recommended assemblers.  Older 16-bit
@@ -95,9 +95,9 @@ repository follows the LLVM style with four space indentation.  Static analysis
 is configured via `.cpplang-tidy` enabling the `bugprone-*` and `portability-*`
 check groups and treating all warnings as errors.
 
-## Modernizing to C++23
+## Modernizing to C++17
 
-To aid the transition from C to modern C++23, a helper script
+To aid the transition from C to modern C++17, a helper script
 `tools/modernize_cpp23.sh` is provided. It renames `.cpp` files to `.cpppp` and
 `.h` files to `.hpp`, updates `#include` directives and inserts a temporary
 modernization header at the top of each source file. The script also places a

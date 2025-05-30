@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* Error codes.  They are negative since a few system calls, such as READ, can
  * either return a positive number indicating success, or an error code.

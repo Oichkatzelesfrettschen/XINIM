@@ -1,7 +1,7 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 PUBLIC int umount(name)
-char* name;
+char *name;
 {
-  return callm3(FS, UMOUNT, 0, name);
+    return callm3(FS, UMOUNT, 0, name);
 }

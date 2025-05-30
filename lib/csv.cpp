@@ -1,8 +1,6 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 /*
  * Empty csv stub for compatibility.
  */
-PUBLIC void csv(void)
-{
-}
+PUBLIC void csv(void) {}

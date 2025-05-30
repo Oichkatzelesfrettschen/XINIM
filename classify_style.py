@@ -1,4 +1,4 @@
-"""Utility for classifying source files as C90, K&R, or assembly."""
+"""Utility for classifying source files as C++17, K&R, or assembly."""
 
 from __future__ import annotations
 
@@ -57,7 +57,7 @@ def classify_file(path: str) -> str:
         inside = line.split("(", 1)[1].split(")", 1)[0]
         after = "".join(lines[i + 1 : j])
         if _contains_type(inside):
-            return "C90"
+            return "C++17"
         if ";" in after or inside.strip() == "":
             return "K&R"
     return "unknown"

@@ -9,11 +9,11 @@ if(NOT CMAKE_CXX_COMPILER)
   set(CMAKE_CXX_COMPILER clang++)
 endif()
 
-# Enforce a strict C90 environment across the project
-set(CMAKE_C_STANDARD 90)
+# Enforce a strict C++17 environment across the project
+set(CMAKE_C_STANDARD 17)
 set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_EXTENSIONS OFF)
-set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 

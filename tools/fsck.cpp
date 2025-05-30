@@ -4,7 +4,7 @@
 #include "../fs/type.h"
 #include "../h/const.h"
 #include "../h/type.h"
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 /* #define DOS			/* compile to run under MS-DOS */
 #define STANDALONE /* compile for the boot-diskette */

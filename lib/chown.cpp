@@ -1,8 +1,8 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 PUBLIC int chown(name, owner, grp)
 char *name;
 int owner, grp;
 {
-  return callm1(FS, CHOWN, len(name), owner, grp, name, NIL_PTR, NIL_PTR);
+    return callm1(FS, CHOWN, len(name), owner, grp, name, NIL_PTR, NIL_PTR);
 }
