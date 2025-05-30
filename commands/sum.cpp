@@ -17,58 +17,69 @@
  *	that this comment is always included without alteration.
  */
 
-#define BUFSIZ (512)
+#include <cstdlib>  // exit
+#include <cstring>  // strcmp
+#include <fcntl.h>  // open
+#include <unistd.h> // read, close
 
+// Size of the buffer used when reading files
+constexpr int kBufSize = 512;
+
+static void error(const char *s, const char *f);
+static void sum(int fd, const char *fname);
+static void putd(int number, int fw, int zeros);
+
+// Return code from main
 int rc = 0;
 
-char *defargv[] = {"-", 0};
+// Default argument when no file is specified
+char *defargv[] = {"-", nullptr};
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Program entry point
+int main(int argc, char *argv[]) {
     int fd;
 
     if (*++argv == 0)
         argv = defargv;
-    for (; *argv; argv++) {
-        if (argv[0][0] == '-' && argv[0][1] == '\0')
-            fd = 0;
-        else
-            fd = open(*argv, 0);
+    for (; *argv; ++argv) {
+        if (argv[0][0] == '-' && argv[0][1] == '\0') {
+            fd = 0; // read from stdin
+        } else {
+            fd = open(*argv, O_RDONLY);
+        }
 
         if (fd == -1) {
             error("can't open ", *argv);
             rc = 1;
             continue;
         }
-        sum(fd, (argc > 2) ? *argv : (char *)0);
-        if (fd != 0)
+        sum(fd, (argc > 2) ? *argv : nullptr);
+        if (fd != 0) {
             close(fd);
+        }
     }
     exit(rc);
 }
 
-error(s, f) char *s, *f;
-{
-
+static void error(const char *s, const char *f) {
     std_err("sum: ");
     std_err(s);
 
-    if (f)
+    if (f) {
         std_err(f);
+    }
     std_err("\n");
 }
 
-sum(fd, fname) int fd;
-char *fname;
-{
-    char buf[BUFSIZ];
-    int i, n;
+static void sum(int fd, const char *fname) {
+    char buf[kBufSize];
+    int i;
+    int n;
     int size = 0;
     unsigned crc = 0;
     unsigned tmp;
 
-    while ((n = read(fd, buf, BUFSIZ)) > 0) {
+    while ((n = read(fd, buf, kBufSize)) > 0) {
         for (i = 0; i < n; i++) {
             crc = (crc >> 1) + ((crc & 1) ? 0x8000 : 0);
             tmp = buf[i] & 0377;
@@ -79,35 +90,37 @@ char *fname;
     }
 
     if (n < 0) {
-        if (fname)
+        if (fname) {
             error("read error on ", fname);
-        else
-            error("read error", (char *)0);
+        } else {
+            error("read error", nullptr);
+        }
         rc = 1;
         return;
     }
     putd(crc, 5, 1);
-    putd((size + BUFSIZ - 1) / BUFSIZ, 6, 0);
-    if (fname)
+    putd((size + kBufSize - 1) / kBufSize, 6, 0);
+    if (fname) {
         prints(" %s", fname);
+    }
     prints("\n");
 }
 
-putd(number, fw, zeros) int number, fw, zeros;
-{
+static void putd(int number, int fw, int zeros) {
     /* Put a decimal number, in a field width, to stdout. */
 
     char buf[10];
     int n;
     unsigned num;
 
-    num = (unsigned)number;
-    for (n = 0; n < fw; n++) {
+    num = static_cast<unsigned>(number);
+    for (n = 0; n < fw; ++n) {
         if (num || n == 0) {
             buf[fw - n - 1] = '0' + num % 10;
             num /= 10;
-        } else
+        } else {
             buf[fw - n - 1] = zeros ? '0' : ' ';
+        }
     }
     buf[fw] = 0;
     prints("%s", buf);

@@ -3,7 +3,7 @@
 #include <string.h>
 
 /* Return the number of characters in the string s. */
-size_t strlen(const char *s) {
+int strlen(char *s) {
     const char *original = s; /* keep starting position */
 
     /* Walk forward until the terminating null byte. */
@@ -12,5 +12,5 @@ size_t strlen(const char *s) {
     }
 
     /* Difference gives the length. */
-    return (size_t)(s - original);
+    return static_cast<int>(s - original);
 }

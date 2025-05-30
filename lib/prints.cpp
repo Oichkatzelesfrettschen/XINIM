@@ -5,6 +5,8 @@
  * small utilities do not need numeric printing, they all use prints.
  */
 
+#include <unistd.h> // write system call
+
 #define TRUNC_SIZE 128
 char Buf[TRUNC_SIZE], *Bufp;
 

@@ -4,7 +4,7 @@
 #include <string.h>
 
 /* Lexicographically compare s1 and s2. */
-int strcmp(const char *s1, const char *s2) {
+int strcmp(char *s1, char *s2) {
     while (1) {
         if (*s1 != *s2)
             return (*s1 - *s2); /* return difference when chars differ */
