@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* General constants used by the kernel. */
 

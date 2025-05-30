@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* This table has one slot per process.  It contains all the memory management
  * information for each process.  Among other things, it defines the text, data

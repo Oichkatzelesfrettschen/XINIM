@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* Constants used by the Memory Manager. */
 

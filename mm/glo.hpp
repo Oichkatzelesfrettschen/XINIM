@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* Global variables. */
 EXTERN struct mproc *mp; /* ptr to 'mproc' slot of current process */

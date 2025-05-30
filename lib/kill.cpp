@@ -1,8 +1,8 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 PUBLIC int kill(proc, sig)
-int proc;			/* which process is to be sent the signal */
-int sig;			/* signal number */
+int proc; /* which process is to be sent the signal */
+int sig;  /* signal number */
 {
-  return callm1(MM, KILL, proc, sig, 0, NIL_PTR, NIL_PTR, NIL_PTR);
+    return callm1(MM, KILL, proc, sig, 0, NIL_PTR, NIL_PTR, NIL_PTR);
 }

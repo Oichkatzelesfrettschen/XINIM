@@ -1,8 +1,8 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 PUBLIC int stime(top)
 long *top;
 {
-  M.m2_l1 = *top;
-  return callx(FS, STIME);
+    M.m2_l1 = *top;
+    return callx(FS, STIME);
 }

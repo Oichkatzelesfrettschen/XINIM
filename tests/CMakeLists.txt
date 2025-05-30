@@ -8,7 +8,7 @@ add_executable(lib_test
     ${CMAKE_SOURCE_DIR}/lib/rand.cpp
 )
 
-target_compile_options(lib_test PRIVATE -std=c90 -fno-builtin)
+target_compile_options(lib_test PRIVATE -std=c++17 -fno-builtin)
 
 add_test(NAME lib_test COMMAND lib_test)
 

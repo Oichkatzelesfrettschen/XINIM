@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 #ifndef KERNEL_TYPE_H
 #define KERNEL_TYPE_H

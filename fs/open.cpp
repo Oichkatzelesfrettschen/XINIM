@@ -1,4 +1,4 @@
-// Modernized for C++23
+// Modernized for C++17
 
 /* This file contains the procedures for creating, opening, closing, and
  * seeking on files.

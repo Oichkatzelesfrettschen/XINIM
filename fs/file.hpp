@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++23
+// Modernized for C++17
 
 /* This is the filp table.  It is an intermediary between file descriptors and
  * inodes.  A slot is free if filp_count == 0.

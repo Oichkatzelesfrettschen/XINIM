@@ -1,7 +1,7 @@
 #!/bin/sh
 # setup.sh - Install dependencies for building and testing this project.
 # This script installs clang and related tools so that the sources can be
-# compiled as C90 and analyzed with clang-tidy and clang-format.
+# compiled as C++17 and analyzed with clang-tidy and clang-format.
 
 set -euo pipefail
 

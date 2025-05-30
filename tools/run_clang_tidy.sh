@@ -1,5 +1,5 @@
 #!/bin/sh
-# Run clang-tidy across the repository with C90 compliance.
+# Run clang-tidy across the repository with C++17 compliance.
 # This script generates compile_commands if needed and then
 # executes clang-tidy with automatic fixes. Comment lines are
 # left untouched since clang-tidy is invoked with FormatStyle=none.
@@ -14,4 +14,4 @@ fi
 
 # Find all C source files excluding the build directory and run clang-tidy
 find . -name '*.cpp' -not -path "./$BUILD_DIR/*" \
-    | xargs -r clang-tidy -p "$BUILD_DIR" -fix -format-style=none -extra-arg=-std=c90 "$@"
+    | xargs -r clang-tidy -p "$BUILD_DIR" -fix -format-style=none -extra-arg=-std=c++17 "$@"

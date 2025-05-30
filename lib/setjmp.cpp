@@ -1,5 +1,5 @@
 #include "../include/setjmp.h"
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 #include <stdlib.h>
 
 /*

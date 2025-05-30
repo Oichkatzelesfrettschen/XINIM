@@ -1,7 +1,7 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 PUBLIC int setgid(grp)
 int grp;
 {
-  return callm1(MM, SETGID, grp, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
+    return callm1(MM, SETGID, grp, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
 }

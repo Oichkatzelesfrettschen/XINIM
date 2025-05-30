@@ -1,4 +1,4 @@
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 
 extern char endbss; /* Symbol marking end of BSS provided by end.s */
 

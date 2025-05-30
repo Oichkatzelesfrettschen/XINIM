@@ -135,7 +135,7 @@
 │   ├── ctype.h
 │   ├── errno.h
 │   ├── grp.h
-│   ├── lib.h
+│   ├── lib.hpp
 │   ├── mined.h
 │   ├── paging.h
 │   ├── pwd.h

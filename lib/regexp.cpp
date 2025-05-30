@@ -27,7 +27,7 @@
  */
 
 #include "../include/regexp.h"
-#include "../include/lib.h"
+#include "../include/lib.hpp" // C++17 header
 #include "../include/stdio.h"
 #include <string.h>
 #include <strings.h>
@@ -490,7 +490,7 @@ int *flagp;
                     classend = UCHARAT(regparse);
                     if (class > classend + 1)
                         FAIL("invalid [] range");
-                    for (; class <= classend; class++)
+                    for (; class <= classend; class ++)
                         regc(class);
                     regparse++;
                 }
