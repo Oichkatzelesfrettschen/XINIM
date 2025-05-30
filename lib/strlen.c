@@ -1,13 +1,16 @@
-/*
- * Compute the length of a string.
- */
-int strlen(s)
-char *s;
-{
-/* Return length of s. */
+/* Compute the length of a string. */
 
-  char *original = s;
+#include <string.h>
 
-  while (*s != 0) s++;
-  return(s - original);
+/* Return the number of characters in the string s. */
+size_t strlen(const char *s) {
+    const char *original = s; /* keep starting position */
+
+    /* Walk forward until the terminating null byte. */
+    while (*s != '\0') {
+        s++;
+    }
+
+    /* Difference gives the length. */
+    return (size_t)(s - original);
 }

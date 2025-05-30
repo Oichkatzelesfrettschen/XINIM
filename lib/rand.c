@@ -1,7 +1,12 @@
+/* Simple linear congruential random number generator. */
+
+#include <stdlib.h>
+
+/* Seed value used by rand(). */
 static long seed = 1L;
 
-int rand()
-{
-  seed = (1103515245L * seed + 12345) & 0x7FFFFFFF;
-  return((int) (seed & 077777));
+/* Return a pseudo-random integer in the range [0, 32767]. */
+int rand(void) {
+    seed = (1103515245L * seed + 12345) & 0x7FFFFFFF;
+    return (int)(seed & 077777);
 }
