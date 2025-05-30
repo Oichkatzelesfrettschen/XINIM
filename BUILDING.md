@@ -3,6 +3,9 @@
 This document describes how to build the Minix 1 sources and verify that the
 build environment works on a Unix-like host.
 
+The codebase is currently a **work in progress** focused on reproducing the
+original Minix simplicity on modern arm64 and x86_64 machines using C++23.
+
 ## Prerequisites
 
 A 64-bit x86 compiler toolchain is required.  Clang++ with C++23 is used by
@@ -79,3 +82,10 @@ The `tools/c86` directory stores batch files and legacy utilities once used with
 an MS-DOS cross compiler. They are kept for reference but are not executed by
 the current build. Modern equivalents written in C (for example `bootblok.c`)
 provide the needed functionality and are built automatically.
+
+## Modernization Script
+
+A helper script `tools/modernize_cpp23.sh` automates renaming sources to
+`.cpp` and `.hpp`, updates include paths and drops a temporary modernization
+header into each file. Invoke it from the repository root when ready to move
+the codebase fully to C++23.

@@ -10,6 +10,10 @@ operating system to accompany the text allowed students to explore the source
 while reading about its design.  This repository preserves that historical
 release.
 
+This project is a **work in progress** to reproduce the original Minix
+simplicity on modern 32-bit and 64-bit ARM and x86/x86_64 hardware using
+C++23.  The effort starts with arm64 and x86_64 targets.
+
 ## Build Requirements
 
 Building now requires a 64-bit x86 compiler toolchain.  Clang++ with the
@@ -90,3 +94,13 @@ All C sources adhere to a consistent formatting defined in `.clang-format`.  The
 repository follows the LLVM style with four space indentation.  Static analysis
 is configured via `.clang-tidy` enabling the `bugprone-*` and `portability-*`
 check groups and treating all warnings as errors.
+
+## Modernizing to C++23
+
+To aid the transition from C to modern C++23, a helper script
+`tools/modernize_cpp23.sh` is provided. It renames `.c` files to `.cpp` and
+`.h` files to `.hpp`, updates `#include` directives and inserts a temporary
+modernization header at the top of each source file. The script also places a
+short header in assembly files noting they will be adjusted for `nasm` on
+arm64 and x86_64. Run the script from the repository root when ready to
+perform the conversion.
