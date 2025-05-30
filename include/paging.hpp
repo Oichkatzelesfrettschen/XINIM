@@ -9,16 +9,23 @@
 
 #include "../h/const.h"
 #include "../h/type.h"
+#include <cstddef> // for std::size_t
 
 /* Generic 4-level paging structures for 48-bit virtual addresses. */
 
-#define PAGE_SIZE_4K 4096
-#define PT_ENTRIES 512
+// Size in bytes of a single 4 KiB page.
+inline constexpr std::size_t PAGE_SIZE_4K = 4096;
+
+// Number of entries in each level of the page table hierarchy.
+inline constexpr std::size_t PT_ENTRIES = 512;
 
 /* Page table entry flags */
-#define PT_PRESENT 0x001
-#define PT_WRITABLE 0x002
-#define PT_USER 0x004
+// Page table entry flags encoded as bit values.
+enum PT_Flag : unsigned long {
+    PT_PRESENT = 0x001,  // entry is valid
+    PT_WRITABLE = 0x002, // memory region is writable
+    PT_USER = 0x004      // accessible from user mode
+};
 
 typedef u64_t phys_addr64;
 typedef u64_t virt_addr64;

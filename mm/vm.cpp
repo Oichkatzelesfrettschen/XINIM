@@ -1,4 +1,4 @@
-#include "../include/vm.h"
+#include "../include/vm.hpp"
 #include "const.hpp"
 #include "mproc.hpp"
 
@@ -46,7 +46,7 @@ PUBLIC void vm_init(void) {
  * bytes: size in bytes to allocate.
  * flags: protection flags (unused).
  */
-PUBLIC void *vm_alloc(u64_t bytes, int flags) {
+PUBLIC void *vm_alloc(u64_t bytes, VmFlags flags) {
     virt_addr64 base;
     unsigned long pages;
 
@@ -73,7 +73,7 @@ PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
         struct vm_area *a = &p->areas[p->area_count++];
         a->start = addr & ~(PAGE_SIZE_4K - 1);
         a->end = a->start + PAGE_SIZE_4K;
-        a->flags = VM_READ | VM_WRITE | VM_PRIVATE;
+        a->flags = VmFlags::VM_READ | VmFlags::VM_WRITE | VmFlags::VM_PRIVATE;
     }
 }
 
@@ -98,7 +98,7 @@ PUBLIC int vm_fork(int parent, int child) {
  * length: length of mapping in bytes.
  * flags:  mapping flags.
  */
-PUBLIC void *vm_mmap(int proc, void *addr, u64_t length, int flags) {
+PUBLIC void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) {
     struct vm_proc *p = &vm_proc_table[proc];
     virt_addr64 base = (virt_addr64)addr;
 

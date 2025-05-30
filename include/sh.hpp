@@ -98,8 +98,8 @@ int execflg;
 int multiline;      /* \n changed to ; */
 struct op *outtree; /* result from parser */
 
-xint *failpt;
-xint *errpt;
+jmp_buf *failpt; /* last failure point */
+jmp_buf *errpt;  /* current error handler */
 
 // Breakpoint context for loops.
 struct brkcon {
@@ -143,7 +143,7 @@ extern struct env {
     char *linep;
     struct io *iobase;
     struct io *iop;
-    xint *errpt;
+    jmp_buf *errpt; /* saved error jump buffer */
     int iofd;
     struct env *oenv;
 } e;

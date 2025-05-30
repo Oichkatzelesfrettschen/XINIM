@@ -440,7 +440,8 @@ register char *s;
     bp = (struct block *)space(sizeof(*bp));
     if (bp == 0)
         return (0);
-    if (newenv(setjmp(errpt = ev)) == 0) {
+    errpt = &ev;
+    if (newenv(setjmp(ev)) == 0) {
         if (e.iop == iostack && e.iop->iofn == filechar) {
             pushio(e.iop->arg, filechar);
             e.iobase = e.iop;
@@ -513,7 +514,8 @@ herein(bp, xdoll) struct block *bp;
             char c;
             jmp_buf ev;
 
-            if (newenv(setjmp(errpt = ev)) == 0) {
+            errpt = &ev;
+            if (newenv(setjmp(ev)) == 0) {
                 PUSHIO(aword, bp->b_start, strchar);
                 setbase(e.iop);
                 while ((c = subgetc(0, 0)) != 0) {
