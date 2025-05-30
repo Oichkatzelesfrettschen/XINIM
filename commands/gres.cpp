@@ -9,7 +9,7 @@
 /*
  *	globally search, and replace
  *
- *<-xtx-*>cc -o gres gres.c -lregexp
+ *<-xtx-*>cc -o gres gres.cpp -lregexp
  */
 
 /*

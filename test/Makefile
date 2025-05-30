@@ -17,11 +17,11 @@ LIB ?= ../lib/lib.a
 LDFLAGS ?=
 
 # Build the requested test program. The variable 'f' specifies the base
-# filename and may correspond to either a .c or a .cpp file.
+# filename and may correspond to either a .cpp or a .cpppp file.
 file: $(LIB)
-	@if [ -f $(f).cpp ]; then \
-		$(CXX) $(CXXFLAGS) -o $(f) $(f).cpp $(LIB) $(LDFLAGS); \
+	@if [ -f $(f).cpppp ]; then \
+		$(CXX) $(CXXFLAGS) -o $(f) $(f).cpppp $(LIB) $(LDFLAGS); \
 	else \
-		$(CC) $(CFLAGS) -o $(f) $(f).c $(LIB) $(LDFLAGS); \
+		$(CC) $(CFLAGS) -o $(f) $(f).cpp $(LIB) $(LDFLAGS); \
 	fi
 

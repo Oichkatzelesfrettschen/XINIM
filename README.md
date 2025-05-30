@@ -61,7 +61,7 @@ PC/XT driver is used by default.
 
 ## Extent Table Helpers
 
-The compatibility layer in `fs/compat.c` now provides `alloc_extent_table()`
+The compatibility layer in `fs/compat.cpp` now provides `alloc_extent_table()`
 alongside `init_extended_inode()`.  Call `init_extended_inode()` when a new
 inode is created and then invoke `alloc_extent_table()` to allocate and
 initialize the inode's extent table.  The function returns `OK` on success or
@@ -90,15 +90,15 @@ project root.
 
 ## Code Style
 
-All C sources adhere to a consistent formatting defined in `.clang-format`.  The
+All C sources adhere to a consistent formatting defined in `.cpplang-format`.  The
 repository follows the LLVM style with four space indentation.  Static analysis
-is configured via `.clang-tidy` enabling the `bugprone-*` and `portability-*`
+is configured via `.cpplang-tidy` enabling the `bugprone-*` and `portability-*`
 check groups and treating all warnings as errors.
 
 ## Modernizing to C++23
 
 To aid the transition from C to modern C++23, a helper script
-`tools/modernize_cpp23.sh` is provided. It renames `.c` files to `.cpp` and
+`tools/modernize_cpp23.sh` is provided. It renames `.cpp` files to `.cpppp` and
 `.h` files to `.hpp`, updates `#include` directives and inserts a temporary
 modernization header at the top of each source file. The script also places a
 short header in assembly files noting they will be adjusted for `nasm` on

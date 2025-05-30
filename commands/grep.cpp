@@ -9,7 +9,7 @@
 /*
  *	Search files for a regular expression
  *
- *<-xtx-*>cc -o grep grep.c -lregexp
+ *<-xtx-*>cc -o grep grep.cpp -lregexp
  */
 
 /*

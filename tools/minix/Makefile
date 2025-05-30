@@ -18,34 +18,34 @@ init:	$(LIB) init.s $l/head.s
 	asld $(LDFLAGS) -o init  $l/head.s init.s $(LIB)  $l/end.s
 	@echo init done.
 
-# bootblok.c is the source of the MINIX boot block.  The bootblock is the
-# first 512 bytes on the image file and on the boot diskette.  When bootblok.c
+# bootblok.cpp is the source of the MINIX boot block.  The bootblock is the
+# first 512 bytes on the image file and on the boot diskette.  When bootblok.cpp
 # is assembled, it generates a short binary file (less than 400 bytes) that
 # must be stripped of its header and copied to the file bootblok.  The dd
 # command below does this.  If everything has been done right, the bootblok
 # file should begin with the following 8 words, in hex:
 # c0b8 8e07 33d8 b8f6 2fe0 c08e ff33 00b9
-# The exact procedure for going from bootblok.c to the binary file stripped of
+# The exact procedure for going from bootblok.cpp to the binary file stripped of
 # its header is somewhat operating system dependent.  Some assemblers make
 # an object (.s) file; others make an a.sut file directly. If your boot 
 # diskette does not start out by printing 'Booting MINIX 1.0' the problem is
 # probably that you have not made a good boot block.
-bootblok:	bootblok.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblok bootblok.c
+bootblok:	bootblok.cpp
+	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblok bootblok.cpp
 	@echo bootblok done.
 
-build:	build.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o build build.c
+build:	build.cpp
+	$(CC) $(CFLAGS) $(LDFLAGS) -o build build.cpp
 	@echo build done.
-mkfs: mkfs.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -DUNIX -o mkfs mkfs.c
+mkfs: mkfs.cpp
+	$(CC) $(CFLAGS) $(LDFLAGS) -DUNIX -o mkfs mkfs.cpp
 	@echo mkfs done.
 fsck:	fsck.s fsck1.s
 	@echo "Start linking fsck.  /lib/cem will be removed to make space on RAM disk"
 	asld $(LDFLAGS) -o fsck  fsck1.s fsck.s $(LIB) $l/end.s
 	@echo fsck done. Please restore /lib/cem manually.
-fsck.s: fsck.c
-	$(CC) $(CFLAGS) -c fsck.c
+fsck.s: fsck.cpp
+	$(CC) $(CFLAGS) -c fsck.cpp
 	
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces

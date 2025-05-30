@@ -27,21 +27,21 @@ d--755 1 1
 	test11	-u-755 0 1	../test/test11
 	t11a	-u-755 0 1	../test/t11a
 	t11b	-u-755 0 1	../test/t11b
-	test0.c	---644 2 1	../test/test0.c
-	test1.c	---644 2 1	../test/test1.c
-	test2.c	---644 2 1	../test/test2.c
-	test3.c	---644 2 1	../test/test3.c
-	test4.c	---644 2 1	../test/test4.c
-	test5.c	---644 2 1	../test/test5.c
-	test6.c	---644 2 1	../test/test6.c
-	test7.c	---644 2 1	../test/test7.c
-	test8.c	---644 2 1	../test/test8.c
-	test9.c	---644 2 1	../test/test9.c
-	test10.c ---644 2 1	../test/test10.c
-	t10a.cpp	---644 2 1	../test/t10a.cpp
-	test11.c ---644 2 1	../test/test11.c
-	t11a.cpp	---644 2 1	../test/t11a.cpp
-	t11b.cpp	---644 2 1	../test/t11b.cpp
+	test0.cpp	---644 2 1	../test/test0.cpp
+	test1.cpp	---644 2 1	../test/test1.cpp
+	test2.cpp	---644 2 1	../test/test2.cpp
+	test3.cpp	---644 2 1	../test/test3.cpp
+	test4.cpp	---644 2 1	../test/test4.cpp
+	test5.cpp	---644 2 1	../test/test5.cpp
+	test6.cpp	---644 2 1	../test/test6.cpp
+	test7.cpp	---644 2 1	../test/test7.cpp
+	test8.cpp	---644 2 1	../test/test8.cpp
+	test9.cpp	---644 2 1	../test/test9.cpp
+	test10.cpp ---644 2 1	../test/test10.cpp
+	t10a.cpppp	---644 2 1	../test/t10a.cpppp
+	test11.cpp ---644 2 1	../test/test11.cpp
+	t11a.cpppp	---644 2 1	../test/t11a.cpppp
+	t11b.cpppp	---644 2 1	../test/t11b.cpppp
 	run	---755 2 1	../test/run
 	MINIX	d--755 2 1	../test/MINIX
 		Makefile	---644 2 1	../test/MINIX/Makefile
@@ -49,14 +49,14 @@ d--755 1 1
    $
    commands	d--755 2 1
 	mined.h ---644 2 1	../include/mined.h
-	mined1.c ---644 2 1	../commands/mined1.c
-	mined2.c ---644 2 1	../commands/mined2.c
+	mined1.cpp ---644 2 1	../commands/mined1.cpp
+	mined2.cpp ---644 2 1	../commands/mined2.cpp
 	sh.h  ---644 2 1	../include/sh.h
-	sh1.c ---644 2 1	../commands/sh1.c
-	sh2.c ---644 2 1	../commands/sh2.c
-	sh3.c ---644 2 1	../commands/sh3.c
-	sh4.c ---644 2 1	../commands/sh4.c
-	sh5.c ---644 2 1	../commands/sh5.c
+	sh1.cpp ---644 2 1	../commands/sh1.cpp
+	sh2.cpp ---644 2 1	../commands/sh2.cpp
+	sh3.cpp ---644 2 1	../commands/sh3.cpp
+	sh4.cpp ---644 2 1	../commands/sh4.cpp
+	sh5.cpp ---644 2 1	../commands/sh5.cpp
    $
    doc	d--755 2 1
 	READ_ME	---644 2 1	../doc/READ_ME

@@ -23,9 +23,9 @@ else ifeq ($(DRIVER_PC),ON)
 endif
 
 ifeq ($(WINI_DRIVER),at)
-WINI_SRC = at_wini.c
+WINI_SRC = at_wini.cpp
 else
-WINI_SRC = xt_wini.c
+WINI_SRC = xt_wini.cpp
 endif
 
 obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o wini.o \
@@ -37,14 +37,14 @@ kernel: Makefile $(obj) $(LIB)
 	@echo "Kernel done"
 
 # Compile klib64 from its C source
-klib64.o:       klib64.c
+klib64.o:       klib64.cpp
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-mpx64.o:        mpx64.c
+mpx64.o:        mpx64.cpp
 	$(CC) $(CFLAGS) -c -o $@ $<
 
-idt64.o:        idt64.c
-	$(CC) $(CFLAGS) -c -o idt64.o idt64.c
+idt64.o:        idt64.cpp
+	$(CC) $(CFLAGS) -c -o idt64.o idt64.cpp
 
 
 clock.o:	const.h type.h $h/const.h $h/type.h

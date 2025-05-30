@@ -6,8 +6,8 @@ CFLAGS += -I$(INC)
 h=../h
 l=../lib
 
-obj = mpx88.c main.s proc.s system.s tty.s clock.s memory.s floppy.s wini.s  \
-      printer.s table.s klib88.c dmp.s
+obj = mpx88.cpp main.s proc.s system.s tty.s clock.s memory.s floppy.s wini.s  \
+      printer.s table.s klib88.cpp dmp.s
 
 kernel:     Makefile $(obj) $(LIB)
 	@echo "Start linking Kernel.  "

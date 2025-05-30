@@ -1,4 +1,4 @@
-/* The object file of "table.c" contains all the data.  In the *.h files,
+/* The object file of "table.cpp" contains all the data.  In the *.h files,
  * declared variables appear with EXTERN in front of them, as in
  *
  *    EXTERN int x;
@@ -14,7 +14,7 @@
  * so they are declared extern when included normally.  However, it must
  * be declared for real somewhere.  That is done here, but redefining
  * EXTERN as the null string, so the inclusion of all the *.h files in
- * table.c actually generates storage for them.  All the initialized
+ * table.cpp actually generates storage for them.  All the initialized
  * variables are also declared here, since
  *
  * extern int x = 4;

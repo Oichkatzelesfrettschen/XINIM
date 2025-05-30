@@ -80,12 +80,12 @@ assembler are functioning correctly.
 
 The `tools/c86` directory stores batch files and legacy utilities once used with
 an MS-DOS cross compiler. They are kept for reference but are not executed by
-the current build. Modern equivalents written in C (for example `bootblok.c`)
+the current build. Modern equivalents written in C (for example `bootblok.cpp`)
 provide the needed functionality and are built automatically.
 
 ## Modernization Script
 
 A helper script `tools/modernize_cpp23.sh` automates renaming sources to
-`.cpp` and `.hpp`, updates include paths and drops a temporary modernization
+`.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
 header into each file. Invoke it from the repository root when ready to move
 the codebase fully to C++23.

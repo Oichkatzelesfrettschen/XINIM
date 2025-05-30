@@ -4,10 +4,10 @@
   ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
-/*	$Header: cc.c,v 1.2 86/08/26 09:40:10 erikb Locked $
+/*	$Header: cc.cpp,v 1.2 86/08/26 09:40:10 erikb Locked $
     Driver for the CEMCOM compiler: works like /bin/cc and accepts the
     options accepted by /bin/cc and /usr/em/bin/ack.
-    Derived from: "cem.c,v 1.5 86/01/20 11:10:29 erikb Exp"
+    Derived from: "cem.cpp,v 1.5 86/01/20 11:10:29 erikb Exp"
 
     Date written: Dec 4, 1985
     Adapted for PC/IX on Jan 20, 1986
@@ -222,7 +222,7 @@ int main(int argc, char *argv[]) {
 
         ext = extension(file);
 
-        if (ext == 'c') { /* .c to .i (if F_flag) or .k */
+        if (ext == 'c') { /* .cpp to .i (if F_flag) or .k */
             init(call);
             append(call, PP);
             concat(call, &PP_FLAGS);

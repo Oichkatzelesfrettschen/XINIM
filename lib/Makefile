@@ -3,12 +3,12 @@ CC ?= clang
 AR ?= ar
 CFLAGS ?= -O2
 # Object files derived only from C sources.
-OBJS := $(patsubst %.c,%.o,$(wildcard *.c))
+OBJS := $(patsubst %.cpp,%.o,$(wildcard *.cpp))
 
 lib.a: $(OBJS)
 	$(AR) rcs $@ $(OBJS)
 
-%.o: %.c
+%.o: %.cpp
 	$(CC) $(CFLAGS) -c -o $@ $<
 
 clean:

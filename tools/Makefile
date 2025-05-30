@@ -19,22 +19,22 @@ init:	$(LIB) init.o $l/head.o
 	ld $(LDFLAGS) -o init  $l/head.o init.o $(LIB)  $l/end.o
 	@echo init done.
 
-# bootblok.c is the source of the MINIX boot block.  The bootblock is the
-# first 512 bytes on the image file and on the boot diskette.  When bootblok.c
+# bootblok.cpp is the source of the MINIX boot block.  The bootblock is the
+# first 512 bytes on the image file and on the boot diskette.  When bootblok.cpp
 # is assembled, it generates a short binary file (less than 400 bytes) that
 # must be stripped of its header and copied to the file bootblok.  The dd
 # command below does this.  If everything has been done right, the bootblok
 # file should begin with the following 8 words, in hex:
 # c0b8 8e07 33d8 b8f6 2fe0 c08e ff33 00b9
-# The exact procedure for going from bootblok.c to the binary file stripped of
+# The exact procedure for going from bootblok.cpp to the binary file stripped of
 # its header is somewhat operating system dependent.  Some assemblers make
 # an object (.o) file; others make an a.out file directly. If your boot 
 # diskette does not start out by printing 'Booting MINIX 1.0' the problem is
 # probably that you have not made a good boot block.
-bootblok:	bootblok.c
+bootblok:	bootblok.cpp
 	# Compile the boot block using the C source
-	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblok bootblok.c
-	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblokgen bootblok.c
+	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblok bootblok.cpp
+	$(CC) $(CFLAGS) $(LDFLAGS) -o bootblokgen bootblok.cpp
 	@echo bootblok done.
 build:	build.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o build build.o
@@ -43,16 +43,16 @@ build:	build.o
 mkfs:	mkfs.o
 	$(CC) $(CFLAGS) $(LDFLAGS) -o mkfs mkfs.o
 	@echo mkfs done.
-mkfs.o:	mkfs.c
-	$(CC) $(CFLAGS) -DUNIX -c mkfs.c
+mkfs.o:	mkfs.cpp
+	$(CC) $(CFLAGS) -DUNIX -c mkfs.cpp
 
 fsck:	fsck.o fsck1.o diskio.o
 	ld $(LDFLAGS) -o fsck  fsck1.o fsck.o diskio.o $(LIB)
 	@echo fsck done.
-fsck1.o:	fsck1.c
-	$(CC) $(CFLAGS) -c fsck1.c
-diskio.o:	diskio.c
-	$(CC) $(CFLAGS) -c diskio.c
+fsck1.o:	fsck1.cpp
+	$(CC) $(CFLAGS) -c fsck1.cpp
+diskio.o:	diskio.cpp
+	$(CC) $(CFLAGS) -c diskio.cpp
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces
 # appears in the image file just as the original does on the disk, except that

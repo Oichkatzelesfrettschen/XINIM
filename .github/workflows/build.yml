@@ -34,9 +34,9 @@ jobs:
       run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
     - name: Check formatting
       run: |
-        FILES=$(git ls-files '*.c' '*.h')
+        FILES=$(git ls-files '*.cpp' '*.h')
         clang-format --dry-run --Werror $FILES
     - name: Run clang-tidy
       run: |
-        FILES=$(git ls-files '*.c')
+        FILES=$(git ls-files '*.cpp')
         clang-tidy -p build -warnings-as-errors='*' $FILES

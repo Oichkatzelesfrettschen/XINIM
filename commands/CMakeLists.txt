@@ -1,4 +1,4 @@
-file(GLOB CMD_SRC *.c)
+file(GLOB CMD_SRC *.cpp)
 foreach(src ${CMD_SRC})
   get_filename_component(prog ${src} NAME_WE)
   set(target cmd_${prog})

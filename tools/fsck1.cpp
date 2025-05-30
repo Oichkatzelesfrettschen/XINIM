@@ -3,7 +3,7 @@
 #include <stdlib.h>
 #include <unistd.h>
 
-/* External entry point to main provided by fsck.c */
+/* External entry point to main provided by fsck.cpp */
 extern int main(void);
 
 /* File descriptor for disk operations. */
