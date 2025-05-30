@@ -12,7 +12,7 @@
 
 /* -------- eval.cpp -------- */
 /* #include "sh.hpp" */
-/* #include "word.h" */
+/* #include "word.hpp" */
 
 /*
  * ${}
@@ -528,7 +528,7 @@ char *p1, *p2;
 
 /* -------- word.cpp -------- */
 /* #include "sh.hpp" */
-/* #include "word.h" */
+/* #include "word.hpp" */
 char *memcpy();
 
 #define NSTART 16 /* default number of words to allow for initially */

@@ -1,4 +1,4 @@
-#include "../include/setjmp.h"
+#include "../include/setjmp.hpp"
 #include "../include/lib.hpp" // C++17 header
 #include <stdlib.h>
 

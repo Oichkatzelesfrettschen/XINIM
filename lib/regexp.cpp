@@ -26,9 +26,9 @@
  *	Andy Tanenbaum also made some changes.
  */
 
-#include "../include/regexp.h"
+#include "../include/regexp.hpp"
 #include "../include/lib.hpp" // C++17 header
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 #include <string.h>
 #include <strings.h>
 

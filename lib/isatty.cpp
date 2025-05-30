@@ -1,13 +1,13 @@
-#include "../include/stat.h"
+#include "../include/stat.hpp"
 
 int isatty(fd)
 int fd;
 {
-  struct stat s;
+    struct stat s;
 
-  fstat(fd, &s);
-  if ( (s.st_mode&S_IFMT) == S_IFCHR)
-	return(1);
-  else
-	return(0);
+    fstat(fd, &s);
+    if ((s.st_mode & S_IFMT) == S_IFCHR)
+        return (1);
+    else
+        return (0);
 }

@@ -1,23 +1,21 @@
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 
-fwrite(ptr, size, count, file)
-unsigned size, count;
+fwrite(ptr, size, count, file) unsigned size, count;
 char *ptr;
 FILE *file;
 {
-	unsigned s;
-	unsigned ndone = 0;
+    unsigned s;
+    unsigned ndone = 0;
 
-	if (size)
-		while ( ndone < count ) {
-			s = size;
-			do {
-				putc(*ptr++, file);
-				if (ferror(file))
-					return(ndone);
-			} 
-			while (--s);
-			ndone++;
-		}
-	return(ndone);
+    if (size)
+        while (ndone < count) {
+            s = size;
+            do {
+                putc(*ptr++, file);
+                if (ferror(file))
+                    return (ndone);
+            } while (--s);
+            ndone++;
+        }
+    return (ndone);
 }

@@ -18,16 +18,16 @@
  *	To compile this program for MINIX, say cc mkfs.cpp
  */
 
-#include "../fs/const.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../fs/const.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #undef EXTERN
 #define EXTERN /* get rid of EXTERN by making it null */
-#include "../fs/super.h"
-#include "../fs/type.h"
+#include "../fs/super.hpp"
+#include "../fs/type.hpp"
 
 #ifdef DOS
-#include "/lib/c86/stdio.h"
+#include "/lib/c86/stdio.hpp"
 #define COMPILERFLAG
 #endif
 

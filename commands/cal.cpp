@@ -6,7 +6,7 @@
 
 /* cal - print a calendar		Author: Maritn Minow */
 
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 #include <array>
 #include <string_view>
 
@@ -32,7 +32,8 @@ char layout[MONTHS_PER_LINE][WEEKS_PER_MONTH][DAYS_PER_WEEK][ENTRY_SIZE];
 char outline[(MONTHS_PER_LINE * DAYS_PER_WEEK * ENTRY_SIZE) + (MONTHS_PER_LINE * MONTH_SPACE) + 1];
 
 constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
-constexpr std::array<std::string_view, 13> monthname = {"???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+constexpr std::array<std::string_view, 13> monthname = {
+    "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 int main(int argc, char *argv[]) {
     register int month;

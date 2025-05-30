@@ -32,10 +32,10 @@ typedef int xint; /* base type of jmp_buf, for broken compilers */
 /*
  * shell components
  */
-/* #include "area.h" */
-/* #include "word.h" */
-/* #include "io.h" */
-/* #include "var.h" */
+/* #include "area.hpp" */
+/* #include "word.hpp" */
+/* #include "io.hpp" */
+/* #include "var.hpp" */
 
 #define QUOTE 0200
 

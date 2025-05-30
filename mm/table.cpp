@@ -2,14 +2,14 @@
  * routines that perform them.
  */
 
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 
 #undef EXTERN
 #define EXTERN
 
-#include "../h/callnr.h"
+#include "../h/callnr.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"

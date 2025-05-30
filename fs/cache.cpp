@@ -18,9 +18,9 @@
  *   invalidate:  remove all the cache blocks on some device
  */
 
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "buf.hpp"
 #include "const.hpp"
 #include "file.hpp"

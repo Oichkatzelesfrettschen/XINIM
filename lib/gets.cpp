@@ -1,17 +1,17 @@
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 
 char *gets(str)
 char *str;
 {
-	register int ch;
-	register char *ptr;
+    register int ch;
+    register char *ptr;
 
-	ptr = str;
-	while ((ch = getc(stdin)) != EOF && ch != '\n')
-		*ptr++ = ch;
+    ptr = str;
+    while ((ch = getc(stdin)) != EOF && ch != '\n')
+        *ptr++ = ch;
 
-	if (ch == EOF && ptr==str)
-		return(NULL);
-	*ptr = '\0';
-	return(str);
+    if (ch == EOF && ptr == str)
+        return (NULL);
+    *ptr = '\0';
+    return (str);
 }

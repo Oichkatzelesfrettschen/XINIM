@@ -16,10 +16,10 @@
  *   stack_fault: grow the stack segment
  */
 
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/signal.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/signal.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"

@@ -14,10 +14,10 @@
  *   do_fstat:	perform the FSTAT system call
  */
 
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/stat.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/stat.hpp"
+#include "../h/type.hpp"
 #include "compat.hpp"
 #include "const.hpp"
 #include "file.hpp"

@@ -18,11 +18,11 @@
  *	27 october 1986 by Jakob Schripsema: fdc_results fixed for 8 MHz
  */
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"

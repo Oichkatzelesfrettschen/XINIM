@@ -9,4 +9,4 @@
  * System, which do have some local type definitions.
  */
 
-#include "../h/type.h"
+#include "../h/type.hpp"

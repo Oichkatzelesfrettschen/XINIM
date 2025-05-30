@@ -8,9 +8,9 @@
  * routines that perform them.
  */
 
-#include "../h/const.h"
-#include "../h/stat.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/stat.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "dev.hpp"
 #include "type.hpp"
@@ -18,9 +18,9 @@
 #undef EXTERN
 #define EXTERN
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/error.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/error.hpp"
 #include "buf.hpp"
 #include "file.hpp"
 #include "fproc.hpp"

@@ -23,8 +23,8 @@
  * in one of the *.h files without the initialization.
  */
 
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "type.hpp"
 #undef EXTERN

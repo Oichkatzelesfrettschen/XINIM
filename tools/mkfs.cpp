@@ -21,7 +21,7 @@
 #include "../fs/type.hpp"
 
 #ifdef DOS
-#include "/lib/c86/stdio.h"
+#include "/lib/c86/stdio.hpp"
 #define COMPILERFLAG
 #endif
 

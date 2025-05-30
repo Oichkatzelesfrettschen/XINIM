@@ -1,5 +1,5 @@
 #include "../include/lib.hpp" // C++17 header
-#include "../include/signal.h"
+#include "../include/signal.hpp"
 
 PRIVATE void alfun(int signum) { (void)signum; }
 PUBLIC void sleep(int n) {

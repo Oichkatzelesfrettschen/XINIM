@@ -11,10 +11,10 @@
  *   do_lseek:  perform the LSEEK system call
  */
 
-#include "../h/callnr.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "buf.hpp"
 #include "compat.hpp"
 #include "const.hpp"

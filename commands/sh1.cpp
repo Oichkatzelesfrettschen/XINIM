@@ -735,7 +735,7 @@ register int sub;
 #define BUSY 0
 #define ALIGN (sizeof(int) - 1)
 
-/* #include "area.h" */
+/* #include "area.hpp" */
 #define NULL 0
 
 struct region {

@@ -1,5 +1,5 @@
 #include "../include/lib.hpp" // C++17 header
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 
 #define PMODE 0644
 

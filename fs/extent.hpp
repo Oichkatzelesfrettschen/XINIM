@@ -8,7 +8,7 @@
 #ifndef FS_EXTENT_H
 #define FS_EXTENT_H
 
-#include "../h/type.h"
+#include "../h/type.hpp"
 
 /* An extent describes a contiguous range of zones on disk. */
 typedef struct {

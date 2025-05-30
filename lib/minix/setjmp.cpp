@@ -1,5 +1,5 @@
-#include "../../include/setjmp.h"
-#include "../../include/lib.h"
+#include "../../include/setjmp.hpp"
+#include "../../include/lib.hpp"
 #include <stdlib.h>
 
 /*

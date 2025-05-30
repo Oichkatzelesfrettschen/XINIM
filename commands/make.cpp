@@ -94,7 +94,7 @@ char *def_list[] = {
 TIME time();
 #define now() (TIME) time((char *)0) /* the current time, in seconds */
 #else
-#include "time.h"
+#include "time.hpp"
 TIME now() {
     struct tm timer, *p;
     long t, ftpack();

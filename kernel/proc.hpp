@@ -7,7 +7,7 @@
  * It contains the process' registers, memory map, accounting, and message
  * send/receive information.
  */
-#include "../include/defs.h"
+#include "../include/defs.hpp"
 #include "type.hpp"
 
 EXTERN struct proc {

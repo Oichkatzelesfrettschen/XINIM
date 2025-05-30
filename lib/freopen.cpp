@@ -1,13 +1,13 @@
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 
-FILE *freopen(name,mode,stream)
-char *name,*mode;
+FILE *freopen(name, mode, stream)
+char *name, *mode;
 FILE *stream;
 {
-	FILE *fopen();
+    FILE *fopen();
 
-	if ( fclose(stream) != 0 )
-		return NULL;
+    if (fclose(stream) != 0)
+        return NULL;
 
-	return fopen(name,mode);
+    return fopen(name, mode);
 }

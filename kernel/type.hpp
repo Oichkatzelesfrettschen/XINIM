@@ -10,7 +10,7 @@
  * trap or interrupt, as well as for causing interrupts for signals.
  */
 
-#include "../include/defs.h"
+#include "../include/defs.hpp"
 struct pc_psw {
     u64_t pc;  /* program counter */
     u64_t psw; /* processor status word */

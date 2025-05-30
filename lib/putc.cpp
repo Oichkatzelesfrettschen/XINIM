@@ -1,43 +1,38 @@
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 
-
-putc(ch, iop)
-char ch;
+putc(ch, iop) char ch;
 FILE *iop;
 {
-	int n,
-	didwrite = 0;
+    int n, didwrite = 0;
 
-	if (testflag(iop, (_ERR | _EOF)))
-		return (EOF); 
+    if (testflag(iop, (_ERR | _EOF)))
+        return (EOF);
 
-	if ( !testflag(iop,WRITEMODE))
-		return(EOF);
+    if (!testflag(iop, WRITEMODE))
+        return (EOF);
 
-	if ( testflag(iop,UNBUFF)){
-		n = write(iop->_fd,&ch,1);
-		iop->_count = 1;
-		didwrite++;
-	}
-	else{
-		*iop->_ptr++ = ch;
-		if ((++iop->_count) >= BUFSIZ && !testflag(iop,STRINGS) ){
-			n = write(iop->_fd,iop->_buf,iop->_count);
-			iop->_ptr = iop->_buf;
-			didwrite++;
-		}
-	}
+    if (testflag(iop, UNBUFF)) {
+        n = write(iop->_fd, &ch, 1);
+        iop->_count = 1;
+        didwrite++;
+    } else {
+        *iop->_ptr++ = ch;
+        if ((++iop->_count) >= BUFSIZ && !testflag(iop, STRINGS)) {
+            n = write(iop->_fd, iop->_buf, iop->_count);
+            iop->_ptr = iop->_buf;
+            didwrite++;
+        }
+    }
 
-	if (didwrite){
-		if (n<=0 || iop->_count != n){
-			if (n < 0)
-				iop->_flags |= _ERR;
-			else
-				iop->_flags |= _EOF;
-			return (EOF);
-		}
-		iop->_count=0;
-	}
-	return(0);
+    if (didwrite) {
+        if (n <= 0 || iop->_count != n) {
+            if (n < 0)
+                iop->_flags |= _ERR;
+            else
+                iop->_flags |= _EOF;
+            return (EOF);
+        }
+        iop->_count = 0;
+    }
+    return (0);
 }
-

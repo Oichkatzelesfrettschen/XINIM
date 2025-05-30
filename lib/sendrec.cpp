@@ -1,5 +1,5 @@
-#include "../h/com.h"
-#include "../h/type.h"
+#include "../h/com.hpp"
+#include "../h/type.hpp"
 #include "../include/lib.hpp" // C++17 header
 #include <unistd.h>
 

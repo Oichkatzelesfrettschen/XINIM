@@ -1,4 +1,4 @@
-#include "../include/vm.h"
+#include "../include/vm.hpp"
 #include "const.hpp"
 #include "mproc.hpp"
 

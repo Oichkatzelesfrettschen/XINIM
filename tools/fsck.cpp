@@ -213,7 +213,7 @@ union types {
 
 #ifndef STANDALONE
 #ifdef DOS
-#include "/lib/c86/stdio.h"
+#include "/lib/c86/stdio.hpp"
 #endif
 #else  /*STANDALONE*/
 

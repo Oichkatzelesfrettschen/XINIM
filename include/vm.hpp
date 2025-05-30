@@ -7,7 +7,7 @@
 #ifndef VM_H
 #define VM_H
 
-#include "../h/const.h"
+#include "../h/const.hpp"
 #include "paging.hpp"
 
 /* Flags for virtual memory regions */

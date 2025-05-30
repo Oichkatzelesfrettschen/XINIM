@@ -15,12 +15,12 @@
  *   do_unpause:  a signal has been sent to a process; see if it suspended
  */
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/signal.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/signal.hpp"
+#include "../h/type.hpp"
 #include "compat.hpp"
 #include "const.hpp"
 #include "file.hpp"

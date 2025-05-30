@@ -13,11 +13,11 @@
  *   do_brk2:	pseudo-call for FS to report its size
  */
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../include/vm.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../include/vm.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"

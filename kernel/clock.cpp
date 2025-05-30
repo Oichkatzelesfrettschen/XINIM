@@ -25,12 +25,12 @@
  * it is certain that the task will be blocked when the timer goes off.
  */
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/signal.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/signal.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
