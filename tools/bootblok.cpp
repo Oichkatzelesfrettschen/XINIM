@@ -5,7 +5,7 @@
 /*
  * Boot sector binary extracted from the original NASM source.
  * This array contains exactly 512 bytes. Fields such as the
- * kernel LBA and entry address are patched by build.c.
+ * kernel LBA and entry address are patched by build.cpp.
  */
 static const u8_t boot_sector[512] = {
     0xfa, 0x31, 0xc0, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xd0, 0xbc, 0x00, 0x7c, 0xa1, 0xeb, 0x7c, 0xa3,

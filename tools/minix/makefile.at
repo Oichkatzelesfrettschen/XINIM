@@ -41,15 +41,15 @@ build:	build.s
 mkfs:	mkfs.s
 	$(CC) $(CFLAGS) $(LDFLAGS) -o mkfs mkfs.s
 	@echo mkfs done.
-mkfs.s:	mkfs.c
-	$(CC) $(CFLAGS) -c -DUNIX mkfs.c
+mkfs.s:	mkfs.cpp
+	$(CC) $(CFLAGS) -c -DUNIX mkfs.cpp
 
 fsck:	fsck.s fsck1.s
 	@echo "Start linking fsck.  "
 	asld $(LDFLAGS) -o fsck -T.  fsck1.s fsck.s $(LIB) $l/end.s
 	@echo fsck done. 
-fsck.s: fsck.c
-	$(CC) $(CFLAGS) -c fsck.c
+fsck.s: fsck.cpp
+	$(CC) $(CFLAGS) -c fsck.cpp
 
 # 'make image'  combines the bootblock, kernel, memory manager, file 
 # system, init and fsck into a single file, called image.  Each of these pieces

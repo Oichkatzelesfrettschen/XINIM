@@ -1,6 +1,6 @@
 #!/bin/sh
 # modernize_cpp23.sh - Prepare the codebase for C++23 modernization.
-# This script renames source files to .cpp/.hpp, updates include statements,
+# This script renames source files to .cpppp/.hpp, updates include statements,
 # and inserts a temporary modernization header at the top of each file.
 # It does not overwrite existing headers if they already contain the marker.
 
@@ -37,14 +37,14 @@ for f in $(git ls-files '*.h'); do
     count=$((count + 1))
 done
 
-# Rename .c to .cpp
+# Rename .cpp to .cpppp
 count=0
-for f in $(git ls-files '*.c'); do
+for f in $(git ls-files '*.cpp'); do
     if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
         break
     fi
-    git mv "$f" "${f%.c}.cpp"
-    echo "Renamed $f to ${f%.c}.cpp"
+    git mv "$f" "${f%.cpp}.cpppp"
+    echo "Renamed $f to ${f%.cpp}.cpppp"
     changed_sources="$changed_sources $f"
     count=$((count + 1))
 done
@@ -57,9 +57,9 @@ for h in $changed_headers; do
         xargs -r sed -i "s|\"$base\"|\"$newbase\"|g"
 done
 
-# Insert header into .cpp and .hpp files
+# Insert header into .cpppp and .hpp files
 for src in $changed_sources; do
-    f="${src%.c}.cpp"
+    f="${src%.cpp}.cpppp"
     if [ -f "$f" ] && ! grep -q 'WORK-IN-PROGRESS MODERNIZATION HEADER' "$f"; then
         tmpfile=$(mktemp)
         printf '%s\n\n' "$MOD_HEADER_C" > "$tmpfile"

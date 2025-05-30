@@ -60,8 +60,8 @@ char *argv[];
 
     /* Print results. */
     print_time("real ", (end_time - start_time) * HZ);
-    print_time("user ", post_buf.childu - pre_buf.childu);
-    print_time("sys  ", post_buf.childs - pre_buf.childs);
+    print_time("user ", post_buf.cpphildu - pre_buf.cpphildu);
+    print_time("sys  ", post_buf.cpphilds - pre_buf.cpphilds);
     exit(status >> 8);
 }
 

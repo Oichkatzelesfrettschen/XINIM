@@ -4,7 +4,7 @@
   ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
-/* This file is the counterpart of "read.c".  It contains the code for writing
+/* This file is the counterpart of "read.cpp".  It contains the code for writing
  * insofar as this is not contained in read_write().
  *
  * The entry points into this file are

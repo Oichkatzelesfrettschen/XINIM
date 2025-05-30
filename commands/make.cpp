@@ -73,7 +73,7 @@ struct rulerec {
       public domain YACC working, the rule for it will be first, and look
       like ".y",".o","bison $(YFLAGS) $*.y","cc $* $(CFLAGS)",NULL,
       There are at present no depends in rules, so you need a .y.o: and
-      a .y.c: rule
+      a .y.cpp: rule
    5. The src and dest extensions are expected to be in lower case
    6. SUFFIX sets the name and precedence for the prerequisite macros,
       $< and $?, and for looking up rules. Basically, all <obj> type
@@ -84,10 +84,11 @@ struct rulerec {
 
 #define NDRULES 3
 char *def_list[] = {
-    ".c", ".s", "$(CC) -S $(CFLAGS) $*.c",      NULL, ".c", ".o", "$(CC) -c $(CFLAGS) $*.c", NULL,
-    ".s", ".o", "$(AS) $(AFLAGS) -o $*.o $*.s", NULL,
+    ".cpp", ".s", "$(CC) -S $(CFLAGS) $*.cpp",    NULL,
+    ".cpp", ".o", "$(CC) -c $(CFLAGS) $*.cpp",    NULL,
+    ".s",   ".o", "$(AS) $(AFLAGS) -o $*.o $*.s", NULL,
 };
-#define SUFFIXES ".o .s .c"
+#define SUFFIXES ".o .s .cpp"
 
 #ifndef LC
 TIME time();

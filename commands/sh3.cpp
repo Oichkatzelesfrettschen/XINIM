@@ -9,7 +9,7 @@
 #include "sh.hpp"
 #include "signal.hpp"
 
-/* -------- exec.c -------- */
+/* -------- exec.cpp -------- */
 /* #include "sh.hpp" */
 
 /*
@@ -578,7 +578,7 @@ int (*f)();
     return (rv);
 }
 
-/* -------- do.c -------- */
+/* -------- do.cpp -------- */
 /* #include "sh.hpp" */
 
 /*

@@ -1,13 +1,13 @@
 # Choose the correct wini driver source
 if(WINI_DRIVER STREQUAL "at")
-  set(WINI_SRC at_wini.c)
+  set(WINI_SRC at_wini.cpp)
 else()
-  set(WINI_SRC xt_wini.c)
+  set(WINI_SRC xt_wini.cpp)
 endif()
 
 set(KERNEL_SRC
-    clock.c dmp.c floppy.c main.c memory.c printer.c proc.c system.c
-    table.c tty.c idt64.c mpx64.c klib64.c syscall.c ${WINI_SRC})
+    clock.cpp dmp.cpp floppy.cpp main.cpp memory.cpp printer.cpp proc.cpp system.cpp
+    table.cpp tty.cpp idt64.cpp mpx64.cpp klib64.cpp syscall.cpp ${WINI_SRC})
 
 set(KERNEL_ASM)
 

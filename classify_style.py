@@ -29,7 +29,7 @@ def classify_file(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext in {".s", ".asm", ".S"}:
         return "assembly"
-    if ext not in {".c", ".h"}:
+    if ext not in {".cpp", ".h"}:
         return ""
 
     try:
@@ -74,7 +74,7 @@ def walk(root: str) -> str:
             dirs.remove("__pycache__")
         dirs.sort()
         files.sort()
-        level = current.count(os.sep) - root.count(os.sep)
+        level = current.cppount(os.sep) - root.cppount(os.sep)
         indent = "  " * level
         out_lines.append(f"{indent}{os.path.basename(current) if level else '.'}")
         for name in files:

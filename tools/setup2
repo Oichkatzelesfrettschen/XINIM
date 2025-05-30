@@ -73,10 +73,10 @@ mv /copy/C86/* /usr/kernel/C86
 mv /copy/doc/* /usr/h
 /etc/umount /dev/at0
 
-echo "Insert 360K disk 6.  fs/*.c will now be copied"
+echo "Insert 360K disk 6.  fs/*.cpp will now be copied"
 getlf
 /etc/mount /dev/at0 /usr
-cp /usr/fs/*.c /copy/bin
+cp /usr/fs/*.cpp /copy/bin
 /etc/umount /dev/at0
 
 echo "Insert 1.2M disk 4"

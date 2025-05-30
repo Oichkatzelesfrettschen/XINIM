@@ -13,9 +13,9 @@
  *	but this isn't complete yet. Where routines can handle the
  *	situation this is mentioned in the comment.
  *
- *	To compile this program for MS-DOS, say cc -DDOS mkfs.c diskio.asm
- *	To compile this program for UNIX, say cc -DUNIX mkfs.c
- *	To compile this program for MINIX, say cc mkfs.c
+ *	To compile this program for MS-DOS, say cc -DDOS mkfs.cpp diskio.asm
+ *	To compile this program for UNIX, say cc -DUNIX mkfs.cpp
+ *	To compile this program for MINIX, say cc mkfs.cpp
  */
 
 #include "../fs/const.h"
@@ -738,7 +738,7 @@ int n;
 
 /*
  *	These are the get_block and put_block routines
- *	when compiling & running mkfs.c under MS-DOS.
+ *	when compiling & running mkfs.cpp under MS-DOS.
  *
  *	It requires the (asembler) routines absread & abswrite
  *	from the file diskio.asm. Since these routines just do

@@ -9,7 +9,7 @@
 #include "sh.hpp"
 #include "signal.hpp"
 
-/* -------- io.c -------- */
+/* -------- io.cpp -------- */
 /* #include "sh.hpp" */
 
 /*
@@ -366,7 +366,7 @@ void closepipe(pv) register int *pv;
     }
 }
 
-/* -------- here.c -------- */
+/* -------- here.cpp -------- */
 /* #include "sh.hpp" */
 char *memcpy();
 

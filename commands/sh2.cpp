@@ -9,7 +9,7 @@
 #include "sh.hpp"
 #include "signal.hpp"
 
-/* -------- csyn.c -------- */
+/* -------- csyn.cpp -------- */
 /*
  * shell: syntax (C version)
  */
@@ -145,10 +145,10 @@ int cf;
     }
     i = yylval.i;
     musthave(WORD, 0);
-    iop = io(iounit, i, yylval.cp);
+    iop = io(iounit, i, yylval.cppp);
     iounit = IODEFAULT;
     if (i & IOHERE)
-        markhere(yylval.cp, iop);
+        markhere(yylval.cppp, iop);
 }
 
 static void musthave(c, cf) int c, cf;
@@ -175,7 +175,7 @@ static struct op *simple() {
                 t->type = TCOM;
             }
             peeksym = 0;
-            word(yylval.cp);
+            word(yylval.cppp);
             break;
 
         default:
@@ -234,7 +234,7 @@ int cf;
         t->type = TFOR;
         musthave(WORD, 0);
         startl = 1;
-        t->str = yylval.cp;
+        t->str = yylval.cppp;
         multiline++;
         t->words = wordlist();
         if ((c = yylex(0)) != '\n' && c != ';')
@@ -258,7 +258,7 @@ int cf;
         t = newtp();
         t->type = TCASE;
         musthave(WORD, 0);
-        t->str = yylval.cp;
+        t->str = yylval.cppp;
         startl++;
         multiline++;
         musthave(IN, CONTIN);
@@ -371,7 +371,7 @@ static char **pattern() {
     cf = CONTIN;
     do {
         musthave(WORD, cf);
-        word(yylval.cp);
+        word(yylval.cppp);
         cf = 0;
     } while ((c = yylex(0)) == '|');
     peeksym = c;
@@ -388,7 +388,7 @@ static char **wordlist() {
     }
     startl = 0;
     while ((c = yylex(0)) == WORD)
-        word(yylval.cp);
+        word(yylval.cppp);
     word(NOWORD);
     peeksym = c;
     return (copyw());
@@ -638,7 +638,7 @@ pack:
         startl = 1;
         return (c);
     }
-    yylval.cp = strsave(line, areanum);
+    yylval.cppp = strsave(line, areanum);
     return (WORD);
 }
 

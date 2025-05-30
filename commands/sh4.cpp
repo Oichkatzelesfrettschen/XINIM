@@ -10,7 +10,7 @@
 #include "signal.hpp"
 #include "stat.hpp"
 
-/* -------- eval.c -------- */
+/* -------- eval.cpp -------- */
 /* #include "sh.hpp" */
 /* #include "word.h" */
 
@@ -360,7 +360,7 @@ register char *as;
     return (as);
 }
 
-/* -------- glob.c -------- */
+/* -------- glob.cpp -------- */
 /* #include "sh.hpp" */
 
 #define DIRSIZ 14
@@ -526,7 +526,7 @@ char *p1, *p2;
     return (strcmp(*(char **)p1, *(char **)p2));
 }
 
-/* -------- word.c -------- */
+/* -------- word.cpp -------- */
 /* #include "sh.hpp" */
 /* #include "word.h" */
 char *memcpy();

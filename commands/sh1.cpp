@@ -8,7 +8,7 @@
 #include "setjmp.hpp"
 #include "sh.hpp"
 #include "signal.hpp"
-/* -------- sh.c -------- */
+/* -------- sh.cpp -------- */
 /*
  * shell
  */
@@ -464,7 +464,7 @@ runtrap(i) {
     RUN(aword, trapstr, nlchar);
 }
 
-/* -------- var.c -------- */
+/* -------- var.cpp -------- */
 /* #include "sh.hpp" */
 
 static char *findeq();
@@ -652,7 +652,7 @@ register char *cp;
     return (cp);
 }
 
-/* -------- gmatch.c -------- */
+/* -------- gmatch.cpp -------- */
 /*
  * int gmatch(string, pattern)
  * char *string, *pattern;
@@ -728,7 +728,7 @@ register int sub;
     return (found ? p + 1 : NULL);
 }
 
-/* -------- area.c -------- */
+/* -------- area.cpp -------- */
 #define GROWBY 1024
 #define SHRINKBY 256
 #define FREE 32767

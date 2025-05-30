@@ -13,7 +13,7 @@ bin/
 # Ignore CMake generated files
 CMakeFiles/
 CMakeCache.txt
-cmake_install.cmake
+cmake_install.cppmake
 
 # Ignore other temporary files
 *.log

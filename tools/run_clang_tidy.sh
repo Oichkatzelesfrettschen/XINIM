@@ -13,5 +13,5 @@ if [ ! -f "$BUILD_DIR/compile_commands.json" ]; then
 fi
 
 # Find all C source files excluding the build directory and run clang-tidy
-find . -name '*.c' -not -path "./$BUILD_DIR/*" \
+find . -name '*.cpp' -not -path "./$BUILD_DIR/*" \
     | xargs -r clang-tidy -p "$BUILD_DIR" -fix -format-style=none -extra-arg=-std=c90 "$@"

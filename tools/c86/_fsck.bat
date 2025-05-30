@@ -8,7 +8,7 @@ echo    -b   link for boot-diskette
 echo    -m   link as a minix-program
 echo    -d   link as a dos-program
 echo   Note that the appropriate symbol must be
-echo   defined in both fsck.c and fsck1.asm
+echo   defined in both fsck.cpp and fsck1.asm
 echo   Optionally you can specify '-l', which
 echo   will only link fsck.
 goto eind
