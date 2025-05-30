@@ -2,18 +2,26 @@
 
 extern int errno; /*DEBUG*/
 
-#include "blocksize.h"
+#include "blocksiz.h"
 #include "stat.h"
 
-#define BUF_SIZE      512
-int unbuffered;
-char buffer[BUF_SIZE];
-char *next = buffer;
+#define BUF_SIZE      512        /* size of the output buffer */
+int unbuffered;                   /* non-zero for unbuffered operation */
+char buffer[BUF_SIZE];            /* output buffer */
+char *next = buffer;              /* next free byte in buffer */
 
-main(argc, argv)
-int argc;
-char *argv[];
+/* Function prototypes */
+static void copyfile(int fd1, int fd2);
+static void flush(void);
+static void quit(void);
+
+int main(int argc, char *argv[])
 {
+  /*
+   * Entry point.  Parse the command line and copy each file to
+   * standard output.  The special file name '-' denotes standard
+   * input.  The -u flag selects unbuffered operation.
+   */
   int i, k, m, fd1;
   char *p;
   struct stat sbuf;
@@ -53,9 +61,14 @@ char *argv[];
 
 
 
-copyfile(fd1, fd2)
-int fd1, fd2;
+static void copyfile(int fd1, int fd2)
 {
+  /*
+   * Read data from fd1 and write it to fd2.  When running in buffered
+   * mode the output is collected in 'buffer' and only written when the
+   * buffer is full.  In unbuffered mode each read result is written
+   * immediately.
+   */
   int n, j, m;
   char buf[BLOCK_SIZE];
 
@@ -80,15 +93,17 @@ int fd1, fd2;
 }
 
 
-flush()
+static void flush(void)
 {
-  if (next != buffer) 
-	if (write(1, buffer, next - buffer) <= 0) quit();
+  /* Write any buffered output to standard output. */
+  if (next != buffer)
+        if (write(1, buffer, next - buffer) <= 0) quit();
 }
 
 
-quit()
+static void quit(void)
 {
+  /* Terminate the program after printing the error stored in errno. */
   perror("cat");
   exit(1);
 }
