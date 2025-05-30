@@ -569,8 +569,8 @@ register struct tty_struct *tp; /* pointer to terminal to read from */
 
     /* The outer loop iterates on buffers, one buffer load per iteration. */
     while (tp->tty_inleft > 0) {
-        buf_ct = MIN(tp->tty_inleft, tp->tty_incount);
-        buf_ct = MIN(buf_ct, TTY_BUF_SIZE);
+        buf_ct = min(tp->tty_inleft, tp->tty_incount);
+        buf_ct = min(buf_ct, TTY_BUF_SIZE);
         ct = 0;
         tty_ptr = tty_buf;
 
@@ -1109,7 +1109,7 @@ char y;                         /* escape sequence is ESC x y; this is y */
             n = 2 * LINE_WIDTH * (tp->tty_row + 1) - 2 * tp->tty_column;
             vx = tp->tty_vid;
             while (n > 0) {
-                ct = MIN(n, vid_retrace);
+                ct = min(n, vid_retrace);
                 vid_copy(NIL_PTR, vid_base, vx, ct / 2);
                 vx += ct;
                 n -= ct;

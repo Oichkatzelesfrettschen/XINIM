@@ -9,7 +9,7 @@ char *addr;
 
     k = callm1(MM, BRK, 0, 0, 0, addr, NIL_PTR, NIL_PTR);
     if (k == OK) {
-        brksize = M.m2_p1;
+        brksize = M.m2_p1();
         return (NIL_PTR);
     } else {
         return ((char *)-1);

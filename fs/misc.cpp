@@ -103,7 +103,7 @@ int do_sync() {
 
     /* Write all the dirty super_blocks to the disk. */
     for (sp = &super_block[0]; sp < &super_block[NR_SUPERS]; sp++)
-        if (sp->s_dev != NO_DEV && sp->s_dirt == DIRTY)
+        if (sp->s_dev != kNoDev && sp->s_dirt == DIRTY)
             rw_super(sp, WRITING);
 
     /* Write all the dirty blocks to the disk. First do drive 0, then the rest.
@@ -111,13 +111,13 @@ int do_sync() {
      */
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
         d = bp->b_dev;
-        if (d != NO_DEV && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) == 0)
+        if (d != kNoDev && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) == 0)
             rw_block(bp, WRITING);
     }
 
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
         d = bp->b_dev;
-        if (d != NO_DEV && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) != 0)
+        if (d != kNoDev && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) != 0)
             rw_block(bp, WRITING);
     }
 

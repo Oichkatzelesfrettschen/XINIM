@@ -185,7 +185,7 @@ static void buf_pool() {
 
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
         bp->b_blocknr = NO_BLOCK;
-        bp->b_dev = NO_DEV;
+        bp->b_dev = kNoDev;
         bp->b_next = bp + 1;
         bp->b_prev = bp - 1;
     }
@@ -238,10 +238,10 @@ static void load_ram() {
      * system plus RAM disk combined, so it can remove all of it from the map.
      */
     m1.m_type = BRK2;
-    m1.m1_i1 = init_text_clicks;
-    m1.m1_i2 = init_data_clicks;
-    m1.m1_i3 = init_org + init_text_clicks + init_data_clicks + ram_clicks;
-    m1.m1_p1 = (char *)init_org;
+    m1.m1_i1() = init_text_clicks;
+    m1.m1_i2() = init_data_clicks;
+    m1.m1_i3() = init_org + init_text_clicks + init_data_clicks + ram_clicks;
+    m1.m1_p1() = (char *)init_org;
     if (sendrec(MM_PROC_NR, &m1) != OK)
         panic("FS Can't report to MM", NO_NUM);
 
@@ -283,7 +283,7 @@ static void load_super() {
     /* Initialize the super_block table. */
 
     for (sp = &super_block[0]; sp < &super_block[NR_SUPERS]; sp++)
-        sp->s_dev = NO_DEV;
+        sp->s_dev = kNoDev;
 
     /* Read in super_block for the root file system. */
     sp = &super_block[0];

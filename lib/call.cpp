@@ -15,12 +15,12 @@ char *ptr3;    /* pointer parameter */
     /* Send a message and get the response.  The 'M.m_type' field of the
      * reply contains a value (>= 0) or an error code (<0). Use message format m1.
      */
-    M.m1_i1 = int1;
-    M.m1_i2 = int2;
-    M.m1_i3 = int3;
-    M.m1_p1 = ptr1;
-    M.m1_p2 = ptr2;
-    M.m1_p3 = ptr3;
+    M.m1_i1() = int1;
+    M.m1_i2() = int2;
+    M.m1_i3() = int3;
+    M.m1_p1() = ptr1;
+    M.m1_p2() = ptr2;
+    M.m1_p3() = ptr3;
     return callx(proc, syscallnr);
 }
 
@@ -37,10 +37,10 @@ char *name;    /* string */
     register int k;
     register char *rp;
     k = len(name);
-    M.m3_i1 = k;
-    M.m3_i2 = int1;
-    M.m3_p1 = name;
-    rp = &M.m3_ca1[0];
+    M.m3_i1() = k;
+    M.m3_i2() = int1;
+    M.m3_p1() = name;
+    rp = &M.m3_ca1()[0];
     if (k <= M3_STRING)
         while (k--)
             *rp++ = *name++;

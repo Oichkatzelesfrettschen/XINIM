@@ -385,7 +385,7 @@ register struct mproc *rmp; /* whose core is to be dumped */
 
             /* Loop through a segment, dumping it. */
             while (c > 0) {
-                ct = MIN(c, DUMP_SIZE);
+                ct = min(c, DUMP_SIZE);
                 er1 = mem_copy(slot, i, a, MM_PROC_NR, D, dest, ct);
                 er2 = write(r, buf, (int)ct);
                 if (er1 < 0 || er2 < 0) {

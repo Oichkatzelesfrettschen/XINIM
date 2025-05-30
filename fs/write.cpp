@@ -74,9 +74,9 @@ zone_nr new_zone;           /* zone # to be inserted */
         zp = &rip->i_zone[NR_DZONE_NUM];
     } else {
         /* 'position' can be located via the double indirect block. */
-        if ((z = rip->i_zone[NR_DZONE_NUM + 1]) == NO_ZONE) {
+        if ((z = rip->i_zone[NR_DZONE_NUM + 1]) == kNoZone) {
             /* Create the double indirect block. */
-            if ((z = alloc_zone(rip->i_dev, rip->i_zone[0])) == NO_ZONE)
+            if ((z = alloc_zone(rip->i_dev, rip->i_zone[0])) == kNoZone)
                 return (err_code);
             rip->i_zone[NR_DZONE_NUM + 1] = z;
             new_dbl = TRUE; /* set flag for later */
@@ -96,13 +96,13 @@ zone_nr new_zone;           /* zone # to be inserted */
     }
 
     /* 'zp' now points to place where indirect zone # goes; 'excess' is index. */
-    if (*zp == NO_ZONE) {
+    if (*zp == kNoZone) {
         /* Create indirect block. */
         *zp = alloc_zone(rip->i_dev, rip->i_zone[0]);
         new_ind = TRUE;
         if (bp != NIL_BUF)
             bp->b_dirt = DIRTY; /* if double ind, it is dirty */
-        if (*zp == NO_ZONE) {
+        if (*zp == kNoZone) {
             put_block(bp, INDIRECT_BLOCK); /* release dbl indirect blk */
             return (err_code);             /* couldn't create single ind */
         }
@@ -155,7 +155,7 @@ int flag;                   /* 0 if called by read_write, 1 by new_block */
     /* If 'pos' is in the last block of a zone, do not clear the zone. */
     if (next / zone_size != pos / zone_size)
         return;
-    if ((blo = read_map(rip, next)) == NO_BLOCK)
+    if ((blo = read_map(rip, next)) == kNoBlock)
         return;
     bhi = (((blo >> scale) + 1) << scale) - 1;
 
@@ -191,7 +191,7 @@ file_pos position;          /* file pointer */
     extern zone_nr alloc_zone();
 
     /* Is another block available in the current zone? */
-    if ((b = read_map(rip, position)) == NO_BLOCK) {
+    if ((b = read_map(rip, position)) == kNoBlock) {
         /* Choose first zone if need be. */
         if (compat_get_size(rip) == 0) {
             sp = get_super(rip->i_dev);
@@ -199,7 +199,7 @@ file_pos position;          /* file pointer */
         } else {
             z = rip->i_zone[0];
         }
-        if ((z = alloc_zone(rip->i_dev, z)) == NO_ZONE)
+        if ((z = alloc_zone(rip->i_dev, z)) == kNoZone)
             return (NIL_BUF);
         if ((r = write_map(rip, position, z)) != OK) {
             free_zone(rip->i_dev, z);
