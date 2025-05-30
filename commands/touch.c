@@ -1,6 +1,6 @@
 
-#include "stat.h"
-#include "errno.h"
+#include "stat.hpp"
+#include "errno.hpp"
 int no_creat = 0;
 
 main(argc,argv)

@@ -1,5 +1,5 @@
 #include "../include/vm.h"
-#include "const.h"
+#include "const.hpp"
 #include "mproc.h"
 
 /*

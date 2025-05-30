@@ -6,7 +6,7 @@
  *				Move Commands				      *	
  *  ========================================================================  */
 
-#include "mined.h"
+#include "mined.hpp"
 
 /*
  * Move one line up.

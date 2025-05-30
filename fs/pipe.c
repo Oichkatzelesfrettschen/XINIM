@@ -19,14 +19,14 @@
 #include "../h/error.h"
 #include "../h/signal.h"
 #include "../h/type.h"
-#include "compat.h"
-#include "const.h"
-#include "file.h"
-#include "fproc.h"
-#include "glo.h"
-#include "inode.h"
-#include "param.h"
-#include "type.h"
+#include "compat.hpp"
+#include "const.hpp"
+#include "file.hpp"
+#include "fproc.hpp"
+#include "glo.hpp"
+#include "inode.hpp"
+#include "param.hpp"
+#include "type.hpp"
 
 PRIVATE message mess;
 

@@ -17,10 +17,10 @@
 #include "../h/callnr.h"
 #include "../h/error.h"
 #include "../h/stat.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "mproc.h"
-#include "param.h"
+#include "param.hpp"
 
 #define MAGIC    0x04000301L	/* magic number with 2 bits masked off */
 #define SEP      0x00200000L	/* value for separate I & D */

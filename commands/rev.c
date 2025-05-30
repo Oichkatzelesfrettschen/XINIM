@@ -1,6 +1,6 @@
 /* rev - reverse an ASCII line	  Authors: Paul Polderman & Michiel Huisjes */
 
-#include "blocksiz.h"
+#include "blocksiz.hpp"
 
 /*
  * Reverse the contents of each line of the input files specified on the

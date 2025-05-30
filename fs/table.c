@@ -5,9 +5,9 @@
 #include "../h/const.h"
 #include "../h/type.h"
 #include "../h/stat.h"
-#include "const.h"
-#include "type.h"
-#include "dev.h"
+#include "const.hpp"
+#include "type.hpp"
+#include "dev.hpp"
 
 #undef EXTERN
 #define EXTERN
@@ -15,12 +15,12 @@
 #include "../h/callnr.h"
 #include "../h/com.h"
 #include "../h/error.h"
-#include "buf.h"
-#include "file.h"
-#include "fproc.h"
-#include "glo.h"
-#include "inode.h"
-#include "super.h"
+#include "buf.hpp"
+#include "file.hpp"
+#include "fproc.hpp"
+#include "glo.hpp"
+#include "inode.hpp"
+#include "super.hpp"
 
 extern do_access(), do_chdir(), do_chmod(), do_chown(), do_chroot();
 extern do_close(), do_creat(), do_dup(), do_exit(), do_fork(), do_fstat();

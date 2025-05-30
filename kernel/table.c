@@ -25,11 +25,11 @@
 
 #include "../h/const.h"
 #include "../h/type.h"
-#include "const.h"
-#include "type.h"
+#include "const.hpp"
+#include "type.hpp"
 #undef   EXTERN
 #define  EXTERN
-#include "glo.h"
+#include "glo.hpp"
 #include "proc.h"
 
 extern int sys_task(), clock_task(), mem_task(), floppy_task(),

@@ -9,12 +9,12 @@
 #include "../h/const.h"
 #include "../h/type.h"
 #include "../h/error.h"
-#include "const.h"
-#include "type.h"
-#include "file.h"
-#include "fproc.h"
-#include "glo.h"
-#include "inode.h"
+#include "const.hpp"
+#include "type.hpp"
+#include "file.hpp"
+#include "fproc.hpp"
+#include "glo.hpp"
+#include "inode.hpp"
 
 /*===========================================================================*
  *				get_fd					     *

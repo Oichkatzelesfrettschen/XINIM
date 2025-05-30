@@ -6,29 +6,61 @@
 
 set -e
 
-MOD_HEADER_C="/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER\n  This repository is a work in progress to reproduce the\n  original MINIX simplicity on modern 32-bit and 64-bit\n  ARM and x86/x86_64 hardware using C++23.\n>>>*/"
+# Optional environment variable to limit processed files. 0 means no limit.
+FILE_LIMIT="${FILE_LIMIT:-0}"
 
-MOD_HEADER_ASM="; <<< WORK-IN-PROGRESS MODERNIZATION HEADER\n; This assembly file will be updated for modern nasm syntax\n; on arm64/x86_64.\n; >>>"
+# Arrays of files renamed this pass
+changed_headers=""
+changed_sources=""
+changed_asm=""
+
+MOD_HEADER_C='/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++23.
+>>>*/'
+
+MOD_HEADER_ASM='; <<< WORK-IN-PROGRESS MODERNIZATION HEADER
+; This assembly file will be updated for modern nasm syntax
+; on arm64/x86_64.
+; >>>'
 
 # Rename .h to .hpp
+count=0
 for f in $(git ls-files '*.h'); do
+    if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
+        break
+    fi
     git mv "$f" "${f%.h}.hpp"
     echo "Renamed $f to ${f%.h}.hpp"
+    changed_headers="$changed_headers $f"
+    count=$((count + 1))
 done
 
 # Rename .c to .cpp
+count=0
 for f in $(git ls-files '*.c'); do
+    if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
+        break
+    fi
     git mv "$f" "${f%.c}.cpp"
     echo "Renamed $f to ${f%.c}.cpp"
+    changed_sources="$changed_sources $f"
+    count=$((count + 1))
 done
 
 # Update include references
-grep -rl --exclude-dir=.git -e '\.h"' . | \
-    xargs sed -i 's/\(#include[[:space:]]*"[^"]*\)\.h"/\1.hpp"/g'
+for h in $changed_headers; do
+    base=$(basename "$h")
+    newbase="${base%.h}.hpp"
+    grep -rl --exclude-dir=.git "\"$base\"" . | \
+        xargs -r sed -i "s|\"$base\"|\"$newbase\"|g"
+done
 
 # Insert header into .cpp and .hpp files
-for f in $(git ls-files '*.cpp' '*.hpp'); do
-    if ! grep -q 'WORK-IN-PROGRESS MODERNIZATION HEADER' "$f"; then
+for src in $changed_sources; do
+    f="${src%.c}.cpp"
+    if [ -f "$f" ] && ! grep -q 'WORK-IN-PROGRESS MODERNIZATION HEADER' "$f"; then
         tmpfile=$(mktemp)
         printf '%s\n\n' "$MOD_HEADER_C" > "$tmpfile"
         cat "$f" >> "$tmpfile"
@@ -36,9 +68,31 @@ for f in $(git ls-files '*.cpp' '*.hpp'); do
     fi
 done
 
-# Insert header into assembly files
-for f in $(git ls-files '*.s' '*.S'); do
-    if ! grep -q 'WORK-IN-PROGRESS MODERNIZATION HEADER' "$f"; then
+for hdr in $changed_headers; do
+    f="${hdr%.h}.hpp"
+    if [ -f "$f" ] && ! grep -q 'WORK-IN-PROGRESS MODERNIZATION HEADER' "$f"; then
+        tmpfile=$(mktemp)
+        printf '%s\n\n' "$MOD_HEADER_C" > "$tmpfile"
+        cat "$f" >> "$tmpfile"
+        mv "$tmpfile" "$f"
+    fi
+done
+
+# Rename .s or .asm to .nasm and insert header
+count=0
+for f in $(git ls-files '*.s' '*.asm' '*.S'); do
+    if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
+        break
+    fi
+    newf="${f%.*}.nasm"
+    git mv "$f" "$newf"
+    echo "Renamed $f to $newf"
+    changed_asm="$changed_asm $newf"
+    count=$((count + 1))
+done
+
+for f in $changed_asm; do
+    if [ -f "$f" ] && ! grep -q 'WORK-IN-PROGRESS MODERNIZATION HEADER' "$f"; then
         tmpfile=$(mktemp)
         printf '%s\n\n' "$MOD_HEADER_ASM" > "$tmpfile"
         cat "$f" >> "$tmpfile"

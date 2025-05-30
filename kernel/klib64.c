@@ -1,10 +1,10 @@
 #include "../h/const.h"
 #include "../h/type.h"
 #include "../include/defs.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 
 /* Minimal 64-bit implementations of low level kernel routines. */
 

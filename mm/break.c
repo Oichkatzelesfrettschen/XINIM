@@ -20,10 +20,10 @@
 #include "../h/type.h"
 #include "../h/error.h"
 #include "../h/signal.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "mproc.h"
-#include "param.h"
+#include "param.hpp"
 
 #define DATA_CHANGED       1	/* flag value when data segment size changed */
 #define STACK_CHANGED      2	/* flag value when stack size changed */

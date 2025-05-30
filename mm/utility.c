@@ -13,8 +13,8 @@
 #include "../h/com.h"
 #include "../h/error.h"
 #include "../h/stat.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "mproc.h"
 
 PRIVATE message copy_mess;

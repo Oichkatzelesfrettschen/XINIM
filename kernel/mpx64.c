@@ -1,10 +1,10 @@
 #include "../h/const.h"
 #include "../h/type.h"
 #include "../include/defs.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 
 /* 64-bit context switch and interrupt entry code translated from assembly. */
 

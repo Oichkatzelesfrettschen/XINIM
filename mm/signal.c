@@ -22,10 +22,10 @@
 #include "../h/error.h"
 #include "../h/signal.h"
 #include "../h/stat.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "mproc.h"
-#include "param.h"
+#include "param.hpp"
 
 #define DUMP_SIZE	 256	/* buffer size for core dumps */
 #define CORE_MODE	0777	/* mode to use on core image files */

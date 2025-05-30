@@ -1,5 +1,5 @@
-#include "signal.h"
-#include "errno.h"
+#include "signal.hpp"
+#include "errno.hpp"
 extern int errno;
 int errct;
 

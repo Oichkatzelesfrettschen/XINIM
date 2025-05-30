@@ -1,7 +1,7 @@
-#include "signal.h"
-#include "errno.h"
+#include "signal.hpp"
+#include "errno.hpp"
 #include "setjmp.h"
-#include "stat.h"
+#include "stat.hpp"
 #include "sh.h"
 
 /* -------- eval.c -------- */

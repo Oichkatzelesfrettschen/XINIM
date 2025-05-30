@@ -1,8 +1,8 @@
 #include "../include/defs.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 
 /*
  * C translation of the old 8088 assembly helper routines.  These functions

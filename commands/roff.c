@@ -1,9 +1,9 @@
 /* roff - text justifier	Author: George Sicherman */
 
-#include "sgtty.h"
-#include "signal.h"
+#include "sgtty.hpp"
+#include "signal.hpp"
 #include "stdio.h"
-#include "stat.h"
+#include "stat.hpp"
 
 #define SUFTAB	"/usr/lib/suftab"
 #define TXTLEN	(o_pl-o_m1-o_m2-o_m3-o_m4-2)

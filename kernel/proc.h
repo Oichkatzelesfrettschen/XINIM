@@ -5,7 +5,7 @@
  * send/receive information.
  */
 #include "../include/defs.h"
-#include "type.h"
+#include "type.hpp"
 
 EXTERN struct proc {
     u64_t p_reg[NR_REGS];          /* process' registers */

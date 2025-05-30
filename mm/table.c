@@ -4,15 +4,15 @@
 
 #include "../h/const.h"
 #include "../h/type.h"
-#include "const.h"
+#include "const.hpp"
 
 #undef EXTERN
 #define EXTERN
 
 #include "../h/callnr.h"
-#include "glo.h"
+#include "glo.hpp"
 #include "mproc.h"
-#include "param.h"
+#include "param.hpp"
 
 /* Miscellaneous */
 char core_name[] = {"core"};	/* file name where core images are produced */

@@ -17,7 +17,7 @@
 
 #include "../h/const.h"
 #include "../h/type.h"
-#include "const.h"
+#include "const.hpp"
 
 #define NR_HOLES         128	/* max # entries in hole table */
 #define NIL_HOLE (struct hole *) 0

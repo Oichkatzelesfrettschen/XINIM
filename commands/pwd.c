@@ -1,6 +1,6 @@
 /* pwd - print working directory		Author: Adri Koppes */
 
-#include "stat.h"
+#include "stat.hpp"
 
 struct direct {
     unsigned short d_ino;

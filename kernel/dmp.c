@@ -5,9 +5,9 @@
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/type.h"
-#include "const.h"
-#include "glo.h"
-#include "type.h"
+#include "const.hpp"
+#include "glo.hpp"
+#include "type.hpp"
 
 /* Print a process name by index. */
 static void prname(int i);

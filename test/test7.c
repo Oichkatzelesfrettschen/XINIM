@@ -1,4 +1,4 @@
-#include "signal.h"
+#include "signal.hpp"
 extern int errno;
 int testnr;
 int errct;

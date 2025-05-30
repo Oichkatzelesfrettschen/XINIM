@@ -1,4 +1,4 @@
-#include "stat.h"
+#include "stat.hpp"
 extern int errno;
 int errct;
 int testnr;

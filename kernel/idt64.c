@@ -1,6 +1,6 @@
 #include "../include/defs.h"
-#include "const.h"
-#include "type.h"
+#include "const.hpp"
+#include "type.hpp"
 
 /* 64-bit Interrupt Descriptor Table and simple TSS setup.  This replaces the
  * real mode interrupt vector copying done on the 8086 version.  The code only

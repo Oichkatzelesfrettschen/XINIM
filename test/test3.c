@@ -1,4 +1,4 @@
-#include "signal.h"
+#include "signal.hpp"
 int parsigs, parpid, parcum;
 int sigct, cumsig, errct;
 

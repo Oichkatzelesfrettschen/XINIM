@@ -2,7 +2,7 @@
 
 # include "setjmp.h"
 # include "stdio.h"
-# include "signal.h"
+# include "signal.hpp"
 
 int	whichtest;
 int	nerrors;

@@ -31,10 +31,10 @@
 #include "../h/error.h"
 #include "../h/signal.h"
 #include "../h/type.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 
 /* Constant definitions. */
 #define MILLISEC 100                      /* how often to call the scheduler (msec) */
