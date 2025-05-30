@@ -25,7 +25,12 @@ sudo apt-get install -y --no-install-recommends \
 
 # Ensure ack is installed for convenient searching
 if ! command -v ack >/dev/null 2>&1; then
-    sudo apt-get install -y --no-install-recommends ack ack-grep
+    # Install the ACK compiler suite along with development headers
+    sudo apt-get install -y --no-install-recommends \
+        ack \
+        ack-dev \
+        ack-clang \
+        ack-grep
 fi
 
 # Install optional ack helpers for Python and Node
