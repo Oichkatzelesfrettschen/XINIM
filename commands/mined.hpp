@@ -10,8 +10,7 @@
 
 #ifndef YMAX
 #ifdef UNIX
-#include <stdio.h>
-#undef putchar
+#include <cstdio>
 #undef getchar
 #undef NULL
 #undef EOF
@@ -44,11 +43,9 @@ extern char *pos_string;   /* Absolute cursor positioning */
 #define SCREEN_SIZE (XMAX * YMAX)       /* Size of I/O buffering */
 inline constexpr int BLOCK_SIZE = 1024; // Block size in bytes
 
-/* Return values of functions */
-#define ERRORS -1
-#define NO_LINE (ERRORS - 1) /* Must be < 0 */
-#define FINE (ERRORS + 1)
-#define NO_INPUT (ERRORS + 2)
+/* Return values of functions.  Replaced the original macros with an
+ * enumeration for improved type safety. */
+enum class ReturnCode { Errors = -1, NoLine = -2, Fine = 0, NoInput = 1 };
 
 #define STD_OUT 1               /* Filedescriptor for terminal */
 #define FILE_LENGTH 14          /* Length of filename in minix */
@@ -169,9 +166,10 @@ extern long chars_saved; /* Nr of chars saved in buffer */
 #define clear_buffer() (out_count = 0)
 
 /*
- * Print character on terminal
+ * Print character on terminal.  Converted from a macro to an inline wrapper
+ * so that the call can be type checked while still expanding inline.
  */
-#define putchar(c) (void)write_char(STD_OUT, (c))
+inline void putchar(int c) { std::putchar(c); }
 
 /*
  * Ring bell on terminal
@@ -203,7 +201,7 @@ extern long chars_saved; /* Nr of chars saved in buffer */
 /*
  * Print line on terminal at offset 0 and clear tail of line
  */
-#define line_print(line) put_line(line, 0, TRUE)
+inline void line_print(LINE *line) { put_line(line, 0, TRUE); }
 
 /*
  * Move to coordinates and set textp. (Don't use address)

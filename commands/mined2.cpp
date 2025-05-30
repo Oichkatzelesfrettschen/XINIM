@@ -95,7 +95,7 @@ GOTO() {
     int number;
     LINE *line;
 
-    if (get_number("Please enter line number.", &number) == ERRORS)
+    if (get_number("Please enter line number.", &number) == ReturnCode::Errors)
         return;
 
     if (number <= 0 || (line = proceed(header->next, number - 1)) == tail)
@@ -113,7 +113,7 @@ PD() {
     register int i;
 
     for (i = 0; i < SCREENMAX; i++)
-        if (forward_scroll() == ERRORS)
+        if (forward_scroll() == ReturnCode::Errors)
             break; /* EOF reached */
     if (y - i < 0) /* Line no longer on screen */
         move_to(0, SCREENMAX >> 1);
@@ -131,7 +131,7 @@ PU() {
     register int i;
 
     for (i = 0; i < SCREENMAX; i++)
-        if (reverse_scroll() == ERRORS)
+        if (reverse_scroll() == ReturnCode::Errors)
             break;       /* Top of file reached */
     set_cursor(0, YMAX); /* Erase very bottom line */
 #ifdef UNIX
@@ -194,35 +194,35 @@ SU() {
  * Scroll one line down. Leave the cursor on the same line (if possible).
  */
 SD() {
-    if (forward_scroll() != ERRORS)
+    if (forward_scroll() != ReturnCode::Errors)
         move_to(x, (y == 0) ? 0 : y - 1);
     else
         set_cursor(x, y);
 }
 
 /*
- * Perform a forward scroll. It returns ERRORS if we're at the last line of the
+ * Perform a forward scroll. It returns ReturnCode::Errors if we're at the last line of the
  * file.
  */
 forward_scroll() {
     if (bot_line->next == tail) /* Last line of file. No dice */
-        return ERRORS;
+        return ReturnCode::Errors;
     top_line = top_line->next;
     bot_line = bot_line->next;
     cur_line = cur_line->next;
     set_cursor(0, YMAX);
     line_print(bot_line);
 
-    return FINE;
+    return ReturnCode::Fine;
 }
 
 /*
- * Perform a backwards scroll. It returns ERRORS if we're at the first line
+ * Perform a backwards scroll. It returns ReturnCode::Errors if we're at the first line
  * of the file.
  */
 reverse_scroll() {
     if (top_line->prev == header)
-        return ERRORS; /* Top of file. Can't scroll */
+        return ReturnCode::Errors; /* Top of file. Can't scroll */
 
     if (last_y != SCREENMAX) /* Reset last_y if necessary */
         last_y++;
@@ -241,7 +241,7 @@ reverse_scroll() {
     set_cursor(0, 0);
     line_print(top_line);
 
-    return FINE;
+    return ReturnCode::Fine;
 }
 
 /*
@@ -400,7 +400,7 @@ register char character;
 
     buffer[0] = character;
     /* Insert the character */
-    if (insert(cur_line, cur_text, buffer) == ERRORS)
+    if (insert(cur_line, cur_text, buffer) == ReturnCode::Errors)
         return;
 
     /* Fix screen */
@@ -484,7 +484,7 @@ char *location, *string;
 
     if (length_of(textp) + length_of(string) >= MAX_CHARS) {
         error("Line too long", NIL_PTR);
-        return ERRORS;
+        return ReturnCode::Errors;
     }
 
     modified = TRUE; /* File has been modified */
@@ -508,7 +508,7 @@ char *location, *string;
     line->text = alloc(length_of(text_buffer) + 1);
     copy_string(line->text, text_buffer);
 
-    return FINE;
+    return ReturnCode::Fine;
 }
 
 /*
@@ -630,7 +630,7 @@ int lines_saved; /* Nr of lines in buffer */
 PT() {
     register int fd; /* File descriptor for buffer */
 
-    if ((fd = scratch_file(READ)) == ERRORS)
+    if ((fd = scratch_file(READ)) == ReturnCode::Errors)
         error("Buffer is empty.", NIL_PTR);
     else {
         file_insert(fd, FALSE); /* Insert the buffer */
@@ -647,7 +647,7 @@ IF() {
     char name[LINE_LEN]; /* Buffer for file name */
 
     /* Get the file name */
-    if (get_file("Get and insert file:", name) != FINE)
+    if (get_file("Get and insert file:", name) != ReturnCode::Fine)
         return;
 
     if ((fd = open(name, 0)) < 0)
@@ -669,21 +669,21 @@ FLAG old_pos;
     register LINE *line = cur_line;
     register int line_count = nlines; /* Nr of lines inserted */
     LINE *page = cur_line;
-    int ret = ERRORS;
+    int ret = ReturnCode::Errors;
 
     /* Get the first piece of text (might be ended with a '\n') from fd */
-    if (get_line(fd, line_buffer) == ERRORS)
+    if (get_line(fd, line_buffer) == ReturnCode::Errors)
         return; /* Empty file */
 
     /* Insert this text at the current location. */
-    if (insert(line, cur_text, line_buffer) == ERRORS)
+    if (insert(line, cur_text, line_buffer) == ReturnCode::Errors)
         return;
 
     /* Repeat getting lines (and inserting lines) until EOF is reached */
-    while ((ret = get_line(fd, line_buffer)) != ERRORS && ret != NO_LINE)
+    while ((ret = get_line(fd, line_buffer)) != ReturnCode::Errors && ret != ReturnCode::NoLine)
         line = line_insert(line, line_buffer, ret);
 
-    if (ret == NO_LINE) { /* Last line read not ended by a '\n' */
+    if (ret == ReturnCode::NoLine) { /* Last line read not ended by a '\n' */
         line = line->next;
         (void)insert(line, line->text, line_buffer);
     }
@@ -704,7 +704,7 @@ FLAG old_pos;
             display(0, y, cur_line, SCREENMAX - y);
         if (old_pos == TRUE)
             move_to(x, y);
-        else if (ret == NO_LINE)
+        else if (ret == ReturnCode::NoLine)
             move_to(length_of(line_buffer), find_y(line));
         else
             move_to(0, find_y(line->next));
@@ -727,13 +727,13 @@ WB() {
     char file[LINE_LEN]; /* Output file */
 
     /* Checkout the buffer */
-    if ((yank_fd = scratch_file(READ)) == ERRORS) {
+    if ((yank_fd = scratch_file(READ)) == ReturnCode::Errors) {
         error("Buffer is empty.", NIL_PTR);
         return;
     }
 
     /* Get file name */
-    if (get_file("Write buffer to file:", file) != FINE)
+    if (get_file("Write buffer to file:", file) != ReturnCode::Fine)
         return;
 
     /* Creat the new file */
@@ -748,7 +748,7 @@ WB() {
     while ((cnt = read(yank_fd, text_buffer, sizeof(text_buffer))) > 0)
         if (write(new_fd, text_buffer, cnt) != cnt) {
             bad_write(new_fd);
-            ret = ERRORS;
+            ret = ReturnCode::Errors;
             break;
         }
 
@@ -756,7 +756,7 @@ WB() {
     (void)close(new_fd);
     (void)close(yank_fd);
 
-    if (ret != ERRORS) /* Bad write */
+    if (ret != ReturnCode::Errors) /* Bad write */
         file_status("Wrote", chars_saved, file, lines_saved, TRUE, FALSE);
 }
 
@@ -822,7 +822,7 @@ FLAG checkmark() {
     if (mark_line == cur_line) {
         if (mark_text == cur_text) /* Even same place */
             return SAME;
-        if (legal() == ERRORS) /* mark_text out of range */
+        if (legal() == ReturnCode::Errors) /* mark_text out of range */
             return NOT_VALID;
         return (mark_text < cur_text) ? SMALLER : BIGGER;
     }
@@ -836,7 +836,7 @@ FLAG checkmark() {
     }
 
     /* If we found mark_line (line != tail) check for legality of mark_text */
-    if (line == tail || legal() == ERRORS)
+    if (line == tail || legal() == ReturnCode::Errors)
         return NOT_VALID;
 
     /* cur_seen is TRUE if cur_line is before mark_line */
@@ -852,7 +852,7 @@ legal() {
     /* Locate mark_text on mark_line */
     while (textp != mark_text && *textp++ != '\0')
         ;
-    return (*textp == '\0') ? ERRORS : FINE;
+    return (*textp == '\0') ? ReturnCode::Errors : ReturnCode::Fine;
 }
 
 /*
@@ -870,7 +870,7 @@ FLAG remove; /* DELETE if text should be deleted */
     int fd;
 
     /* Creat file to hold buffer */
-    if ((fd = scratch_file(WRITE)) == ERRORS)
+    if ((fd = scratch_file(WRITE)) == ReturnCode::Errors)
         return;
 
     chars_saved = 0L;
@@ -879,7 +879,7 @@ FLAG remove; /* DELETE if text should be deleted */
 
     /* Keep writing chars until the end_location is reached. */
     while (textp != end_textp) {
-        if (write_char(fd, *textp) == ERRORS) {
+        if (write_char(fd, *textp) == ReturnCode::Errors) {
             (void)close(fd);
             return;
         }
@@ -892,7 +892,7 @@ FLAG remove; /* DELETE if text should be deleted */
     }
 
     /* Flush the I/O buffer and close file */
-    if (flush_buffer(fd) == ERRORS) {
+    if (flush_buffer(fd) == ReturnCode::Errors) {
         (void)close(fd);
         return;
     }
@@ -918,7 +918,7 @@ FLAG remove; /* DELETE if text should be deleted */
  * Scratch_file() creates a uniq file in /usr/tmp. If the file couldn't
  * be created other combinations of files are tried until a maximum
  * of MAXTRAILS times. After MAXTRAILS times, an error message is given
- * and ERRORS is returned.
+ * and ReturnCode::Errors is returned.
  */
 
 #define MAXTRAILS 26
@@ -942,14 +942,14 @@ scratch_file(mode) FLAG mode; /* Can be READ or WRITE permission */
         if (access(yank_file, 0) == 0 || (fd = creat(yank_file, 0644)) < 0) {
             if (trials++ >= MAXTRAILS) {
                 error("Unable to creat scratchfile.", NIL_PTR);
-                return ERRORS;
+                return ReturnCode::Errors;
             } else
                 return scratch_file(mode); /* Have another go */
         }
     } else if ((mode == READ && (fd = open(yank_file, 0)) < 0) ||
                (mode == WRITE && (fd = creat(yank_file, 0644)) < 0)) {
         yank_status = NOT_VALID;
-        return ERRORS;
+        return ReturnCode::Errors;
     }
 
     clear_buffer();
@@ -1003,7 +1003,7 @@ char *message;
     static REGEX program;   /* Program of expression */
     char exp_buf[LINE_LEN]; /* Buffer for new expr. */
 
-    if (get_string(message, exp_buf, FALSE) == ERRORS)
+    if (get_string(message, exp_buf, FALSE) == ReturnCode::Errors)
         return NIL_REG;
 
     if (exp_buf[0] == '\0' && typed_expression[0] == '\0') {
@@ -1060,7 +1060,7 @@ FLAG file;
 
     /* Get substitution pattern */
     build_string(mess_buf, "%s %s by:", mess_buf, typed_expression);
-    if (get_string(mess_buf, replacement, FALSE) == ERRORS)
+    if (get_string(mess_buf, replacement, FALSE) == ReturnCode::Errors)
         return;
 
     set_cursor(0, YMAX);
