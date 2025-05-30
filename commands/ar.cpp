@@ -32,7 +32,6 @@ constexpr int MAGIC_NUMBER = 0177545;
 /* Round a number up to the next even value */
 [[nodiscard]] constexpr int even(int nr) { return odd(nr) ? nr + 1 : nr; }
 
-
 union swabber {
     struct sw {
         short mem_1;
@@ -71,9 +70,7 @@ constexpr std::size_t BLOCK_SIZE = 1024;
 
 inline void flush() { print(NIL_PTR); }
 
-inline bool equal(const char *str1, const char *str2) {
-    return !std::strncmp(str1, str2, 14);
-}
+inline bool equal(const char *str1, const char *str2) { return !std::strncmp(str1, str2, 14); }
 
 BOOL verbose;
 BOOL app_fl;
@@ -86,7 +83,7 @@ BOOL del_fl;
 int ar_fd;
 long mem_time, mem_size;
 
-std::array<char, IO_SIZE> io_buffer{};  // Buffer used for I/O operations
+std::array<char, IO_SIZE> io_buffer{};   // Buffer used for I/O operations
 std::array<char, BLOCK_SIZE> terminal{}; // Temporary terminal buffer
 
 char temp_arch[] = "/tmp/ar.XXXXX";
@@ -205,7 +202,7 @@ int main(int argc, char *argv[]) {
         }
     }
 
-    signal(SIGINT, catch);
+    signal(Signal::SIGINT, catch);
     get(argc, argv);
 
     exit(0);
@@ -302,7 +299,7 @@ static void get(int argc, char *argv[]) {
     flush();
 
     if (rep_fl || del_fl) {
-        signal(SIGINT, SIG_IGN);
+        signal(Signal::SIGINT, SIG_IGN);
         (void)close(ar_fd);
         (void)close(temp_fd);
         ar_fd = open_archive(argv[2], CREATE);

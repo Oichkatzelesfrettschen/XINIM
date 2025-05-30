@@ -200,7 +200,7 @@ test54() {
 
     alarms = 0;
     for (i = 0; i < 8; i++) {
-        signal(SIGALRM, funcalrm);
+        signal(Signal::SIGALRM, funcalrm);
         alarm(1);
         pause();
         if (alarms != i + 1)

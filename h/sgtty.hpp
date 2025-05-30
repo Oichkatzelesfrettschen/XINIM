@@ -15,8 +15,8 @@ struct sgttyb {
 };
 
 struct tchars {
-    char t_intrc;  /* SIGINT char */
-    char t_quitc;  /* SIGQUIT char */
+    char t_intrc;  /* Signal::SIGINT char */
+    char t_quitc;  /* Signal::SIGQUIT char */
     char t_startc; /* start output (initially CTRL-Q) */
     char t_stopc;  /* stop output	(initially CTRL-S) */
     char t_eofc;   /* EOF (initially CTRL-D) */

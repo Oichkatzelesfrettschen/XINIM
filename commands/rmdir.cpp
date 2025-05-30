@@ -21,10 +21,10 @@ int main(int argc, char **argv) {
         prints("Usage: rmdir dir ...\n");
         exit(1);
     }
-    signal(SIGHUP, SIG_IGN);
-    signal(SIGINT, SIG_IGN);
-    signal(SIGQUIT, SIG_IGN);
-    signal(SIGTERM, SIG_IGN);
+    signal(Signal::SIGHUP, SIG_IGN);
+    signal(Signal::SIGINT, SIG_IGN);
+    signal(Signal::SIGQUIT, SIG_IGN);
+    signal(Signal::SIGTERM, SIG_IGN);
     while (--argc)
         remove(*++argv);
     if (error)

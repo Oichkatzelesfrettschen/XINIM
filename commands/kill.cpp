@@ -6,10 +6,10 @@
 
 /* kill - send a signal to a process	Author: Adri Koppes  */
 
-#include "../h/signal.hpp"
+#include "signal.hpp"
 
 int main(int argc, char **argv) {
-    int proc, signal = SIGTERM;
+    int proc, signal = static_cast<int>(Signal::SIGTERM);
 
     if (argc < 2)
         usage();
@@ -19,7 +19,7 @@ int main(int argc, char **argv) {
         argc--;
     }
     if (!signal)
-        signal = SIGTERM;
+        signal = static_cast<int>(Signal::SIGTERM);
     while (--argc) {
         *argv++;
         proc = atoi(*argv);

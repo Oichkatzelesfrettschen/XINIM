@@ -18,12 +18,12 @@
 
 #include "../h/const.h"
 #include "../h/error.h"
-#include "../h/signal.h"
 #include "../h/type.h"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
+#include "signal.hpp"
 
 constexpr int DATA_CHANGED = 1;  /* flag value when data segment size changed */
 constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
@@ -175,6 +175,6 @@ PRIVATE void stack_fault(int proc_nr) {
         return;
 
     /* Stack has bumped into data segment.  Kill the process. */
-    rmp->mp_catch = 0;      /* don't catch this signal */
-    sig_proc(rmp, SIGSEGV); /* terminate process */
+    rmp->mp_catch = 0;              /* don't catch this signal */
+    sig_proc(rmp, Signal::SIGSEGV); /* terminate process */
 }

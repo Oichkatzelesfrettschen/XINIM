@@ -46,8 +46,8 @@ char *argv[];
         execute();
 
     /* Parent is the time program.  Disable interrupts and wait. */
-    signal(SIGINT, SIG_IGN);
-    signal(SIGQUIT, SIG_IGN);
+    signal(Signal::SIGINT, SIG_IGN);
+    signal(Signal::SIGQUIT, SIG_IGN);
 
     do {
         times(&pre_buf);

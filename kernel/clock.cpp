@@ -19,7 +19,7 @@
  * | SET_TIME   |          |         | newtime |
  * ---------------------------------------------
  *
- * When an alarm goes off, if the caller is a user process, a SIGALRM signal
+ * When an alarm goes off, if the caller is a user process, a Signal::SIGALRM signal
  * is sent to it.  If it is a task, a function specified by the caller will
  * be invoked.  This function may, for example, send a message, but only if
  * it is certain that the task will be blocked when the timer goes off.
@@ -29,11 +29,11 @@
 #include "../h/com.h"
 #include "../h/const.h"
 #include "../h/error.h"
-#include "../h/signal.h"
 #include "../h/type.h"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
+#include "signal.hpp"
 #include "type.hpp"
 
 /* Constant definitions. */
@@ -182,7 +182,7 @@ PRIVATE void do_clocktick(void) {
                      */
                     proc_nr = rp - proc - NR_TASKS;
                     if (proc_nr >= 0)
-                        cause_sig(proc_nr, SIGALRM);
+                        cause_sig(proc_nr, Signal::SIGALRM);
                     else
                         (*watch_dog[-proc_nr])();
                     rp->p_alarm = 0;

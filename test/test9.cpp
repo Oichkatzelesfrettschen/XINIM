@@ -266,13 +266,15 @@ dolev() {
     longjmp(env, 3);
 }
 
-catch() { longjmp(env, 4); }
+catch () {
+    longjmp(env, 4);
+}
 
 hard() {
     register char *p;
 
-    signal(SIGHUP, catch);
+    signal(Signal::SIGHUP, catch);
     for (p = buf; p <= &buf[511]; p++)
         *p = 025;
-    kill(getpid(), SIGHUP);
+    kill(getpid(), Signal::SIGHUP);
 }

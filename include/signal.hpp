@@ -4,28 +4,35 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
-#define NR_SIGS 16 /* number of signals used */
-#define NSIG 16    /* number of signals used */
+#pragma once
 
-#define SIGHUP 1   /* hangup */
-#define SIGINT 2   /* interrupt (DEL) */
-#define SIGQUIT 3  /* quit (ASCII FS) */
-#define SIGILL 4   /* illegal instruction (not reset when caught)*/
-#define SIGTRAP 5  /* trace trap (not reset when caught) */
-#define SIGIOT 6   /* IOT instruction */
-#define SIGEMT 7   /* EMT instruction */
-#define SIGFPE 8   /* floating point exception */
-#define SIGKILL 9  /* kill (cannot be caught or ignored) */
-#define SIGBUS 10  /* bus error */
-#define SIGSEGV 11 /* segmentation violation */
-#define SIGSYS 12  /* bad argument to system call */
-#define SIGPIPE 13 /* write on a pipe with no one to read it */
-#define SIGALRM 14 /* alarm clock */
-#define SIGTERM 15 /* software termination signal from kill */
+// Enumeration of all supported signals.  The numeric values match the
+// traditional MINIX signal numbers so existing code can continue to work.
+enum class Signal : int {
+    SIGHUP = 1, // hangup
+    SIGINT,     // interrupt (DEL)
+    SIGQUIT,    // quit (ASCII FS)
+    SIGILL,     // illegal instruction (not reset when caught)
+    SIGTRAP,    // trace trap (not reset when caught)
+    SIGIOT,     // IOT instruction
+    SIGEMT,     // EMT instruction
+    SIGFPE,     // floating point exception
+    SIGKILL,    // kill (cannot be caught or ignored)
+    SIGBUS,     // bus error
+    SIGSEGV,    // segmentation violation
+    SIGSYS,     // bad argument to system call
+    SIGPIPE,    // write on a pipe with no reader
+    SIGALRM,    // alarm clock
+    SIGTERM,    // software termination signal from kill
+    STACK_FAULT // used by kernel to signal stack fault
+};
 
-#define STACK_FAULT 16 /* used by kernel to signal stack fault */
+// Total number of standard signals.
+constexpr int NR_SIGS = 16;
+constexpr int NSIG = NR_SIGS;
 
-typedef void (*sighandler_t)(int);
-sighandler_t signal(int signum, sighandler_t handler);
+using sighandler_t = void (*)(int);
+// Arrange a handler for the given signal.
+sighandler_t signal(Signal signum, sighandler_t handler);
 #define SIG_DFL ((sighandler_t)0)
 #define SIG_IGN ((sighandler_t)1)

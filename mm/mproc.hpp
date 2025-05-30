@@ -35,5 +35,5 @@ EXTERN struct mproc {
 #define WAITING 002  /* set by WAIT system call */
 #define HANGING 004  /* set by EXIT system call */
 #define PAUSED 010   /* set by PAUSE system call */
-#define ALARM_ON 020 /* set when SIGALRM timer started */
+#define ALARM_ON 020 /* set when Signal::SIGALRM timer started */
 #define SEPARATE 040 /* set if file is separate I & D space */

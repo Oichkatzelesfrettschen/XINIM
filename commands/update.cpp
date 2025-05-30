@@ -7,8 +7,8 @@
 main() {
     int fd, buf[2];
 
-    /* Disable SIGTERM */
-    signal(SIGTERM, SIG_IGN);
+    /* Disable Signal::SIGTERM */
+    signal(Signal::SIGTERM, SIG_IGN);
 
     /* Open some files to hold their inodes in core. */
     close(0);

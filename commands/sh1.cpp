@@ -144,7 +144,7 @@ register char **argv;
         if (isatty(0) && isatty(1) && !cflag)
             talking++;
     }
-    signal(SIGQUIT, qflag);
+    signal(Signal::SIGQUIT, qflag);
     if (name[0] == '-') {
         talking++;
         if ((f = open("/etc/profile", 0)) >= 0)
@@ -153,8 +153,8 @@ register char **argv;
             next(remap(f));
     }
     if (talking) {
-        signal(SIGTERM, sig);
-        signal(SIGINT, SIG_IGN);
+        signal(Signal::SIGTERM, sig);
+        signal(Signal::SIGINT, SIG_IGN);
     }
     dolv = argv;
     dolc = argc;
@@ -223,7 +223,7 @@ onecommand() {
     multiline = 0;
     inparse = 1;
     if (talking)
-        signal(SIGINT, onintr);
+        signal(Signal::SIGINT, onintr);
     if (setjmp(failpt = m1) || yyparse() || intr) {
         while (e.oenv)
             quitenv();
@@ -243,11 +243,11 @@ onecommand() {
     execflg = 0;
     if (!flag['n']) {
         if (talking)
-            signal(SIGINT, onintr);
+            signal(Signal::SIGINT, onintr);
         execute(outtree, NOPIPE, NOPIPE, 0);
         intr = 0;
         if (talking)
-            signal(SIGINT, SIG_IGN);
+            signal(Signal::SIGINT, SIG_IGN);
     }
 }
 
@@ -379,7 +379,7 @@ register unsigned u;
 next(f) { PUSHIO(afile, f, nextchar); }
 
 onintr() {
-    signal(SIGINT, SIG_IGN);
+    signal(Signal::SIGINT, SIG_IGN);
     if (inparse) {
         prs("\n");
         fail();

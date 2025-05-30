@@ -19,7 +19,6 @@
 #include "../h/com.h"
 #include "../h/const.h"
 #include "../h/error.h"
-#include "../h/signal.h"
 #include "../h/type.h"
 #include "compat.hpp"
 #include "const.hpp"
@@ -28,6 +27,7 @@
 #include "glo.hpp"
 #include "inode.hpp"
 #include "param.hpp"
+#include "signal.hpp"
 #include "type.hpp"
 
 PRIVATE message mess;
@@ -118,10 +118,10 @@ register file_pos *position; /* pointer to current file position */
         if (bytes > PIPE_SIZE)
             return (ErrorCode::EFBIG);
         if (find_filp(rip, R_BIT) == NIL_FILP) {
-            /* Tell MM to generate a SIGPIPE signal. */
+            /* Tell MM to generate a Signal::SIGPIPE signal. */
             mess.m_type = KSIG;
             mess.PROC1 = fp - fproc;
-            mess.SIG_MAP = 1 << (SIGPIPE - 1);
+            mess.SIG_MAP = 1 << (Signal::SIGPIPE - 1);
             send(MM_PROC_NR, &mess);
             return (ErrorCode::EPIPE);
         }

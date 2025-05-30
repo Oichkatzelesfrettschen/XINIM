@@ -16,10 +16,10 @@ int main(int argc, char **argv) {
         std_err("Usage: mkdir directory...\n");
         exit(1);
     }
-    signal(SIGHUP, SIG_IGN);
-    signal(SIGINT, SIG_IGN);
-    signal(SIGQUIT, SIG_IGN);
-    signal(SIGTERM, SIG_IGN);
+    signal(Signal::SIGHUP, SIG_IGN);
+    signal(Signal::SIGINT, SIG_IGN);
+    signal(Signal::SIGQUIT, SIG_IGN);
+    signal(Signal::SIGTERM, SIG_IGN);
     while (--argc)
         makedir(*++argv);
     if (error)

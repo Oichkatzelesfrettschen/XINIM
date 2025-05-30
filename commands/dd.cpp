@@ -239,8 +239,8 @@ int main(int argc, char *argv[]) {
     }
     ibc = obc = cbc = 0;
     op = obuf;
-    if (signal(SIGINT, SIG_IGN) != SIG_IGN)
-        signal(SIGINT, over);
+    if (signal(Signal::SIGINT, SIG_IGN) != SIG_IGN)
+        signal(Signal::SIGINT, over);
     for (; skip; skip--)
         read(ifd, ibuf, ibs);
     for (; nseek; nseek--)

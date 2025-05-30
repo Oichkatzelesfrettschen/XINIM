@@ -192,7 +192,7 @@ char **eval();
 int setstatus();
 int waitfor();
 
-int onintr(); /* SIGINT handler */
+int onintr(); /* Signal::SIGINT handler */
 
 /*
  * error handling

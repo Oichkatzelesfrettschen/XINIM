@@ -1043,7 +1043,7 @@ waitawhile() {
         tty.sg_flags &= ~ECHO; /* DON'T ECHO THE RUBOUT */
         ioctl(0, TIOCSETP, &tty);
     }
-    signal(SIGINT, nix);
+    signal(Signal::SIGINT, nix);
     pause();
     if (isatty(0)) {
         tty.sg_flags = oldflags;

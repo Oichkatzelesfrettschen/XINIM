@@ -4,7 +4,7 @@
  * process.
  */
 
-#include "../h/signal.hpp"
+#include "signal.hpp"
 
 #define PIDSLOTS 10
 #define STACKSIZE 256

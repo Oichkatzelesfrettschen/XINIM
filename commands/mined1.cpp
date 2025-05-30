@@ -296,7 +296,7 @@
  *        if the given size. If there is no more memory available, the function
  *        panic () is called.
  *        Signal handling: The only signal that can be send to mined is the
- *        SIGQUIT signal. This signal, functions as a general abort command.
+ *        Signal::SIGQUIT signal. This signal, functions as a general abort command.
  *        Mined will abort if the signal is given during the main loop. The
  *        function abort_mined () takes care of that.
  *        Panic () is a function with as argument a error message. It will print
@@ -533,8 +533,8 @@ SH() {
         execl("/bin/sh", "sh", "-i", 0);
         exit(127); /* Exit with 127 */
     default:       /* This is the parent */
-        signal(SIGINT, SIG_IGN);
-        signal(SIGQUIT, SIG_IGN);
+        signal(Signal::SIGINT, SIG_IGN);
+        signal(Signal::SIGQUIT, SIG_IGN);
         do {
             w = wait(&status);
         } while (w != -1 && w != pid);
@@ -1019,11 +1019,11 @@ bad_write(fd) int fd;
 }
 
 /*
- * Catch the SIGQUIT signal (^\) send to mined. It turns on the quitflag.
+ * Catch the Signal::SIGQUIT signal (^\) send to mined. It turns on the quitflag.
  */
 catch () {
     /* Reset the signal */
-    signal(SIGQUIT, catch);
+    signal(Signal::SIGQUIT, catch);
     quit = TRUE;
 }
 
@@ -1095,7 +1095,7 @@ raw_mode(state) FLAG state;
 
     /* Unset signal chars */
     ioctl(input_fd, TIOCSETC, &new_tchars); /* Only leaves you ^\ */
-    signal(SIGQUIT, catch);                 /* Which is caught */
+    signal(Signal::SIGQUIT, catch);         /* Which is caught */
 }
 
 /*

@@ -47,7 +47,7 @@ char **argv;
     }
 
     if (iflag)
-        signal(SIGINT, SIG_IGN);
+        signal(Signal::SIGINT, SIG_IGN);
     for (i = 1; i < s; i++) { /* Don't lseek stdout. */
         if (aflag)
             lseek(fd[i], 0L, 2);

@@ -277,7 +277,7 @@ BOOL beg_fl;                                            /* Assign beg or end of 
 catch () {
     register short i;
 
-    signal(SIGINT, SIG_IGN);
+    signal(Signal::SIGINT, SIG_IGN);
     only_merge = FALSE;
     for (i = 0; i < 26; i++)
         (void)unlink(file_name(i));
@@ -343,7 +343,7 @@ char *argv[];
         pow /= 10;
     }
 
-    signal(SIGINT, catch);
+    signal(Signal::SIGINT, catch);
 
     /* Only merge files. Set up */
     if (only_merge) {

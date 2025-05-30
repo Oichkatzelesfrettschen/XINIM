@@ -97,10 +97,10 @@ int act;
                 rv = -1;
             setstatus(rv);
         } else {
-            signal(SIGINT, SIG_IGN);
-            signal(SIGQUIT, SIG_IGN);
+            signal(Signal::SIGINT, SIG_IGN);
+            signal(Signal::SIGQUIT, SIG_IGN);
             if (talking)
-                signal(SIGTERM, SIG_DFL);
+                signal(Signal::SIGTERM, SIG_DFL);
             talking = 0;
             if (pin == NULL) {
                 close(0);
@@ -230,8 +230,8 @@ int *pforked;
             return (pout == NULL ? setstatus(waitfor(i, 0)) : 0);
         }
         if (talking) {
-            signal(SIGINT, SIG_IGN);
-            signal(SIGQUIT, SIG_IGN);
+            signal(Signal::SIGINT, SIG_IGN);
+            signal(Signal::SIGQUIT, SIG_IGN);
             resetsig = 1;
         }
         talking = 0;
@@ -272,8 +272,8 @@ int *pforked;
     if (t->type == TPAREN)
         exit(execute(t->left, NOPIPE, NOPIPE, FEXEC));
     if (resetsig) {
-        signal(SIGINT, SIG_DFL);
-        signal(SIGQUIT, SIG_DFL);
+        signal(Signal::SIGINT, SIG_DFL);
+        signal(Signal::SIGQUIT, SIG_DFL);
     }
     if (wp[0] == NULL)
         exit(0);
@@ -630,8 +630,8 @@ dologin(t) struct op *t;
     register char *cp;
 
     if (talking) {
-        signal(SIGINT, SIG_DFL);
-        signal(SIGQUIT, SIG_DFL);
+        signal(Signal::SIGINT, SIG_DFL);
+        signal(Signal::SIGQUIT, SIG_DFL);
     }
     cp = rexecve(t->words[0], t->words, makenv(t->words));
     prs(t->words[0]);
@@ -719,10 +719,10 @@ dowait(t) struct op *t;
     } else
         i = -1;
     if (talking)
-        signal(SIGINT, onintr);
+        signal(Signal::SIGINT, onintr);
     setstatus(waitfor(i, 1));
     if (talking)
-        signal(SIGINT, SIG_IGN);
+        signal(Signal::SIGINT, SIG_IGN);
     return (0);
 }
 
@@ -780,7 +780,7 @@ dotrap(t) register struct op *t;
         } else
             setsig(n, SIG_IGN);
     } else
-        setsig(n, (n == SIGINT || n == SIGQUIT) && talking ? SIG_IGN : SIG_DFL);
+        setsig(n, (n == Signal::SIGINT || n == Signal::SIGQUIT) && talking ? SIG_IGN : SIG_DFL);
     return (0);
 }
 

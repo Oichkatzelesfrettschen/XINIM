@@ -144,9 +144,9 @@ int main(int argc, char *argv[]) {
 
     ProgCall = *argv++;
 
-    signal(SIGHUP, trapcc);
-    signal(SIGINT, trapcc);
-    signal(SIGQUIT, trapcc);
+    signal(Signal::SIGHUP, trapcc);
+    signal(Signal::SIGINT, trapcc);
+    signal(Signal::SIGQUIT, trapcc);
     while (--argc > 0) {
         if (*(str = *argv++) != '-') {
             append(&SRCFILES, str);

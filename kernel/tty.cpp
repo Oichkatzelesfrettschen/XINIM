@@ -48,11 +48,11 @@
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/sgtty.h"
-#include "../h/signal.h"
 #include "../h/type.h"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
+#include "signal.hpp"
 #include "type.hpp"
 
 #define NR_TTYS 1         /* how many terminals can system handle */
@@ -110,7 +110,7 @@ PRIVATE struct tty_struct {
     /* User settable characters: erase, kill, interrupt, quit, x-on; x-off. */
     char tty_erase; /* char used to erase 1 char (init ^H) */
     char tty_kill;  /* char used to erase a line (init @) */
-    char tty_intr;  /* char used to send SIGINT  (init DEL) */
+    char tty_intr;  /* char used to send Signal::SIGINT  (init DEL) */
     char tty_quit;  /* char used for core dump   (init CTRL-\) */
     char tty_xon;   /* char used to start output (init CTRL-Q)*/
     char tty_xoff;  /* char used to stop output  (init CTRL-S) */
@@ -288,7 +288,8 @@ char ch;  /* scan code for character that arrived */
     /* A character has just been typed in.  Process, save, and echo it. */
 
     register struct tty_struct *tp;
-    int mode, sig;
+    int mode;
+    Signal sig;
     char make_break();
     tp = &tty_struct[line]; /* set 'tp' to point to proper struct */
     /* Function keys are temporarily being used for debug dumps. */
@@ -362,7 +363,7 @@ char ch;  /* scan code for character that arrived */
 
         /* Check for interrupt and quit characters. */
         if (ch == tp->tty_intr || ch == tp->tty_quit) {
-            sig = (ch == tp->tty_intr ? SIGINT : SIGQUIT);
+            sig = (ch == tp->tty_intr ? Signal::SIGINT : Signal::SIGQUIT);
             tp->tty_inhibited = RUNNING;      /* do implied CRTL-Q */
             finish(tp, ErrorCode::EINTR);     /* send reply */
             tp->tty_inhead = tp->tty_inqueue; /* discard input */
