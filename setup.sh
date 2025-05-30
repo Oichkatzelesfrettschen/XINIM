@@ -23,6 +23,13 @@ sudo apt-get install -y --no-install-recommends \
     llvm-dev \
     libclang-dev
 
+# Install ack and ack-grep for convenient searching
+sudo apt-get install -y --no-install-recommends ack ack-grep
+
+# Install optional ack helpers for Python and Node
+sudo pip3 install ack
+sudo npm install -g ack
+
 # Attempt to install libfuzzer development package if available.
 sudo apt-get install -y --no-install-recommends libfuzzer-dev || true
 
