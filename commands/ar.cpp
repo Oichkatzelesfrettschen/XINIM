@@ -19,11 +19,19 @@
 
 #include "signal.hpp"
 #include "stat.hpp"
+#include <array>
+#include <cstring>
+#include <string>
 
-#define MAGIC_NUMBER 0177545
+/* Modern constants and helpers */
+constexpr int MAGIC_NUMBER = 0177545;
 
-#define odd(nr) (nr & 01)
-#define even(nr) (odd(nr) ? nr + 1 : nr)
+/* Determine if a number is odd */
+[[nodiscard]] constexpr bool odd(int nr) { return nr & 0x01; }
+
+/* Round a number up to the next even value */
+[[nodiscard]] constexpr int even(int nr) { return odd(nr) ? nr + 1 : nr; }
+
 
 union swabber {
     struct sw {
@@ -46,24 +54,26 @@ typedef struct {
     short m_size_2;
 } MEMBER;
 
-typedef char BOOL;
-#define FALSE 0
-#define TRUE 1
+using BOOL = bool;
+constexpr bool FALSE = false;
+constexpr bool TRUE = true;
 
-#define READ 0
-#define APPEND 2
-#define CREATE 1
+constexpr int READ = 0;
+constexpr int APPEND = 2;
+constexpr int CREATE = 1;
 
-#define NIL_PTR ((char *)0)
-#define NIL_MEM ((MEMBER *)0)
-#define NIL_LONG ((long *)0)
+constexpr char *NIL_PTR = nullptr;
+constexpr MEMBER *NIL_MEM = nullptr;
+constexpr long *NIL_LONG = nullptr;
 
-#define IO_SIZE (10 * 1024)
-#define BLOCK_SIZE 1024
+constexpr std::size_t IO_SIZE = 10 * 1024;
+constexpr std::size_t BLOCK_SIZE = 1024;
 
-#define flush() print(NIL_PTR)
+inline void flush() { print(NIL_PTR); }
 
-#define equal(str1, str2) (!strncmp((str1), (str2), 14))
+inline bool equal(const char *str1, const char *str2) {
+    return !std::strncmp(str1, str2, 14);
+}
 
 BOOL verbose;
 BOOL app_fl;
@@ -76,8 +86,8 @@ BOOL del_fl;
 int ar_fd;
 long mem_time, mem_size;
 
-char io_buffer[IO_SIZE];
-char terminal[BLOCK_SIZE];
+std::array<char, IO_SIZE> io_buffer{};  // Buffer used for I/O operations
+std::array<char, BLOCK_SIZE> terminal{}; // Temporary terminal buffer
 
 char temp_arch[] = "/tmp/ar.XXXXX";
 
@@ -297,8 +307,8 @@ static void get(int argc, char *argv[]) {
         (void)close(temp_fd);
         ar_fd = open_archive(argv[2], CREATE);
         temp_fd = open_archive(temp_arch, APPEND);
-        while ((read_chars = read(temp_fd, io_buffer, IO_SIZE)) > 0)
-            mwrite(ar_fd, io_buffer, read_chars);
+        while ((read_chars = read(temp_fd, io_buffer.data(), IO_SIZE)) > 0)
+            mwrite(ar_fd, io_buffer.data(), read_chars);
         (void)close(temp_fd);
         (void)unlink(temp_arch);
     }
@@ -330,11 +340,11 @@ static void add(char *name, int fd, char mess) {
     member.m_size_1 = swapped.mem.mem_1;
     member.m_size_2 = swapped.mem.mem_2;
     mwrite(fd, &member, sizeof(MEMBER));
-    while ((read_chars = read(src_fd, io_buffer, IO_SIZE)) > 0)
-        mwrite(fd, io_buffer, read_chars);
+    while ((read_chars = read(src_fd, io_buffer.data(), IO_SIZE)) > 0)
+        mwrite(fd, io_buffer.data(), read_chars);
 
     if (odd(status.st_size))
-        mwrite(fd, io_buffer, 1);
+        mwrite(fd, io_buffer.data(), 1);
 
     if (verbose)
         show(mess, name);
@@ -365,9 +375,9 @@ static void copy_member(MEMBER *member, int from, int to) {
 
     do {
         rest = mem_size > (long)IO_SIZE ? IO_SIZE : (int)mem_size;
-        if (read(from, io_buffer, rest) != rest)
+        if (read(from, io_buffer.data(), rest) != rest)
             error(TRUE, "Read error on ", member->m_name);
-        mwrite(to, io_buffer, rest);
+        mwrite(to, io_buffer.data(), rest);
         mem_size -= (long)rest;
     } while (mem_size != 0L);
 
@@ -382,13 +392,13 @@ static void print(char *str) {
     static index = 0;
 
     if (str == NIL_PTR) {
-        write(1, terminal, index);
+        write(1, terminal.data(), index);
         index = 0;
         return;
     }
 
     while (*str != '\0') {
-        terminal[index++] = *str++;
+        terminal.data()[index++] = *str++;
         if (index == BLOCK_SIZE)
             flush();
     }

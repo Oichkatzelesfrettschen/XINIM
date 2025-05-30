@@ -22,11 +22,12 @@
 
 #include <errno.h>
 #include <signal.h>
+#include <array>
 
-#define MAXARGC 64   /* maximum number of arguments allowed in a list */
-#define USTR_SIZE 64 /* maximum length of string variable */
+constexpr int MAXARGC = 64;   /* maximum number of arguments allowed in a list */
+constexpr int USTR_SIZE = 64; /* maximum length of string variable */
 
-typedef char USTRING[USTR_SIZE];
+using USTRING = std::array<char, USTR_SIZE>;
 
 struct arglist {
     int al_argc;

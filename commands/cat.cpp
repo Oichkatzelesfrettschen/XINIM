@@ -10,11 +10,12 @@ extern int errno; /*DEBUG*/
 
 #include "blocksiz.hpp"
 #include "stat.hpp"
+#include <array>
 
-#define BUF_SIZE 512   /* size of the output buffer */
-int unbuffered;        /* non-zero for unbuffered operation */
-char buffer[BUF_SIZE]; /* output buffer */
-char *next = buffer;   /* next free byte in buffer */
+constexpr std::size_t BUF_SIZE = 512; /* size of the output buffer */
+int unbuffered;                        /* non-zero for unbuffered operation */
+std::array<char, BUF_SIZE> buffer{};   /* output buffer */
+char *next = buffer.data();            /* next free byte in buffer */
 
 /* Function prototypes */
 static void copyfile(int fd1, int fd2);
@@ -88,11 +89,11 @@ static void copyfile(int fd1, int fd2) {
         } else {
             for (j = 0; j < n; j++) {
                 *next++ = buf[j];
-                if (next == &buffer[BUF_SIZE]) {
-                    m = write(fd2, buffer, BUF_SIZE);
+                if (next == buffer.data() + BUF_SIZE) {
+                    m = write(fd2, buffer.data(), BUF_SIZE);
                     if (m != BUF_SIZE)
                         quit();
-                    next = buffer;
+                    next = buffer.data();
                 }
             }
         }
@@ -101,8 +102,8 @@ static void copyfile(int fd1, int fd2) {
 
 static void flush(void) {
     /* Write any buffered output to standard output. */
-    if (next != buffer)
-        if (write(1, buffer, next - buffer) <= 0)
+    if (next != buffer.data())
+        if (write(1, buffer.data(), next - buffer.data()) <= 0)
             quit();
 }
 

@@ -1,34 +1,29 @@
 // Modernized for C++23
 
-#include <cstring>
+#include <filesystem>
+#include <string>
+#include <string_view>
 
 /* basename - print the last part of a path:	Author: Blaine Garfolo */
 
 int main(int argc, char *argv[]) {
-    int j, suflen;
-    char *c;
-    char *d;
-
+    // Ensure we have at least one path argument
     if (argc < 2) {
         std_err("Usage: basename string [suffix]  \n");
-        exit(1);
+        return 1;
     }
-    c = argv[1];
-    d = std::strrchr(argv[1], '/');
-    if (d == nullptr)
-        d = argv[1];
-    else
-        d++;
 
-    if (argc == 2) { /* if no suffix */
-        prints("%s \n", d);
-        exit(0);
-    } else { /* if suffix is present */
-        c = d;
-        suflen = strlen(argv[2]);
-        j = strlen(c) - suflen;
-        if (strcmp(c + j, argv[2]) == 0)
-            *(c + j) = 0;
+    // Extract the filename component
+    std::filesystem::path path{argv[1]};
+    std::string base = path.filename().string();
+
+    // Optionally strip the specified suffix
+    if (argc == 3) {
+        std::string_view suffix{argv[2]};
+        if (base.size() >= suffix.size() &&
+            base.compare(base.size() - suffix.size(), suffix.size(), suffix) == 0)
+            base.erase(base.size() - suffix.size());
     }
-    prints("%s \n", c);
+
+    prints("%s \n", base.c_str());
 }
