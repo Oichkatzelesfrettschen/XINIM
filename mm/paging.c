@@ -1,5 +1,5 @@
 #include "../include/paging.h"
-#include "const.h"
+#include "const.hpp"
 
 /* User space virtual address allocator using 4-level page tables. */
 

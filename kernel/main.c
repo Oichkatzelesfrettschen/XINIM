@@ -15,10 +15,10 @@
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/type.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 #ifdef __x86_64__
 void init_syscall_msrs(void);
 #endif /* __x86_64__ */

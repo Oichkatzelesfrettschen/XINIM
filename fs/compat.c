@@ -3,12 +3,12 @@
  * maintaining the legacy 32-bit structures.
  */
 
-#include "compat.h"
+#include "compat.hpp"
 #include "../h/const.h"
 #include "../h/type.h"
 #include "../include/lib.h"
-#include "extent.h"
-#include "inode.h"
+#include "extent.hpp"
+#include "inode.hpp"
 
 /*===========================================================================*
  *                              compat_get_size                              *

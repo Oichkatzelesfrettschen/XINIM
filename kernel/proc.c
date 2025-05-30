@@ -18,9 +18,9 @@
 #include "../h/callnr.h"
 #include "../h/com.h"
 #include "../h/error.h"
-#include "const.h"
-#include "type.h"
-#include "glo.h"
+#include "const.hpp"
+#include "type.hpp"
+#include "glo.hpp"
 #include "proc.h"
 
 /*===========================================================================*

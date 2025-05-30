@@ -1,4 +1,4 @@
-#include "signal.h"
+#include "signal.hpp"
 
 int glov, gct;
 extern int errno;

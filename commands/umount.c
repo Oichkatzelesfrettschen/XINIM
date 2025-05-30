@@ -1,6 +1,6 @@
 /* umount - unmount a file system		Author: Andy Tanenbaum */
 
-#include "errno.h"
+#include "errno.hpp"
 
 extern int errno;
 

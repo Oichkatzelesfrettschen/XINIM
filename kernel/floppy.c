@@ -23,10 +23,10 @@
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/type.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 
 /* I/O Ports used by floppy disk task. */
 #define DOR 0x3F2        /* motor drive control bits */

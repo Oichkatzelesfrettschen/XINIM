@@ -1,7 +1,7 @@
 /* passwd - change a passwd		Author: Adri Koppes */
 
-#include "signal.h"
-#include "pwd.h"
+#include "signal.hpp"
+#include "pwd.hpp"
 
 char    pwd_file[] = "/etc/passwd";
 char    pw_tmp[] = "/etc/pwtemp";

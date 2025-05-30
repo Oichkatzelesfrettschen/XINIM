@@ -1,7 +1,7 @@
 /* shar - make a shell archive		Author: Michiel Husijes */
 
 
-#include "blocksiz.h"
+#include "blocksiz.hpp"
 
 #define IO_SIZE		(10 * BLOCK_SIZE)
 

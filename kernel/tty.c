@@ -50,9 +50,9 @@
 #include "../h/error.h"
 #include "../h/sgtty.h"
 #include "../h/signal.h"
-#include "const.h"
-#include "type.h"
-#include "glo.h"
+#include "const.hpp"
+#include "type.hpp"
+#include "glo.hpp"
 #include "proc.h"
 
 #define NR_TTYS            1	/* how many terminals can system handle */

@@ -1,6 +1,6 @@
 #include "../include/paging.h"
-#include "const.h"
-#include "type.h"
+#include "const.hpp"
+#include "type.hpp"
 
 /* Simple 4-level page table allocator used only for illustration. */
 

@@ -7,10 +7,10 @@
 #include "../h/type.h"
 #include "../h/callnr.h"
 #include "../h/error.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "mproc.h"
-#include "param.h"
+#include "param.hpp"
 
 /*===========================================================================*
  *				do_getset				     *

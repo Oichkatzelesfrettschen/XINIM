@@ -1,6 +1,6 @@
 /* update - do sync periodically		Author: Andy Tanenbaum */
 
-#include "signal.h"
+#include "signal.hpp"
 
 main()
 {

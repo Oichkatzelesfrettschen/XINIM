@@ -2,7 +2,7 @@
 #define VM_H
 
 #include "../h/const.h"
-#include "paging.h"
+#include "paging.hpp"
 
 /* Flags for virtual memory regions */
 #define VM_READ 0x1

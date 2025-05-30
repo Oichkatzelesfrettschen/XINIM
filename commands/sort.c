@@ -31,8 +31,8 @@
  * 	A missing -a.b means the rest of the line.
  */
 
-#include "stat.h"
-#include "signal.h"
+#include "stat.hpp"
+#include "signal.hpp"
 
 #define OPEN_FILES	16		/* Nr of open files per process */
 

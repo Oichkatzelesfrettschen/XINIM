@@ -1,7 +1,7 @@
 /* mv - move files		Author: Adri Koppes */
 
-#include "signal.h"
-#include "stat.h"
+#include "signal.hpp"
+#include "stat.hpp"
 
 int     error = 0;
 struct stat st;

@@ -27,8 +27,8 @@
 #include "../h/callnr.h"
 #include "../h/com.h"
 #include "../h/error.h"
-#include "const.h"
-#include "type.h"
+#include "const.hpp"
+#include "type.hpp"
 #include "proc.h"
 
 #define NR_RAMS            4	/* number of RAM-type devices */

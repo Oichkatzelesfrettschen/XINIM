@@ -15,14 +15,14 @@
 #include "../h/type.h"
 #include "../h/com.h"
 #include "../h/error.h"
-#include "const.h"
-#include "type.h"
-#include "dev.h"
-#include "file.h"
-#include "fproc.h"
-#include "glo.h"
-#include "inode.h"
-#include "param.h"
+#include "const.hpp"
+#include "type.hpp"
+#include "dev.hpp"
+#include "file.hpp"
+#include "fproc.hpp"
+#include "glo.hpp"
+#include "inode.hpp"
+#include "param.hpp"
 
 PRIVATE message dev_mess;
 PRIVATE major, minor, task;

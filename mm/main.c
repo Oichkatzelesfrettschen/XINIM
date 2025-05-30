@@ -18,10 +18,10 @@
 #include "../h/callnr.h"
 #include "../h/com.h"
 #include "../h/error.h"
-#include "const.h"
+#include "const.hpp"
 #include "mproc.h"
-#include "param.h"
-#include "glo.h"
+#include "param.hpp"
+#include "glo.hpp"
 
 #define ENOUGH (phys_clicks) 4096	/* any # > max(FS size, INIT size) */
 #define CLICK_TO_K (1024L/CLICK_SIZE)	/* convert clicks to K */

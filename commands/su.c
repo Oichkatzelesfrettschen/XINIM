@@ -1,8 +1,8 @@
 /* su - become super-user		Author: Patrick van Kleef */
 
-#include "sgtty.h"
+#include "sgtty.hpp"
 #include "stdio.h"
-#include "pwd.h"
+#include "pwd.hpp"
 
 /* Program entry point */
 int main(int argc, char *argv[])

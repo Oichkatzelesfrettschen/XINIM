@@ -10,7 +10,7 @@
  *	except when the involved fields are filled in.
  */
 
-#include "stat.h"
+#include "stat.hpp"
 
 struct direct {
   unsigned short d_ino;

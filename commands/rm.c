@@ -1,6 +1,6 @@
 /* rm - remove files			Author: Adri Koppes */
 
-#include "stat.h"
+#include "stat.hpp"
 
 struct direct {
     unsigned short  d_ino;

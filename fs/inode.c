@@ -12,19 +12,19 @@
  *   dup_inode:	  indicate that someone else is using an inode table entry
  */
 
-#include "inode.h"
+#include "inode.hpp"
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/type.h"
-#include "buf.h"
-#include "compat.h"
-#include "const.h"
-#include "extent.h"
-#include "file.h"
-#include "fproc.h"
-#include "glo.h"
-#include "super.h"
-#include "type.h"
+#include "buf.hpp"
+#include "compat.hpp"
+#include "const.hpp"
+#include "extent.hpp"
+#include "file.hpp"
+#include "fproc.hpp"
+#include "glo.hpp"
+#include "super.hpp"
+#include "type.hpp"
 
 /*===========================================================================*
  *				get_inode				     *

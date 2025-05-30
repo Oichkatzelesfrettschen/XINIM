@@ -1,8 +1,8 @@
 #include "../include/defs.h"
-#include "const.h"
-#include "glo.h"
+#include "const.hpp"
+#include "glo.hpp"
 #include "proc.h"
-#include "type.h"
+#include "type.hpp"
 
 #ifdef __x86_64__
 

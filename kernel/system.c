@@ -60,9 +60,9 @@
 #include "../h/com.h"
 #include "../h/error.h"
 #include "../h/signal.h"
-#include "const.h"
-#include "type.h"
-#include "glo.h"
+#include "const.hpp"
+#include "type.hpp"
+#include "glo.hpp"
 #include "proc.h"
 
 #define COPY_UNIT     65534L	/* max bytes to copy at once */

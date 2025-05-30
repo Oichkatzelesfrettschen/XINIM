@@ -1,6 +1,6 @@
 /* stty - set terminal mode  	Author: Andy Tanenbaum */
 
-#include "sgtty.h"
+#include "sgtty.hpp"
 char *on[] = {"tabs",  "cbreak",  "raw",  "-nl",  "echo"};
 char *off[]= {"-tabs", "", "", "nl", "-echo"};
 int k;
