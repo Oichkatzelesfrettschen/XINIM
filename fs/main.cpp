@@ -244,10 +244,10 @@ PRIVATE load_ram() {
 
     /* Tell RAM driver where RAM disk is and how big it is. */
     m1.m_type = DISK_IOCTL;
-    m1.DEVICE = RAM_DEV;
-    m1.POSITION = (long)init_org + (long)init_text_clicks + init_data_clicks;
-    m1.POSITION = m1.POSITION << CLICK_SHIFT;
-    m1.COUNT = count;
+    device(m1) = RAM_DEV;
+    position(m1) = (long)init_org + (long)init_text_clicks + init_data_clicks;
+    position(m1) = position(m1) << CLICK_SHIFT;
+    count(m1) = count;
     if (sendrec(MEM, &m1) != OK)
         panic("Can't report size to MEM", NO_NUM);
 

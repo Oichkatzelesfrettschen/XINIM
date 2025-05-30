@@ -202,7 +202,7 @@ PUBLIC tty_task() {
     tty_init(); /* initialize */
     while (TRUE) {
         receive(ANY, &tty_mess);
-        tp = &tty_struct[tty_mess.TTY_LINE];
+        tp = &tty_struct[tty_line(tty_mess)];
         switch (tty_mess.m_type) {
         case TTY_CHAR_INT:
             do_charint(&tty_mess);
@@ -221,7 +221,7 @@ PUBLIC tty_task() {
             break;
         case TTY_O_DONE: /* reserved for future use (RS-232 terminals)*/
         default:
-            tty_reply(TASK_REPLY, tty_mess.m_source, tty_mess.PROC_NR, ErrorCode::EINVAL, 0L, 0L);
+            tty_reply(TASK_REPLY, tty_mess.m_source, proc_nr(tty_mess), ErrorCode::EINVAL, 0L, 0L);
         }
     }
 }
@@ -681,21 +681,21 @@ message *m_ptr;                 /* pointer to message sent to task */
     r = OK;
     flags = 0;
     erki = 0;
-    switch (m_ptr->TTY_REQUEST) {
+    switch (tty_request(*m_ptr)) {
     case TIOCSETP:
         /* Set erase, kill, and flags. */
-        tp->tty_erase = (char)((m_ptr->TTY_SPEK >> 8) & BYTE); /* erase  */
-        tp->tty_kill = (char)((m_ptr->TTY_SPEK >> 0) & BYTE);  /* kill  */
-        tp->tty_mode = (int)m_ptr->TTY_FLAGS;                  /* mode word */
+        tp->tty_erase = (char)((tty_spek(*m_ptr) >> 8) & BYTE); /* erase  */
+        tp->tty_kill = (char)((tty_spek(*m_ptr) >> 0) & BYTE);  /* kill  */
+        tp->tty_mode = (int)tty_flags(*m_ptr);                  /* mode word */
         break;
 
     case TIOCSETC:
         /* Set intr, quit, xon, xoff, eof (brk not used). */
-        tp->tty_intr = (char)((m_ptr->TTY_SPEK >> 24) & BYTE); /* interrupt */
-        tp->tty_quit = (char)((m_ptr->TTY_SPEK >> 16) & BYTE); /* quit */
-        tp->tty_xon = (char)((m_ptr->TTY_SPEK >> 8) & BYTE);   /* CTRL-S */
-        tp->tty_xoff = (char)((m_ptr->TTY_SPEK >> 0) & BYTE);  /* CTRL-Q */
-        tp->tty_eof = (char)((m_ptr->TTY_FLAGS >> 8) & BYTE);  /* CTRL-D */
+        tp->tty_intr = (char)((tty_spek(*m_ptr) >> 24) & BYTE); /* interrupt */
+        tp->tty_quit = (char)((tty_spek(*m_ptr) >> 16) & BYTE); /* quit */
+        tp->tty_xon = (char)((tty_spek(*m_ptr) >> 8) & BYTE);   /* CTRL-S */
+        tp->tty_xoff = (char)((tty_spek(*m_ptr) >> 0) & BYTE);  /* CTRL-Q */
+        tp->tty_eof = (char)((tty_flags(*m_ptr) >> 8) & BYTE);  /* CTRL-D */
         break;
 
     case TIOCGETP:
@@ -770,10 +770,10 @@ long other;  /* used for IOCTL replies */
     message tty_mess;
 
     tty_mess.m_type = code;
-    tty_mess.REP_PROC_NR = proc_nr;
-    tty_mess.REP_STATUS = status;
-    tty_mess.TTY_FLAGS = extra; /* used by IOCTL for flags (mode) */
-    tty_mess.TTY_SPEK = other;  /* used by IOCTL for erase and kill chars */
+    rep_proc_nr(tty_mess) = proc_nr;
+    rep_status(tty_mess) = status;
+    tty_flags(tty_mess) = extra; /* used by IOCTL for flags (mode) */
+    tty_spek(tty_mess) = other;  /* used by IOCTL for erase and kill chars */
     send(replyee, &tty_mess);
 }
 

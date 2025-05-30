@@ -169,7 +169,7 @@ PUBLIC floppy_task() {
         if (mess.m_source < 0)
             panic("disk task got message from ", mess.m_source);
         caller = mess.m_source;
-        proc_nr = mess.PROC_NR;
+        proc_nr = proc_nr(mess);
 
         /* Now carry out the work. */
         switch (mess.m_type) {
@@ -186,9 +186,9 @@ PUBLIC floppy_task() {
 
         /* Finally, prepare and send the reply message. */
         mess.m_type = TASK_REPLY;
-        mess.REP_PROC_NR = proc_nr;
-        mess.REP_STATUS = r; /* # of bytes transferred or error code */
-        send(caller, &mess); /* send reply to caller */
+        rep_proc_nr(mess) = proc_nr;
+        rep_status(mess) = r; /* # of bytes transferred or error code */
+        send(caller, &mess);  /* send reply to caller */
     }
 }
 
@@ -218,9 +218,9 @@ PRIVATE int do_rdwt(message *m_ptr) {
     fp->fl_cylinder = (int)(block / (NR_HEADS * nr_sectors[d]));
     fp->fl_sector = (int)interleave[block % nr_sectors[d]];
     fp->fl_head = (int)(block % (NR_HEADS * nr_sectors[d])) / nr_sectors[d];
-    fp->fl_count = m_ptr->COUNT;
-    fp->fl_address = (vir_bytes)m_ptr->ADDRESS;
-    fp->fl_procnr = m_ptr->PROC_NR;
+    fp->fl_count = count(*m_ptr);
+    fp->fl_address = (vir_bytes)address(*m_ptr);
+    fp->fl_procnr = proc_nr(*m_ptr);
     if (fp->fl_count != BLOCK_SIZE)
         return (ErrorCode::EINVAL);
 
@@ -624,9 +624,9 @@ PRIVATE reset() {
 PRIVATE void clock_mess(int ticks, void (*func)(void)) {
     /* Send the clock task a message. */
     mess.m_type = SET_ALARM;
-    mess.CLOCK_PROC_NR = FLOPPY;
-    mess.DELTA_TICKS = ticks;
-    mess.FUNC_TO_CALL = func;
+    clock_proc_nr(mess) = FLOPPY;
+    delta_ticks(mess) = ticks;
+    func_to_call(mess) = func;
     sendrec(CLOCK, &mess);
 }
 

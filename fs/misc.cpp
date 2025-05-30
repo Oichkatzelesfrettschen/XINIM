@@ -237,7 +237,7 @@ PUBLIC int do_revive() {
 
     if (who > 0)
         return (ErrorCode::EPERM);
-    revive(m.REP_PROC_NR, m.REP_STATUS);
+    revive(rep_proc_nr(m), rep_status(m));
     dont_reply = TRUE; /* don't reply to the TTY task */
     return (OK);
 }

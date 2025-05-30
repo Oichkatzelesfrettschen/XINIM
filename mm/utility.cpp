@@ -109,15 +109,15 @@ PUBLIC int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int d
 
     if (bytes == 0L)
         return (OK);
-    copy_mess.SRC_SPACE = static_cast<char>(src_seg);
-    copy_mess.SRC_PROC_NR = src_proc;
-    copy_mess.SRC_BUFFER = src_vir;
+    src_space(copy_mess) = static_cast<char>(src_seg);
+    src_proc_nr(copy_mess) = src_proc;
+    src_buffer(copy_mess) = src_vir;
 
-    copy_mess.DST_SPACE = static_cast<char>(dst_seg);
-    copy_mess.DST_PROC_NR = dst_proc;
-    copy_mess.DST_BUFFER = dst_vir;
+    dst_space(copy_mess) = static_cast<char>(dst_seg);
+    dst_proc_nr(copy_mess) = dst_proc;
+    dst_buffer(copy_mess) = dst_vir;
 
-    copy_mess.COPY_BYTES = bytes;
+    copy_bytes(copy_mess) = bytes;
     sys_copy(&copy_mess);
     return (copy_mess.m_type);
 }

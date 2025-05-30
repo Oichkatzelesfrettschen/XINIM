@@ -61,7 +61,7 @@ PUBLIC mem_task() {
         if (mess.m_source < 0)
             panic("mem task got message from ", mess.m_source);
         caller = mess.m_source;
-        proc_nr = mess.PROC_NR;
+        proc_nr = proc_nr(mess);
 
         /* Now carry out the work.  It depends on the opcode. */
         switch (mess.m_type) {
@@ -81,8 +81,8 @@ PUBLIC mem_task() {
 
         /* Finally, prepare and send the reply message. */
         mess.m_type = TASK_REPLY;
-        mess.REP_PROC_NR = proc_nr;
-        mess.REP_STATUS = r;
+        rep_proc_nr(mess) = proc_nr;
+        rep_status(mess) = r;
         send(caller, &mess);
     }
 }
@@ -114,13 +114,13 @@ register message *m_ptr; /* pointer to read or write message */
     mem_phys = ram_origin[device] + m_ptr->POSITION;
     if (mem_phys >= ram_limit[device])
         return (EOF);
-    count = m_ptr->COUNT;
+    count = count(*m_ptr);
     if (mem_phys + count > ram_limit[device])
         count = ram_limit[device] - mem_phys;
 
     /* Determine address where data is to go or to come from. */
-    rp = proc_addr(m_ptr->PROC_NR);
-    user_phys = umap(rp, D, (vir_bytes)m_ptr->ADDRESS, (vir_bytes)count);
+    rp = proc_addr(proc_nr(*m_ptr));
+    user_phys = umap(rp, D, (vir_bytes)address(*m_ptr), (vir_bytes)count);
     if (user_phys == 0)
         return (ErrorCode::E_BAD_ADDR);
 

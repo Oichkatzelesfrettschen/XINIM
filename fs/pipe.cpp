@@ -251,13 +251,13 @@ PUBLIC int do_unpause() {
     if (task != XPIPE) {
         f = get_filp(rfp->fp_fd);
         dev = f->filp_ino->i_zone[0]; /* device on which proc is hanging */
-        mess.TTY_LINE = (dev >> MINOR) & BYTE;
-        mess.PROC_NR = proc_nr;
+        tty_line(mess) = (dev >> MINOR) & BYTE;
+        proc_nr(mess) = proc_nr;
         mess.m_type = CANCEL;
         if (sendrec(task, &mess) != OK)
             panic("unpause err 2", NO_NUM);
-        while (mess.REP_PROC_NR != proc_nr) {
-            revive(mess.REP_PROC_NR, mess.REP_STATUS);
+        while (rep_proc_nr(mess) != proc_nr) {
+            revive(rep_proc_nr(mess), rep_status(mess));
             if (receive(task, &m) != OK)
                 panic("unpause err 3", NO_NUM);
         }

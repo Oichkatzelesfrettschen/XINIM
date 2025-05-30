@@ -45,7 +45,7 @@ int mod;    /* how to open it */
 
     find_dev(dev);
     (*dmap[major].dmap_open)(task, &dev_mess);
-    return (dev_mess.REP_STATUS);
+    return (rep_status(dev_mess));
 }
 
 /*===========================================================================*
@@ -77,20 +77,20 @@ char *buff;  /* virtual address of the buffer */
 
     /* Set up the message passed to task. */
     dev_mess.m_type = (rw_flag == READING ? DISK_READ : DISK_WRITE);
-    dev_mess.DEVICE = (dev >> MINOR) & BYTE;
-    dev_mess.POSITION = pos;
-    dev_mess.PROC_NR = proc;
-    dev_mess.ADDRESS = buff;
-    dev_mess.COUNT = bytes;
+    device(dev_mess) = (dev >> MINOR) & BYTE;
+    position(dev_mess) = pos;
+    proc_nr(dev_mess) = proc;
+    address(dev_mess) = buff;
+    count(dev_mess) = bytes;
 
     /* Call the task. */
     (*dmap[major].dmap_rw)(task, &dev_mess);
 
     /* Task has completed.  See if call completed. */
-    if (dev_mess.REP_STATUS == SUSPEND)
+    if (rep_status(dev_mess) == SUSPEND)
         suspend(task); /* suspend user */
 
-    return (dev_mess.REP_STATUS);
+    return (rep_status(dev_mess));
 }
 
 /*===========================================================================*
@@ -111,21 +111,21 @@ PUBLIC do_ioctl() {
     find_dev(rip->i_zone[0]);
 
     dev_mess.m_type = TTY_IOCTL;
-    dev_mess.PROC_NR = who;
-    dev_mess.TTY_LINE = minor;
-    dev_mess.TTY_REQUEST = m.TTY_REQUEST;
-    dev_mess.TTY_SPEK = m.TTY_SPEK;
-    dev_mess.TTY_FLAGS = m.TTY_FLAGS;
+    proc_nr(dev_mess) = who;
+    tty_line(dev_mess) = minor;
+    tty_request(dev_mess) = tty_request(m);
+    tty_spek(dev_mess) = tty_spek(m);
+    tty_flags(dev_mess) = tty_flags(m);
 
     /* Call the task. */
     (*dmap[major].dmap_rw)(task, &dev_mess);
 
     /* Task has completed.  See if call completed. */
     if (dev_mess.m_type == SUSPEND)
-        suspend(task);                 /* User must be suspended. */
-    m1.TTY_SPEK = dev_mess.TTY_SPEK;   /* erase and kill */
-    m1.TTY_FLAGS = dev_mess.TTY_FLAGS; /* flags */
-    return (dev_mess.REP_STATUS);
+        suspend(task);                   /* User must be suspended. */
+    tty_spek(m1) = tty_spek(dev_mess);   /* erase and kill */
+    tty_flags(m1) = tty_flags(dev_mess); /* flags */
+    return (rep_status(dev_mess));
 }
 
 /*===========================================================================*
@@ -141,7 +141,7 @@ dev_nr dev; /* device */
     if (major == 0 || major >= max_major)
         panic("bad major dev", major);
     task = dmap[major].dmap_task; /* which task services the device */
-    dev_mess.DEVICE = minor;
+    device(dev_mess) = minor;
 }
 
 /*===========================================================================*
@@ -157,15 +157,15 @@ message *mess_ptr; /* pointer to message for task */
 
     int proc_nr;
 
-    proc_nr = mess_ptr->PROC_NR;
+    proc_nr = proc_nr(*mess_ptr);
 
     if (sendrec(task_nr, mess_ptr) != OK)
         panic("rw_dev: can't send", NO_NUM);
-    while (mess_ptr->REP_PROC_NR != proc_nr) {
+    while (rep_proc_nr(*mess_ptr) != proc_nr) {
         /* Instead of the reply to this request, we got a message for an
          * earlier request.  Handle it and go receive again.
          */
-        revive(mess_ptr->REP_PROC_NR, mess_ptr->REP_STATUS);
+        revive(rep_proc_nr(*mess_ptr), rep_status(*mess_ptr));
         receive(task_nr, mess_ptr);
     }
 }
@@ -199,5 +199,5 @@ message *m_ptr; /* message pointer */
 {
     /* Null operation always succeeds. */
 
-    m_ptr->REP_STATUS = OK;
+    rep_status(*m_ptr) = OK;
 }

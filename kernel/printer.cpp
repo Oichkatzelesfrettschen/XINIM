@@ -200,10 +200,10 @@ int status;  /* number of  chars printed or error code */
 
     message pr_mess;
 
-    pr_mess.m_type = code;         /* TASK_REPLY or REVIVE */
-    pr_mess.REP_STATUS = status;   /* count or ErrorCode::EIO */
-    pr_mess.REP_PROC_NR = process; /* which user does this pertain to */
-    send(replyee, &pr_mess);       /* send the message */
+    pr_mess.m_type = code;          /* TASK_REPLY or REVIVE */
+    rep_status(pr_mess) = status;   /* count or ErrorCode::EIO */
+    rep_proc_nr(pr_mess) = process; /* which user does this pertain to */
+    send(replyee, &pr_mess);        /* send the message */
 }
 
 /*===========================================================================*
@@ -281,6 +281,6 @@ PUBLIC pr_char() {
 
     /* Count is 0 or an error occurred; send message to printer task. */
     int_mess.m_type = TTY_O_DONE;
-    int_mess.REP_STATUS = (pcount == 0 ? OK : value);
+    rep_status(int_mess) = (pcount == 0 ? OK : value);
     interrupt(PRINTER, &int_mess);
 }

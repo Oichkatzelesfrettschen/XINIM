@@ -92,12 +92,12 @@ PUBLIC int do_ksig() {
     if (who != HARDWARE && who != FS_PROC_NR)
         return (ErrorCode::EPERM);
 
-    proc_nr = mm_in.PROC1;
+    proc_nr = proc1(mm_in);
     rmp = &mproc[proc_nr];
     if ((rmp->mp_flags & IN_USE) == 0 || (rmp->mp_flags & HANGING))
         return (OK);
     proc_id = rmp->mp_pid;
-    sig_map = (unshort)mm_in.SIG_MAP;
+    sig_map = (unshort)sig_map(mm_in);
     mp = &mproc[0]; /* pretend kernel signals are from MM */
 
     /* Stack faults are passed from kernel to MM as pseudo-signal 16. */
@@ -262,8 +262,8 @@ unsigned sec; /* how many seconds delay before the signal */
     int remaining;
 
     m_sig.m_type = SET_ALARM;
-    m_sig.PROC_NR = proc_nr;
-    m_sig.DELTA_TICKS = HZ * sec;
+    proc_nr(m_sig) = proc_nr;
+    delta_ticks(m_sig) = HZ * sec;
     if (sec != 0)
         mproc[proc_nr].mp_flags |= ALARM_ON; /* turn ALARM_ON bit on */
     else
