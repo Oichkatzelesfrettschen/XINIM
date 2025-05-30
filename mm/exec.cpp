@@ -279,7 +279,7 @@ int zs;                /* true size of 'bf' */
     bytes -= bss_offset;
 
     while (bytes > 0) {
-        count = (long)MIN(bytes, (phys_bytes)zs);
+        count = (long)min(bytes, (phys_bytes)zs);
         if (mem_copy(MM_PROC_NR, D, (long)vzb, ABS, 0, base, count) != OK)
             panic("new_mem can't zero", NO_NUM);
         base += count;

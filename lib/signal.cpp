@@ -18,8 +18,8 @@ PUBLIC sighandler_t signal(int signr, sighandler_t func) {
 
     old = vectab[signr - 1];
     vectab[signr - 1] = func;
-    M.m6_i1 = signr;
-    M.m6_f1 = ((func == SIG_IGN || func == SIG_DFL) ? func : begsig);
+    M.m6_i1() = signr;
+    M.m6_f1() = ((func == SIG_IGN || func == SIG_DFL) ? func : begsig);
     r = callx(MM, SIGNAL);
     return ((r < 0 ? (sighandler_t)r : old));
 }

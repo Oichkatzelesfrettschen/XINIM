@@ -41,9 +41,9 @@ vir_bytes *newsp; /* place to put sp read from kernel */
 PUBLIC sys_sig(int proc, int sig, sighandler_t sighandler) {
     /* A proc has to be signaled.  Tell the kernel. */
 
-    M.m6_i1 = proc;
-    M.m6_i2 = sig;
-    M.m6_f1 = sighandler;
+    M.m6_i1() = proc;
+    M.m6_i2() = sig;
+    M.m6_f1() = sighandler;
     callx(SYSTASK, SYS_SIG);
 }
 

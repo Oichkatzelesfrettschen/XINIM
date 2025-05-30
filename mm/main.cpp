@@ -150,10 +150,10 @@ PUBLIC do_brk2() {
         return (ErrorCode::EPERM); /* only FS make do BRK2 */
 
     /* Remove the memory used by MINIX and RAM disk from the memory map. */
-    init_text_clicks = mm_in.m1_i1;      /* size of INIT in clicks */
-    init_data_clicks = mm_in.m1_i2;      /* size of INIT in clicks */
-    tot_clicks = mm_in.m1_i3;            /* total size of MINIX + RAM disk */
-    init_org = (phys_clicks)mm_in.m1_p1; /* addr where INIT begins in memory */
+    init_text_clicks = mm_in.m1_i1();      /* size of INIT in clicks */
+    init_data_clicks = mm_in.m1_i2();      /* size of INIT in clicks */
+    tot_clicks = mm_in.m1_i3();            /* total size of MINIX + RAM disk */
+    init_org = (phys_clicks)mm_in.m1_p1(); /* addr where INIT begins in memory */
     init_clicks = init_text_clicks + init_data_clicks;
     ram_base = init_org + init_clicks;  /* start of RAM disk */
     ram_clicks = tot_clicks - ram_base; /* size of RAM disk */

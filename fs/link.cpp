@@ -43,7 +43,7 @@ PUBLIC int do_link() {
 
     /* Check to see if the file has maximum number of links already. */
     r = OK;
-    if ((rip->i_nlinks & BYTE) == MAX_LINKS)
+    if ((rip->i_nlinks & BYTE) == kMaxLinks)
         r = ErrorCode::EMLINK;
 
     /* Only super_user may link to directories. */
@@ -168,7 +168,7 @@ register struct inode *rip; /* pointer to inode to be truncated */
 
     /* Step through the file a zone at a time, finding and freeing the zones. */
     for (position = 0; position < compat_get_size(rip); position += zone_size) {
-        if ((b = read_map(rip, position)) != NO_BLOCK) {
+        if ((b = read_map(rip, position)) != kNoBlock) {
             z = (zone_nr)b >> scale;
             free_zone(dev, z);
         }
@@ -176,7 +176,7 @@ register struct inode *rip; /* pointer to inode to be truncated */
 
     /* All the data zones have been freed.  Now free the indirect zones. */
     free_zone(dev, rip->i_zone[NR_DZONE_NUM]); /* single indirect zone */
-    if ((z = rip->i_zone[NR_DZONE_NUM + 1]) != NO_ZONE) {
+    if ((z = rip->i_zone[NR_DZONE_NUM + 1]) != kNoZone) {
         b = (block_nr)z << scale;
         bp = get_block(dev, b, NORMAL); /* get double indirect zone */
         for (iz = &bp->b_ind[0]; iz < &bp->b_ind[NR_INDIRECTS]; iz++) {

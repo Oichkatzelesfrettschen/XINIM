@@ -118,7 +118,7 @@ int rw_flag; /* READING or WRITING */
         /* Split the transfer into chunks that don't span two blocks. */
         while (nbytes != 0) {
             off = position % BLOCK_SIZE; /* offset within a block */
-            chunk = MIN(nbytes, BLOCK_SIZE - off);
+            chunk = min(nbytes, BLOCK_SIZE - off);
             if (chunk < 0)
                 chunk = BLOCK_SIZE - off;
 
@@ -210,10 +210,10 @@ int usr;                    /* which user process */
         dev = rip->i_dev;
     }
 
-    if (!block_spec && b == NO_BLOCK) {
+    if (!block_spec && b == kNoBlock) {
         if (rw_flag == READING) {
             /* Reading from a nonexistent block.  Must read as all zeros. */
-            bp = get_block(NO_DEV, NO_BLOCK, NORMAL); /* get a buffer */
+            bp = get_block(kNoDev, kNoBlock, NORMAL); /* get a buffer */
             zero_block(bp);
         } else {
             /* Writing to a nonexistent block. Create and enter in inode. */
@@ -270,8 +270,8 @@ file_pos position;          /* position in file whose blk wanted */
 
     /* Is 'position' to be found in the inode itself? */
     if (zone < NR_DZONE_NUM) {
-        if ((z = rip->i_zone[zone]) == NO_ZONE)
-            return (NO_BLOCK);
+        if ((z = rip->i_zone[zone]) == kNoZone)
+            return (kNoBlock);
         b = ((block_nr)z << scale) + boff;
         return (b);
     }
@@ -284,8 +284,8 @@ file_pos position;          /* position in file whose blk wanted */
         z = rip->i_zone[NR_DZONE_NUM];
     } else {
         /* 'position' can be located via the double indirect block. */
-        if ((z = rip->i_zone[NR_DZONE_NUM + 1]) == NO_ZONE)
-            return (NO_BLOCK);
+        if ((z = rip->i_zone[NR_DZONE_NUM + 1]) == kNoZone)
+            return (kNoBlock);
         excess -= NR_INDIRECTS; /* single indir doesn't count */
         b = (block_nr)z << scale;
         bp = get_block(rip->i_dev, b, NORMAL); /* get double indirect block */
@@ -295,14 +295,14 @@ file_pos position;          /* position in file whose blk wanted */
     }
 
     /* 'z' is zone number for single indirect block; 'excess' is index into it. */
-    if (z == NO_ZONE)
-        return (NO_BLOCK);
+    if (z == kNoZone)
+        return (kNoBlock);
     b = (block_nr)z << scale;
     bp = get_block(rip->i_dev, b, NORMAL); /* get single indirect block */
     z = bp->b_ind[excess];
     put_block(bp, INDIRECT_BLOCK); /* release single indirect blk */
-    if (z == NO_ZONE)
-        return (NO_BLOCK);
+    if (z == kNoZone)
+        return (kNoBlock);
     b = ((block_nr)z << scale) + boff;
     return (b);
 }
