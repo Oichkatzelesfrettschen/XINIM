@@ -10,7 +10,7 @@ long *tp;
         errno = -M.m_type;
         return (-1L);
     }
-    l = M.m2_l1;
+    l = M.m2_l1();
     if (tp != (long *)0)
         *tp = l;
     return (l);

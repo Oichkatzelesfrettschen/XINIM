@@ -30,7 +30,7 @@ PRIVATE char mode_map[] = {R_BIT, W_BIT, R_BIT | W_BIT, 0};
 /*===========================================================================*
  *				do_creat				     *
  *===========================================================================*/
-PUBLIC int do_creat() {
+int do_creat() {
     /* Perform the creat(name, mode) system call. */
 
     register struct inode *rip;
@@ -94,7 +94,7 @@ PUBLIC int do_creat() {
 /*===========================================================================*
  *				do_mknod				     *
  *===========================================================================*/
-PUBLIC int do_mknod() {
+int do_mknod() {
     /* Perform the mknod(name, mode, addr) system call. */
 
     register mask_bits bits;
@@ -177,7 +177,7 @@ zone_nr z0;     /* zone number 0 for new inode */
 /*===========================================================================*
  *				do_open					     *
  *===========================================================================*/
-PUBLIC int do_open() {
+int do_open() {
     /* Perform the open(name, mode) system call. */
 
     register struct inode *rip;
@@ -239,7 +239,7 @@ PUBLIC int do_open() {
 /*===========================================================================*
  *				do_close				     *
  *===========================================================================*/
-PUBLIC int do_close() {
+int do_close() {
     /* Perform the close(fd) system call. */
 
     register struct filp *rfilp;
@@ -282,7 +282,7 @@ PUBLIC int do_close() {
 /*===========================================================================*
  *				do_lseek				     *
  *===========================================================================*/
-PUBLIC int do_lseek() {
+int do_lseek() {
     /* Perform the lseek(ls_fd, offset, whence) system call. */
 
     register struct filp *rfilp;

@@ -35,7 +35,8 @@
 /*===========================================================================*
  *				main					     *
  *===========================================================================*/
-PUBLIC main() {
+// Entry point for the file system process.
+int main() {
     /* This is the main program of the file system.  The main loop consists of
      * three major activities: getting new work, processing the work, and sending
      * the reply.  This loop never terminates as long as the file system runs.
@@ -66,12 +67,14 @@ PUBLIC main() {
         if (rdahed_inode != NIL_INODE)
             read_ahead(); /* do block read ahead */
     }
+    return 0; // main never returns but placate the compiler
 }
 
 /*===========================================================================*
  *				get_work				     *
  *===========================================================================*/
-PRIVATE get_work() {
+// Retrieve work from message queue or resume a suspended process.
+static void get_work() {
     /* Normally wait for new input.  However, if 'reviving' is
      * nonzero, a suspended process must be awakened.
      */
@@ -106,10 +109,7 @@ PRIVATE get_work() {
 /*===========================================================================*
  *				reply					     *
  *===========================================================================*/
-PUBLIC reply(whom, result)
-int whom;   /* process to reply to */
-int result; /* result of the call (usually OK or error #) */
-{
+void reply(int whom, int result) {
     /* Send a reply to a user process. It may fail (if the process has just
      * been killed by a signal, so don't check the return code.  If the send
      * fails, just ignore it.
@@ -122,7 +122,8 @@ int result; /* result of the call (usually OK or error #) */
 /*===========================================================================*
  *				fs_init					     *
  *===========================================================================*/
-PRIVATE fs_init() {
+// Initialize buffers and super block at startup.
+static void fs_init() {
     /* Initialize global variables, tables, etc. */
 
     register struct inode *rip;
@@ -165,7 +166,8 @@ PRIVATE fs_init() {
 /*===========================================================================*
  *				buf_pool				     *
  *===========================================================================*/
-PRIVATE buf_pool() {
+// Set up buffer pool for block I/O.
+static void buf_pool() {
     /* Initialize the buffer pool.  On the IBM PC, the hardware DMA chip is
      * not able to cross 64K boundaries, so any buffer that happens to lie
      * across such a boundary is not used.  This is not very elegant, but all
@@ -183,7 +185,7 @@ PRIVATE buf_pool() {
 
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
         bp->b_blocknr = NO_BLOCK;
-        bp->b_dev = NO_DEV;
+        bp->b_dev = kNoDev;
         bp->b_next = bp + 1;
         bp->b_prev = bp - 1;
     }
@@ -200,7 +202,8 @@ PRIVATE buf_pool() {
 /*===========================================================================*
  *				load_ram				     *
  *===========================================================================*/
-PRIVATE load_ram() {
+// Load the RAM disk from the root device.
+static void load_ram() {
     /* The root diskette contains a block-by-block image of the root file system
      * starting at 0.  Go get it and copy it to the RAM disk.
      */
@@ -235,10 +238,10 @@ PRIVATE load_ram() {
      * system plus RAM disk combined, so it can remove all of it from the map.
      */
     m1.m_type = BRK2;
-    m1.m1_i1 = init_text_clicks;
-    m1.m1_i2 = init_data_clicks;
-    m1.m1_i3 = init_org + init_text_clicks + init_data_clicks + ram_clicks;
-    m1.m1_p1 = (char *)init_org;
+    m1.m1_i1() = init_text_clicks;
+    m1.m1_i2() = init_data_clicks;
+    m1.m1_i3() = init_org + init_text_clicks + init_data_clicks + ram_clicks;
+    m1.m1_p1() = (char *)init_org;
     if (sendrec(MM_PROC_NR, &m1) != OK)
         panic("FS Can't report to MM", NO_NUM);
 
@@ -271,7 +274,8 @@ PRIVATE load_ram() {
 /*===========================================================================*
  *				load_super				     *
  *===========================================================================*/
-PRIVATE load_super() {
+// Load the super block for the root device.
+static void load_super() {
     register struct super_block *sp;
     register struct inode *rip;
     extern struct inode *get_inode();
@@ -279,7 +283,7 @@ PRIVATE load_super() {
     /* Initialize the super_block table. */
 
     for (sp = &super_block[0]; sp < &super_block[NR_SUPERS]; sp++)
-        sp->s_dev = NO_DEV;
+        sp->s_dev = kNoDev;
 
     /* Read in super_block for the root file system. */
     sp = &super_block[0];

@@ -1,46 +1,49 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+#pragma once
+// Errno definitions converted to modern C++ enum class style.
+// Each enumerator documents the standard meaning.
 
-#define OK 0
-#define ERROR 1
-#define EPERM 1
-#define ENOENT 2
-#define ESRCH 3
-#define EINTR 4
-#define EIO 5
-#define ENXIO 6
-#define E2BIG 7
-#define ENOEXEC 8
-#define EBADF 9
-#define ECHILD 10
-#define EAGAIN 11
-#define ENOMEM 12
-#define EACCES 13
-#define EFAULT 14
-#define ENOTBLK 15
-#define EBUSY 16
-#define EEXIST 17
-#define EXDEV 18
-#define ENODEV 19
-#define ENOTDIR 20
-#define EISDIR 21
-#define EINVAL 22
-#define ENFILE 23
-#define EMFILE 24
-#define ENOTTY 25
-#define ETXTBSY 26
-#define EFBIG 27
-#define ENOSPC 28
-#define ESPIPE 29
-#define EROFS 30
-#define EMLINK 31
-#define EPIPE 32
-#define EDOM 33
-#define ERANGE 34
+constexpr int OK = 0;    // successful return status
+constexpr int ERROR = 1; // generic failure code
 
-#define E_LOCKED 101
-#define E_BAD_CALL 102
-#define E_LONG_STRING 103
+// POSIX-style error numbers used throughout user space.
+// Values match historic MINIX definitions.
+enum class Errno : int {
+    EPERM = 1,    // Operation not permitted
+    ENOENT = 2,   // No such file or directory
+    ESRCH = 3,    // No such process
+    EINTR = 4,    // Interrupted system call
+    EIO = 5,      // I/O error
+    ENXIO = 6,    // No such device or address
+    E2BIG = 7,    // Argument list too long
+    ENOEXEC = 8,  // Exec format error
+    EBADF = 9,    // Bad file number
+    ECHILD = 10,  // No child processes
+    EAGAIN = 11,  // Try again
+    ENOMEM = 12,  // Out of memory
+    EACCES = 13,  // Permission denied
+    EFAULT = 14,  // Bad address
+    ENOTBLK = 15, // Block device required
+    EBUSY = 16,   // Device or resource busy
+    EEXIST = 17,  // File exists
+    EXDEV = 18,   // Cross-device link
+    ENODEV = 19,  // No such device
+    ENOTDIR = 20, // Not a directory
+    EISDIR = 21,  // Is a directory
+    EINVAL = 22,  // Invalid argument
+    ENFILE = 23,  // File table overflow
+    EMFILE = 24,  // Too many open files
+    ENOTTY = 25,  // Not a typewriter
+    ETXTBSY = 26, // Text file busy
+    EFBIG = 27,   // File too large
+    ENOSPC = 28,  // No space left on device
+    ESPIPE = 29,  // Illegal seek
+    EROFS = 30,   // Read-only file system
+    EMLINK = 31,  // Too many links
+    EPIPE = 32,   // Broken pipe
+    EDOM = 33,    // Math argument out of domain
+    ERANGE = 34,  // Result too large
+
+    E_LOCKED = 101,     // Table locked
+    E_BAD_CALL = 102,   // Bad system call
+    E_LONG_STRING = 103 // String is too long
+};

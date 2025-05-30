@@ -30,9 +30,7 @@
 /*===========================================================================*
  *				eat_path				     *
  *===========================================================================*/
-PUBLIC struct inode *eat_path(path)
-char *path; /* the path name to be parsed */
-{
+struct inode *eat_path(char *path) {
     /* Parse the path 'path' and put its inode in the inode table.  If not
      * possible, return NIL_INODE as function value and an error code in
      * 'err_code'.
@@ -40,7 +38,8 @@ char *path; /* the path name to be parsed */
 
     register struct inode *ldip, *rip;
     char string[NAME_SIZE]; /* hold 1 path component name here */
-    extern struct inode *last_dir(), *advance();
+    extern struct inode *last_dir(char *path, char string[NAME_SIZE]);
+    extern struct inode *advance(struct inode * dirp, char string[NAME_SIZE]);
 
     /* First open the path down to the final directory. */
     if ((ldip = last_dir(path, string)) == NIL_INODE)
@@ -59,10 +58,7 @@ char *path; /* the path name to be parsed */
 /*===========================================================================*
  *				last_dir				     *
  *===========================================================================*/
-PUBLIC struct inode *last_dir(path, string)
-char *path;             /* the path name to be parsed */
-char string[NAME_SIZE]; /* the final component is returned here */
-{
+struct inode *last_dir(char *path, char string[NAME_SIZE]) {
     /* Given a path, 'path', located in the fs address space, parse it as
      * far as the last directory, fetch the inode for the last directory into
      * the inode table, and return a pointer to the inode.  In
@@ -74,8 +70,8 @@ char string[NAME_SIZE]; /* the final component is returned here */
     register struct inode *rip;
     register char *new_name;
     register struct inode *new_ip;
-    extern struct inode *advance();
-    extern char *get_name();
+    extern struct inode *advance(struct inode * dirp, char string[NAME_SIZE]);
+    extern char *get_name(char *old_name, char string[NAME_SIZE]);
 
     /* Is the path absolute or relative?  Initialize 'rip' accordingly. */
     rip = (*path == '/' ? fp->fp_rootdir : fp->fp_workdir);
@@ -106,10 +102,7 @@ char string[NAME_SIZE]; /* the final component is returned here */
 /*===========================================================================*
  *				get_name				     *
  *===========================================================================*/
-PRIVATE char *get_name(old_name, string)
-char *old_name;         /* path name to parse */
-char string[NAME_SIZE]; /* component extracted from 'old_name' */
-{
+static char *get_name(char *old_name, char string[NAME_SIZE]) {
     /* Given a pointer to a path name in fs space, 'old_name', copy the next
      * component to 'string' and pad with zeros.  A pointer to that part of
      * the name as yet unparsed is returned.  Roughly speaking,
@@ -152,10 +145,7 @@ char string[NAME_SIZE]; /* component extracted from 'old_name' */
 /*===========================================================================*
  *				advance					     *
  *===========================================================================*/
-PUBLIC struct inode *advance(dirp, string)
-struct inode *dirp;     /* inode for directory to be searched */
-char string[NAME_SIZE]; /* component name to look for */
-{
+struct inode *advance(struct inode *dirp, char string[NAME_SIZE]) {
     /* Given a directory and a component of a path, look up the component in
      * the directory, find the inode, open it, and return a pointer to its inode
      * slot.  If it can't be done, return NIL_INODE.
@@ -224,12 +214,7 @@ char string[NAME_SIZE]; /* component name to look for */
 /*===========================================================================*
  *				search_dir				     *
  *===========================================================================*/
-PUBLIC int search_dir(ldir_ptr, string, numb, flag)
-register struct inode *ldir_ptr; /* ptr to inode for dir to search */
-char string[NAME_SIZE];          /* component to search for */
-inode_nr *numb;                  /* pointer to inode number */
-int flag;                        /* LOOK_UP, ENTER, or DELETE */
-{
+int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, int flag) {
     /* This function searches the directory whose inode is pointed to by 'ldip':
      * if (flag == LOOK_UP) search for 'string' and return inode # in 'numb';
      * if (flag == ENTER)  enter 'string' in the directory with inode # '*numb';

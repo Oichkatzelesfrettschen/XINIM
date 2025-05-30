@@ -85,6 +85,39 @@ inline int &dst_proc_nr(message &m) { return m.m5_i2; } /* process to copy to */
 inline long &dst_buffer(message &m) { return m.m5_l2; } /* virtual address dest */
 inline long &copy_bytes(message &m) { return m.m5_l3; } /* number of bytes to copy */
 
+/* Names of message fields for messages to CLOCK task. */
+#define DELTA_TICKS m6_l1()   /* alarm interval in clock ticks */
+#define FUNC_TO_CALL m6_f1()  /* pointer to function to call */
+#define NEW_TIME m6_l1()      /* value to set clock to (SET_TIME) */
+#define CLOCK_PROC_NR m6_i1() /* which proc (or task) wants the alarm? */
+#define SECONDS_LEFT m6_l1()  /* how many seconds were remaining */
+
+/* Names of message fields used for messages to block and character tasks. */
+#define DEVICE m2_i1()   /* major-minor device */
+#define PROC_NR m2_i2()  /* which (proc) wants I/O? */
+#define COUNT m2_i3()    /* how many bytes to transfer */
+#define POSITION m2_l1() /* file offset */
+#define ADDRESS m2_p1()  /* core buffer address */
+
+/* Names of message fields for messages to TTY task. */
+#define TTY_LINE m2_i1()    /* message parameter: terminal line */
+#define TTY_REQUEST m2_i3() /* message parameter: ioctl request code */
+#define TTY_SPEK m2_l1()    /* message parameter: ioctl speed, erasing */
+#define TTY_FLAGS m2_l2()   /* message parameter: ioctl tty mode */
+
+/* Names of messages fields used in reply messages from tasks. */
+#define REP_PROC_NR m2_i1() /* # of proc on whose behalf I/O was done */
+#define REP_STATUS m2_i2()  /* bytes transferred or error number */
+
+/* Names of fields for copy message to SYSTASK. */
+#define SRC_SPACE m5_c1()   /* T or D space (stack is also D) */
+#define SRC_PROC_NR m5_i1() /* process to copy from */
+#define SRC_BUFFER m5_l1()  /* virtual address where data come from */
+#define DST_SPACE m5_c2()   /* T or D space (stack is also D) */
+#define DST_PROC_NR m5_i2() /* process to copy to */
+#define DST_BUFFER m5_l2()  /* virtual address where data go to */
+#define COPY_BYTES m5_l3()  /* number of bytes to copy */
+
 /* Accessors for accounting and miscellaneous fields. */
 inline long &user_time(message &m) { return m.m4_l1; }   /* user time consumed */
 inline long &system_time(message &m) { return m.m4_l2; } /* system time consumed */
@@ -101,3 +134,13 @@ inline auto &func(message &m) { return m.m6_f1; }       /* function pointer for 
 inline char *&mem_ptr(message &m) { return m.m1_p1; }   /* memory map pointer */
 inline constexpr int CANCEL = 0;                        /* request to cancel */
 inline int &sig_map(message &m) { return m.m1_i2; }     /* signal bit map */
+#define PROC1 m1_i1()     /* indicates a process */
+#define PROC2 m1_i2()     /* indicates a process */
+#define PID m1_i3()       /* process id passed from MM to kernel */
+#define STACK_PTR m1_p1() /* used for stack ptr in sys_exec, sys_getsp */
+#define PR m6_i1()        /* process number for sys_sig */
+#define SIGNUM m6_i2()    /* signal number for sys_sig */
+#define FUNC m6_f1()      /* function pointer for sys_sig */
+#define MEM_PTR m1_p1()   /* tells where memory map is for sys_newmap */
+#define CANCEL 0          /* general request to force a task to cancel */
+#define SIG_MAP m1_i2()   /* used by kernel for passing signal bit map */

@@ -40,7 +40,7 @@ dev_nr dev;    /* device on which inode resides */
 inode_nr numb; /* inode number */
 {
     /* Find a slot in the inode table, load the specified inode into it, and
-     * return a pointer to the slot.  If 'dev' == NO_DEV, just return a free slot.
+     * return a pointer to the slot.  If 'dev' == kNoDev, just return a free slot.
      */
 
     register struct inode *rip, *xp;
@@ -68,7 +68,7 @@ inode_nr numb; /* inode number */
     xp->i_dev = dev;
     xp->i_num = numb;
     xp->i_count = 1;
-    if (dev != NO_DEV)
+    if (dev != kNoDev)
         rw_inode(xp, READING); /* get inode from disk */
 
     return (xp);
@@ -135,7 +135,7 @@ mask_bits bits; /* mode of the inode */
     numb = (inode_nr)b;
 
     /* Try to acquire a slot in the inode table. */
-    if ((rip = get_inode(NO_DEV, numb)) == NIL_INODE) {
+    if ((rip = get_inode(kNoDev, numb)) == NIL_INODE) {
         /* No inode table slots available.  Free the inode just allocated. */
         free_bit(sp->s_imap, b);
     } else {
@@ -144,7 +144,7 @@ mask_bits bits; /* mode of the inode */
         rip->i_nlinks = (links)0;
         rip->i_uid = fp->fp_effuid;
         rip->i_gid = fp->fp_effgid;
-        rip->i_dev = dev; /* was provisionally set to NO_DEV */
+        rip->i_dev = dev; /* was provisionally set to kNoDev */
 
         /* The fields not cleared already are cleared in wipe_inode().  They have
          * been put there because truncate() needs to clear the same fields if

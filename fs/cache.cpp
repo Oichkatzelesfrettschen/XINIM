@@ -54,7 +54,7 @@ int only_search;         /* if NO_READ, don't read, else act normal */
 
     /* Search the list of blocks not currently in use for (dev, block). */
     bp = buf_hash[block & (NR_BUF_HASH - 1)]; /* search the hash chain */
-    if (dev != NO_DEV) {
+    if (dev != kNoDev) {
         while (bp != NIL_BUF) {
             if (bp->b_blocknr == block && bp->b_dev == dev) {
                 /* Block needed has been found. */
@@ -97,7 +97,7 @@ int only_search;         /* if NO_READ, don't read, else act normal */
     }
 
     /* If the  block taken is dirty, make it clean by rewriting it to disk. */
-    if (bp->b_dirt == DIRTY && bp->b_dev != NO_DEV)
+    if (bp->b_dirt == DIRTY && bp->b_dev != kNoDev)
         rw_block(bp, WRITING);
 
     /* Fill in block's parameters and add it to the hash chain where it goes. */
@@ -108,7 +108,7 @@ int only_search;         /* if NO_READ, don't read, else act normal */
     buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)] = bp; /* add to hash list */
 
     /* Go get the requested block, unless only_search = NO_READ. */
-    if (dev != NO_DEV && only_search == NORMAL)
+    if (dev != kNoDev && only_search == NORMAL)
         rw_block(bp, READING);
     return (bp); /* return the newly acquired block */
 }
@@ -185,12 +185,12 @@ int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
      * should be written to the disk immediately to avoid messing up the file
      * system in the event of a crash.
      */
-    if ((block_type & WRITE_IMMED) && bp->b_dirt == DIRTY && bp->b_dev != NO_DEV)
+    if ((block_type & WRITE_IMMED) && bp->b_dirt == DIRTY && bp->b_dev != kNoDev)
         rw_block(bp, WRITING);
 
     /* Super blocks must not be cached, lest mount use cached block. */
     if (block_type == ZUPER_BLOCK)
-        bp->b_dev = NO_DEV;
+        bp->b_dev = kNoDev;
 }
 
 /*===========================================================================*
@@ -270,7 +270,7 @@ int rw_flag;             /* READING or WRITING */
     dev_nr dev;
     extern int rdwt_err;
 
-    if (bp->b_dev != NO_DEV) {
+    if (bp->b_dev != kNoDev) {
         pos = (long)bp->b_blocknr * BLOCK_SIZE;
         r = dev_io(rw_flag, bp->b_dev, pos, BLOCK_SIZE, FS_PROC_NR, bp->b_data);
         if (r < 0) {
@@ -279,7 +279,7 @@ int rw_flag;             /* READING or WRITING */
                 printf("Unrecoverable disk error on device %d/%d, block %d\n",
                        (dev >> MAJOR) & BYTE, (dev >> MINOR) & BYTE, bp->b_blocknr);
             } else {
-                bp->b_dev = NO_DEV; /* invalidate block */
+                bp->b_dev = kNoDev; /* invalidate block */
             }
             rdwt_err = r; /* report error to interested parties */
         }
@@ -300,5 +300,5 @@ dev_nr device; /* device whose blocks are to be purged */
 
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++)
         if (bp->b_dev == device)
-            bp->b_dev = NO_DEV;
+            bp->b_dev = kNoDev;
 }

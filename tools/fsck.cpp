@@ -411,7 +411,7 @@ initvars() {
     changed = 0;
     firstlist = 1;
     firstcnterr = 1;
-    thisblk = NO_BLOCK;
+    thisblk = kNoBlock;
 }
 
 /* Copy n bytes.
@@ -865,7 +865,7 @@ mkfs() {
     sb.s_imap_blocks = (sb.s_ninodes + (1 << BITMAPSHIFT) - 1) >> BITMAPSHIFT;
     sb.s_zmap_blocks = (sb.s_nzones + (1 << BITMAPSHIFT) - 1) >> BITMAPSHIFT;
     sb.s_firstdatazone = (BLK_ILIST + N_ILIST + SCALE - 1) >> sb.s_log_zone_size;
-    sb.s_maxsize = MAX_FILE_POS;
+    sb.s_maxsize = kMaxFilePos;
     if (((sb.s_maxsize - 1) >> sb.s_log_zone_size) / BLOCK_SIZE >= MAX_ZONES)
         sb.s_maxsize = ((long)MAX_ZONES * BLOCK_SIZE) << sb.s_log_zone_size;
     sb.s_magic = SUPER_MAGIC;
@@ -943,7 +943,7 @@ chksuper() {
         printf("warning: expected first data zone to be %d ", n);
         printf("instead of %u\n", sb.s_firstdatazone);
     }
-    maxsize = MAX_FILE_POS;
+    maxsize = kMaxFilePos;
     if (((maxsize - 1) >> sb.s_log_zone_size) / BLOCK_SIZE >= MAX_ZONES)
         maxsize = ((long)MAX_ZONES * BLOCK_SIZE) << sb.s_log_zone_size;
     if (sb.s_maxsize != maxsize) {
@@ -1386,7 +1386,7 @@ dir_struct *dp;
         }
         return (1);
     }
-    if ((unsigned)count[dp->d_inum] == MAX_LINKS) {
+    if ((unsigned)count[dp->d_inum] == kMaxLinks) {
         printf("too many links to ino %u\n", dp->d_inum);
         printf("discovered at entry '");
         printname(dp->d_name);
@@ -1568,7 +1568,7 @@ zone_nr *zlist;
     register ok = 1, i;
 
     for (i = 0; i < len && *pos < ip->i_size; i++)
-        if (zlist[i] == NO_ZONE)
+        if (zlist[i] == kNoZone)
             *pos += jump(level);
         else if (!markzone(ino, zlist[i], level, *pos)) {
             *pos += jump(level);
@@ -1665,11 +1665,11 @@ d_inode *ip;
     }
     nfreeinode--;
     setbit(imap, (bit_nr)ino);
-    if ((unsigned)ip->i_nlinks > MAX_LINKS) {
+    if ((unsigned)ip->i_nlinks > kMaxLinks) {
         printf("link count too big in ");
         printpath(1, 0);
         printf("cnt = %u)\n", (unsigned)ip->i_nlinks);
-        count[ino] -= MAX_LINKS;
+        count[ino] -= kMaxLinks;
         setbit(spec_imap, (bit_nr)ino);
     } else
         count[ino] -= (unsigned)ip->i_nlinks;

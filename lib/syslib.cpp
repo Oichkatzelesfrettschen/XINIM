@@ -3,14 +3,12 @@
 #include "../h/const.h"
 #include "../h/error.h"
 #include "../h/type.h"
+#include "../include/lib.hpp" // for message structure and constants
 #include <signal.h>
 
 #ifndef sighandler_t
 typedef void (*sighandler_t)(int);
 #endif
-
-#define FS FS_PROC_NR
-#define MM MMPROCNR
 
 extern int errno;
 extern message M;
@@ -41,9 +39,9 @@ vir_bytes *newsp; /* place to put sp read from kernel */
 PUBLIC sys_sig(int proc, int sig, sighandler_t sighandler) {
     /* A proc has to be signaled.  Tell the kernel. */
 
-    M.m6_i1 = proc;
-    M.m6_i2 = sig;
-    M.m6_f1 = sighandler;
+    M.m6_i1() = proc;
+    M.m6_i2() = sig;
+    M.m6_f1() = sighandler;
     callx(SYSTASK, SYS_SIG);
 }
 

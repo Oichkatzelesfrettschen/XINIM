@@ -4,4 +4,4 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
-#define BLOCK_SIZE 1024 /* file system data block size */
+inline constexpr int BLOCK_SIZE = 1024; // File system data block size

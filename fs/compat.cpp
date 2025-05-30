@@ -59,8 +59,9 @@ PUBLIC void init_extended_inode(struct inode *ip) {
  */
 PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count) {
 
-    extent *table;    /* Pointer to newly allocated extent list. */
-    unsigned short i; /* Loop counter for initialization.       */
+    // RAII wrapper for the extent table memory.
+    SafeBuffer<extent> table_buf(count); // managed table memory
+    unsigned short i;                    /* Loop counter for initialization.       */
 
     /* Reject zero-sized tables to avoid undefined behaviour. */
     if (count == 0) {
@@ -69,23 +70,16 @@ PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count) {
         return ErrorCode::EINVAL;
     }
 
-    /* Allocate memory for the extent table. */
-    table = (extent *)safe_malloc((unsigned)(count * sizeof(extent)));
-    if (table == NIL_EXTENT) {
-        /* Allocation failed.  Ensure inode fields remain clear. */
-        ip->i_extents = NIL_PTR;
-        ip->i_extent_count = 0;
-        return ErrorCode::ENOMEM;
-    }
+    /* Memory was successfully allocated by SafeBuffer. */
 
     /* Initialize all table entries so the caller starts with empty extents. */
     for (i = 0; i < count; i++) {
-        table[i].e_start = NO_ZONE;
-        table[i].e_count = 0;
+        table_buf[i].e_start = NO_ZONE;
+        table_buf[i].e_count = 0;
     }
 
     /* Attach the table to the inode. */
-    ip->i_extents = table;
+    ip->i_extents = table_buf.release();
     ip->i_extent_count = count;
 
     return OK;

@@ -36,7 +36,7 @@
 /*===========================================================================*
  *				do_dup					     *
  *===========================================================================*/
-PUBLIC int do_dup() {
+int do_dup() {
     /* Perform the dup(fd) or dup(fd,fd2) system call. */
 
     register int rfd;
@@ -75,7 +75,7 @@ PUBLIC int do_dup() {
 /*===========================================================================*
  *				do_sync					     *
  *===========================================================================*/
-PUBLIC int do_sync() {
+int do_sync() {
     /* Perform the sync() system call.  Flush all the tables. */
 
     register struct inode *rip;
@@ -103,7 +103,7 @@ PUBLIC int do_sync() {
 
     /* Write all the dirty super_blocks to the disk. */
     for (sp = &super_block[0]; sp < &super_block[NR_SUPERS]; sp++)
-        if (sp->s_dev != NO_DEV && sp->s_dirt == DIRTY)
+        if (sp->s_dev != kNoDev && sp->s_dirt == DIRTY)
             rw_super(sp, WRITING);
 
     /* Write all the dirty blocks to the disk. First do drive 0, then the rest.
@@ -111,13 +111,13 @@ PUBLIC int do_sync() {
      */
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
         d = bp->b_dev;
-        if (d != NO_DEV && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) == 0)
+        if (d != kNoDev && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) == 0)
             rw_block(bp, WRITING);
     }
 
     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++) {
         d = bp->b_dev;
-        if (d != NO_DEV && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) != 0)
+        if (d != kNoDev && bp->b_dirt == DIRTY && ((d >> MINOR) & BYTE) != 0)
             rw_block(bp, WRITING);
     }
 
@@ -127,7 +127,7 @@ PUBLIC int do_sync() {
 /*===========================================================================*
  *				do_fork					     *
  *===========================================================================*/
-PUBLIC int do_fork() {
+int do_fork() {
     /* Perform those aspects of the fork() system call that relate to files.
      * In particular, let the child inherit its parents file descriptors.
      * The parent and child parameters tell who forked off whom. The file
@@ -164,7 +164,7 @@ PUBLIC int do_fork() {
 /*===========================================================================*
  *				do_exit					     *
  *===========================================================================*/
-PUBLIC int do_exit() {
+int do_exit() {
     /* Perform the file system portion of the exit(status) system call. */
 
     register int i, exitee;
@@ -200,7 +200,7 @@ PUBLIC int do_exit() {
 /*===========================================================================*
  *				do_set					     *
  *===========================================================================*/
-PUBLIC int do_set() {
+int do_set() {
     /* Set uid or gid field. */
 
     register struct fproc *tfp;
@@ -224,7 +224,7 @@ PUBLIC int do_set() {
 /*===========================================================================*
  *				do_revive				     *
  *===========================================================================*/
-PUBLIC int do_revive() {
+int do_revive() {
     /* A task, typically TTY, has now gotten the characters that were needed for a
      * previous read.  The process did not get a reply when it made the call.
      * Instead it was suspended.  Now we can send the reply to wake it up.  This

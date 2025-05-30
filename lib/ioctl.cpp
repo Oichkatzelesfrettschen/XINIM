@@ -1,6 +1,6 @@
 #include "../h/com.h"
 #include "../include/lib.hpp" // C++17 header
-#include "../include/sgtty.h"
+#include "../include/sgtty.hpp"
 
 PUBLIC int ioctl(fd, request, u)
 int fd;

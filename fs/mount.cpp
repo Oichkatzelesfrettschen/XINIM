@@ -27,7 +27,7 @@
 /*===========================================================================*
  *				do_mount				     *
  *===========================================================================*/
-PUBLIC int do_mount() {
+int do_mount() {
     /* Perform the mount(name, mfile, rd_only) system call. */
 
     register struct inode *rip, *root_ip;
@@ -45,7 +45,7 @@ PUBLIC int do_mount() {
     /* If 'name' is not for a block special file, return error. */
     if (fetch_name(name1, name1_length, M1) != OK)
         return (err_code);
-    if ((dev = name_to_dev(user_path)) == NO_DEV)
+    if ((dev = name_to_dev(user_path)) == kNoDev)
         return (err_code);
 
     /* Scan super block table to see if dev already mounted & find a free slot.*/
@@ -54,7 +54,7 @@ PUBLIC int do_mount() {
     for (xp = &super_block[0]; xp < &super_block[NR_SUPERS]; xp++) {
         if (xp->s_dev == dev)
             found = TRUE; /* is it mounted already? */
-        if (xp->s_dev == NO_DEV)
+        if (xp->s_dev == kNoDev)
             sp = xp; /* record free slot */
     }
     if (found)
@@ -70,17 +70,17 @@ PUBLIC int do_mount() {
     /* Make a few basic checks to see if super block looks reasonable. */
     if (sp->s_magic != SUPER_MAGIC || sp->s_ninodes < 1 || sp->s_nzones < 1 ||
         sp->s_imap_blocks < 1 || sp->s_zmap_blocks < 1) {
-        sp->s_dev = NO_DEV;
+        sp->s_dev = kNoDev;
         return (ErrorCode::EINVAL);
     }
 
     /* Now get the inode of the file to be mounted on. */
     if (fetch_name(name2, name2_length, M1) != OK) {
-        sp->s_dev = NO_DEV;
+        sp->s_dev = kNoDev;
         return (err_code);
     }
     if ((rip = eat_path(user_path)) == NIL_INODE) {
-        sp->s_dev = NO_DEV;
+        sp->s_dev = kNoDev;
         return (err_code);
     }
 
@@ -124,7 +124,7 @@ PUBLIC int do_mount() {
             unload_bit_maps(dev);
         do_sync();
         invalidate(dev);
-        sp->s_dev = NO_DEV;
+        sp->s_dev = kNoDev;
         return (r);
     }
 
@@ -139,7 +139,7 @@ PUBLIC int do_mount() {
 /*===========================================================================*
  *				do_umount				     *
  *===========================================================================*/
-PUBLIC int do_umount() {
+int do_umount() {
     /* Perform the umount(name) system call. */
 
     register struct inode *rip;
@@ -155,7 +155,7 @@ PUBLIC int do_umount() {
     /* If 'name' is not for a block special file, return error. */
     if (fetch_name(name, name_length, M3) != OK)
         return (err_code);
-    if ((dev = name_to_dev(user_path)) == NO_DEV)
+    if ((dev = name_to_dev(user_path)) == kNoDev)
         return (err_code);
 
     /* See if the mounted device is busy.  Only 1 inode using it should be
@@ -191,7 +191,7 @@ PUBLIC int do_umount() {
     put_inode(sp->s_imount);          /* release the inode mounted on */
     put_inode(sp->s_isup);            /* release the root inode of the mounted fs */
     sp->s_imount = NIL_INODE;
-    sp->s_dev = NO_DEV;
+    sp->s_dev = kNoDev;
     return (OK);
 }
 
@@ -211,13 +211,13 @@ char *path; /* pointer to path name */
 
     /* If 'path' can't be opened, give up immediately. */
     if ((rip = eat_path(path)) == NIL_INODE)
-        return (NO_DEV);
+        return (kNoDev);
 
     /* If 'path' is not a block special file, return error. */
     if ((rip->i_mode & I_TYPE) != I_BLOCK_SPECIAL) {
         err_code = ErrorCode::ENOTBLK;
         put_inode(rip);
-        return (NO_DEV);
+        return (kNoDev);
     }
 
     /* Extract the device number. */
