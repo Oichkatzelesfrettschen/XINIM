@@ -6,8 +6,8 @@
 
 /* rmdir - remove a directory		Author: Adri Koppes */
 
-#include "../include/signal.h"
-#include "../include/stat.h"
+#include "../include/signal.hpp"
+#include "../include/stat.hpp"
 
 struct direct {
     unsigned short d_ino;

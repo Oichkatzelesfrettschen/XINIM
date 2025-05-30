@@ -6,7 +6,7 @@
 
 /* time - time a command	Authors: Andy Tanenbaum & Michiel Huisjes */
 
-#include "../h/const.h"
+#include "../h/const.hpp"
 #include "signal.hpp"
 
 char **args;

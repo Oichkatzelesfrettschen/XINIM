@@ -6,10 +6,10 @@
 
 /* ls - list files and directories 	Author: Andy Tanenbaum */
 
-#include "../fs/const.h"
-#include "../fs/type.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../fs/const.hpp"
+#include "../fs/type.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "stat.hpp"
 #include "stdio.hpp"
 
