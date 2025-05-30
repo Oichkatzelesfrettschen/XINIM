@@ -7,6 +7,7 @@
 #include "../include/lib.hpp" // C++17 header
 #include "errno.hpp"
 #include "stdio.hpp"
+#include <cctype>
 extern int errno;
 
 #ifdef LC
@@ -129,7 +130,6 @@ char *whoami = "Make";
 #define NUL '\0'
 #define isnull(X) (X == '\0' ? TRUE : FALSE)
 #define notnull(X) (X == '\0' ? FALSE : TRUE)
-#define isspace(X) ((X == ' ') || (X == '\011'))
 
 /*
 flags for expand. Report and ignore errors, and no_target means error if
@@ -1182,10 +1182,11 @@ readmakefile(s) char *s;
             my_strcpy(tempdep, fword);
 
             /* be sure object extension has no spaces */
-            for (k = i + 1; notnull(fword[k]) && !isspace(fword[k]); k++)
+            for (k = i + 1;
+                 notnull(fword[k]) && !std::isspace(static_cast<unsigned char>(fword[k])); k++)
                 ;
 
-            if (isspace(fword[k]))
+            if (std::isspace(static_cast<unsigned char>(fword[k])))
                 fword[k] = NUL;
             my_strcpy(temp, ".");
             strcat(temp, fword + i + 1); /* targ */
@@ -1334,7 +1335,7 @@ getnxt() {
                 /* found DIRECTIVE -- .XXXXX: */
                 line[mark] = NUL;
                 fword = line + 1;
-                for (x++; isspace(line[x]); x++)
+                for (x++; std::isspace(static_cast<unsigned char>(line[x])); x++)
                     ;
                 restline = line + x;
                 return (DIRECTIVE);
@@ -1360,7 +1361,7 @@ getnxt() {
                       is a '#', in which case we ignore the comment
                     */
                     for (pos++; line[pos] != ';' && notnull(line[pos]); pos++)
-                        if (!isspace(line[pos]))
+                        if (!std::isspace(static_cast<unsigned char>(line[pos])))
                             break;
                     if (notnull(line[pos])) {
                         if (line[pos] == '#')
@@ -1382,14 +1383,15 @@ getnxt() {
         /* check for macro, and return it if there */
         if (!parsed) {
             pos = 0;
-            while (line[pos] != '=' && line[pos] != ':' && !isspace(line[pos]) &&
-                   notnull(line[pos]))
+            while (line[pos] != '=' && line[pos] != ':' &&
+                   !std::isspace(static_cast<unsigned char>(line[pos])) && notnull(line[pos]))
                 pos++;
             mark = pos;
             if (notnull(line[pos]) && line[pos] != ':') {
                 /* found a macro */
-                if (isspace(line[pos]))
-                    while (isspace(line[pos]) && notnull(line[pos]))
+                if (std::isspace(static_cast<unsigned char>(line[pos])))
+                    while (std::isspace(static_cast<unsigned char>(line[pos])) &&
+                           notnull(line[pos]))
                         pos++;
                 if (isnull(line[pos]))
                     panic2("bad macro or definition '%s'", line);
@@ -1398,7 +1400,7 @@ getnxt() {
                     line[mark] = NUL;
                     fword = line;
                     mark = pos + 1;
-                    while (isspace(line[mark]))
+                    while (std::isspace(static_cast<unsigned char>(line[mark])))
                         mark++; /* skip spaces before macro starts */
                     restline = line + mark;
                     return (AMACRO);
@@ -1407,7 +1409,7 @@ getnxt() {
         }
 
         /* check for and add howto line */
-        if (isspace(line[0])) {
+        if (std::isspace(static_cast<unsigned char>(line[0]))) {
             if (!def_ready && !rule_ready)
                 error2("how-to line without preceeding definition or rule\n%s", line);
             q_how2 = MkListMem();
@@ -1506,7 +1508,7 @@ FILE *stream;
             return (FALSE);
 
         /* if the line is only <ws> or <ws>#, skip it */
-        for (x = 0; isspace(where[x]) && (where[x] != '\n'); x++)
+        for (x = 0; std::isspace(static_cast<unsigned char>(where[x])) && (where[x] != '\n'); x++)
             ;
         if ((where[x] == '\n') || (where[x] == '#'))
             continue;
@@ -1553,7 +1555,7 @@ int p;
 
     i = 0;
     dest[0] = NUL;
-    while (notnull(src[p]) && isspace(src[p]))
+    while (notnull(src[p]) && std::isspace(static_cast<unsigned char>(src[p])))
         p++;
     if (isnull(src[p]))
         return (p);
@@ -1571,7 +1573,7 @@ int p;
             if (src[p + 1] == '"')
                 p++;
             dest[i++] = src[p++];
-        } else if (!quotestop && isspace(src[p]))
+        } else if (!quotestop && std::isspace(static_cast<unsigned char>(src[p])))
             break;
         else if (quotestop && (src[p] == '"'))
             break;
@@ -1604,7 +1606,7 @@ int eflag;
             my_strcpy(temp, head->name);
         p = MkListMem();
         for (x = 0; notnull(temp[x]); x++)
-            if (!isspace(temp[x]))
+            if (!std::isspace(static_cast<unsigned char>(temp[x])))
                 break;
         p->name = mov_in(temp + x);
         p->next = NULL;
@@ -1798,7 +1800,7 @@ exec_how(cmd) char *cmd;
     this_ign = FALSE;
     no_more_flags = FALSE;
     while (TRUE) {
-        while (isspace(cmd[pos]))
+        while (std::isspace(static_cast<unsigned char>(cmd[pos])))
             pos++;
         switch (cmd[pos]) {
         case '@':
@@ -1820,7 +1822,7 @@ exec_how(cmd) char *cmd;
     }
 
     /* get the name of the command */
-    for (x = pos; !isspace(cmd[x]) && notnull(cmd[x]); x++)
+    for (x = pos; !std::isspace(static_cast<unsigned char>(cmd[x])) && notnull(cmd[x]); x++)
         cmdname[i++] = cmd[x];
     cmdname[i] = NUL;
 
@@ -2045,7 +2047,7 @@ static void squeezesp(char *to, char *from) {
     if (from == NULL)
         return;
     while (*from) {
-        if (isspace(*from))
+        if (std::isspace(static_cast<unsigned char>(*from)))
             from++;
         else
             *to++ = *from++;

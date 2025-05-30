@@ -5,6 +5,7 @@
 #include "../h/const.hpp"
 #include "../h/type.hpp"
 #include "../include/lib.hpp" // C++17 header
+#include <cctype>
 
 /* #define DOS			/* compile to run under MS-DOS */
 #define STANDALONE /* compile for the boot-diskette */
@@ -79,11 +80,6 @@
 #define PARB 6
 
 #define between(c, l, u) ((unsigned short)((c) - (l)) <= ((u) - (l)))
-#define isprint(c) between(c, ' ', '~')
-#define isdigit(c) between(c, '0', '9')
-#define islower(c) between(c, 'a', 'z')
-#define isupper(c) between(c, 'A', 'Z')
-#define toupper(c) ((c) + 'A' - 'a')
 
 #define quote(x) x
 #define nextarg(t) (*argp.quote(u_) t++)
@@ -277,7 +273,7 @@ int width, pad;
 /* Print the character c.
  */
 printchar(c, mode) {
-    if (mode == 0 || (isprint(c) && c != '\\')) {
+    if (mode == 0 || (std::isprint(static_cast<unsigned char>(c)) && c != '\\')) {
         putchar(c);
         return (1);
     } else {
@@ -332,13 +328,13 @@ union types argp;
                 fmt++;
             pad = *fmt == '0' ? '0' : ' ';
             width = 0;
-            while (isdigit(*fmt)) {
+            while (std::isdigit(static_cast<unsigned char>(*fmt))) {
                 width *= 10;
                 width += *fmt++ - '0';
             }
-            if (*fmt == 'l' && islower(*++fmt))
-                *fmt = toupper(*fmt);
-            mode = isupper(*fmt);
+            if (*fmt == 'l' && std::islower(static_cast<unsigned char>(*++fmt)))
+                *fmt = std::toupper(static_cast<unsigned char>(*fmt));
+            mode = std::isupper(static_cast<unsigned char>(*fmt));
             switch (*fmt) {
             case 'c':
             case 'C':
@@ -538,7 +534,7 @@ printname(s) char *s;
     do {
         if (*s == 0)
             break;
-        printf("%c", isprint(*s) ? *s : '?');
+        printf("%c", std::isprint(static_cast<unsigned char>(*s)) ? *s : '?');
         s++;
     } while (--n);
 }
@@ -748,7 +744,7 @@ char *s;
     if (s == 0)
         return (NO_BIT);
     while (*s != 0) {
-        if (!isdigit(*s))
+        if (!std::isdigit(static_cast<unsigned char>(*s)))
             return (NO_BIT);
         n *= 10;
         n += *s++ - '0';

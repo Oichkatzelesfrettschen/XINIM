@@ -217,14 +217,15 @@ onecommand() {
     DELETE(cp);
     wdlist = 0;
     iolist = 0;
-    e.errpt = 0;
+    e.errpt = nullptr;
     e.linep = line;
     yynerrs = 0;
     multiline = 0;
     inparse = 1;
     if (talking)
         signal(SIGINT, onintr);
-    if (setjmp(failpt = m1) || yyparse() || intr) {
+    failpt = &m1;
+    if (setjmp(m1) || yyparse() || intr) {
         while (e.oenv)
             quitenv();
         scraphere();
@@ -244,7 +245,7 @@ onecommand() {
     if (!flag['n']) {
         if (talking)
             signal(SIGINT, onintr);
-        execute(outtree, NOPIPE, NOPIPE, 0);
+        execute(outtree, nullptr, nullptr, 0);
         intr = 0;
         if (talking)
             signal(SIGINT, SIG_IGN);
@@ -252,7 +253,7 @@ onecommand() {
 }
 
 void fail() {
-    longjmp(failpt, 1);
+    longjmp(*failpt, 1);
     /* NOTREACHED */
 }
 
@@ -284,7 +285,7 @@ err(s) char *s;
     if (!talking)
         leave();
     if (e.errpt)
-        longjmp(e.errpt, 1);
+        longjmp(*e.errpt, 1);
     closeall();
     e.iop = e.iobase = iostack;
 }

@@ -27,6 +27,13 @@
 #include "proc.hpp"
 #include "type.hpp"
 
+/* RAII helper ensuring critical sections use lock/unlock */
+class ScopedPortLock {
+  public:
+    ScopedPortLock() { lock(); }
+    ~ScopedPortLock() { unlock(); }
+};
+
 /* I/O Ports used by winchester disk controller. */
 
 #define WIN_REG1 0x1f0
@@ -133,9 +140,7 @@ PUBLIC winchester_task() {
 /*===========================================================================*
  *				w_do_rdwt					     *
  *===========================================================================*/
-PRIVATE int w_do_rdwt(m_ptr)
-message *m_ptr; /* pointer to read or write w_message */
-{
+static int w_do_rdwt(message *m_ptr) {
     /* Carry out a read or write request from the disk. */
     register struct wini *wn;
     int r, device, errors = 0;
@@ -176,7 +181,7 @@ message *m_ptr; /* pointer to read or write w_message */
             w_reset();
 
         /* Perform the transfer. */
-        r = w_transfer(wn);
+        r = w_transfer(*wn);
         if (r == OK)
             break; /* if successful, exit loop */
     }
@@ -187,9 +192,7 @@ message *m_ptr; /* pointer to read or write w_message */
 /*===========================================================================*
  *				w_transfer				     *
  *===========================================================================*/
-PRIVATE int w_transfer(wn)
-register struct wini *wn; /* pointer to the drive struct */
-{
+static int w_transfer(wini &wn) {
     extern phys_bytes umap();
     phys_bytes win_buf = umap(proc_addr(WINCHESTER), D, buf, BLOCK_SIZE);
     phys_bytes usr_buf = umap(proc_addr(wn->wn_procnr), D, wn->wn_address, BLOCK_SIZE);
@@ -255,7 +258,7 @@ register struct wini *wn; /* pointer to the drive struct */
 /*===========================================================================*
  *				w_reset					     *
  *===========================================================================*/
-PRIVATE w_reset() {
+static int w_reset() {
     /* Issue a reset to the controller.  This is done after any catastrophe,
      * like the controller refusing to respond.
      */
@@ -263,12 +266,13 @@ PRIVATE w_reset() {
     int i, r = 4;
 
     /* Strobe reset bit low. */
-    lock();
-    port_out(WIN_REG9, r);
-    for (i = 0; i < 10; i++)
-        ;
-    port_out(WIN_REG9, 0);
-    unlock();
+    {
+        ScopedPortLock guard; // protect reset operation
+        port_out(WIN_REG9, r);
+        for (i = 0; i < 10; i++)
+            ;
+        port_out(WIN_REG9, 0);
+    }
     if (drive_busy()) {
         printf("Winchester wouldn't reset, drive busy\n");
         return (ERR);
@@ -288,7 +292,7 @@ PRIVATE w_reset() {
 /*===========================================================================*
  *				win_init				     *
  *===========================================================================*/
-PRIVATE win_init() {
+static int win_init() {
     /* Routine to initialize the drive parameters after boot or reset */
 
     register int i;
@@ -341,7 +345,7 @@ PRIVATE win_init() {
 /*============================================================================*
  *				win_results				      *
  *============================================================================*/
-PRIVATE win_results() {
+static int win_results() {
     /* Routine to check if controller has done the operation succesfully */
     int r;
 
@@ -359,7 +363,7 @@ PRIVATE win_results() {
 /*============================================================================*
  *				drive_busy				      *
  *============================================================================*/
-PRIVATE drive_busy() {
+static int drive_busy() {
     /* Wait until the controller is ready to receive a command or send status */
 
     register int i = 0;
@@ -377,7 +381,7 @@ PRIVATE drive_busy() {
 /*============================================================================*
  *				com_out					      *
  *============================================================================*/
-PRIVATE com_out() {
+static int com_out() {
     /* Output the command block to the winchester controller and return status */
 
     register int i;
@@ -388,18 +392,19 @@ PRIVATE com_out() {
         return (ERR);
     }
     r = WIN_REG2;
-    lock();
-    port_out(WIN_REG9, command[0]);
-    for (i = 1; i < 8; i++, r++)
-        port_out(r, command[i]);
-    unlock();
+    {
+        ScopedPortLock guard; // lock controller while issuing command
+        port_out(WIN_REG9, command[0]);
+        for (i = 1; i < 8; i++, r++)
+            port_out(r, command[i]);
+    }
     return (OK);
 }
 
 /*============================================================================*
  *				init_params				      *
  *============================================================================*/
-PRIVATE init_params() {
+static void init_params() {
     /* This routine is called at startup to initialize the partition table,
      * the number of drives and the controller
      */
@@ -462,10 +467,7 @@ PRIVATE init_params() {
 /*============================================================================*
  *				copy_params				      *
  *============================================================================*/
-PRIVATE copy_params(src, dest)
-register unsigned char *src;
-register struct wini *dest;
-{
+static void copy_params(unsigned char *src, wini *dest) {
     /* This routine copies the parameters from src to dest
      * and sets the parameters for partition 0 and 5
      */
@@ -487,9 +489,7 @@ register struct wini *dest;
 /*============================================================================*
  *				copy_prt				      *
  *============================================================================*/
-PRIVATE copy_prt(drive)
-int drive;
-{
+static void copy_prt(int drive) {
     /* This routine copies the partition table for the selected drive to
      * the variables wn_low and wn_size
      */

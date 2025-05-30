@@ -1,4 +1,4 @@
-#include "../include/vm.h"
+#include "../include/vm.hpp"
 #include "const.hpp"
 #include "mproc.hpp"
 
@@ -73,7 +73,7 @@ PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
         struct vm_area *a = &p->areas[p->area_count++];
         a->start = addr & ~(PAGE_SIZE_4K - 1);
         a->end = a->start + PAGE_SIZE_4K;
-        a->flags = VmFlags::Read | VmFlags::Write | VmFlags::Private;
+        a->flags = VmFlags::VM_READ | VmFlags::VM_WRITE | VmFlags::VM_PRIVATE;
     }
 }
 
