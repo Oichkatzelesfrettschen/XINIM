@@ -27,7 +27,7 @@
 /*===========================================================================*
  *				do_mount				     *
  *===========================================================================*/
-PUBLIC int do_mount() {
+int do_mount() {
     /* Perform the mount(name, mfile, rd_only) system call. */
 
     register struct inode *rip, *root_ip;
@@ -139,7 +139,7 @@ PUBLIC int do_mount() {
 /*===========================================================================*
  *				do_umount				     *
  *===========================================================================*/
-PUBLIC int do_umount() {
+int do_umount() {
     /* Perform the umount(name) system call. */
 
     register struct inode *rip;

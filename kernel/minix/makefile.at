@@ -78,7 +78,7 @@ tty.s:	const.h type.h $h/const.h $h/type.h
 tty.s:	$h/callnr.h
 tty.s:	$h/com.h
 tty.s:	$h/error.h
-tty.s:	$h/sgtty.h
+tty.s:	$(INC)/sgtty.hpp
 tty.s:	$h/signal.h
 tty.s:	proc.h
 

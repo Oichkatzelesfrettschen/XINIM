@@ -54,7 +54,7 @@ d--755 1 1
    include	d--755 2 1
 	blocksize.h	---644 2 1 ../include/blocksize.h
 	errno.h		---644 2 1 ../include/errno.h
-	sgtty.h		---644 2 1 ../include/sgtty.h
+	sgtty.hpp		---644 2 1 ../include/sgtty.hpp
 	signal.h	---644 2 1 ../include/signal.h
 	stat.h		---644 2 1 ../include/stat.h
 	setjmp.h	---644 2 1 ../include/setjmp.h

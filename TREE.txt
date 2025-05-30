@@ -126,7 +126,7 @@
 │   ├── com.h
 │   ├── const.h
 │   ├── error.h
-│   ├── sgtty.h
+│   ├── sgtty.hpp
 │   ├── signal.h
 │   ├── stat.h
 │   └── type.h
@@ -141,7 +141,7 @@
 │   ├── pwd.h
 │   ├── regexp.h
 │   ├── setjmp.h
-│   ├── sgtty.h
+│   ├── sgtty.hpp
 │   ├── sh.h
 │   ├── signal.h
 │   ├── stat.h
