@@ -6,11 +6,11 @@
 
 /* df - disk free block printout	Author: Andy Tanenbaum */
 
-#include "../fs/const.h"
-#include "../fs/super.h"
-#include "../fs/type.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../fs/const.hpp"
+#include "../fs/super.hpp"
+#include "../fs/type.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "stat.hpp"
 
 /* Program entry point */

@@ -1,9 +1,9 @@
 /* fsck - file system checker		Author: Robbert van Renesse */
 
-#include "../fs/const.h"
-#include "../fs/type.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../fs/const.hpp"
+#include "../fs/type.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "../include/lib.hpp" // C++17 header
 
 /* #define DOS			/* compile to run under MS-DOS */

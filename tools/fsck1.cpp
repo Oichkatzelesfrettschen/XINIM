@@ -1,4 +1,4 @@
-#include "../include/defs.h"
+#include "../include/defs.hpp"
 #include <stdio.h>
 #include <stdlib.h>
 #include <unistd.h>

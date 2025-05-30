@@ -6,7 +6,7 @@
 
 /* kill - send a signal to a process	Author: Adri Koppes  */
 
-#include "../h/signal.h"
+#include "../h/signal.hpp"
 
 int main(int argc, char **argv) {
     int proc, signal = SIGTERM;

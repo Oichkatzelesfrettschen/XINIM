@@ -1,13 +1,14 @@
-#include "../include/defs.h"
-#include <stdio.h>
-#include <stdlib.h>
+#include "../include/defs.hpp"
+#include <array>
+#include <cstdio>
+#include <fstream>
 
 /*
  * Boot sector binary extracted from the original NASM source.
  * This array contains exactly 512 bytes. Fields such as the
  * kernel LBA and entry address are patched by build.cpp.
  */
-static const u8_t boot_sector[512] = {
+static const std::array<u8_t, 512> boot_sector = {
     0xfa, 0x31, 0xc0, 0x8e, 0xd8, 0x8e, 0xc0, 0x8e, 0xd0, 0xbc, 0x00, 0x7c, 0xa1, 0xeb, 0x7c, 0xa3,
     0x02, 0x7d, 0x66, 0xa1, 0xf5, 0x7c, 0x66, 0xa3, 0x08, 0x7d, 0x66, 0xa1, 0xf9, 0x7c, 0x66, 0xa3,
     0x0c, 0x7d, 0x8a, 0x16, 0xfd, 0x7c, 0xbe, 0x00, 0x7d, 0xb4, 0x42, 0xcd, 0x13, 0x0f, 0x82, 0xb9,
@@ -43,25 +44,28 @@ static const u8_t boot_sector[512] = {
 
 };
 
+// Entry point for boot sector extraction tool
 int main(int argc, char *argv[]) {
+    // Output file defaults to "bootblok" when not specified
     const char *out = "bootblok";
-    FILE *fp;
-
-    if (argc > 1)
+    if (argc > 1) {
         out = argv[1];
+    }
 
-    fp = fopen(out, "wb");
+    // Open the output file in binary mode
+    std::ofstream fp(out, std::ios::binary);
     if (!fp) {
-        perror("fopen");
+        std::perror("fopen");
         return 1;
     }
 
-    if (fwrite(boot_sector, 1, sizeof(boot_sector), fp) != sizeof(boot_sector)) {
-        perror("fwrite");
-        fclose(fp);
+    // Write the entire boot sector image
+    fp.write(reinterpret_cast<const char *>(boot_sector.data()),
+             static_cast<std::streamsize>(boot_sector.size()));
+    if (!fp) {
+        std::perror("fwrite");
         return 1;
     }
 
-    fclose(fp);
     return 0;
 }

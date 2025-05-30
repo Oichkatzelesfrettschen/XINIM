@@ -11,7 +11,7 @@
  *
  */
 
-#include "../h/type.h"
+#include "../h/type.hpp"
 #include "pwd.hpp"
 #include "stat.hpp"
 #include "stdio.hpp"
