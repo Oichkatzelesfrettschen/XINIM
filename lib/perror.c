@@ -6,75 +6,76 @@
 extern int errno;
 static int slen(const char *s);
 
-char *error_message[NERROR + 1] = {"Error 0",
+/* Error message strings corresponding to errno values. */
+const char *error_message[NERROR + 1] = {"Error 0",
 
-                                   "Not owner",
+                                         "Not owner",
 
-                                   "No such file or directory",
+                                         "No such file or directory",
 
-                                   "No such process",
+                                         "No such process",
 
-                                   "Interrupted system call",
+                                         "Interrupted system call",
 
-                                   "I/O error",
+                                         "I/O error",
 
-                                   "No such device or address",
+                                         "No such device or address",
 
-                                   "Arg list too long",
+                                         "Arg list too long",
 
-                                   "Exec format error",
+                                         "Exec format error",
 
-                                   "Bad file number",
+                                         "Bad file number",
 
-                                   "No children",
+                                         "No children",
 
-                                   "No more processes",
+                                         "No more processes",
 
-                                   "Not enough core",
+                                         "Not enough core",
 
-                                   "Permission denied",
+                                         "Permission denied",
 
-                                   "Bad address",
+                                         "Bad address",
 
-                                   "Block device required",
+                                         "Block device required",
 
-                                   "Mount device busy",
+                                         "Mount device busy",
 
-                                   "File exists",
+                                         "File exists",
 
-                                   "Cross-device link",
+                                         "Cross-device link",
 
-                                   "No such device",
+                                         "No such device",
 
-                                   "Not a directory",
+                                         "Not a directory",
 
-                                   "Is a directory",
+                                         "Is a directory",
 
-                                   "Invalid argument",
+                                         "Invalid argument",
 
-                                   "File table overflow",
+                                         "File table overflow",
 
-                                   "Too many open files",
+                                         "Too many open files",
 
-                                   "Not a typewriter",
+                                         "Not a typewriter",
 
-                                   "Text file busy",
+                                         "Text file busy",
 
-                                   "File too large",
+                                         "File too large",
 
-                                   "No space left on device",
+                                         "No space left on device",
 
-                                   "Illegal seek",
+                                         "Illegal seek",
 
-                                   "Read-only file system",
+                                         "Read-only file system",
 
-                                   "Too many links",
+                                         "Too many links",
 
-                                   "Broken pipe",
+                                         "Broken pipe",
 
-                                   "Math argument",
+                                         "Math argument",
 
-                                   "Result too large"
+                                         "Result too large"
 
 };
 
@@ -93,19 +94,32 @@ static int slen(const char *s) {
     while (*s++)
         k++;
     return k;
-        "No space left on device",
-        "Illegal seek",
-        "Read-only file system",
-        "Too many links",
-        "Broken pipe",
-        "Math argument",
-        "Result too large"
-};
+    "No space left on device",
+        "Illegal seek",
+        "Read-only file system",
 
+        "Too many links",
 
-perror(s)
-char *s;
-{
+        "Broken pipe",
+
+        "Math argument",
+
+        "Result too large"
+};
+
+perror(s) char *s;
+    if (errno < 0 || errno > NERROR) {
+        write(2, "Invalid errno\n", 14);
+    } else {
+        write(2, s, slen(s));
+        write(2, ": ", 2);
+        write(2, error_message[errno], slen(error_message[errno]));
+        write(2, "\n", 1);
+    }
+    int k = 0;
+    while (*s++)
+        k++;
+    return (k);
   if (errno < 0 || errno > NERROR) {
 	write(2, "Invalid errno\n", 14);
   } else {
