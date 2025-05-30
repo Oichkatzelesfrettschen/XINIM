@@ -33,7 +33,7 @@ extern char k_stack[K_STACK_BYTES];
  *                              save                                         *
  *===========================================================================*/
 /* Save registers to the current process and switch stacks. */
-void save(void) __attribute__((naked));
+void save(void) NAKED;
 void save(void) {
     __asm__ volatile("push %%rax\n\t"
                      "push %%rbx\n\t"
@@ -102,7 +102,7 @@ void save(void) {
  *                              restart                                      *
  *===========================================================================*/
 /* Restore registers and continue the interrupted task. */
-void restart(void) __attribute__((naked));
+void restart(void) NAKED;
 void restart(void) {
     __asm__ volatile("movq _proc_ptr(%%rip), %%r15\n\t"
                      "movq %c0(%%r15), %%rsp\n\t"
@@ -136,7 +136,7 @@ void restart(void) {
  *                              isr_default                                  *
  *===========================================================================*/
 /* Default interrupt service routine. */
-void isr_default(void) __attribute__((naked));
+void isr_default(void) NAKED;
 void isr_default(void) {
     __asm__ volatile("call save\n\t"
                      "call _surprise\n\t"
@@ -147,7 +147,7 @@ void isr_default(void) {
  *                              isr_clock                                    *
  *===========================================================================*/
 /* Clock interrupt service routine. */
-void isr_clock(void) __attribute__((naked));
+void isr_clock(void) NAKED;
 void isr_clock(void) {
     __asm__ volatile("call save\n\t"
                      "call _clock_int\n\t"
@@ -158,7 +158,7 @@ void isr_clock(void) {
  *                              isr_keyboard                                 *
  *===========================================================================*/
 /* Keyboard interrupt service routine. */
-void isr_keyboard(void) __attribute__((naked));
+void isr_keyboard(void) NAKED;
 void isr_keyboard(void) {
     __asm__ volatile("call save\n\t"
                      "call _tty_int\n\t"
@@ -169,7 +169,7 @@ void isr_keyboard(void) {
  *                              s_call                                       *
  *===========================================================================*/
 /* System call entry point. */
-void s_call(void) __attribute__((naked));
+void s_call(void) NAKED;
 void s_call(void) {
     __asm__ volatile("call save\n\t"
                      "movq _proc_ptr(%rip), %rdi\n\t"
@@ -184,7 +184,7 @@ void s_call(void) {
  *                              lpr_int                                      *
  *===========================================================================*/
 /* Printer interrupt service routine. */
-void lpr_int(void) __attribute__((naked));
+void lpr_int(void) NAKED;
 void lpr_int(void) {
     __asm__ volatile("call save\n\t"
                      "call _pr_char\n\t"
@@ -195,7 +195,7 @@ void lpr_int(void) {
  *                              disk_int                                     *
  *===========================================================================*/
 /* Disk interrupt service routine. */
-void disk_int(void) __attribute__((naked));
+void disk_int(void) NAKED;
 void disk_int(void) {
     __asm__ volatile("call save\n\t"
                      "movq _int_mess+2(%rip), %rax\n\t"
@@ -208,7 +208,7 @@ void disk_int(void) {
  *                              divide                                       *
  *===========================================================================*/
 /* Divide trap handler. */
-void divide(void) __attribute__((naked));
+void divide(void) NAKED;
 void divide(void) {
     __asm__ volatile("call save\n\t"
                      "call _div_trap\n\t"
@@ -219,7 +219,7 @@ void divide(void) {
  *                              trp                                          *
  *===========================================================================*/
 /* General trap handler. */
-void trp(void) __attribute__((naked));
+void trp(void) NAKED;
 void trp(void) {
     __asm__ volatile("call save\n\t"
                      "call _trap\n\t"

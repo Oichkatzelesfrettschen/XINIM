@@ -35,7 +35,7 @@ void init_syscall_msrs(void) {
  *                              syscall_entry                                *
  *===========================================================================*/
 /* Entry point for user mode syscalls. */
-void syscall_entry(void) __attribute__((naked));
+void syscall_entry(void) NAKED;
 void syscall_entry(void) {
     __asm__ volatile("call save\n\t"
                      "mov %rdi, %rax\n\t"
