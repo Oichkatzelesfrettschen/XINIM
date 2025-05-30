@@ -3,7 +3,7 @@
 # This script installs clang and related tools so that the sources can be
 # compiled as C90 and analyzed with clang-tidy and clang-format.
 
-set -e
+set -euo pipefail
 
 # Update package lists.
 sudo apt-get update
@@ -23,8 +23,10 @@ sudo apt-get install -y --no-install-recommends \
     llvm-dev \
     libclang-dev
 
-# Install ack and ack-grep for convenient searching
-sudo apt-get install -y --no-install-recommends ack ack-grep
+# Ensure ack is installed for convenient searching
+if ! command -v ack >/dev/null 2>&1; then
+    sudo apt-get install -y --no-install-recommends ack ack-grep
+fi
 
 # Install optional ack helpers for Python and Node
 sudo pip3 install ack
