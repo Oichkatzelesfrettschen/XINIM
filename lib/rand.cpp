@@ -1,7 +1,5 @@
 /* Simple linear congruential random number generator. */
 
-#include <stdlib.h>
-
 /* Seed value used by rand(). */
 static long seed = 1L;
 

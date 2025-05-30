@@ -1,8 +1,9 @@
-std_err(s)
-char *s;
-{
-  char *p = s;
+#include <unistd.h> // write system call
 
-  while(*p != 0) p++;
-  write(2, s, p - s);
+// Write a string to standard error.
+void std_err(const char *s) {
+    const char *p = s;
+    while (*p != 0)
+        p++;
+    write(2, s, p - s);
 }
