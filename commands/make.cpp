@@ -6,7 +6,7 @@
 
 #include "../include/lib.h"
 #include "errno.hpp"
-#include "stdio.h"
+#include "stdio.hpp"
 extern int errno;
 
 #ifdef LC

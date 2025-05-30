@@ -1,6 +1,6 @@
 #include "../include/vm.h"
 #include "const.hpp"
-#include "mproc.h"
+#include "mproc.hpp"
 
 /*
  * Simple virtual memory subsystem used for demonstration.  Each process gets

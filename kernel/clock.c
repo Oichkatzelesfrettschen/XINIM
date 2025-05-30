@@ -33,7 +33,7 @@
 #include "../h/type.h"
 #include "const.hpp"
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
 #include "type.hpp"
 
 /* Constant definitions. */

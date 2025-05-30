@@ -6,7 +6,7 @@
 
 /* head - print the first few lines of a file	Author: Andy Tanenbaum */
 
-#include "stdio.h"
+#include "stdio.hpp"
 
 #define DEFAULT 10
 

@@ -25,7 +25,7 @@
 #include "../h/type.h"
 #include "const.hpp"
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
 #include "type.hpp"
 
 /* I/O Ports used by floppy disk task. */

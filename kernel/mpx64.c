@@ -3,7 +3,7 @@
 #include "../include/defs.h"
 #include "const.hpp"
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
 #include "type.hpp"
 
 /* 64-bit context switch and interrupt entry code translated from assembly. */

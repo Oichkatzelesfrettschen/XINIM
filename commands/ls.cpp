@@ -11,7 +11,7 @@
 #include "../h/const.h"
 #include "../h/type.h"
 #include "stat.hpp"
-#include "stdio.h"
+#include "stdio.hpp"
 
 #define DIRNAMELEN 14   /* # chars in a directory entry name */
 #define NFILE 256       /* max files in arg list to ls */

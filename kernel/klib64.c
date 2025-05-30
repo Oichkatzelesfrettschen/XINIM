@@ -3,7 +3,7 @@
 #include "../include/defs.h"
 #include "const.hpp"
 #include "glo.hpp"
-#include "proc.h"
+#include "proc.hpp"
 #include "type.hpp"
 
 /* Minimal 64-bit implementations of low level kernel routines. */

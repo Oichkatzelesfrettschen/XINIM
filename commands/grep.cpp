@@ -25,8 +25,8 @@
  *	The program was modified by Andy Tanenbaum.
  */
 
-#include "regexp.h"
-#include "stdio.h"
+#include "regexp.hpp"
+#include "stdio.hpp"
 
 #define MAXLINE (1024)
 int status = 1;
