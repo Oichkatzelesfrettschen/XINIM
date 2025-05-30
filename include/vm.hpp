@@ -10,6 +10,24 @@
 #include "../h/const.h"
 #include "paging.hpp"
 
+/* Flags for virtual memory regions. Converted from macros to a typesafe
+ * enumeration so that the values can be combined with the usual bitwise
+ * operators. */
+enum class VmFlags : int {
+    Read = 0x1,
+    Write = 0x2,
+    Exec = 0x4,
+    Private = 0x8,
+    Shared = 0x10,
+    Anon = 0x20
+};
+
+/* Enable bitwise operations on VmFlags. */
+inline constexpr VmFlags operator|(VmFlags l, VmFlags r) {
+    return static_cast<VmFlags>(static_cast<int>(l) | static_cast<int>(r));
+}
+inline constexpr VmFlags operator&(VmFlags l, VmFlags r) {
+    return static_cast<VmFlags>(static_cast<int>(l) & static_cast<int>(r));
 /* Enumerates flags describing permissions and properties for a
  * virtual memory region.  The values are kept compatible with the
  * original macro definitions.
@@ -39,8 +57,11 @@ inline VmFlags &operator&=(VmFlags &lhs, VmFlags rhs) {
     return lhs;
 }
 
-#define VM_MAX_AREAS 16
+/* Maximum number of areas that can be tracked for a process. */
+inline constexpr int VM_MAX_AREAS = 16;
 
+/* Describes a contiguous range of virtual addresses with associated
+ * protection flags. */
 /* Describes a contiguous virtual memory area owned by a process. */
 struct vm_area {
     virt_addr64 start; /* inclusive start address */

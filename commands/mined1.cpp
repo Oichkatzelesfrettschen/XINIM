@@ -434,11 +434,11 @@ FS() { fstatus(file_name[0] ? "" : "[buffer]", -1L); }
 VI() {
     char new_file[LINE_LEN]; /* Buffer to hold new file name */
 
-    if (modified == TRUE && ask_save() == ERRORS)
+    if (modified == TRUE && ask_save() == ReturnCode::Errors)
         return;
 
     /* Get new file name */
-    if (get_file("Visit file:", new_file) == ERRORS)
+    if (get_file("Visit file:", new_file) == ReturnCode::Errors)
         return;
 
     /* Free old linked list, initialize global variables and load new file */
@@ -462,19 +462,19 @@ WT() {
 
     if (modified == FALSE) {
         error("Write not necessary.", NIL_PTR);
-        return FINE;
+        return ReturnCode::Fine;
     }
 
     /* Check if file_name is valid and if file can be written */
     if (file_name[0] == '\0' || writable == FALSE) {
-        if (get_file("Enter file name:", file) != FINE)
-            return ERRORS;
+        if (get_file("Enter file name:", file) != ReturnCode::Fine)
+            return ReturnCode::Errors;
         copy_string(file_name, file); /* Save file name */
     }
     if ((fd = creat(file_name, 0644)) < 0) { /* Empty file */
         error("Cannot create ", file_name);
         writable = FALSE;
-        return ERRORS;
+        return ReturnCode::Errors;
     } else
         writable = TRUE;
 
@@ -486,27 +486,27 @@ WT() {
             if (line->next == tail && line->text[0] == '\n')
                 continue;
         }
-        if (writeline(fd, line->text) == ERRORS) {
+        if (writeline(fd, line->text) == ReturnCode::Errors) {
             count = -1L;
             break;
         }
         count += (long)length_of(line->text);
     }
 
-    if (count > 0L && flush_buffer(fd) == ERRORS)
+    if (count > 0L && flush_buffer(fd) == ReturnCode::Errors)
         count = -1L;
 
     (void)close(fd);
 
     if (count == -1L)
-        return ERRORS;
+        return ReturnCode::Errors;
 
     modified = FALSE;
     rpipe = FALSE; /* File name is now assigned */
 
     /* Display how many chars (and lines) were written */
     fstatus("Wrote", count);
-    return FINE;
+    return ReturnCode::Fine;
 }
 
 /*
@@ -577,7 +577,7 @@ char *s1, *s2;
 char *inbuf;
 FLAG statfl;
 {
-    int ret = FINE;
+    int ret = ReturnCode::Fine;
 
     if (revfl == ON && stat_visible == TRUE)
         clear_status();
@@ -616,7 +616,7 @@ FLAG statfl;
     else
         set_cursor(x, y); /* Set cursor back to old position */
     flush();              /* Perform the actual write */
-    if (ret != FINE)
+    if (ret != ReturnCode::Fine)
         clear_status();
     return ret;
 }
@@ -902,7 +902,7 @@ char c;
     screen[out_count++] = c;
     if (out_count == SCREEN_SIZE) /* Flush on SCREEN_SIZE chars */
         return flush_buffer(fd);
-    return FINE;
+    return ReturnCode::Fine;
 }
 
 /*
@@ -912,9 +912,9 @@ writeline(fd, text) register int fd;
 register char *text;
 {
     while (*text)
-        if (write_char(fd, *text++) == ERRORS)
-            return ERRORS;
-    return FINE;
+        if (write_char(fd, *text++) == ReturnCode::Errors)
+            return ReturnCode::Errors;
+    return ReturnCode::Fine;
 }
 
 /*
@@ -988,7 +988,7 @@ FLAG clear_line;                               /* Clear to eoln if TRUE */
 flush_buffer(fd) int fd;
 {
     if (out_count <= 0) /* There is nothing to flush */
-        return FINE;
+        return ReturnCode::Fine;
 #ifdef UNIX
     if (fd == STD_OUT) {
         printf("%.*s", out_count, screen);
@@ -997,10 +997,10 @@ flush_buffer(fd) int fd;
 #endif UNIX
         if (write(fd, screen, out_count) != out_count) {
         bad_write(fd);
-        return ERRORS;
+        return ReturnCode::Errors;
     }
     clear_buffer(); /* Empty buffer */
-    return FINE;
+    return ReturnCode::Fine;
 }
 
 /*
@@ -1747,7 +1747,7 @@ load_file(file) char *file;
 
     if (fd >= 0) {
         status_line("Reading ", file);
-        while ((len = get_line(fd, text_buffer)) != ERRORS) {
+        while ((len = get_line(fd, text_buffer)) != ReturnCode::Errors) {
             line = line_insert(line, text_buffer, len);
             nr_of_chars += (long)len;
         }
@@ -1771,7 +1771,7 @@ load_file(file) char *file;
 
 /*
  * Get_line reads one line from filedescriptor fd. If EOF is reached on fd,
- * get_line() returns ERRORS, else it returns the length of the string.
+ * get_line() returns ReturnCode::Errors, else it returns the length of the string.
  */
 get_line(fd, buffer) int fd;
 register char *buffer;
@@ -1796,13 +1796,13 @@ register char *buffer;
     current = cur_pos;
     if (read_chars <= 0) {
         if (buffer == begin)
-            return ERRORS;
+            return ReturnCode::Errors;
         if (*(buffer - 1) != '\n')
             if (loading == TRUE) /* Add '\n' to last line of file */
                 *buffer++ = '\n';
             else {
                 *buffer = '\0';
-                return NO_LINE;
+                return ReturnCode::NoLine;
             }
     }
 
@@ -1925,7 +1925,7 @@ I() {}
  * Leave editor. If the file has changed, ask if the user wants to save it.
  */
 XT() {
-    if (modified == TRUE && ask_save() == ERRORS)
+    if (modified == TRUE && ask_save() == ReturnCode::Errors)
         return;
 
     raw_mode(OFF);
@@ -1947,7 +1947,7 @@ ESC() {
     int index, number;
     extern int (*key_map[])(), I();
 
-    if ((index = get_number("Please enter repeat count.", &number)) == ERRORS)
+    if ((index = get_number("Please enter repeat count.", &number)) == ReturnCode::Errors)
         return;
 
     if ((func = key_map[index]) == I) { /* Function assigned? */
@@ -1989,10 +1989,10 @@ ask_save() {
         return WT();
 
     if (c == 'n')
-        return FINE;
+        return ReturnCode::Fine;
 
     quit = FALSE; /* Abort character has been given */
-    return ERRORS;
+    return ReturnCode::Errors;
 }
 
 /*
@@ -2118,7 +2118,7 @@ long number;
 
 /*
  * Get_number() read a number from the terminal. The last character typed in is
- * returned.  ERRORS is returned on a bad number. The resulting number is put
+ * returned.  ReturnCode::Errors is returned on a bad number. The resulting number is put
  * into the integer the arguments points to.
  */
 get_number(message, result) char *message;
@@ -2132,7 +2132,7 @@ int *result;
     index = getchar();
     if (quit == FALSE && (index < '0' || index > '9')) {
         error("Bad count", NIL_PTR);
-        return ERRORS;
+        return ReturnCode::Errors;
     }
 
     /* Convert input to a decimal number */
@@ -2144,7 +2144,7 @@ int *result;
 
     if (quit == TRUE) {
         clear_status();
-        return ERRORS;
+        return ReturnCode::Errors;
     }
 
     *result = count;
@@ -2153,7 +2153,7 @@ int *result;
 
 /*
  * Input() reads a string from the terminal.  When the KILL character is typed,
- * it returns ERRORS.
+ * it returns ReturnCode::Errors.
  */
 input(inbuf, clearfl) char *inbuf;
 FLAG clearfl;
@@ -2191,7 +2191,7 @@ FLAG clearfl;
             break;
         case '\n': /* End of input */
             /* If inbuf is empty clear status_line */
-            return (ptr == inbuf && clearfl == TRUE) ? NO_INPUT : FINE;
+            return (ptr == inbuf && clearfl == TRUE) ? ReturnCode::NoInput : ReturnCode::Fine;
         default: /* Only read ASCII chars */
             if ((c >= ' ' && c <= '~') || c == '\t') {
                 *ptr++ = c;
@@ -2206,7 +2206,7 @@ FLAG clearfl;
         }
     }
     quit = FALSE;
-    return ERRORS;
+    return ReturnCode::Errors;
 }
 
 /*
@@ -2218,7 +2218,7 @@ get_file(message, file) char *message, *file;
     char *ptr;
     int ret;
 
-    if (message == NIL_PTR || (ret = get_string(message, file, TRUE)) == FINE) {
+    if (message == NIL_PTR || (ret = get_string(message, file, TRUE)) == ReturnCode::Fine) {
         if (length_of((ptr = basename(file))) > FILE_LENGTH)
             ptr[FILE_LENGTH] = '\0';
     }

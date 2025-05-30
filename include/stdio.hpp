@@ -7,6 +7,8 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
+#include <cstdio>
+
 #define BUFSIZ 1024
 #define NFILES 20
 #define NULL 0
@@ -43,7 +45,10 @@ extern struct _io_buf {
 #define stderr (_io_table[2])
 
 #define getchar() getc(stdin)
-#define putchar(c) putc(c, stdout)
+
+/* Inline wrapper around std::putchar replacing the previous macro. */
+inline int putchar(int c) { return std::putchar(c); }
+
 #define puts(s) fputs(s, stdout)
 #define fgetc(f) getc(f)
 #define fputc(c, f) putc(c, f)
