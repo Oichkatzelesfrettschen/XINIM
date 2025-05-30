@@ -10,19 +10,19 @@
  */
 
 #define NULL 0
-#define LINELIM 1000
-#define NPUSH 8 /* limit to input nesting */
+inline constexpr int LINELIM = 1000;
+inline constexpr int NPUSH = 8; /* limit to input nesting */
 
-#define NOFILE 20 /* Number of open files */
-#define NUFILE 10 /* Number of user-accessible files */
-#define FDBASE 10 /* First file usable by Shell */
+inline constexpr int NOFILE = 20; /* Number of open files */
+inline constexpr int NUFILE = 10; /* Number of user-accessible files */
+inline constexpr int FDBASE = 10; /* First file usable by Shell */
 
 /*
  * values returned by wait
  */
-#define WAITSIG(s) ((s) & 0177)
-#define WAITVAL(s) (((s) >> 8) & 0377)
-#define WAITCORE(s) (((s) & 0200) != 0)
+constexpr int WaitSig(int s) { return s & 0177; }
+constexpr int WaitVal(int s) { return (s >> 8) & 0377; }
+constexpr bool WaitCore(int s) { return (s & 0200) != 0; }
 
 /*
  * library and system defintions
@@ -37,19 +37,34 @@ typedef int xint; /* base type of jmp_buf, for broken compilers */
 /* #include "io.h" */
 /* #include "var.h" */
 
-#define QUOTE 0200
-
-#define NOBLOCK ((struct op *)NULL)
-#define NOWORD ((char *)NULL)
-#define NOWORDS ((char **)NULL)
-#define NOPIPE ((int *)NULL)
+inline constexpr char QUOTE = 0200;
 
 /*
  * Description of a command or an operation on commands.
  * Might eventually use a union.
  */
+enum OpType {
+    TCOM = 1, /* command */
+    TPAREN,   /* (c-list) */
+    TPIPE,    /* a | b */
+    TLIST,    /* a [&;] b */
+    TOR,      /* || */
+    TAND,     /* && */
+    TFOR,
+    TDO,
+    TCASE,
+    TIF,
+    TWHILE,
+    TUNTIL,
+    TELIF,
+    TPAT,   /* pattern in case */
+    TBRACE, /* {c-list} */
+    TASYNC  /* c & */
+};
+
+// Parsed command tree node.
 struct op {
-    int type;              /* operation type, see below */
+    OpType type;           /* operation type, see below */
     char **words;          /* arguments to a command */
     struct ioword **ioact; /* IO actions (eg, < > >>) */
     struct op *left;
@@ -57,39 +72,22 @@ struct op {
     char *str; /* identifier for case and for */
 };
 
-#define TCOM 1   /* command */
-#define TPAREN 2 /* (c-list) */
-#define TPIPE 3  /* a | b */
-#define TLIST 4  /* a [&;] b */
-#define TOR 5    /* || */
-#define TAND 6   /* && */
-#define TFOR 7
-#define TDO 8
-#define TCASE 9
-#define TIF 10
-#define TWHILE 11
-#define TUNTIL 12
-#define TELIF 13
-#define TPAT 14   /* pattern in case */
-#define TBRACE 15 /* {c-list} */
-#define TASYNC 16 /* c & */
-
 /*
  * actions determining the environment of a process
  */
-#define BIT(i) (1 << (i))
-#define FEXEC BIT(0) /* execute without forking */
+constexpr int BIT(int i) { return 1 << i; }
+inline constexpr int FEXEC = BIT(0); /* execute without forking */
 
 /*
  * flags to control evaluation of words
  */
-#define DOSUB 1   /* interpret $, `, and quotes */
-#define DOBLANK 2 /* perform blank interpretation */
-#define DOGLOB 4  /* interpret [?* */
-#define DOKEY 8   /* move words with `=' to 2nd arg. list */
-#define DOTRIM 16 /* trim resulting string */
+inline constexpr int DOSUB = 1;   /* interpret $, `, and quotes */
+inline constexpr int DOBLANK = 2; /* perform blank interpretation */
+inline constexpr int DOGLOB = 4;  /* interpret [?* */
+inline constexpr int DOKEY = 8;   /* move words with `=' to 2nd arg. list */
+inline constexpr int DOTRIM = 16; /* trim resulting string */
 
-#define DOALL (DOSUB | DOBLANK | DOGLOB | DOKEY | DOTRIM)
+inline constexpr int DOALL = DOSUB | DOBLANK | DOGLOB | DOKEY | DOTRIM;
 
 char **dolv;
 int dolc;
@@ -103,6 +101,7 @@ struct op *outtree; /* result from parser */
 xint *failpt;
 xint *errpt;
 
+// Breakpoint context for loops.
 struct brkcon {
     jmp_buf brkpt;
     struct brkcon *nextlev;
@@ -112,6 +111,7 @@ int isbreak;
 /*
  * redirection
  */
+// IO redirection descriptor.
 struct ioword {
     short io_unit; /* unit affected */
     short io_flag; /* action (below) */
@@ -120,15 +120,17 @@ struct ioword {
         struct block *io_here; /* here structure pointer */
     } io_un;
 };
-#define IOREAD 1   /* < */
-#define IOHERE 2   /* << (here file) */
-#define IOWRITE 4  /* > */
-#define IOCAT 8    /* >> */
-#define IOXHERE 16 /* ${}, ` in << */
-#define IODUP 32   /* >&digit */
-#define IOCLOSE 64 /* >&- */
+enum IoFlag {
+    IOREAD = 1,   /* < */
+    IOHERE = 2,   /* << (here file) */
+    IOWRITE = 4,  /* > */
+    IOCAT = 8,    /* >> */
+    IOXHERE = 16, /* ${}, ` in << */
+    IODUP = 32,   /* >&digit */
+    IOCLOSE = 64  /* >&- */
+};
 
-#define IODEFAULT (-1) /* token for default IO unit */
+inline constexpr int IODEFAULT = -1; /* token for default IO unit */
 
 struct wdblock *wdlist;
 struct wdblock *iolist;
@@ -136,6 +138,7 @@ struct wdblock *iolist;
 /*
  * parsing & execution environment
  */
+// Execution environment used during parsing and evaluation.
 extern struct env {
     char *linep;
     struct io *iobase;
@@ -211,16 +214,19 @@ extern int errno;
 
 /* -------- var.h -------- */
 
+// Shell variable entry.
 struct var {
     char *value;
     char *name;
     struct var *next;
     char status;
 };
-#define COPYV 1    /* flag to setval, suggesting copy */
-#define RONLY 01   /* variable is read-only */
-#define EXPORT 02  /* variable is to be exported */
-#define GETCELL 04 /* name & value space was got with getcell */
+enum VarFlag {
+    COPYV = 1,   /* flag to setval, suggesting copy */
+    RONLY = 01,  /* variable is read-only */
+    EXPORT = 02, /* variable is to be exported */
+    GETCELL = 04 /* name & value space was got with getcell */
+};
 
 struct var *vlist; /* dictionary */
 
@@ -244,6 +250,7 @@ int eqname(/* char *n1, char *n2 */);
 
 /* -------- io.h -------- */
 /* possible arguments to an IO function */
+// Parameters to input/output functions.
 struct ioarg {
     char *aword;
     char **awordlist;
@@ -251,6 +258,7 @@ struct ioarg {
 };
 
 /* an input generator's state */
+// Runtime state of an input generator.
 struct io {
     int (*iofn)();
     struct ioarg arg;
@@ -260,13 +268,15 @@ struct io {
     char task;    /* reason for pushed IO */
 };
 struct io iostack[NPUSH];
-#define XOTHER 0 /* none of the below */
-#define XDOLL 1  /* expanding ${} */
-#define XGRAVE 2 /* expanding `'s */
-#define XIO 3    /* file IO */
+enum IoTask {
+    XOTHER = 0, /* none of the below */
+    XDOLL,      /* expanding ${} */
+    XGRAVE,     /* expanding `'s */
+    XIO         /* file IO */
+};
 
 /* in substitution */
-#define INSUB() (e.iop->task == XGRAVE || e.iop->task == XDOLL)
+inline bool INSUB() { return e.iop->task == XGRAVE || e.iop->task == XDOLL; }
 
 /*
  * input generators for IO structure
@@ -310,6 +320,7 @@ struct ioarg temparg; /* temporary for PUSHIO */
 /* -------- word.h -------- */
 #ifndef WORD_H
 #define WORD_H 1
+// Flexible array of words used for argument storage.
 struct wdblock {
     short w_bsize;
     short w_nword;

@@ -244,7 +244,7 @@ onecommand() {
     if (!flag['n']) {
         if (talking)
             signal(SIGINT, onintr);
-        execute(outtree, NOPIPE, NOPIPE, 0);
+        execute(outtree, nullptr, nullptr, 0);
         intr = 0;
         if (talking)
             signal(SIGINT, SIG_IGN);
