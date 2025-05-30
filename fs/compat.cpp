@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++23.
+>>>*/
+
 /* Translation helpers for compatibility with the original Minix FS.
  * These helpers store 64-bit file sizes and extent tables while
  * maintaining the legacy 32-bit structures.
