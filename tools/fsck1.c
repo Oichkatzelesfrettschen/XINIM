@@ -1,7 +1,7 @@
+#include "../include/defs.h"
 #include <stdio.h>
-#include <unistd.h>
-#include <stdint.h>
 #include <stdlib.h>
+#include <unistd.h>
 
 /* External entry point to main provided by fsck.c */
 extern int main(void);
@@ -13,36 +13,25 @@ long drive_fd = 0;
  * Program entry. This emulates the minimal assembly start which clears
  * the argument registers and jumps to main.
  */
-void _start(void)
-{
+void _start(void) {
     int ret = main();
     _exit(ret);
 }
 
 /* Character output wrapper used by standalone fsck. */
-void putc(int c)
-{
-    putchar(c);
-}
+void putc(int c) { putchar(c); }
 
 /* Character input wrapper used by standalone fsck. */
-int getc(void)
-{
-    return getchar();
-}
+int getc(void) { return getchar(); }
 
 /* Reset diskette -- does nothing on the host. */
-int reset_diskette(void)
-{
-    return 0;
-}
+int reset_diskette(void) { return 0; }
 
 /*
  * Perform raw disk I/O using pread/pwrite. The count argument is in
  * sectors rather than bytes.
  */
-int diskio(int rw, unsigned long sector, void *buf, unsigned long count)
-{
+int diskio(int rw, unsigned long sector, void *buf, unsigned long count) {
     off_t offset = (off_t)sector * 512;
     size_t bytes = count * 512;
     ssize_t r;
@@ -56,4 +45,3 @@ int diskio(int rw, unsigned long sector, void *buf, unsigned long count)
         return -1;
     return 0;
 }
-
