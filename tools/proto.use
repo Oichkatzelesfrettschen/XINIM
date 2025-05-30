@@ -38,10 +38,10 @@ d--755 1 1
 	test8.c	---644 2 1	../test/test8.c
 	test9.c	---644 2 1	../test/test9.c
 	test10.c ---644 2 1	../test/test10.c
-	t10a.c	---644 2 1	../test/t10a.c
+	t10a.cpp	---644 2 1	../test/t10a.cpp
 	test11.c ---644 2 1	../test/test11.c
-	t11a.c	---644 2 1	../test/t11a.c
-	t11b.c	---644 2 1	../test/t11b.c
+	t11a.cpp	---644 2 1	../test/t11a.cpp
+	t11b.cpp	---644 2 1	../test/t11b.cpp
 	run	---755 2 1	../test/run
 	MINIX	d--755 2 1	../test/MINIX
 		Makefile	---644 2 1	../test/MINIX/Makefile

@@ -349,12 +349,12 @@
   test
     Makefile
     run
-    t10a.c (K&R)
-    t11a.c (K&R)
-    t11b.c (K&R)
-    t15a.c (K&R)
-    t16a.c (K&R)
-    t16b.c (K&R)
+    t10a.cpp (C++)
+    t11a.cpp (C++)
+    t11b.cpp (C++)
+    t15a.cpp (C++)
+    t16a.cpp (C++)
+    t16b.cpp (C++)
     test0.c (C90)
     test1.c (K&R)
     test10.c (K&R)
