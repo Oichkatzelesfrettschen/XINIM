@@ -14,6 +14,11 @@ typedef __INT64_TYPE__ i64_t;
 typedef __UINT64_TYPE__ u64_t;
 typedef __UINTPTR_TYPE__ uptr_t;
 
+/* Macros for defining 64-bit constants without littering the code with
+ * long long suffixes. */
+#define U64_C(val) val##ULL
+#define I64_C(val) val##LL
+
 #else
 #error "Unsupported compiler"
 #endif

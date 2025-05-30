@@ -1,6 +1,9 @@
 #ifndef TYPE_H
 #define TYPE_H
 
+/* Pull in the fixed-width integer typedefs. */
+#include "../include/defs.h"
+
 /* Macros */
 #define MAX(a, b) (a > b ? a : b)
 #define MIN(a, b) (a < b ? a : b)
@@ -33,8 +36,8 @@ typedef char links; /* number of links to an inode */
 typedef long real_time; /* real time in seconds since Jan 1, 1980 */
 typedef long file_pos;  /* position in, or length of, a file */
 #define MAX_FILE_POS 017777777777L
-typedef long long file_pos64; /* 64-bit file positions */
-#define MAX_FILE_POS64 0x7fffffffffffffffLL
+typedef i64_t file_pos64; /* 64-bit file positions */
+#define MAX_FILE_POS64 I64_C(0x7fffffffffffffff)
 typedef short int uid; /* user id */
 typedef char gid;      /* group id */
 
