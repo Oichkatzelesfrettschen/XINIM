@@ -47,7 +47,7 @@
 
 /* The following are not system calls, but are processed like them. */
 #define KSIG 64       /* kernel detected a signal */
-#define UNPAUSE 65    /* to MM or FS: check for EINTR */
+#define UNPAUSE 65    /* to MM or FS: check for ErrorCode::EINTR */
 #define BRK2 66       /* to MM: used to say how big FS & INIT are */
 #define REVIVE 67     /* to FS: revive a sleeping process */
 #define TASK_REPLY 68 /* to FS: reply code from tty task */

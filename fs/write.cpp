@@ -87,7 +87,7 @@ zone_nr new_zone;           /* zone # to be inserted */
         index = excess / NR_INDIRECTS;
         excess = excess % NR_INDIRECTS;
         if (index >= NR_INDIRECTS)
-            return (EFBIG);
+            return (ErrorCode::EFBIG);
         b = (block_nr)z << scale;
         bp = get_block(rip->i_dev, b, (new_dbl ? NO_READ : NORMAL));
         if (new_dbl)

@@ -59,12 +59,11 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				adjust  				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, vir_clicks data_clicks, vir_bytes sp)
-{
+[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, vir_clicks data_clicks, vir_bytes sp) {
     /* See if data and stack segments can coexist, adjusting them if need be.
      * Memory is never allocated or freed.  Instead it is added or removed from the
      * gap between data segment and stack segment.  If the gap size becomes
-     * negative, the adjustment of data or stack fails and ENOMEM is returned.
+     * negative, the adjustment of data or stack fails and ErrorCode::ENOMEM is returned.
      */
 
     register struct mem_map *mem_sp, *mem_dp;
@@ -80,14 +79,14 @@ PUBLIC int do_brk() {
     base_of_stack = (long)mem_sp->mem_vir + (long)mem_sp->mem_len;
     sp_click = sp >> CLICK_SHIFT; /* click containing sp */
     if (sp_click >= base_of_stack)
-        return (ENOMEM); /* sp too high */
+        return (ErrorCode::ENOMEM); /* sp too high */
 
     /* Compute size of gap between stack and data segments. */
     delta = (long)mem_sp->mem_vir - (long)sp_click;
     lower = (delta > 0 ? sp_click : mem_sp->mem_vir);
     gap_base = mem_dp->mem_vir + data_clicks;
     if (lower < gap_base)
-        return (ENOMEM); /* data and stack collided */
+        return (ErrorCode::ENOMEM); /* data and stack collided */
 
     /* Update data length (but not data orgin) on behalf of brk() system call. */
     old_clicks = mem_dp->mem_len;
@@ -122,14 +121,14 @@ PUBLIC int do_brk() {
         mem_sp->mem_phys += delta;
         mem_sp->mem_len -= delta;
     }
-    return (ENOMEM);
+    return (ErrorCode::ENOMEM);
 }
 
 /*===========================================================================*
  *				size_ok  				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC int size_ok(int file_type, vir_clicks tc, vir_clicks dc, vir_clicks sc, vir_clicks dvir, vir_clicks s_vir)
-{
+[[nodiscard]] PUBLIC int size_ok(int file_type, vir_clicks tc, vir_clicks dc, vir_clicks sc,
+                                 vir_clicks dvir, vir_clicks s_vir) {
     /* Check to see if the sizes are feasible and enough segmentation registers
      * exist.  On a machine with eight 8K pages, text, data, stack sizes of
      * (32K, 16K, 16K) will fit, but (33K, 17K, 13K) will not, even though the
@@ -145,14 +144,14 @@ PUBLIC int do_brk() {
 
     if (file_type == SEPARATE) {
         if (pt > MAX_PAGES || pd + ps > MAX_PAGES)
-            return (ENOMEM);
+            return (ErrorCode::ENOMEM);
     } else {
         if (pt + pd + ps > MAX_PAGES)
-            return (ENOMEM);
+            return (ErrorCode::ENOMEM);
     }
 
     if (dvir + dc > s_vir)
-        return (ENOMEM);
+        return (ErrorCode::ENOMEM);
 
     return (OK);
 }
@@ -160,8 +159,7 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				stack_fault  				     *
  *===========================================================================*/
-PRIVATE void stack_fault(int proc_nr)
-{
+PRIVATE void stack_fault(int proc_nr) {
     /* Handle a stack fault by growing the stack segment until sp is inside of it.
      * If this is impossible because data segment is in the way, kill the process.
      */

@@ -117,7 +117,7 @@ PUBLIC winchester_task() {
             r = w_do_rdwt(&w_mess);
             break;
         default:
-            r = EINVAL;
+            r = ErrorCode::EINVAL;
             break;
         }
 
@@ -144,16 +144,16 @@ message *m_ptr; /* pointer to read or write w_message */
     /* Decode the w_message parameters. */
     device = m_ptr->DEVICE;
     if (device < 0 || device >= NR_DEVICES)
-        return (EIO);
+        return (ErrorCode::EIO);
     if (m_ptr->COUNT != BLOCK_SIZE)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     wn = &wini[device];                    /* 'wn' points to entry for this drive */
     wn->wn_drive = device / DEV_PER_DRIVE; /* save drive number */
     if (wn->wn_drive >= nr_drives)
-        return (EIO);
+        return (ErrorCode::EIO);
     wn->wn_opcode = m_ptr->m_type; /* DISK_READ or DISK_WRITE */
     if (m_ptr->POSITION % BLOCK_SIZE != 0)
-        return (EINVAL);
+        return (ErrorCode::EINVAL);
     sector = m_ptr->POSITION / SECTOR_SIZE;
     if ((sector + BLOCK_SIZE / SECTOR_SIZE) > wn->wn_size)
         return (EOF);
@@ -169,7 +169,7 @@ message *m_ptr; /* pointer to read or write w_message */
     while (errors <= MAX_ERRORS) {
         errors++; /* increment count once per loop cycle */
         if (errors > MAX_ERRORS)
-            return (EIO);
+            return (ErrorCode::EIO);
 
         /* First check to see if a reset is needed. */
         if (w_need_reset)
@@ -181,7 +181,7 @@ message *m_ptr; /* pointer to read or write w_message */
             break; /* if successful, exit loop */
     }
 
-    return (r == OK ? BLOCK_SIZE : EIO);
+    return (r == OK ? BLOCK_SIZE : ErrorCode::EIO);
 }
 
 /*===========================================================================*

@@ -47,7 +47,7 @@ PUBLIC int do_utime() {
     /* Only the owner of a file or the super_user can change its time. */
     r = OK;
     if (rip->i_uid != fp->fp_effuid && !super_user)
-        r = EPERM;
+        r = ErrorCode::EPERM;
     if (r == OK) {
         rip->i_modtime = update_time;
         rip->i_dirt = DIRTY;
@@ -80,7 +80,7 @@ PUBLIC int do_stime() {
     register int k;
 
     if (!super_user)
-        return (EPERM);
+        return (ErrorCode::EPERM);
     clock_mess.m_type = SET_TIME;
     clock_mess.NEW_TIME = (long)tp;
     if ((k = sendrec(CLOCK, &clock_mess)) != OK)

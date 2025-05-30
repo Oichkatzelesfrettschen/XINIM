@@ -48,7 +48,7 @@ char *envp[]; /* pointer to environment */
     /* Prepare to set up the initial stack. */
     hp = &stack[(nargs + nenvps + 3) * ptrsize];
     if (hp + nargs + nenvps >= &stack[MAX_ISTACK_BYTES])
-        return (E2BIG);
+        return (ErrorCode::E2BIG);
     ap = (char **)stack;
     *ap++ = (char *)nargs;
 
@@ -60,7 +60,7 @@ char *envp[]; /* pointer to environment */
         while (*p) {
             *hp++ = *p++;
             if (hp >= &stack[MAX_ISTACK_BYTES])
-                return (E2BIG);
+                return (ErrorCode::E2BIG);
         }
         *hp++ = (char)0;
     }
@@ -74,7 +74,7 @@ char *envp[]; /* pointer to environment */
         while (*p) {
             *hp++ = *p++;
             if (hp >= &stack[MAX_ISTACK_BYTES])
-                return (E2BIG);
+                return (ErrorCode::E2BIG);
         }
         *hp++ = (char)0;
     }

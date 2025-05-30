@@ -1,4 +1,4 @@
-# Minix 1 Source Overview
+#Minix 1 Source Overview
 
 This repository contains the original sources of the Minix 1 operating system as
 released in 1987.  The tree is organized into the major components of the
@@ -65,7 +65,7 @@ The compatibility layer in `fs/compat.cpp` now provides `alloc_extent_table()`
 alongside `init_extended_inode()`.  Call `init_extended_inode()` when a new
 inode is created and then invoke `alloc_extent_table()` to allocate and
 initialize the inode's extent table.  The function returns `OK` on success or
-an error code such as `ENOMEM` when memory is exhausted.
+an error code such as `ErrorCode::ENOMEM` when memory is exhausted.
 
 ## License
 

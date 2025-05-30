@@ -216,7 +216,7 @@ register struct ioarg *ap;
 
     do {
         i = read(ap->afile, &c, sizeof(c));
-    } while (i < 0 && errno == EINTR);
+    } while (i < 0 && errno == ErrorCode::EINTR);
     return (i == sizeof(c) ? c & 0177 : (closef(ap->afile), 0));
 }
 

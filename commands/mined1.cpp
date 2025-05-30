@@ -1013,7 +1013,8 @@ bad_write(fd) int fd;
 
     clear_buffer();
     build_string(text_buffer, "Command aborted: %s (File incomplete)",
-                 (errno == ENOSPC || errno == -ENOSPC) ? "No space on device" : "Write error");
+                 (errno == ErrorCode::ENOSPC || errno == -ErrorCode::ENOSPC) ? "No space on device"
+                                                                             : "Write error");
     error(text_buffer, NIL_PTR);
 }
 

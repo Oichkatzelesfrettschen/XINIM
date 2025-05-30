@@ -66,7 +66,7 @@ PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count) {
     if (count == 0) {
         ip->i_extents = NIL_PTR;
         ip->i_extent_count = 0;
-        return EINVAL;
+        return ErrorCode::EINVAL;
     }
 
     /* Allocate memory for the extent table. */
@@ -75,7 +75,7 @@ PUBLIC int alloc_extent_table(struct inode *ip, unsigned short count) {
         /* Allocation failed.  Ensure inode fields remain clear. */
         ip->i_extents = NIL_PTR;
         ip->i_extent_count = 0;
-        return ENOMEM;
+        return ErrorCode::ENOMEM;
     }
 
     /* Initialize all table entries so the caller starts with empty extents. */

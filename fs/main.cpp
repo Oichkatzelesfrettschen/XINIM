@@ -55,7 +55,7 @@ PUBLIC main() {
 
         /* Call the internal function that does the work. */
         if (fs_call < 0 || fs_call >= NCALLS)
-            error = E_BAD_CALL;
+            error = ErrorCode::E_BAD_CALL;
         else
             error = (*call_vector[fs_call])();
 

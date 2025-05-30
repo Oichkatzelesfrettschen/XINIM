@@ -447,7 +447,7 @@ int canintr;
     do {
         pid = wait(&s);
         if (pid == -1) {
-            if (errno != EINTR || canintr)
+            if (errno != ErrorCode::EINTR || canintr)
                 break;
         } else {
             if ((rv = WAITSIG(s)) != 0) {
@@ -518,7 +518,7 @@ char *c, **v, **envp;
             ;
         execve(e.linep, v, envp);
         switch (errno) {
-        case ENOEXEC:
+        case ErrorCode::ENOEXEC:
             *v = e.linep;
             tp = *--v;
             *v = "/bin/sh";
@@ -526,18 +526,18 @@ char *c, **v, **envp;
             *v = tp;
             return ("no Shell");
 
-        case ENOMEM:
+        case ErrorCode::ENOMEM:
             return ("program too big");
 
-        case E2BIG:
+        case ErrorCode::E2BIG:
             return ("argument list too long");
 
-        case EACCES:
+        case ErrorCode::EACCES:
             eacces++;
             break;
         }
     }
-    return (errno == ENOENT ? "not found" : "cannot execute");
+    return (errno == ErrorCode::ENOENT ? "not found" : "cannot execute");
 }
 
 /*
