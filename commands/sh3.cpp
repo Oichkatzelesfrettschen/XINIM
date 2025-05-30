@@ -551,7 +551,7 @@ int (*f)();
     struct wdblock *swdlist;
     struct wdblock *siolist;
     jmp_buf ev, rt;
-    xint *ofail;
+    jmp_buf *ofail;
     int rv;
 
     areanum++;
@@ -560,13 +560,15 @@ int (*f)();
     otree = outtree;
     ofail = failpt;
     rv = -1;
-    if (newenv(setjmp(errpt = ev)) == 0) {
+    errpt = &ev;
+    if (newenv(setjmp(ev)) == 0) {
         wdlist = 0;
         iolist = 0;
         pushio(arg, f);
         e.iobase = e.iop;
         yynerrs = 0;
-        if (setjmp(failpt = rt) == 0 && yyparse() == 0)
+        failpt = &rt;
+        if (setjmp(rt) == 0 && yyparse() == 0)
             rv = execute(outtree, NOPIPE, NOPIPE, 0);
         quitenv();
     }
@@ -663,7 +665,7 @@ doexec(t) register struct op *t;
 {
     register i;
     jmp_buf ex;
-    xint *ofail;
+    jmp_buf *ofail;
 
     t->ioact = NULL;
     for (i = 0; (t->words[i] = t->words[i + 1]) != NULL; i++)
@@ -672,7 +674,8 @@ doexec(t) register struct op *t;
         return (1);
     execflg = 1;
     ofail = failpt;
-    if (setjmp(failpt = ex) == 0)
+    failpt = &ex;
+    if (setjmp(ex) == 0)
         execute(t, NOPIPE, NOPIPE, FEXEC);
     failpt = ofail;
     execflg = 0;

@@ -8,15 +8,21 @@
 #define SETJMP_H
 
 /*
- * Minimal jmp_buf representation used by the legacy Minix sources.
- * The buffer merely stores a pointer to the host jmp_buf allocated at
- * runtime in the wrapper implementation.
+ * Provide a thin wrapper around the C++ standard setjmp facilities so the
+ * legacy sources can continue to include this header without change.  The
+ * jmp_buf alias exposes the host representation from <csetjmp> while the
+ * wrapper functions simply delegate to std::setjmp and std::longjmp.
  */
-#define _JBLEN 3
-typedef int jmp_buf[_JBLEN];
 
-/* Prototypes for the host provided setjmp/longjmp functions. */
-int setjmp(void *env);
-void longjmp(void *env, int val);
+#include <csetjmp>
+
+using jmp_buf = std::jmp_buf; /* expose the standard buffer type */
+
+/*
+ * Delegate to the standard versions.  These are inline so calls are
+ * forwarded directly without additional overhead.
+ */
+inline int setjmp(jmp_buf env) { return std::setjmp(env); }
+inline void longjmp(jmp_buf env, int val) { std::longjmp(env, val); }
 
 #endif /* SETJMP_H */
