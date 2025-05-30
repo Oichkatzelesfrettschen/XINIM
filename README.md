@@ -12,9 +12,10 @@ release.
 
 ## Build Requirements
 
-Building now requires a 64-bit x86 compiler toolchain.  Clang is the default
-compiler throughout the repository.  Recent versions of GCC (9 or later) also
-work, but every build file now selects clang unless explicitly overridden.
+Building now requires a 64-bit x86 compiler toolchain.  Clang++ with the
+C++23 standard is the official compiler throughout the repository.  Recent
+versions of GCC (9 or later) also work, but every build file now selects
+clang++ unless explicitly overridden.
 NASM 2.14 or YASM 1.3 remain the recommended assemblers.  Older 16-bit
 configurations are no longer supported.
 
