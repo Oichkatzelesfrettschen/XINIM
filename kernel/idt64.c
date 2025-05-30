@@ -16,12 +16,12 @@ struct idt_entry {
     u16_t offset_mid;
     u32_t offset_high;
     u32_t zero;
-} __attribute__((packed));
+} PACKED;
 
 struct idt_ptr {
     u16_t limit;
     u64_t base;
-} __attribute__((packed));
+} PACKED;
 
 struct tss64 {
     u32_t reserved0;
@@ -39,7 +39,7 @@ struct tss64 {
     u64_t reserved2;
     u16_t reserved3;
     u16_t io_map_base;
-} __attribute__((packed));
+} PACKED;
 
 /* Single shared interrupt stack. */
 static u8_t int_stack[4096];
