@@ -37,7 +37,8 @@ register char **ap;
     inword++;
     wp = NULL;
     wb = NULL;
-    if (newenv(setjmp(errpt = ev)) == 0) {
+    errpt = &ev;
+    if (newenv(setjmp(ev)) == 0) {
         wb = addword((char *)0, wb); /* space for shell name, if command file */
         while (expand(*ap++, &wb, f))
             ;
@@ -104,7 +105,8 @@ register struct wdblock **wbp;
         *wbp = addword(cp, *wbp);
         return (1);
     }
-    if (newenv(setjmp(errpt = ev)) == 0) {
+    errpt = &ev;
+    if (newenv(setjmp(ev)) == 0) {
         PUSHIO(aword, cp, strchar);
         e.iobase = e.iop;
         while ((cp = blank(f)) && gflg == 0) {
