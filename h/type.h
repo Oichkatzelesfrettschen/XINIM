@@ -1,3 +1,6 @@
+#ifndef TYPE_H
+#define TYPE_H
+
 /* Macros */
 #define MAX(a, b) (a > b ? a : b)
 #define MIN(a, b) (a < b ? a : b)
@@ -48,44 +51,44 @@ typedef int signed_clicks;    /* same length as phys_clicks, but signed */
 #define M3_STRING 14
 
 typedef struct {
-  int m1i1, m1i2, m1i3;
-  char *m1p1, *m1p2, *m1p3;
+    int m1i1, m1i2, m1i3;
+    char *m1p1, *m1p2, *m1p3;
 } mess_1;
 typedef struct {
-  int m2i1, m2i2, m2i3;
-  long m2l1, m2l2;
-  char *m2p1;
+    int m2i1, m2i2, m2i3;
+    long m2l1, m2l2;
+    char *m2p1;
 } mess_2;
 typedef struct {
-  int m3i1, m3i2;
-  char *m3p1;
-  char m3ca1[M3_STRING];
+    int m3i1, m3i2;
+    char *m3p1;
+    char m3ca1[M3_STRING];
 } mess_3;
 typedef struct {
-  long m4l1, m4l2, m4l3, m4l4;
+    long m4l1, m4l2, m4l3, m4l4;
 } mess_4;
 typedef struct {
-  char m5c1, m5c2;
-  int m5i1, m5i2;
-  long m5l1, m5l2, m5l3;
+    char m5c1, m5c2;
+    int m5i1, m5i2;
+    long m5l1, m5l2, m5l3;
 } mess_5;
 typedef struct {
-  int m6i1, m6i2, m6i3;
-  long m6l1;
-  int (*m6f1)();
+    int m6i1, m6i2, m6i3;
+    long m6l1;
+    int (*m6f1)();
 } mess_6;
 
 typedef struct {
-  int m_source; /* who sent the message */
-  int m_type;   /* what kind of message is it */
-  union {
-    mess_1 m_m1;
-    mess_2 m_m2;
-    mess_3 m_m3;
-    mess_4 m_m4;
-    mess_5 m_m5;
-    mess_6 m_m6;
-  } m_u;
+    int m_source; /* who sent the message */
+    int m_type;   /* what kind of message is it */
+    union {
+        mess_1 m_m1;
+        mess_2 m_m2;
+        mess_3 m_m3;
+        mess_4 m_m4;
+        mess_5 m_m5;
+        mess_6 m_m6;
+    } m_u;
 } message;
 
 #define MESS_SIZE (sizeof(message))
@@ -131,17 +134,19 @@ typedef struct {
 #define m6_f1 m_u.m_m6.m6f1
 
 struct mem_map {
-  vir_clicks mem_vir;   /* virtual address */
-  phys_clicks mem_phys; /* physical address */
-  vir_clicks mem_len;   /* length */
+    vir_clicks mem_vir;   /* virtual address */
+    phys_clicks mem_phys; /* physical address */
+    vir_clicks mem_len;   /* length */
 };
 
 struct copy_info { /* used by sys_copy(src, dst, bytes) */
-  int cp_src_proc;
-  int cp_src_space;
-  vir_bytes cp_src_vir;
-  int cp_dst_proc;
-  int cp_dst_space;
-  vir_bytes cp_dst_vir;
-  vir_bytes cp_bytes;
+    int cp_src_proc;
+    int cp_src_space;
+    vir_bytes cp_src_vir;
+    int cp_dst_proc;
+    int cp_dst_space;
+    vir_bytes cp_dst_vir;
+    vir_bytes cp_bytes;
 };
+
+#endif /* TYPE_H */

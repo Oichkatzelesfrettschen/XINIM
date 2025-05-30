@@ -5,52 +5,59 @@
  * small utilities do not need numeric printing, they all use prints.
  */
 
-
 #define TRUNC_SIZE 128
 char Buf[TRUNC_SIZE], *Bufp;
 
+static void put(char c);
+
 #define OUT 1
 
-prints(s, arglist)
-register char *s;
-int *arglist;
-{
-  register w;
-  int k, r, *valp;
-  char *p, *p1, c;
+void prints(char *s, int *arglist) {
+    int w;
+    int k, r, *valp;
+    char *p, *p1, c;
 
-  Bufp = Buf;
-  valp = (int *)  &arglist;
-  while (*s != '\0') {
-	if (*s !=  '%') {
-		put(*s++);
-		continue;
-	}
+    Bufp = Buf;
+    valp = (int *)&arglist;
+    while (*s != '\0') {
+        if (*s != '%') {
+            put(*s++);
+            continue;
+        }
 
-	w = 0;
-	s++;
-	while (*s >= '0' && *s <= '9') {
-		w = 10 * w + (*s - '0');
-		s++;
-	}
+        w = 0;
+        s++;
+        while (*s >= '0' && *s <= '9') {
+            w = 10 * w + (*s - '0');
+            s++;
+        }
 
-
-	switch(*s) {
-	    case 'c':	k = *valp++; put(k); s++; continue;
-	    case 's':	p = (char *) *valp++; 
-			p1 = p;
-			while(c = *p++) put(c); s++;
-			if ( (k = w - (p-p1-1)) > 0) while (k--) put(' ');
-			continue;
-	    default:	put('%'); put(*s++); continue;
-	}
-
-  }
-  write(OUT, Buf, Bufp - Buf);	/* write everything in one blow. */
+        switch (*s) {
+        case 'c':
+            k = *valp++;
+            put(k);
+            s++;
+            continue;
+        case 's':
+            p = (char *)*valp++;
+            p1 = p;
+            while ((c = *p++) != '\0')
+                put(c);
+            s++;
+            if ((k = w - (p - p1 - 1)) > 0)
+                while (k--)
+                    put(' ');
+            continue;
+        default:
+            put('%');
+            put(*s++);
+            continue;
+        }
+    }
+    write(OUT, Buf, Bufp - Buf); /* write everything in one blow. */
 }
 
-static put(c)
-char c;
-{
-if (Bufp < &Buf[TRUNC_SIZE]) *Bufp++ = c;
+static void put(char c) {
+    if (Bufp < &Buf[TRUNC_SIZE])
+        *Bufp++ = c;
 }
