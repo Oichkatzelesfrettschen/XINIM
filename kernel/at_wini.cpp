@@ -108,7 +108,7 @@ PUBLIC winchester_task() {
             continue;
         }
         caller = w_mess.m_source;
-        proc_nr = w_mess.PROC_NR;
+        proc_nr = proc_nr(w_mess);
 
         /* Now carry out the work. */
         switch (w_mess.m_type) {
@@ -123,10 +123,10 @@ PUBLIC winchester_task() {
 
         /* Finally, prepare and send the reply message. */
         w_mess.m_type = TASK_REPLY;
-        w_mess.REP_PROC_NR = proc_nr;
+        rep_proc_nr(w_mess) = proc_nr;
 
-        w_mess.REP_STATUS = r; /* # of bytes transferred or error code */
-        send(caller, &w_mess); /* send reply to caller */
+        rep_status(w_mess) = r; /* # of bytes transferred or error code */
+        send(caller, &w_mess);  /* send reply to caller */
     }
 }
 
@@ -161,9 +161,9 @@ message *m_ptr; /* pointer to read or write w_message */
     wn->wn_cylinder = sector / (wn->wn_heads * wn->wn_maxsec);
     wn->wn_sector = (sector % wn->wn_maxsec) + 1;
     wn->wn_head = (sector % (wn->wn_heads * wn->wn_maxsec)) / wn->wn_maxsec;
-    wn->wn_count = m_ptr->COUNT;
-    wn->wn_address = (vir_bytes)m_ptr->ADDRESS;
-    wn->wn_procnr = m_ptr->PROC_NR;
+    wn->wn_count = count(*m_ptr);
+    wn->wn_address = (vir_bytes)address(*m_ptr);
+    wn->wn_procnr = proc_nr(*m_ptr);
 
     /* This loop allows a failed operation to be repeated. */
     while (errors <= MAX_ERRORS) {
@@ -443,11 +443,11 @@ PRIVATE init_params() {
 
     /* Read the partition table for each drive and save them */
     for (i = 0; i < nr_drives; i++) {
-        w_mess.DEVICE = i * 5;
-        w_mess.POSITION = 0L;
-        w_mess.COUNT = BLOCK_SIZE;
-        w_mess.ADDRESS = (char *)buf;
-        w_mess.PROC_NR = WINCHESTER;
+        device(w_mess) = i * 5;
+        position(w_mess) = 0L;
+        count(w_mess) = BLOCK_SIZE;
+        address(w_mess) = (char *)buf;
+        proc_nr(w_mess) = WINCHESTER;
         w_mess.m_type = DISK_READ;
         if (w_do_rdwt(&w_mess) != BLOCK_SIZE)
             panic("Can't read partition table of winchester ", i);

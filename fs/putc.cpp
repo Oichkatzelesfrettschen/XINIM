@@ -48,10 +48,10 @@ PRIVATE flush() {
     if (bufcount == 0)
         return;
     putchmsg.m_type = TTY_WRITE;
-    putchmsg.PROC_NR = 1;
-    putchmsg.TTY_LINE = 0;
-    putchmsg.ADDRESS = printbuf;
-    putchmsg.COUNT = bufcount;
+    proc_nr(putchmsg) = 1;
+    tty_line(putchmsg) = 0;
+    address(putchmsg) = printbuf;
+    count(putchmsg) = bufcount;
     sendrec(TTY, &putchmsg);
     bufcount = 0;
 }
