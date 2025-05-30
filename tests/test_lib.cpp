@@ -1,4 +1,4 @@
-#include <assert.h>
+#include <cassert> // for assert
 
 /* Prototype for strlen from the Minix library. */
 int strlen(char *s);
@@ -10,9 +10,11 @@ int rand(void);
 /* Verify basic behavior of strlen, strcmp and rand. */
 int main(void) {
     /* strlen should count the characters in the string. */
-    assert(strlen("hello") == 5);
+    // Cast away const to match legacy prototypes.
+    assert(strlen(const_cast<char *>("hello")) == 5);
     /* strcmp should report equality for identical strings. */
-    assert(strcmp("a", "a") == 0);
+    // Legacy strcmp also expects mutable pointers.
+    assert(strcmp(const_cast<char *>("a"), const_cast<char *>("a")) == 0);
     /* rand should produce a non-negative value. */
     int r = rand();
     assert(r >= 0);
