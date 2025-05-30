@@ -18,8 +18,8 @@
  */
 
 #define WRITE_ERROR 1
-#define isdigit(c) (c >= '0' && c <= '9')
 #include "stdio.hpp"
+#include <cctype>
 
 FILE *fopen();
 char buffer[BUFSIZ];
@@ -53,7 +53,7 @@ main(argc, argv) char *argv[];
     for (--argc, ++argv; argc > 0 && (**argv == '-' || **argv == '+'); --argc, ++argv) {
         if (**argv == '+')
             chars = atoi(*argv + 1);
-        else if (isdigit(argv[0][1]))
+        else if (std::isdigit(static_cast<unsigned char>(argv[0][1])))
             fields = atoi(*argv + 1);
         else if (argv[0][1] == '\0')
             inf = 0; /* - is stdin */

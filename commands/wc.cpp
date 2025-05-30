@@ -7,8 +7,7 @@
 /* wc - count lines, words and characters	Author: David Messer */
 
 #include "stdio.hpp"
-#define isdigit(c) (c >= '0' && c <= '9)
-#define isspace(c) (c == ' ' || c == '\t' || c == '\n' || c == '\f' || c == '\r')
+#include <cctype>
 
 /*
  *
@@ -149,7 +148,7 @@ count() {
     while ((c = getc(stdin)) > 0) {
         ccount++;
 
-        if (isspace(c)) {
+        if (std::isspace(static_cast<unsigned char>(c))) {
             if (word)
                 wcount++;
             word = 0;
