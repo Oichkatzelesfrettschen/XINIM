@@ -18,10 +18,10 @@ file:	$(LIB) $(f).s
 	@chmem =2048 bin/$f >/dev/null
 	@echo "$f done ."
 
-mined:	mined1.s mined2.s $(INC)/mined.h
+mined:	mined1.s mined2.s $(INC)/mined.hpp
 	@asld $(LDFLAGS) -o bin/mined $(l)/crtso.s mined1.s mined2.s $(LIB) $(l)/end.s
 
 shobj = sh1.s sh2.s sh3.s sh4.s sh5.s
-sh:	$(shobj) $(INC)/sh.h
+sh:	$(shobj) $(INC)/sh.hpp
 	@asld $(LDFLAGS) -o bin/sh $(l)/crtso.s $(shobj) $(LIB) $(l)/end.s
 

@@ -48,10 +48,10 @@ d--755 1 1
 	$
    $
    commands	d--755 2 1
-	mined.h ---644 2 1	../include/mined.h
+	mined.hpp ---644 2 1	../include/mined.hpp
 	mined1.c ---644 2 1	../commands/mined1.c
 	mined2.c ---644 2 1	../commands/mined2.c
-	sh.h  ---644 2 1	../include/sh.h
+	sh.hpp  ---644 2 1	../include/sh.hpp
 	sh1.c ---644 2 1	../commands/sh1.c
 	sh2.c ---644 2 1	../commands/sh2.c
 	sh3.c ---644 2 1	../commands/sh3.c

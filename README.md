@@ -3,6 +3,8 @@
 This repository contains the original sources of the Minix 1 operating system as
 released in 1987.  The tree is organized into the major components of the
 system such as the kernel, file system, libraries and user commands.
+**Work in Progress:** This codebase aims to recreate the original Minix simplicity on modern armv7/arm64, i386-i686/x86_64 and risc-v 32/64 hardware using C++23. arm64 and x86_64 are the first targets.
+
 
 Minix 1 was originally distributed as an appendix to Andrew S. Tanenbaum's
 book *Operating Systems: Design and Implementation*.  Providing a real
@@ -57,7 +59,7 @@ PC/XT driver is used by default.
 
 ## Extent Table Helpers
 
-The compatibility layer in `fs/compat.c` now provides `alloc_extent_table()`
+The compatibility layer in `fs/compat.cpp` now provides `alloc_extent_table()`
 alongside `init_extended_inode()`.  Call `init_extended_inode()` when a new
 inode is created and then invoke `alloc_extent_table()` to allocate and
 initialize the inode's extent table.  The function returns `OK` on success or
@@ -85,8 +87,9 @@ project root.
 
 
 ## Code Style
+All sources now use clang-format and C++23 conventions for a minimalist yet complete pedagogical style.
 
-All C sources adhere to a consistent formatting defined in `.clang-format`.  The
+All sources adhere to a consistent formatting defined in `.clang-format`.  The
 repository follows the LLVM style with four space indentation.  Static analysis
 is configured via `.clang-tidy` enabling the `bugprone-*` and `portability-*`
 check groups and treating all warnings as errors.

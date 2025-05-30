@@ -29,7 +29,7 @@ def classify_file(path: str) -> str:
     ext = os.path.splitext(path)[1].lower()
     if ext in {".s", ".asm", ".S"}:
         return "assembly"
-    if ext not in {".c", ".h"}:
+    if ext not in {".cpp", ".hpp"}:
         return ""
 
     try:

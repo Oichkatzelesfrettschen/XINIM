@@ -7,6 +7,7 @@ build environment works on a Unix-like host.
 
 A 64-bit x86 compiler toolchain is required.  Clang++ with C++23 is used by
 default across all Makefiles and CMake scripts.  GCC 9 or later can still be
+Ports to armv7/arm64, i386-i686/x86_64 and risc-v are underway. arm64 and x86_64 take priority.
 used if desired, and either NASM 2.14 or YASM 1.3 are known to work.  CMake 3.5
 or newer is needed when using the CMake build system.
 
@@ -77,5 +78,5 @@ assembler are functioning correctly.
 
 The `tools/c86` directory stores batch files and legacy utilities once used with
 an MS-DOS cross compiler. They are kept for reference but are not executed by
-the current build. Modern equivalents written in C (for example `bootblok.c`)
+the current build. Modern equivalents written in C (for example `bootblok.cpppp`)
 provide the needed functionality and are built automatically.

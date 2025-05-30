@@ -17,70 +17,70 @@ mm:     Makefile  $l/head.o $(obj) $(LIB) $l/end.o
 	@echo "MM done"
 
 
-alloc.o:	const.h $h/const.h $h/type.h
+alloc.o:	const.hpp $h/const.hpp $h/type.hpp
 
-break.o:	const.h $h/const.h $h/type.h
-break.o:	$h/error.h
-break.o:	$h/signal.h
-break.o:	glo.h
-break.o:	mproc.h
-break.o:	param.h
+break.o:	const.hpp $h/const.hpp $h/type.hpp
+break.o:	$h/error.hpp
+break.o:	$h/signal.hpp
+break.o:	glo.hpp
+break.o:	mproc.hpppp
+break.o:	param.hpp
 
-exec.o:		const.h $h/const.h $h/type.h
-exec.o:		$h/callnr.h
-exec.o:		$h/error.h
-exec.o:		$h/stat.h
-exec.o:		glo.h
-exec.o:		mproc.h
-exec.o:		param.h
+exec.o:		const.hpp $h/const.hpp $h/type.hpp
+exec.o:		$h/callnr.hpp
+exec.o:		$h/error.hpp
+exec.o:		$h/stat.hpp
+exec.o:		glo.hpp
+exec.o:		mproc.hpppp
+exec.o:		param.hpp
 
-forkexit.o:	const.h $h/const.h $h/type.h
-forkexit.o:	$h/callnr.h
-forkexit.o:	$h/error.h
-forkexit.o:	glo.h
-forkexit.o:	mproc.h
-forkexit.o:	param.h
+forkexit.o:	const.hpp $h/const.hpp $h/type.hpp
+forkexit.o:	$h/callnr.hpp
+forkexit.o:	$h/error.hpp
+forkexit.o:	glo.hpp
+forkexit.o:	mproc.hpppp
+forkexit.o:	param.hpp
 
-getset.o:	const.h $h/const.h $h/type.h
-getset.o:	$h/callnr.h
-getset.o:	$h/error.h
-getset.o:	glo.h
-getset.o:	mproc.h
-getset.o:	param.h
+getset.o:	const.hpp $h/const.hpp $h/type.hpp
+getset.o:	$h/callnr.hpp
+getset.o:	$h/error.hpp
+getset.o:	glo.hpp
+getset.o:	mproc.hpppp
+getset.o:	param.hpp
 
-main.o:		const.h $h/const.h $h/type.h
-main.o:		$h/callnr.h
-main.o:		$h/com.h
-main.o:		$h/error.h
-main.o:		glo.h
-main.o:		mproc.h
-main.o:		param.h
-paging.o:       const.h ../include/paging.h
-vm.o:           const.h ../include/vm.h mproc.h
+main.o:		const.hpp $h/const.hpp $h/type.hpp
+main.o:		$h/callnr.hpp
+main.o:		$h/com.hpp
+main.o:		$h/error.hpp
+main.o:		glo.hpp
+main.o:		mproc.hpppp
+main.o:		param.hpp
+paging.o:       const.hpp ../include/paging.hpp
+vm.o:           const.hpp ../include/vm.hpp mproc.hpppp
 
-putc.o:		$h/const.h $h/type.h
-putc.o:		$h/com.h
+putc.o:		$h/const.hpp $h/type.hpp
+putc.o:		$h/com.hpp
 
-signal.o:	const.h $h/const.h $h/type.h
-signal.o:	$h/callnr.h
-signal.o:	$h/com.h
-signal.o:	$h/error.h
-signal.o:	$h/signal.h
-signal.o:	$h/stat.h
-signal.o:	glo.h
-signal.o:	mproc.h
-signal.o:	param.h
+signal.o:	const.hpp $h/const.hpp $h/type.hpp
+signal.o:	$h/callnr.hpp
+signal.o:	$h/com.hpp
+signal.o:	$h/error.hpp
+signal.o:	$h/signal.hpp
+signal.o:	$h/stat.hpp
+signal.o:	glo.hpp
+signal.o:	mproc.hpppp
+signal.o:	param.hpp
 
-table.o:	const.h $h/const.h $h/type.h
-table.o:	$h/callnr.h
-table.o:	glo.h
-table.o:	mproc.h
-table.o:	param.h
+table.o:	const.hpp $h/const.hpp $h/type.hpp
+table.o:	$h/callnr.hpp
+table.o:	glo.hpp
+table.o:	mproc.hpppp
+table.o:	param.hpp
 
-utility.o:	const.h $h/const.h $h/type.h
-utility.o:	$h/callnr.h
-utility.o:	$h/com.h
-utility.o:	$h/error.h
-utility.o:	$h/stat.h
-utility.o:	glo.h
-utility.o:	mproc.h
+utility.o:	const.hpp $h/const.hpp $h/type.hpp
+utility.o:	$h/callnr.hpp
+utility.o:	$h/com.hpp
+utility.o:	$h/error.hpp
+utility.o:	$h/stat.hpp
+utility.o:	glo.hpp
+utility.o:	mproc.hpppp

@@ -1,0 +1,29 @@
+/*=== MINIX MODERNIZATION HEADER BEGIN ===
+   This file is part of a work in progress to reproduce the original MINIX simplicity on modern
+armv7/arm64, i386-i686/x86_64, and risc-v 32/64 using C++23. Targeting arm64/x86_64 first.
+=== MINIX MODERNIZATION HEADER END ===*/
+
+/* Global variables used in the kernel. */
+
+/* Clocks and timers */
+EXTERN real_time realtime; /* real time clock */
+EXTERN int lost_ticks;     /* incremented when clock int can't send mess*/
+
+/* Processes, signals, and messages. */
+EXTERN int cur_proc;     /* current process */
+EXTERN int prev_proc;    /* previous process */
+EXTERN int sig_procs;    /* number of procs with p_pending != 0 */
+EXTERN message int_mess; /* interrupt routines build message here */
+
+/* CPU type. */
+EXTERN int olivetti; /* TRUE for Olivetti-style keyboard */
+EXTERN int pc_at;    /*  PC-AT type diskette drives (360K/1.2M) ? */
+/* Current CPU id (for future SMP support) */
+EXTERN int current_cpu;
+
+/* The kernel and task stacks. */
+EXTERN struct t_stack {
+    int stk[TASK_STACK_BYTES / sizeof(int)];
+} t_stack[NR_TASKS - 1]; /* task stacks; task = -1 never really runs */
+
+EXTERN char k_stack[K_STACK_BYTES]; /* The kernel stack. */
