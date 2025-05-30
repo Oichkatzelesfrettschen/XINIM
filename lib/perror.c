@@ -9,7 +9,9 @@ extern int errno;
 /* Return the length of a string without relying on strlen(). */
 static int slen(const char *s);
 
+/* Error message strings corresponding to errno values. */
 /* Table mapping errno values to human readable messages. */
+
 const char *error_message[NERROR + 1] = {"Error 0",
 
                                          "Not owner",
@@ -105,6 +107,42 @@ static int slen(const char *s) {
     while (*s++)
         k++;
     return k;
+    "No space left on device",
+        "Illegal seek",
+        "Read-only file system",
+
+        "Too many links",
+
+        "Broken pipe",
+
+        "Math argument",
+
+        "Result too large"
+};
+
+perror(s) char *s;
+    if (errno < 0 || errno > NERROR) {
+        write(2, "Invalid errno\n", 14);
+    } else {
+        write(2, s, slen(s));
+        write(2, ": ", 2);
+        write(2, error_message[errno], slen(error_message[errno]));
+        write(2, "\n", 1);
+    }
+    int k = 0;
+    while (*s++)
+        k++;
+    return (k);
+  if (errno < 0 || errno > NERROR) {
+	write(2, "Invalid errno\n", 14);
+  } else {
+	write(2, s, slen(s));
+	write(2, ": ", 2);
+	write(2, error_message[errno], slen(error_message[errno]));
+	write(2, "\n", 1);
+  }
+}
+
 
 static int slen(s)
 char *s;
