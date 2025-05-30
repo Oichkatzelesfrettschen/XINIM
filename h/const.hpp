@@ -20,9 +20,9 @@
 inline constexpr bool kTrue = true;   // C++17 boolean constant
 inline constexpr bool kFalse = false; // C++17 boolean constant
 
-#define HZ 60             /* clock freq (software settable on IBM-PC) */
-#define BLOCK_SIZE 1024   /* # bytes in a disk block */
-#define SUPER_USER (uid)0 /* uid of superuser */
+#define HZ 60                           /* clock freq (software settable on IBM-PC) */
+inline constexpr int BLOCK_SIZE = 1024; // Number of bytes in a disk block
+#define SUPER_USER (uid)0               /* uid of superuser */
 
 #define MAJOR 8 /* major device = (dev>>MAJOR) & 0377 */
 #define MINOR 0 /* minor device = (dev>>MINOR) & 0377 */

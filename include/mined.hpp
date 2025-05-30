@@ -40,9 +40,9 @@ extern char *pos_string;   /* Absolute cursor positioning */
 #define LINE_START (((-MAX_CHARS - 1) / SHIFT_SIZE) * SHIFT_SIZE - SHIFT_SIZE)
 #define LINE_END (MAX_CHARS + 1) /* Highest x-coordinate for line */
 
-#define LINE_LEN (XMAX + 1)       /* Number of characters on line */
-#define SCREEN_SIZE (XMAX * YMAX) /* Size of I/O buffering */
-#define BLOCK_SIZE 1024
+#define LINE_LEN (XMAX + 1)             /* Number of characters on line */
+#define SCREEN_SIZE (XMAX * YMAX)       /* Size of I/O buffering */
+inline constexpr int BLOCK_SIZE = 1024; // Block size in bytes
 
 /* Return values of functions */
 #define ERRORS -1
