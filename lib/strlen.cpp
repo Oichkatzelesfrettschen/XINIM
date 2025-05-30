@@ -1,6 +1,6 @@
 /* Compute the length of a string. */
 
-#include <string.h>
+#include <cstring>
 
 /* Return the number of characters in the string s. */
 int strlen(char *s) {

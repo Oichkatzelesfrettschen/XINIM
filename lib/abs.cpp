@@ -1,6 +1,6 @@
 /* Implementation of the standard abs() function. */
 
-#include <stdlib.h>
+#include <cstdlib>
 
 /* Return the absolute value of the integer argument. */
 int abs(int i) {

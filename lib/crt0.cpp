@@ -2,7 +2,7 @@
  * This function extracts argc, argv, and envp from the stack
  * and then invokes _main. It finally terminates by calling _exit.
  */
-#include <stddef.h>
+#include <cstddef>
 
 extern int _main(int argc, char **argv, char **envp);
 extern void _exit(int status);

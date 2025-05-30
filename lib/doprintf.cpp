@@ -1,5 +1,5 @@
 #include "../include/stdio.h"
-#include <string.h>
+#include <cstring>
 
 /* Forward declarations for helper routines. */
 static void _bintoascii(long num, int radix, char *a);

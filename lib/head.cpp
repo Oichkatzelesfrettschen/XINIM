@@ -1,5 +1,5 @@
 /* Minimal startup for the kernel image. */
-#include <stddef.h>
+#include <cstddef>
 
 extern void _main(void);
 extern void _exit(int status);

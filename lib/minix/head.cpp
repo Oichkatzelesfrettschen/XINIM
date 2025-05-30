@@ -1,5 +1,5 @@
 /* Kernel startup for MINIX binaries. */
-#include <stddef.h>
+#include <cstddef>
 
 extern void _main(void);
 extern void *_stackpt;

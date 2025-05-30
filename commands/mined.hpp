@@ -10,7 +10,7 @@
 
 #ifndef YMAX
 #ifdef UNIX
-#include <stdio.h>
+#include <cstdio>
 #undef putchar
 #undef getchar
 #undef NULL

@@ -2,8 +2,8 @@
 /* r.cpp - Dump memory contents from a core file. */
 
 #include <fcntl.h>
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <unistd.h>
 
 static long addr;

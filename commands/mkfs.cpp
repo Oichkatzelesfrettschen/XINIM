@@ -32,7 +32,7 @@
 #endif
 
 #ifdef UNIX
-#include <stdio.h>
+#include <cstdio>
 #include <sys/stat.h>
 #include <sys/types.h>
 #define COMPILERFLAG

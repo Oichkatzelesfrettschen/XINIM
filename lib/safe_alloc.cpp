@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 
 /* Allocate memory and abort on failure. */
 void *safe_malloc(size_t size) {

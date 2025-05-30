@@ -4,7 +4,7 @@
 #include "../h/error.h"
 #include "../h/type.h"
 #include "../include/lib.hpp" // for message structure and constants
-#include <signal.h>
+#include <csignal>
 
 #ifndef sighandler_t
 typedef void (*sighandler_t)(int);

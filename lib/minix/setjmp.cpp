@@ -1,6 +1,6 @@
 #include "../../include/setjmp.h"
 #include "../../include/lib.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 /*
  * Alternate location for _setjmp/_longjmp used by certain Minix binaries.

@@ -1,5 +1,5 @@
 /* Shared startup for MINIX binaries. */
-#include <stddef.h>
+#include <cstddef>
 
 extern int _main(int argc, char **argv, char **envp);
 extern void _exit(int status);

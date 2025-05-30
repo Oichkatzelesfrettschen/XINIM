@@ -1,7 +1,7 @@
 /* Compare two strings and return the difference between the first
  * differing characters or zero if they match. */
 
-#include <string.h>
+#include <cstring>
 
 /* Lexicographically compare s1 and s2. */
 int strcmp(char *s1, char *s2) {

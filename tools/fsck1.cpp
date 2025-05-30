@@ -1,6 +1,6 @@
 #include "../include/defs.hpp"
-#include <stdio.h>
-#include <stdlib.h>
+#include <cstdio>
+#include <cstdlib>
 #include <unistd.h>
 
 /* External entry point to main provided by fsck.cpp */

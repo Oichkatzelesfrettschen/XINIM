@@ -1,5 +1,5 @@
-#include <stdarg.h>
-#include <stdio.h>
+#include <cstdarg>
+#include <cstdio>
 
 /*
  * Simplified scanf wrappers that delegate to the host C library.

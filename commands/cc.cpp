@@ -21,8 +21,8 @@
 */
 
 #include <array>
-#include <errno.h>
-#include <signal.h>
+#include <cerrno>
+#include <csignal>
 
 constexpr int MAXARGC = 64;   /* maximum number of arguments allowed in a list */
 constexpr int USTR_SIZE = 64; /* maximum length of string variable */

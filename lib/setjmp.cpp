@@ -1,6 +1,6 @@
 #include "../include/setjmp.h"
 #include "../include/lib.hpp" // C++17 header
-#include <stdlib.h>
+#include <cstdlib>
 
 /*
  * Portable implementation of _setjmp using the host C library.

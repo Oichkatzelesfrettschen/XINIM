@@ -415,7 +415,7 @@
 #include "sgtty.hpp"
 #include "signal.hpp"
 #ifdef UNIX
-#include <errno.h>
+#include <cerrno>
 #else
 #include "errno.hpp"
 #endif UNIX
