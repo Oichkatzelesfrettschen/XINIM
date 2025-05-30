@@ -1,6 +1,11 @@
 /* rev - reverse an ASCII line	  Authors: Paul Polderman & Michiel Huisjes */
 
-#include "blocksize.h"
+#include "blocksiz.h"
+
+/*
+ * Reverse the contents of each line of the input files specified on the
+ * command line.  A file name of '-' denotes standard input.
+ */
 
 #ifndef NULL
 #define	NULL	0
@@ -13,9 +18,11 @@
 
 int fd;			/* File descriptor from file currently being read */
 
-main(argc, argv)
-int argc;
-char *argv[];
+/* Function prototypes */
+static void rev(void);
+static int nextchar(void);
+
+int main(int argc, char *argv[])
 {
   register unsigned short i;
 
@@ -40,7 +47,11 @@ char *argv[];
 
 
 
-rev()
+/*
+ * Read characters from the current input file, reverse the order of each
+ * line and write the result to standard output.
+ */
+static void rev(void)
 {
   char output[BLOCK_SIZE];	/* Contains a reversed line */
   register unsigned short i;		/* Index in output array */
@@ -58,8 +69,13 @@ rev()
 
 
 
+/* Buffer used for input */
 char buf[BLOCK_SIZE];
-nextchar()		/* Does a sort of buffered I/O */
+/*
+ * Provide buffered input from the current file descriptor.
+ * When the buffer becomes empty the next block is read.
+ */
+static int nextchar(void)		/* Does a sort of buffered I/O */
 {
   static int n = 0;	/* Read count */
   static int i;		/* Index in input buffer to next character */

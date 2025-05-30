@@ -1,6 +1,6 @@
 /* split - split a file		Author: Michiel Huisjes */
 
-#include "blocksize.h"
+#include "blocksiz.h"
 
 int cut_line = 1000;
 int infile;
