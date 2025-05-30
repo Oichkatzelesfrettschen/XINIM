@@ -152,6 +152,20 @@ PRIVATE int nr_blocks[NT]     = {720,  720,  720,  2400}; /* sectors/diskette*/
 PRIVATE int steps_per_cyl[NT] = {1,    2,    2,    1};	  /* 2 = dbl step */
 PRIVATE int mtr_setup[NT]     = {HZ/4,HZ/4,3*HZ/4,3*HZ/4};/* in ticks */
 
+/* Forward declarations for internal routines. */
+PRIVATE int do_rdwt(message *m_ptr);
+PRIVATE void dma_setup(struct floppy *fp);
+PRIVATE void start_motor(struct floppy *fp);
+PRIVATE int stop_motor(void);
+PRIVATE int seek(struct floppy *fp);
+PRIVATE int transfer(struct floppy *fp);
+PRIVATE int fdc_results(struct floppy *fp);
+PRIVATE void fdc_out(int val);
+PRIVATE int recalibrate(struct floppy *fp);
+PRIVATE void reset(void);
+PRIVATE void clock_mess(int ticks, int (*func)());
+PRIVATE int send_mess(void);
+
 /*===========================================================================*
  *				floppy_task				     * 
  *===========================================================================*/
@@ -264,8 +278,7 @@ message *m_ptr;			/* pointer to read or write message */
 /*===========================================================================*
  *				dma_setup				     * 
  *===========================================================================*/
-PRIVATE dma_setup(fp)
-struct floppy *fp;		/* pointer to the drive struct */
+PRIVATE void dma_setup(struct floppy *fp)
 {
 /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
  * the DMA (Direct Memory Access) chip is loaded with the 20-bit memory address
@@ -316,8 +329,7 @@ struct floppy *fp;		/* pointer to the drive struct */
 /*===========================================================================*
  *				start_motor				     * 
  *===========================================================================*/
-PRIVATE start_motor(fp)
-struct floppy *fp;		/* pointer to the drive struct */
+PRIVATE void start_motor(struct floppy *fp)
 {
 /* Control of the floppy disk motors is a big pain.  If a motor is off, you
  * have to turn it on first, which takes 1/2 second.  You can't leave it on
@@ -353,7 +365,7 @@ struct floppy *fp;		/* pointer to the drive struct */
 /*===========================================================================*
  *				stop_motor				     * 
  *===========================================================================*/
-PRIVATE stop_motor()
+PRIVATE int stop_motor(void)
 {
 /* This routine is called by the clock interrupt after several seconds have
  * elapsed with no floppy disk activity.  It checks to see if any drives are
@@ -364,6 +376,7 @@ PRIVATE stop_motor()
 	port_out(DOR, motor_goal);
 	motor_status = motor_goal;
   }
+  return(OK);
 }
 
 
@@ -494,8 +507,7 @@ register struct floppy *fp;	/* pointer to the drive struct */
 /*===========================================================================*
  *				fdc_out					     * 
  *===========================================================================*/
-PRIVATE fdc_out(val)
-int val;			/* write this byte to floppy disk controller */
+PRIVATE void fdc_out(int val)
 {
 /* Output a byte to the controller.  This is not entirely trivial, since you
  * can only write to it when it is listening, and it decides when to listen.
@@ -565,7 +577,7 @@ register struct floppy *fp;	/* pointer tot he drive struct */
 /*===========================================================================*
  *				reset					     * 
  *===========================================================================*/
-PRIVATE reset()
+PRIVATE void reset(void)
 {
 /* Issue a reset to the controller.  This is done after any catastrophe,
  * like the controller refusing to respond.
@@ -602,9 +614,7 @@ PRIVATE reset()
 /*===========================================================================*
  *				clock_mess				     * 
  *===========================================================================*/
-PRIVATE clock_mess(ticks, func)
-int ticks;			/* how many clock ticks to wait */
-int (*func)();			/* function to call upon time out */
+PRIVATE void clock_mess(int ticks, int (*func)())
 {
 /* Send the clock task a message. */
 
@@ -619,10 +629,11 @@ int (*func)();			/* function to call upon time out */
 /*===========================================================================*
  *				send_mess				     * 
  *===========================================================================*/
-PRIVATE send_mess()
+PRIVATE int send_mess(void)
 {
 /* This routine is called when the clock task has timed out on motor startup.*/
 
   mess.m_type = MOTOR_RUNNING;
   send(FLOPPY, &mess);
+  return(OK);
 }
