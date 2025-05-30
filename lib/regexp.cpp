@@ -26,9 +26,9 @@
  *	Andy Tanenbaum also made some changes.
  */
 
-#include "../include/regexp.h"
+#include "../include/regexp.hpp"
 #include "../include/lib.hpp" // C++17 header
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 #include <string.h>
 #include <strings.h>
 
@@ -194,9 +194,7 @@ STATIC int mystrcspn();
  * Beware that the optimization-preparation code in here knows about some
  * of the structure of the compiled regexp.
  */
-regexp *regcomp(exp)
-char *exp;
-{
+regexp *regcomp(const char *exp) {
     register regexp *r;
     register char *scan;
     register char *longest;
@@ -688,12 +686,8 @@ STATIC char *regprop();
 /*
  - regexec - match a regexp against a string
  */
-int regexec(prog, string, bolflag)
-register regexp *prog;
-register char *string;
-int bolflag;
-{
-    register char *s;
+int regexec(regexp *prog, const char *string, bool bolflag) {
+    register const char *s;
 
     /* Be paranoid... */
     if (prog == NULL || string == NULL) {

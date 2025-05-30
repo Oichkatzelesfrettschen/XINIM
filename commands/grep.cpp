@@ -123,7 +123,7 @@ static void match(char *name, regexp *exp) {
             pline(name, lineno, buf);
     }
 }
-static void regerror(char *s) {
+static void regerror(const char *s) {
     std_err("grep: ");
     std_err(s);
     std_err("\n");

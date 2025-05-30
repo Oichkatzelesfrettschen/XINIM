@@ -104,7 +104,7 @@ static void process(FILE *inf, regexp *exp, char *repstr) {
     }
 }
 
-void static void regerror(char *s) {
+static void regerror(const char *s) {
     std_err("gres: ");
     std_err(s);
     std_err("\n");
