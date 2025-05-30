@@ -89,9 +89,9 @@ int cf;
                 SYNTAXERR;
             if (t->type != TPAREN && t->type != TCOM) {
                 /* shell statement */
-                t = block(TPAREN, t, NOBLOCK, NOWORDS);
+                t = block(TPAREN, t, nullptr, nullptr);
             }
-            t = block(TPIPE, t, p, NOWORDS);
+            t = block(TPIPE, t, p, nullptr);
         }
         peeksym = c;
     }
@@ -107,7 +107,7 @@ static struct op *andor() {
         while ((c = yylex(0)) == LOGAND || c == LOGOR) {
             if ((p = pipeline(CONTIN)) == NULL)
                 SYNTAXERR;
-            t = block(c == LOGAND ? TAND : TOR, t, p, NOWORDS);
+            t = block(c == LOGAND ? TAND : TOR, t, p, nullptr);
         }
         peeksym = c;
     }
@@ -122,7 +122,7 @@ static struct op *c_list() {
     if (t != NULL) {
         while ((c = yylex(0)) == ';' || c == '&' || multiline && c == '\n') {
             if (c == '&')
-                t = block(TASYNC, t, NOBLOCK, NOWORDS);
+                t = block(TASYNC, t, nullptr, nullptr);
             if ((p = andor()) == NULL)
                 return (t);
             t = list(t, p);
@@ -193,7 +193,7 @@ int type, mark;
     t = c_list();
     musthave(mark, 0);
     multiline--;
-    return (block(type, t, NOBLOCK, NOWORDS));
+    return (block(type, t, nullptr, nullptr));
 }
 
 static struct op *command(cf)
@@ -375,7 +375,7 @@ static char **pattern() {
         cf = 0;
     } while ((c = yylex(0)) == '|');
     peeksym = c;
-    word(NOWORD);
+    word(nullptr);
     return (copyw());
 }
 
@@ -389,7 +389,7 @@ static char **wordlist() {
     startl = 0;
     while ((c = yylex(0)) == WORD)
         word(yylval.cppp);
-    word(NOWORD);
+    word(nullptr);
     peeksym = c;
     return (copyw());
 }
@@ -404,7 +404,7 @@ register struct op *t1, *t2;
         return (t2);
     if (t2 == NULL)
         return (t1);
-    return (block(TLIST, t1, t2, NOWORDS));
+    return (block(TLIST, t1, t2, nullptr));
 }
 
 static struct op *block(type, t1, t2, wp)
@@ -467,13 +467,13 @@ register struct op *t;
         t->ioact = NULL;
     if (t->type != TCOM) {
         if (t->type != TPAREN && t->ioact != NULL) {
-            t = block(TPAREN, t, NOBLOCK, NOWORDS);
+            t = block(TPAREN, t, nullptr, nullptr);
             t->ioact = t->left->ioact;
             t->left->ioact = NULL;
         }
         return (t);
     }
-    word(NOWORD);
+    word(nullptr);
     t->words = copyw();
     return (t);
 }

@@ -270,7 +270,7 @@ int *pforked;
     for (i = FDBASE; i < NOFILE; i++)
         close(i);
     if (t->type == TPAREN)
-        exit(execute(t->left, NOPIPE, NOPIPE, FEXEC));
+        exit(execute(t->left, nullptr, nullptr, FEXEC));
     if (resetsig) {
         signal(SIGINT, SIG_DFL);
         signal(SIGQUIT, SIG_DFL);
@@ -567,6 +567,8 @@ int (*f)();
         pushio(arg, f);
         e.iobase = e.iop;
         yynerrs = 0;
+        if (setjmp(failpt = rt) == 0 && yyparse() == 0)
+            rv = execute(outtree, nullptr, nullptr, 0);
         failpt = &rt;
         if (setjmp(rt) == 0 && yyparse() == 0)
             rv = execute(outtree, NOPIPE, NOPIPE, 0);
@@ -674,6 +676,8 @@ doexec(t) register struct op *t;
         return (1);
     execflg = 1;
     ofail = failpt;
+    if (setjmp(failpt = ex) == 0)
+        execute(t, nullptr, nullptr, FEXEC);
     failpt = &ex;
     if (setjmp(ex) == 0)
         execute(t, NOPIPE, NOPIPE, FEXEC);
