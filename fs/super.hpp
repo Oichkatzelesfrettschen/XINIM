@@ -24,7 +24,7 @@
  * A super_block slot is free if s_dev == NO_DEV.
  */
 
-EXTERN struct super_block {
+struct super_block {
     inode_nr s_ninodes;        /* # usable inodes on the minor device */
     zone_nr s_nzones;          /* total device size, including bit maps etc */
     unshort s_imap_blocks;     /* # of blocks used by inode bit map */
@@ -44,6 +44,8 @@ EXTERN struct super_block {
     real_time s_time;                /* time of last update */
     char s_rd_only;                  /* set to 1 iff file sys mounted read only */
     char s_dirt;                     /* CLEAN or DIRTY */
-} super_block[NR_SUPERS];
+};
+
+extern struct super_block super_block[NR_SUPERS];
 
 #define NIL_SUPER (struct super_block *)0

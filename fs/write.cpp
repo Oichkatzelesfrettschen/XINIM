@@ -26,7 +26,7 @@
 /*===========================================================================*
  *				do_write				     *
  *===========================================================================*/
-PUBLIC int do_write() {
+int do_write() {
     /* Perform the write(fd, buffer, nbytes) system call. */
     return (read_write(WRITING));
 }
@@ -34,7 +34,7 @@ PUBLIC int do_write() {
 /*===========================================================================*
  *				write_map				     *
  *===========================================================================*/
-PRIVATE int write_map(rip, position, new_zone)
+static int write_map(rip, position, new_zone)
 register struct inode *rip; /* pointer to inode to be changed */
 file_pos position;          /* file address to be mapped */
 zone_nr new_zone;           /* zone # to be inserted */
@@ -125,10 +125,9 @@ zone_nr new_zone;           /* zone # to be inserted */
 /*===========================================================================*
  *				clear_zone				     *
  *===========================================================================*/
-PUBLIC clear_zone(rip, pos, flag)
-register struct inode *rip; /* inode to clear */
-file_pos pos;               /* points to block to clear */
-int flag;                   /* 0 if called by read_write, 1 by new_block */
+clear_zone(rip, pos, flag) register struct inode *rip; /* inode to clear */
+file_pos pos;                                          /* points to block to clear */
+int flag; /* 0 if called by read_write, 1 by new_block */
 {
     /* Zero a zone, possibly starting in the middle.  The parameter 'pos' gives
      * a byte in the first block to be zeroed.  Clearzone() is called from
@@ -170,7 +169,7 @@ int flag;                   /* 0 if called by read_write, 1 by new_block */
 /*===========================================================================*
  *				new_block				     *
  *===========================================================================*/
-PUBLIC struct buf *new_block(rip, position)
+struct buf *new_block(rip, position)
 register struct inode *rip; /* pointer to inode */
 file_pos position;          /* file pointer */
 {
@@ -224,8 +223,7 @@ file_pos position;          /* file pointer */
 /*===========================================================================*
  *				zero_block				     *
  *===========================================================================*/
-PUBLIC zero_block(bp)
-register struct buf *bp; /* pointer to buffer to zero */
+zero_block(bp) register struct buf *bp; /* pointer to buffer to zero */
 {
     /* Zero a block. */
 

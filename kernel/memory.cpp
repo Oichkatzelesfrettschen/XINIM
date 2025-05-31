@@ -33,14 +33,14 @@
 
 #define NR_RAMS 4 /* number of RAM-type devices */
 
-PRIVATE message mess;                   /* message buffer */
-PRIVATE phys_bytes ram_origin[NR_RAMS]; /* origin of each RAM disk  */
-PRIVATE phys_bytes ram_limit[NR_RAMS];  /* limit of RAM disk per minor dev. */
+static message mess;                   /* message buffer */
+static phys_bytes ram_origin[NR_RAMS]; /* origin of each RAM disk  */
+static phys_bytes ram_limit[NR_RAMS];  /* limit of RAM disk per minor dev. */
 
 /*===========================================================================*
  *				mem_task				     *
  *===========================================================================*/
-PUBLIC mem_task() {
+mem_task() {
     /* Main program of the disk driver task. */
 
     int r, caller, proc_nr;
@@ -90,7 +90,7 @@ PUBLIC mem_task() {
 /*===========================================================================*
  *				do_mem					     *
  *===========================================================================*/
-PRIVATE int do_mem(m_ptr)
+static int do_mem(m_ptr)
 register message *m_ptr; /* pointer to read or write message */
 {
     /* Read or write /dev/null, /dev/mem, /dev/kmem, or /dev/ram. */
@@ -135,7 +135,7 @@ register message *m_ptr; /* pointer to read or write message */
 /*===========================================================================*
  *				do_setup				     *
  *===========================================================================*/
-PRIVATE int do_setup(m_ptr)
+static int do_setup(m_ptr)
 message *m_ptr; /* pointer to read or write message */
 {
     /* Set parameters for one of the disk RAMs. */

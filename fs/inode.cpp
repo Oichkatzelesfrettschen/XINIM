@@ -35,7 +35,7 @@
 /*===========================================================================*
  *				get_inode				     *
  *===========================================================================*/
-PUBLIC struct inode *get_inode(dev, numb)
+struct inode *get_inode(dev, numb)
 dev_nr dev;    /* device on which inode resides */
 inode_nr numb; /* inode number */
 {
@@ -77,8 +77,7 @@ inode_nr numb; /* inode number */
 /*===========================================================================*
  *				put_inode				     *
  *===========================================================================*/
-PUBLIC put_inode(rip)
-register struct inode *rip; /* pointer to inode to be released */
+put_inode(rip) register struct inode *rip; /* pointer to inode to be released */
 {
     /* The caller is no longer using this inode.  If no one else is using it
      * either write it back to the disk immediately.  If it has no links, truncate
@@ -104,7 +103,7 @@ register struct inode *rip; /* pointer to inode to be released */
 /*===========================================================================*
  *				alloc_inode				     *
  *===========================================================================*/
-PUBLIC struct inode *alloc_inode(dev, bits)
+struct inode *alloc_inode(dev, bits)
 dev_nr dev;     /* device on which to allocate the inode */
 mask_bits bits; /* mode of the inode */
 {
@@ -161,8 +160,7 @@ mask_bits bits; /* mode of the inode */
 /*===========================================================================*
  *				wipe_inode				     *
  *===========================================================================*/
-PUBLIC wipe_inode(rip)
-register struct inode *rip; /* The inode to be erased. */
+wipe_inode(rip) register struct inode *rip; /* The inode to be erased. */
 {
     /* Erase some fields in the inode.  This function is called from alloc_inode()
      * when a new inode is to be allocated, and from truncate(), when an existing
@@ -185,9 +183,8 @@ register struct inode *rip; /* The inode to be erased. */
 /*===========================================================================*
  *				free_inode				     *
  *===========================================================================*/
-PUBLIC free_inode(dev, numb)
-dev_nr dev;    /* on which device is the inode */
-inode_nr numb; /* number of inode to be freed */
+free_inode(dev, numb) dev_nr dev; /* on which device is the inode */
+inode_nr numb;                    /* number of inode to be freed */
 {
     /* Return an inode to the pool of unallocated inodes. */
 
@@ -202,9 +199,8 @@ inode_nr numb; /* number of inode to be freed */
 /*===========================================================================*
  *				rw_inode				     *
  *===========================================================================*/
-PUBLIC rw_inode(rip, rw_flag)
-register struct inode *rip; /* pointer to inode to be read/written */
-int rw_flag;                /* READING or WRITING */
+rw_inode(rip, rw_flag) register struct inode *rip; /* pointer to inode to be read/written */
+int rw_flag;                                       /* READING or WRITING */
 {
     /* An entry in the inode table is to be copied to or from the disk. */
 
@@ -236,8 +232,7 @@ int rw_flag;                /* READING or WRITING */
 /*===========================================================================*
  *				dup_inode				     *
  *===========================================================================*/
-PUBLIC dup_inode(ip)
-struct inode *ip; /* The inode to be duplicated. */
+dup_inode(ip) struct inode *ip; /* The inode to be duplicated. */
 {
     /* This routine is a simplified form of get_inode() for the case where
      * the inode pointer is already known.

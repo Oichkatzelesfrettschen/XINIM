@@ -10,7 +10,7 @@
 #include "../include/defs.h"
 #include "type.hpp"
 
-EXTERN struct proc {
+struct proc {
     u64_t p_reg[NR_REGS];          /* process' registers */
     u64_t p_sp;                    /* stack pointer */
     struct pc_psw p_pcpsw;         /* pc and psw as pushed by interrupt */
@@ -35,7 +35,9 @@ EXTERN struct proc {
     u64_t cr3;                /* page table base */
     int p_priority;           /* scheduling priority */
     int p_cpu;                /* CPU affinity */
-} proc[NR_TASKS + NR_PROCS];
+};
+
+extern struct proc proc[NR_TASKS + NR_PROCS];
 
 /* Bits for p_flags in proc[].  A process is runnable iff p_flags == 0 */
 #define P_SLOT_FREE 001 /* set when slot is not in use */
@@ -46,10 +48,10 @@ EXTERN struct proc {
 #define proc_addr(n) &proc[NR_TASKS + n]
 #define NIL_PROC (struct proc *)0
 
-EXTERN struct proc *proc_ptr;                        /* &proc[cur_proc] */
-EXTERN struct proc *bill_ptr;                        /* ptr to process to bill for clock ticks */
-EXTERN struct proc *rdy_head[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list heads */
-EXTERN struct proc *rdy_tail[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list tails */
+extern struct proc *proc_ptr;                        /* &proc[cur_proc] */
+extern struct proc *bill_ptr;                        /* ptr to process to bill for clock ticks */
+extern struct proc *rdy_head[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list heads */
+extern struct proc *rdy_tail[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list tails */
 
-EXTERN unsigned busy_map;                /* bit map of busy tasks */
-EXTERN message *task_mess[NR_TASKS + 1]; /* ptrs to messages for busy tasks */
+extern unsigned busy_map;                /* bit map of busy tasks */
+extern message *task_mess[NR_TASKS + 1]; /* ptrs to messages for busy tasks */

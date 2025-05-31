@@ -26,9 +26,8 @@
 /*===========================================================================*
  *				interrupt				     *
  *===========================================================================*/
-PUBLIC interrupt(task, m_ptr)
-int task;       /* number of task to be started */
-message *m_ptr; /* interrupt message to send to the task */
+interrupt(task, m_ptr) int task; /* number of task to be started */
+message *m_ptr;                  /* interrupt message to send to the task */
 {
     /* An interrupt has occurred.  Schedule the task that handles it. */
 
@@ -79,9 +78,8 @@ message *m_ptr; /* interrupt message to send to the task */
 /*===========================================================================*
  *				sys_call				     *
  *===========================================================================*/
-PUBLIC sys_call(function, caller, src_dest, m_ptr)
-int function;   /* SEND, RECEIVE, or BOTH */
-int caller;     /* who is making this call */
+sys_call(function, caller, src_dest, m_ptr) int function; /* SEND, RECEIVE, or BOTH */
+int caller;                                               /* who is making this call */
 int src_dest;   /* source to receive from or dest to send to */
 message *m_ptr; /* pointer to message */
 {
@@ -123,7 +121,7 @@ message *m_ptr; /* pointer to message */
 /*===========================================================================*
  *				mini_send				     *
  *===========================================================================*/
-PUBLIC int mini_send(caller, dest, m_ptr)
+int mini_send(caller, dest, m_ptr)
 int caller;     /* who is trying to send a message? */
 int dest;       /* to whom is message being sent? */
 message *m_ptr; /* pointer to message buffer */
@@ -187,7 +185,7 @@ message *m_ptr; /* pointer to message buffer */
 /*===========================================================================*
  *				mini_rec				     *
  *===========================================================================*/
-PRIVATE int mini_rec(caller, src, m_ptr)
+static int mini_rec(caller, src, m_ptr)
 int caller;     /* process trying to get message */
 int src;        /* which message source is wanted (or ANY) */
 message *m_ptr; /* pointer to message buffer */
@@ -242,7 +240,7 @@ message *m_ptr; /* pointer to message buffer */
 /*===========================================================================*
  *				pick_proc				     *
  *===========================================================================*/
-PUBLIC pick_proc() {
+pick_proc() {
     /* Decide who to run now. */
 
     register int q; /* which queue to use */
@@ -287,8 +285,7 @@ PUBLIC pick_proc() {
 /*===========================================================================*
  *				ready					     *
  *===========================================================================*/
-PUBLIC ready(rp)
-register struct proc *rp; /* this process is now runnable */
+ready(rp) register struct proc *rp; /* this process is now runnable */
 {
     /* Add 'rp' to the end of one of the queues of runnable processes. Three
      * queues are maintained:
@@ -326,8 +323,7 @@ register struct proc *rp; /* this process is now runnable */
 /*===========================================================================*
  *				unready					     *
  *===========================================================================*/
-PUBLIC unready(rp)
-register struct proc *rp; /* this process is no longer runnable */
+unready(rp) register struct proc *rp; /* this process is no longer runnable */
 {
     /* A process has blocked. */
 
@@ -370,7 +366,7 @@ register struct proc *rp; /* this process is no longer runnable */
 /*===========================================================================*
  *				sched					     *
  *===========================================================================*/
-PUBLIC sched() {
+sched() {
     /* The current process has run too long.  If another low priority (user)
      * process is runnable, put the current process on the end of the user queue,
      * possibly promoting another user to head of the queue.

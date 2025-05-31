@@ -33,7 +33,7 @@
 /*===========================================================================*
  *				get_block				     *
  *===========================================================================*/
-PUBLIC struct buf *get_block(dev, block, only_search)
+struct buf *get_block(dev, block, only_search)
 register dev_nr dev;     /* on which device is the block? */
 register block_nr block; /* which block is wanted? */
 int only_search;         /* if NO_READ, don't read, else act normal */
@@ -116,9 +116,8 @@ int only_search;         /* if NO_READ, don't read, else act normal */
 /*===========================================================================*
  *				put_block				     *
  *===========================================================================*/
-PUBLIC put_block(bp, block_type)
-register struct buf *bp; /* pointer to the buffer to be released */
-int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
+put_block(bp, block_type) register struct buf *bp; /* pointer to the buffer to be released */
+int block_type;                                    /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
 {
     /* Return a block to the list of available blocks.   Depending on 'block_type'
      * it may be put on the front or rear of the LRU chain.  Blocks that are
@@ -196,7 +195,7 @@ int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
 /*===========================================================================*
  *				alloc_zone				     *
  *===========================================================================*/
-PUBLIC zone_nr alloc_zone(dev, z)
+zone_nr alloc_zone(dev, z)
 dev_nr dev; /* device where zone wanted */
 zone_nr z;  /* try to allocate new zone near this one */
 {
@@ -235,9 +234,8 @@ zone_nr z;  /* try to allocate new zone near this one */
 /*===========================================================================*
  *				free_zone				     *
  *===========================================================================*/
-PUBLIC free_zone(dev, numb)
-dev_nr dev;   /* device where zone located */
-zone_nr numb; /* zone to be returned */
+free_zone(dev, numb) dev_nr dev; /* device where zone located */
+zone_nr numb;                    /* zone to be returned */
 {
     /* Return a zone. */
 
@@ -255,9 +253,8 @@ zone_nr numb; /* zone to be returned */
 /*===========================================================================*
  *				rw_block				     *
  *===========================================================================*/
-PUBLIC rw_block(bp, rw_flag)
-register struct buf *bp; /* buffer pointer */
-int rw_flag;             /* READING or WRITING */
+rw_block(bp, rw_flag) register struct buf *bp; /* buffer pointer */
+int rw_flag;                                   /* READING or WRITING */
 {
     /* Read or write a disk block. This is the only routine in which actual disk
      * I/O is invoked.  If an error occurs, a message is printed here, but the error
@@ -291,8 +288,7 @@ int rw_flag;             /* READING or WRITING */
 /*===========================================================================*
  *				invalidate				     *
  *===========================================================================*/
-PUBLIC invalidate(device)
-dev_nr device; /* device whose blocks are to be purged */
+invalidate(device) dev_nr device; /* device whose blocks are to be purged */
 {
     /* Remove all the blocks belonging to some device from the cache. */
 

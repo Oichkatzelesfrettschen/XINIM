@@ -30,7 +30,7 @@
 /*===========================================================================*
  *				do_chdir				     *
  *===========================================================================*/
-PUBLIC int do_chdir() {
+int do_chdir() {
     /* Change directory.  This function is  also called by MM to simulate a chdir
      * in order to do EXEC, etc.
      */
@@ -53,7 +53,7 @@ PUBLIC int do_chdir() {
 /*===========================================================================*
  *				do_chroot				     *
  *===========================================================================*/
-PUBLIC int do_chroot() {
+int do_chroot() {
     /* Perform the chroot(name) system call. */
 
     register int r;
@@ -67,7 +67,7 @@ PUBLIC int do_chroot() {
 /*===========================================================================*
  *				change					     *
  *===========================================================================*/
-PRIVATE int change(iip, name_ptr, len)
+static int change(iip, name_ptr, len)
 struct inode **iip; /* pointer to the inode pointer for the dir */
 char *name_ptr;     /* pointer to the directory name to change to */
 int len;            /* length of the directory name string */
@@ -105,7 +105,7 @@ int len;            /* length of the directory name string */
 /*===========================================================================*
  *				do_stat					     *
  *===========================================================================*/
-PUBLIC int do_stat() {
+int do_stat() {
     /* Perform the stat(name, buf) system call. */
 
     register struct inode *rip;
@@ -127,7 +127,7 @@ PUBLIC int do_stat() {
 /*===========================================================================*
  *				do_fstat				     *
  *===========================================================================*/
-PUBLIC int do_fstat() {
+int do_fstat() {
     /* Perform the fstat(fd, buf) system call. */
 
     register struct filp *rfilp;
@@ -143,7 +143,7 @@ PUBLIC int do_fstat() {
 /*===========================================================================*
  *				stat_inode				     *
  *===========================================================================*/
-PRIVATE int stat_inode(rip, fil_ptr, user_addr)
+static int stat_inode(rip, fil_ptr, user_addr)
 register struct inode *rip; /* pointer to inode to stat */
 struct filp *fil_ptr;       /* filp pointer, supplied by 'fstat' */
 char *user_addr;            /* user space address where stat buf goes */

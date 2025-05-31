@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC long lseek(fd, offset, whence)
+long lseek(fd, offset, whence)
 int fd;
 long offset;
 int whence;

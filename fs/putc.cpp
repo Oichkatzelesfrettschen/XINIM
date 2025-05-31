@@ -17,15 +17,14 @@
 #define STDOUTPUT 1 /* file descriptor for standard output */
 #define BUFSIZE 100 /* print buffer size */
 
-PRIVATE int bufcount;           /* # characters in the buffer */
-PRIVATE char printbuf[BUFSIZE]; /* output is buffered here */
-PRIVATE message putchmsg;       /* used for message to TTY task */
+static int bufcount;           /* # characters in the buffer */
+static char printbuf[BUFSIZE]; /* output is buffered here */
+static message putchmsg;       /* used for message to TTY task */
 
 /*===========================================================================*
  *				putc					     *
  *===========================================================================*/
-PUBLIC putc(c)
-char c;
+putc(c) char c;
 {
 
     if (c == 0) {
@@ -42,7 +41,7 @@ char c;
 /*===========================================================================*
  *				flush					     *
  *===========================================================================*/
-PRIVATE flush() {
+static flush() {
     /* Flush the print buffer. */
 
     if (bufcount == 0)

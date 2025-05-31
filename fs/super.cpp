@@ -35,7 +35,7 @@
 /*===========================================================================*
  *				load_bit_maps				     *
  *===========================================================================*/
-PUBLIC int load_bit_maps(dev)
+int load_bit_maps(dev)
 dev_nr dev; /* which device? */
 {
     /* Load the bit map for some device into the cache and set up superblock. */
@@ -71,8 +71,7 @@ dev_nr dev; /* which device? */
 /*===========================================================================*
  *				unload_bit_maps				     *
  *===========================================================================*/
-PUBLIC unload_bit_maps(dev)
-dev_nr dev; /* which device is being unmounted? */
+unload_bit_maps(dev) dev_nr dev; /* which device is being unmounted? */
 {
     /* Unload the bit maps so a device can be unmounted. */
 
@@ -92,7 +91,7 @@ dev_nr dev; /* which device is being unmounted? */
 /*===========================================================================*
  *				alloc_bit				     *
  *===========================================================================*/
-PUBLIC bit_nr alloc_bit(map_ptr, map_bits, bit_blocks, origin)
+bit_nr alloc_bit(map_ptr, map_bits, bit_blocks, origin)
 struct buf *map_ptr[]; /* pointer to array of bit block pointers */
 bit_nr map_bits;       /* how many bits are there in the bit map? */
 unshort bit_blocks;    /* how many blocks are there in the bit map? */
@@ -151,9 +150,8 @@ bit_nr origin;         /* number of bit to start searching at */
 /*===========================================================================*
  *				free_bit				     *
  *===========================================================================*/
-PUBLIC free_bit(map_ptr, bit_returned)
-struct buf *map_ptr[]; /* pointer to array of bit block pointers */
-bit_nr bit_returned;   /* number of bit to insert into the map */
+free_bit(map_ptr, bit_returned) struct buf *map_ptr[]; /* pointer to array of bit block pointers */
+bit_nr bit_returned;                                   /* number of bit to insert into the map */
 {
     /* Return a zone or inode by turning on its bitmap bit. */
 
@@ -176,7 +174,7 @@ bit_nr bit_returned;   /* number of bit to insert into the map */
 /*===========================================================================*
  *				get_super				     *
  *===========================================================================*/
-PUBLIC struct super_block *get_super(dev)
+struct super_block *get_super(dev)
 dev_nr dev; /* device number whose super_block is sought */
 {
     /* Search the superblock table for this device.  It is supposed to be there. */
@@ -194,7 +192,7 @@ dev_nr dev; /* device number whose super_block is sought */
 /*===========================================================================*
  *				mounted					     *
  *===========================================================================*/
-PUBLIC int mounted(rip)
+int mounted(rip)
 register struct inode *rip; /* pointer to inode */
 {
     /* Report on whether the given inode is on a mounted (or ROOT) file system. */
@@ -216,7 +214,7 @@ register struct inode *rip; /* pointer to inode */
 /*===========================================================================*
  *				scale_factor				     *
  *===========================================================================*/
-PUBLIC int scale_factor(ip)
+int scale_factor(ip)
 struct inode *ip; /* pointer to inode whose superblock needed */
 {
     /* Return the scale factor used for converting blocks to zones. */
@@ -230,9 +228,8 @@ struct inode *ip; /* pointer to inode whose superblock needed */
 /*===========================================================================*
  *				rw_super				     *
  *===========================================================================*/
-PUBLIC rw_super(sp, rw_flag)
-register struct super_block *sp; /* pointer to a superblock */
-int rw_flag;                     /* READING or WRITING */
+rw_super(sp, rw_flag) register struct super_block *sp; /* pointer to a superblock */
+int rw_flag;                                           /* READING or WRITING */
 {
     /* Read or write a superblock. */
 

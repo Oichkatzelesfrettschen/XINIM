@@ -19,12 +19,10 @@
  */
 
 #include "../fs/const.h"
-#include "../h/const.h"
-#include "../h/type.h"
-#undef EXTERN
-#define EXTERN /* get rid of EXTERN by making it null */
 #include "../fs/super.h"
 #include "../fs/type.h"
+#include "../h/const.h"
+#include "../h/type.h"
 
 #ifdef DOS
 #include "/lib/c86/stdio.h"

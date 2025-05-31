@@ -108,7 +108,7 @@
 #define NT 4               /* number of diskette/drive combinations */
 
 /* Variables. */
-PRIVATE struct floppy {           /* main drive struct, one entry per drive */
+static struct floppy {            /* main drive struct, one entry per drive */
     int fl_opcode;                /* DISK_READ or DISK_WRITE */
     int fl_curcyl;                /* current cylinder */
     int fl_procnr;                /* which proc wanted this operation? */
@@ -126,17 +126,17 @@ PRIVATE struct floppy {           /* main drive struct, one entry per drive */
 #define UNCALIBRATED 0 /* drive needs to be calibrated at next use */
 #define CALIBRATED 1   /* no calibration needed */
 
-PRIVATE int motor_status; /* current motor status is in 4 high bits */
-PRIVATE int motor_goal;   /* desired motor status is in 4 high bits */
-PRIVATE int prev_motor;   /* which motor was started last */
-PRIVATE int need_reset;   /* set to 1 when controller must be reset */
-PRIVATE int initialized;  /* set to 1 after first successful transfer */
-PRIVATE int d;            /* diskette/drive combination */
+static int motor_status; /* current motor status is in 4 high bits */
+static int motor_goal;   /* desired motor status is in 4 high bits */
+static int prev_motor;   /* which motor was started last */
+static int need_reset;   /* set to 1 when controller must be reset */
+static int initialized;  /* set to 1 after first successful transfer */
+static int d;            /* diskette/drive combination */
 
-PRIVATE message mess; /* message buffer for in and out */
+static message mess; /* message buffer for in and out */
 
-PRIVATE char len[] = {-1, 0, 1, -1, 2, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, 4};
-PRIVATE char interleave[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
+static char len[] = {-1, 0, 1, -1, 2, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, 4};
+static char interleave[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
 /* Four combinations of diskette/drive are supported:
  * # Drive  diskette  Sectors  Tracks  Rotation Data-rate  Comment
@@ -145,17 +145,17 @@ PRIVATE char interleave[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
  * 2  1.2M    360K      9       40     360 RPM  300 kbps   PC disk in AT drive
  * 3  1.2M    1.2M     15       80     360 RPM  500 kbps   AT disk in AT drive
  */
-PRIVATE int gap[NT] = {0x2A, 0x2A, 0x23, 0x1B};                       /* gap size */
-PRIVATE int rate[NT] = {0x02, 0x02, 0x01, 0x00};                      /* 250,300,500 kbps*/
-PRIVATE int nr_sectors[NT] = {9, 9, 9, 15};                           /* sectors/track */
-PRIVATE int nr_blocks[NT] = {720, 720, 720, 2400};                    /* sectors/diskette*/
-PRIVATE int steps_per_cyl[NT] = {1, 2, 2, 1};                         /* 2 = dbl step */
-PRIVATE int mtr_setup[NT] = {HZ / 4, HZ / 4, 3 * HZ / 4, 3 * HZ / 4}; /* in ticks */
+static int gap[NT] = {0x2A, 0x2A, 0x23, 0x1B};                       /* gap size */
+static int rate[NT] = {0x02, 0x02, 0x01, 0x00};                      /* 250,300,500 kbps*/
+static int nr_sectors[NT] = {9, 9, 9, 15};                           /* sectors/track */
+static int nr_blocks[NT] = {720, 720, 720, 2400};                    /* sectors/diskette*/
+static int steps_per_cyl[NT] = {1, 2, 2, 1};                         /* 2 = dbl step */
+static int mtr_setup[NT] = {HZ / 4, HZ / 4, 3 * HZ / 4, 3 * HZ / 4}; /* in ticks */
 
 /*===========================================================================*
  *				floppy_task				     *
  *===========================================================================*/
-PUBLIC floppy_task() {
+floppy_task() {
     /* Main program of the floppy disk driver task. */
 
     int r, caller, proc_nr;
@@ -195,7 +195,7 @@ PUBLIC floppy_task() {
 /*===========================================================================*
  *				do_rdwt					     *
  *===========================================================================*/
-PRIVATE int do_rdwt(message *m_ptr) {
+static int do_rdwt(message *m_ptr) {
     /* Carry out a read or write request from the disk. */
     register struct floppy *fp;
     int r, drive, errors;
@@ -276,8 +276,7 @@ PRIVATE int do_rdwt(message *m_ptr) {
 /*===========================================================================*
  *				dma_setup				     *
  *===========================================================================*/
-PRIVATE dma_setup(fp)
-struct floppy *fp; /* pointer to the drive struct */
+static dma_setup(fp) struct floppy *fp; /* pointer to the drive struct */
 {
     /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
      * the DMA (Direct Memory Access) chip is loaded with the 20-bit memory address
@@ -329,8 +328,7 @@ struct floppy *fp; /* pointer to the drive struct */
 /*===========================================================================*
  *				start_motor				     *
  *===========================================================================*/
-PRIVATE start_motor(fp)
-struct floppy *fp; /* pointer to the drive struct */
+static start_motor(fp) struct floppy *fp; /* pointer to the drive struct */
 {
     /* Control of the floppy disk motors is a big pain.  If a motor is off, you
      * have to turn it on first, which takes 1/2 second.  You can't leave it on
@@ -368,7 +366,7 @@ struct floppy *fp; /* pointer to the drive struct */
 /*===========================================================================*
  *				stop_motor				     *
  *===========================================================================*/
-PRIVATE void stop_motor(void) {
+static void stop_motor(void) {
     /* This routine is called by the clock interrupt after several seconds have
      * elapsed with no floppy disk activity.  It checks to see if any drives are
      * supposed to be turned off, and if so, turns them off.
@@ -383,7 +381,7 @@ PRIVATE void stop_motor(void) {
 /*===========================================================================*
  *				seek					     *
  *===========================================================================*/
-PRIVATE int seek(struct floppy *fp) {
+static int seek(struct floppy *fp) {
     /* Issue a SEEK command on the indicated drive unless the arm is already
      * positioned on the correct cylinder.
      */
@@ -421,7 +419,7 @@ PRIVATE int seek(struct floppy *fp) {
 /*===========================================================================*
  *				transfer				     *
  *===========================================================================*/
-PRIVATE int transfer(register struct floppy *fp) {
+static int transfer(register struct floppy *fp) {
     /* The drive is now on the proper cylinder.  Read or write 1 block. */
 
     int r, s, op;
@@ -481,7 +479,7 @@ PRIVATE int transfer(register struct floppy *fp) {
 /*===========================================================================*
  *				fdc_results				     *
  *===========================================================================*/
-PRIVATE int fdc_results(register struct floppy *fp) {
+static int fdc_results(register struct floppy *fp) {
     /* Extract results from the controller after an operation. */
 
     int i, j, status, ready;
@@ -515,8 +513,7 @@ PRIVATE int fdc_results(register struct floppy *fp) {
 /*===========================================================================*
  *				fdc_out					     *
  *===========================================================================*/
-PRIVATE fdc_out(val)
-int val; /* write this byte to floppy disk controller */
+static fdc_out(val) int val; /* write this byte to floppy disk controller */
 {
     /* Output a byte to the controller.  This is not entirely trivial, since you
      * can only write to it when it is listening, and it decides when to listen.
@@ -546,7 +543,7 @@ int val; /* write this byte to floppy disk controller */
 /*===========================================================================*
  *				recalibrate				     *
  *===========================================================================*/
-PRIVATE int recalibrate(register struct floppy *fp) {
+static int recalibrate(register struct floppy *fp) {
     /* The floppy disk controller has no way of determining its absolute arm
      * position (cylinder).  Instead, it steps the arm a cylinder at a time and
      * keeps track of where it thinks it is (in software).  However, after a
@@ -585,7 +582,7 @@ PRIVATE int recalibrate(register struct floppy *fp) {
 /*===========================================================================*
  *				reset					     *
  *===========================================================================*/
-PRIVATE reset() {
+static reset() {
     /* Issue a reset to the controller.  This is done after any catastrophe,
      * like the controller refusing to respond.
      */
@@ -621,7 +618,7 @@ PRIVATE reset() {
 /*===========================================================================*
  *				clock_mess				     *
  *===========================================================================*/
-PRIVATE void clock_mess(int ticks, void (*func)(void)) {
+static void clock_mess(int ticks, void (*func)(void)) {
     /* Send the clock task a message. */
     mess.m_type = SET_ALARM;
     clock_proc_nr(mess) = FLOPPY;
@@ -633,7 +630,7 @@ PRIVATE void clock_mess(int ticks, void (*func)(void)) {
 /*===========================================================================*
  *				send_mess				     *
  *===========================================================================*/
-PRIVATE void send_mess(void) {
+static void send_mess(void) {
     /* This routine is called when the clock task has timed out on motor startup.*/
 
     mess.m_type = MOTOR_RUNNING;

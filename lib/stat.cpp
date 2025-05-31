@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int stat(name, buffer)
+int stat(name, buffer)
 char *name;
 char *buffer;
 {

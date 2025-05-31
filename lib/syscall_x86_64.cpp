@@ -3,7 +3,7 @@
 #include "../h/const.h"
 #include "../h/type.h"
 
-PUBLIC int send(int dst, message *m_ptr) {
+int send(int dst, message *m_ptr) {
     register long rax __asm__("rax") = 0;
     register long rdi __asm__("rdi") = dst;
     register message *rsi __asm__("rsi") = m_ptr;
@@ -15,7 +15,7 @@ PUBLIC int send(int dst, message *m_ptr) {
     return (int)rax;
 }
 
-PUBLIC int receive(int src, message *m_ptr) {
+int receive(int src, message *m_ptr) {
     register long rax __asm__("rax") = 0;
     register long rdi __asm__("rdi") = src;
     register message *rsi __asm__("rsi") = m_ptr;
@@ -27,7 +27,7 @@ PUBLIC int receive(int src, message *m_ptr) {
     return (int)rax;
 }
 
-PUBLIC int sendrec(int srcdest, message *m_ptr) {
+int sendrec(int srcdest, message *m_ptr) {
     register long rax __asm__("rax") = 0;
     register long rdi __asm__("rdi") = srcdest;
     register message *rsi __asm__("rsi") = m_ptr;

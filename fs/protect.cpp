@@ -31,7 +31,7 @@
 /*===========================================================================*
  *				do_chmod				     *
  *===========================================================================*/
-PUBLIC int do_chmod() {
+int do_chmod() {
     /* Perform the chmod(name, mode) system call. */
 
     register struct inode *rip;
@@ -69,7 +69,7 @@ PUBLIC int do_chmod() {
 /*===========================================================================*
  *				do_chown				     *
  *===========================================================================*/
-PUBLIC int do_chown() {
+int do_chown() {
     /* Perform the chown(name, owner, group) system call. */
 
     register struct inode *rip;
@@ -101,7 +101,7 @@ PUBLIC int do_chown() {
 /*===========================================================================*
  *				do_umask				     *
  *===========================================================================*/
-PUBLIC int do_umask() {
+int do_umask() {
     /* Perform the umask(co_mode) system call. */
     register mask_bits r;
 
@@ -113,7 +113,7 @@ PUBLIC int do_umask() {
 /*===========================================================================*
  *				do_access				     *
  *===========================================================================*/
-PUBLIC int do_access() {
+int do_access() {
     /* Perform the access(name, mode) system call. */
 
     struct inode *rip;
@@ -135,7 +135,7 @@ PUBLIC int do_access() {
 /*===========================================================================*
  *				forbidden				     *
  *===========================================================================*/
-PUBLIC int forbidden(rip, access_desired, real_uid)
+int forbidden(rip, access_desired, real_uid)
 register struct inode *rip; /* pointer to inode to be checked */
 mask_bits access_desired;   /* RWX bits */
 int real_uid;               /* set iff real uid to be tested */
@@ -188,7 +188,7 @@ int real_uid;               /* set iff real uid to be tested */
 /*===========================================================================*
  *				read_only				     *
  *===========================================================================*/
-PRIVATE int read_only(ip)
+static int read_only(ip)
 struct inode *ip; /* ptr to inode whose file sys is to be cked */
 {
     /* Check to see if the file system on which the inode 'ip' resides is mounted

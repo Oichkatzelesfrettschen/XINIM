@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int mknod(name, mode, addr)
+int mknod(name, mode, addr)
 char *name;
 int mode, addr;
 {

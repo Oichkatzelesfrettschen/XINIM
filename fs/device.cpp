@@ -30,14 +30,14 @@
 #include "param.hpp"
 #include "type.hpp"
 
-PRIVATE message dev_mess;
-PRIVATE major, minor, task;
+static message dev_mess;
+static major, minor, task;
 extern max_major;
 
 /*===========================================================================*
  *				dev_open				     *
  *===========================================================================*/
-PUBLIC int dev_open(dev, mod)
+int dev_open(dev, mod)
 dev_nr dev; /* which device to open */
 int mod;    /* how to open it */
 {
@@ -51,8 +51,7 @@ int mod;    /* how to open it */
 /*===========================================================================*
  *				dev_close				     *
  *===========================================================================*/
-PUBLIC dev_close(dev)
-dev_nr dev; /* which device to close */
+dev_close(dev) dev_nr dev; /* which device to close */
 {
     /* This procedure can be used when a special file needs to be closed. */
 
@@ -63,7 +62,7 @@ dev_nr dev; /* which device to close */
 /*===========================================================================*
  *				dev_io					     *
  *===========================================================================*/
-PUBLIC int dev_io(rw_flag, dev, pos, bytes, proc, buff)
+int dev_io(rw_flag, dev, pos, bytes, proc, buff)
 int rw_flag; /* READING or WRITING */
 dev_nr dev;  /* major-minor device number */
 long pos;    /* byte position */
@@ -96,7 +95,7 @@ char *buff;  /* virtual address of the buffer */
 /*===========================================================================*
  *				do_ioctl				     *
  *===========================================================================*/
-PUBLIC do_ioctl() {
+do_ioctl() {
     /* Perform the ioctl(ls_fd, request, argx) system call (uses m2 fmt). */
 
     struct filp *f;
@@ -131,8 +130,7 @@ PUBLIC do_ioctl() {
 /*===========================================================================*
  *				find_dev				     *
  *===========================================================================*/
-PRIVATE find_dev(dev)
-dev_nr dev; /* device */
+static find_dev(dev) dev_nr dev; /* device */
 {
     /* Extract the major and minor device number from the parameter. */
 
@@ -147,9 +145,8 @@ dev_nr dev; /* device */
 /*===========================================================================*
  *				rw_dev					     *
  *===========================================================================*/
-PUBLIC rw_dev(task_nr, mess_ptr)
-int task_nr;       /* which task to call */
-message *mess_ptr; /* pointer to message for task */
+rw_dev(task_nr, mess_ptr) int task_nr; /* which task to call */
+message *mess_ptr;                     /* pointer to message for task */
 {
     /* All file system I/O ultimately comes down to I/O on major/minor device
      * pairs.  These lead to calls on the following routines via the dmap table.
@@ -173,9 +170,8 @@ message *mess_ptr; /* pointer to message for task */
 /*===========================================================================*
  *				rw_dev2					     *
  *===========================================================================*/
-PUBLIC rw_dev2(dummy, mess_ptr)
-int dummy;         /* not used - for compatibility with rw_dev() */
-message *mess_ptr; /* pointer to message for task */
+rw_dev2(dummy, mess_ptr) int dummy; /* not used - for compatibility with rw_dev() */
+message *mess_ptr;                  /* pointer to message for task */
 {
     /* This routine is only called for one device, namely /dev/tty.  It's job
      * is to change the message to use the controlling terminal, instead of the
@@ -193,7 +189,7 @@ message *mess_ptr; /* pointer to message for task */
 /*===========================================================================*
  *				no_call					     *
  *===========================================================================*/
-PUBLIC int no_call(task_nr, m_ptr)
+int no_call(task_nr, m_ptr)
 int task_nr;    /* which task */
 message *m_ptr; /* message pointer */
 {

@@ -29,13 +29,13 @@
 #include "super.hpp"
 #include "type.hpp"
 
-PRIVATE int panicking; /* inhibits recursive panics during sync */
-PRIVATE message clock_mess;
+static int panicking; /* inhibits recursive panics during sync */
+static message clock_mess;
 
 /*===========================================================================*
  *				clock_time				     *
  *===========================================================================*/
-PUBLIC real_time clock_time() {
+real_time clock_time() {
     /* This routine returns the time in seconds since 1.1.1970. */
 
     register int k;
@@ -58,7 +58,7 @@ PUBLIC real_time clock_time() {
 /*===========================================================================*
  *				cmp_string				     *
  *===========================================================================*/
-PUBLIC int cmp_string(rsp1, rsp2, n)
+int cmp_string(rsp1, rsp2, n)
 register char *rsp1, *rsp2; /* pointers to the two strings */
 register int n;             /* string length */
 {
@@ -78,10 +78,9 @@ register int n;             /* string length */
 /*===========================================================================*
  *				copy					     *
  *===========================================================================*/
-PUBLIC copy(dest, source, bytes)
-char *dest;   /* destination pointer */
-char *source; /* source pointer */
-int bytes;    /* how much data to move */
+copy(dest, source, bytes) char *dest; /* destination pointer */
+char *source;                         /* source pointer */
+int bytes;                            /* how much data to move */
 {
     /* Copy a byte string of length 'bytes' from 'source' to 'dest'.
      * If all three parameters are exactly divisible by the integer size, copy them
@@ -118,7 +117,7 @@ int bytes;    /* how much data to move */
 /*===========================================================================*
  *				fetch_name				     *
  *===========================================================================*/
-PUBLIC int fetch_name(path, len, flag)
+int fetch_name(path, len, flag)
 char *path; /* pointer to the path in user space */
 int len;    /* path length, including 0 byte */
 int flag;   /* M3 means path may be in message */
@@ -154,7 +153,7 @@ int flag;   /* M3 means path may be in message */
 /*===========================================================================*
  *				no_sys					     *
  *===========================================================================*/
-PUBLIC int no_sys() {
+int no_sys() {
     /* Somebody has used an illegal system call number */
 
     return (ErrorCode::EINVAL);
@@ -163,9 +162,8 @@ PUBLIC int no_sys() {
 /*===========================================================================*
  *				panic					     *
  *===========================================================================*/
-PUBLIC panic(format, num)
-char *format; /* format string */
-int num;      /* number to go with format string */
+panic(format, num) char *format; /* format string */
+int num;                         /* number to go with format string */
 {
     /* Something awful has happened.  Panics are caused when an internal
      * inconsistency is detected, e.g., a programming error or illegal value of a

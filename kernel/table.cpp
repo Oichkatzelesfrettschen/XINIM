@@ -1,10 +1,10 @@
 /* The object file of "table.cpp" contains all the data.  In the *.h files,
- * declared variables appear with EXTERN in front of them, as in
+ * declared variables appear with extern in front of them, as in
  *
- *    EXTERN int x;
+ *    extern int x;
  *
- * Normally EXTERN is defined as extern, so when they are included in another
- * file, no storage is allocated.  If the EXTERN were not present, but just
+ * Normally extern is defined as extern, so when they are included in another
+ * file, no storage is allocated.  If the extern were not present, but just
  * say,
  *
  *    int x;
@@ -13,7 +13,7 @@
  * declared several times.  While some linkers accept this, others do not,
  * so they are declared extern when included normally.  However, it must
  * be declared for real somewhere.  That is done here, but redefining
- * EXTERN as the null string, so the inclusion of all the *.h files in
+ * extern as the null string, so the inclusion of all the *.h files in
  * table.cpp actually generates storage for them.  All the initialized
  * variables are also declared here, since
  *
@@ -26,11 +26,9 @@
 #include "../h/const.h"
 #include "../h/type.h"
 #include "const.hpp"
-#include "type.hpp"
-#undef EXTERN
-#define EXTERN
 #include "glo.hpp"
 #include "proc.hpp"
+#include "type.hpp"
 
 extern int sys_task(), clock_task(), mem_task(), floppy_task(), winchester_task(), tty_task(),
     printer_task();

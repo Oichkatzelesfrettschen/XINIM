@@ -3,7 +3,7 @@
 struct tbuf {
     long b1, b2, b3, b4;
 };
-PUBLIC int times(buf)
+int times(buf)
 struct tbuf *buf;
 {
     int k;

@@ -198,7 +198,7 @@ int do_umount() {
 /*===========================================================================*
  *				name_to_dev				     *
  *===========================================================================*/
-PRIVATE dev_nr name_to_dev(path)
+static dev_nr name_to_dev(path)
 char *path; /* pointer to path name */
 {
     /* Convert the block special file 'path' to a device number.  If 'path'

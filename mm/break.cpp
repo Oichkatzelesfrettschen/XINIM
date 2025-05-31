@@ -31,7 +31,7 @@ constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
 /*===========================================================================*
  *				do_brk  				     *
  *===========================================================================*/
-PUBLIC int do_brk() {
+int do_brk() {
     /* Perform the brk(addr) system call.
      *
      * The call is complicated by the fact that on some machines (e.g., 8088),
@@ -59,7 +59,7 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				adjust  				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, vir_clicks data_clicks, vir_bytes sp) {
+[[nodiscard]] int adjust(struct mproc *rmp, vir_clicks data_clicks, vir_bytes sp) {
     /* See if data and stack segments can coexist, adjusting them if need be.
      * Memory is never allocated or freed.  Instead it is added or removed from the
      * gap between data segment and stack segment.  If the gap size becomes
@@ -127,8 +127,8 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				size_ok  				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC int size_ok(int file_type, vir_clicks tc, vir_clicks dc, vir_clicks sc,
-                                 vir_clicks dvir, vir_clicks s_vir) {
+[[nodiscard]] int size_ok(int file_type, vir_clicks tc, vir_clicks dc, vir_clicks sc,
+                          vir_clicks dvir, vir_clicks s_vir) {
     /* Check to see if the sizes are feasible and enough segmentation registers
      * exist.  On a machine with eight 8K pages, text, data, stack sizes of
      * (32K, 16K, 16K) will fit, but (33K, 17K, 13K) will not, even though the
@@ -159,7 +159,7 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				stack_fault  				     *
  *===========================================================================*/
-PRIVATE void stack_fault(int proc_nr) {
+static void stack_fault(int proc_nr) {
     /* Handle a stack fault by growing the stack segment until sp is inside of it.
      * If this is impossible because data segment is in the way, kill the process.
      */

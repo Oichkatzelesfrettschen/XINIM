@@ -15,9 +15,6 @@
 #include "dev.hpp"
 #include "type.hpp"
 
-#undef EXTERN
-#define EXTERN
-
 #include "../h/callnr.h"
 #include "../h/com.h"
 #include "../h/error.h"

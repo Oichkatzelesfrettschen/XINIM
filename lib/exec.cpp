@@ -2,14 +2,14 @@
 
 char *nullptr[1]; /* the EXEC calls need a zero pointer */
 
-PUBLIC int execl(name, arg0)
+int execl(name, arg0)
 char *name;
 char *arg0;
 {
     return execve(name, &arg0, nullptr);
 }
 
-PUBLIC int execle(name, argv)
+int execle(name, argv)
 char *name, *argv;
 {
     char **p;
@@ -19,13 +19,13 @@ char *name, *argv;
     return execve(name, &argv, *p);
 }
 
-PUBLIC int execv(name, argv)
+int execv(name, argv)
 char *name, *argv[];
 {
     return execve(name, argv, nullptr);
 }
 
-PUBLIC int execve(name, argv, envp)
+int execve(name, argv, envp)
 char *name;   /* pointer to name of file to be executed */
 char *argv[]; /* pointer to argument array */
 char *envp[]; /* pointer to environment */
@@ -83,8 +83,7 @@ char *envp[]; /* pointer to environment */
     return callm1(MM_PROC_NR, EXEC, len(name), stackbytes, 0, name, stack, NIL_PTR);
 }
 
-PUBLIC execn(name)
-char *name; /* pointer to file to be exec'd */
+execn(name) char *name; /* pointer to file to be exec'd */
 {
     /* Special version used when there are no args and no environment.  This call
      * is principally used by INIT, to avoid having to allocate MAX_ISTACK_BYTES.

@@ -22,7 +22,7 @@
 #include <filesystem> // std::filesystem utilities
 #include <memory>     // std::unique_ptr
 
-PRIVATE message copy_mess;
+static message copy_mess;
 
 namespace {
 // Simple RAII wrapper to ensure file descriptors are closed on scope exit.
@@ -62,7 +62,7 @@ struct FileDescriptor {
  *===========================================================================*/
 // Determine if the given file is accessible using the specified mask.
 // Returns a file descriptor on success or a negative errno value on failure.
-PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
+int allowed(const char *name_buf, struct stat *s_buf, int mask) {
     // Use RAII to ensure the descriptor is closed when leaving the scope.
     int raw_fd = open(name_buf, 0);
     if (raw_fd < 0) {
@@ -100,8 +100,8 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
 /*===========================================================================*
  *				mem_copy				     *
  *===========================================================================*/
-PUBLIC int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int dst_seg,
-                    long dst_vir, long bytes) {
+int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int dst_seg, long dst_vir,
+             long bytes) {
     /* Transfer a block of data.  The source and destination can each either be a
      * process (including MM) or absolute memory, indicate by setting 'src_proc'
      * or 'dst_proc' to ABS.
@@ -124,7 +124,7 @@ PUBLIC int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int d
 /*===========================================================================*
  *				no_sys					     *
  *===========================================================================*/
-PUBLIC int no_sys() {
+int no_sys() {
     /* A system call number not implemented by MM has been requested. */
 
     return (ErrorCode::EINVAL);
@@ -133,7 +133,7 @@ PUBLIC int no_sys() {
 /*===========================================================================*
  *				panic					     *
  *===========================================================================*/
-PUBLIC void panic(const char *format, int num) {
+void panic(const char *format, int num) {
     /* Something awful has happened.  Panics are caused when an internal
      * inconsistency is detected, e.g., a programm_ing error or illegal value of a
      * defined constant.

@@ -30,18 +30,18 @@
 
 #define FD_MASK 077 /* max file descriptor is 63 */
 
-PRIVATE message umess; /* message for asking SYSTASK for user copy */
-PUBLIC int rdwt_err;   /* set to ErrorCode::EIO if disk error occurs */
+static message umess; /* message for asking SYSTASK for user copy */
+int rdwt_err;         /* set to ErrorCode::EIO if disk error occurs */
 
 /*===========================================================================*
  *				do_read					     *
  *===========================================================================*/
-PUBLIC int do_read() { return (read_write(READING)); }
+int do_read() { return (read_write(READING)); }
 
 /*===========================================================================*
  *				read_write				     *
  *===========================================================================*/
-PUBLIC int read_write(rw_flag)
+int read_write(rw_flag)
 int rw_flag; /* READING or WRITING */
 {
     /* Perform read(fd, buffer, nbytes) or write(fd, buffer, nbytes) call. */
@@ -181,7 +181,7 @@ int rw_flag; /* READING or WRITING */
 /*===========================================================================*
  *				rw_chunk				     *
  *===========================================================================*/
-PRIVATE int rw_chunk(rip, position, off, chunk, rw_flag, buff, seg, usr)
+static int rw_chunk(rip, position, off, chunk, rw_flag, buff, seg, usr)
 register struct inode *rip; /* pointer to inode for file to be rd/wr */
 file_pos position;          /* position within file to read or write */
 unsigned off;               /* off within the current block */
@@ -247,7 +247,7 @@ int usr;                    /* which user process */
 /*===========================================================================*
  *				read_map				     *
  *===========================================================================*/
-PUBLIC block_nr read_map(rip, position)
+block_nr read_map(rip, position)
 register struct inode *rip; /* ptr to inode to map from */
 file_pos position;          /* position in file whose blk wanted */
 {
@@ -310,7 +310,7 @@ file_pos position;          /* position in file whose blk wanted */
 /*===========================================================================*
  *				rw_user					     *
  *===========================================================================*/
-PUBLIC int rw_user(s, u, vir, bytes, buff, direction)
+int rw_user(s, u, vir, bytes, buff, direction)
 int s;           /* D or T space (stack is also D) */
 int u;           /* process number to r/w (usually = 'who') */
 vir_bytes vir;   /* virtual address to move to/from */
@@ -349,7 +349,7 @@ int direction;   /* TO_USER or FROM_USER */
 /*===========================================================================*
  *				read_ahead				     *
  *===========================================================================*/
-PUBLIC read_ahead() {
+read_ahead() {
     /* Read a block into the cache before it is needed. */
 
     register struct inode *rip;

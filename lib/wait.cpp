@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int wait(status)
+int wait(status)
 int *status;
 {
     int k;

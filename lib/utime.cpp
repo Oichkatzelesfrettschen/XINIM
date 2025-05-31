@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int utime(name, timp)
+int utime(name, timp)
 char *name;
 long timp[2];
 {

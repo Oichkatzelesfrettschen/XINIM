@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC long time(tp)
+long time(tp)
 long *tp;
 {
     int k;

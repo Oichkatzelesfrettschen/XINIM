@@ -14,7 +14,7 @@
  */
 
 #include "extent.hpp"
-EXTERN struct inode {
+struct inode {
     unshort i_mode;                /* file type, protection, etc. */
     uid i_uid;                     /* user id of the file's owner */
     file_pos i_size;               /* current file size in bytes */
@@ -34,7 +34,9 @@ EXTERN struct inode {
     char i_pipe;       /* set to I_PIPE if pipe */
     char i_mount;      /* this bit is set if file mounted on */
     char i_seek;       /* set on LSEEK, cleared on READ/WRITE */
-} inode[NR_INODES];
+};
+
+extern struct inode inode[NR_INODES];
 
 #define NIL_INODE (struct inode *)0 /* indicates absence of inode slot */
 

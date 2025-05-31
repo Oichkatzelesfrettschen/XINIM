@@ -8,7 +8,7 @@
  * of corresponding slots referring to the same process in all three.
  */
 
-EXTERN struct mproc {
+struct mproc {
     struct mem_map mp_seg[NR_SEGS]; /* points to text, data, stack */
     char mp_exitstatus;             /* storage for status when process exits */
     char mp_sigstatus;              /* storage for signal # for killed processes */
@@ -28,7 +28,9 @@ EXTERN struct mproc {
     int (*mp_func)();  /* all signals vectored to a single user fcn */
 
     unsigned mp_flags; /* flag bits */
-} mproc[NR_PROCS];
+};
+
+extern struct mproc mproc[NR_PROCS];
 
 /* Flag values */
 #define IN_USE 001   /* set when 'mproc' slot in use */

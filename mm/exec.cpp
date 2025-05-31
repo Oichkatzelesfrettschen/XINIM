@@ -32,7 +32,7 @@
 /*===========================================================================*
  *				do_exec					     *
  *===========================================================================*/
-PUBLIC int do_exec() {
+int do_exec() {
     /* Perform the exece(name, argv, envp) call.  The user library builds a
      * complete stack image, including pointers, args, environ, etc.  The stack
      * is copied to a buffer inside MM, and then to the new core image.
@@ -130,7 +130,7 @@ PUBLIC int do_exec() {
 /*===========================================================================*
  *				read_header				     *
  *===========================================================================*/
-PRIVATE int read_header(fd, ft, text_bytes, data_bytes, bss_bytes, tot_bytes, sc)
+static int read_header(fd, ft, text_bytes, data_bytes, bss_bytes, tot_bytes, sc)
 int fd;                /* file descriptor for reading exec file */
 int *ft;               /* place to return ft number */
 vir_bytes *text_bytes; /* place to return text size */
@@ -201,7 +201,7 @@ vir_clicks sc;         /* stack size in clicks */
 /*===========================================================================*
  *				new_mem					     *
  *===========================================================================*/
-PRIVATE int new_mem(text_bytes, data_bytes, bss_bytes, stk_bytes, tot_bytes, bf, zs)
+static int new_mem(text_bytes, data_bytes, bss_bytes, stk_bytes, tot_bytes, bf, zs)
 vir_bytes text_bytes;  /* text segment size in bytes */
 vir_bytes data_bytes;  /* size of initialized data in bytes */
 vir_bytes bss_bytes;   /* size of bss in bytes */
@@ -291,9 +291,8 @@ int zs;                /* true size of 'bf' */
 /*===========================================================================*
  *				patch_ptr				     *
  *===========================================================================*/
-PRIVATE patch_ptr(stack, base)
-char stack[MAX_ISTACK_BYTES]; /* pointer to stack image within MM */
-vir_bytes base;               /* virtual address of stack base inside user */
+static patch_ptr(stack, base) char stack[MAX_ISTACK_BYTES]; /* pointer to stack image within MM */
+vir_bytes base; /* virtual address of stack base inside user */
 {
     /* When doing an exec(name, argv, envp) call, the user builds up a stack
      * image with arg and env pointers relative to the start of the stack.  Now
@@ -324,10 +323,9 @@ vir_bytes base;               /* virtual address of stack base inside user */
 /*===========================================================================*
  *				load_seg				     *
  *===========================================================================*/
-PRIVATE load_seg(fd, seg, seg_bytes)
-int fd;              /* file descriptor to read from */
-int seg;             /* T or D */
-vir_bytes seg_bytes; /* how big is the segment */
+static load_seg(fd, seg, seg_bytes) int fd; /* file descriptor to read from */
+int seg;                                    /* T or D */
+vir_bytes seg_bytes;                        /* how big is the segment */
 {
     /* Read in text or data from the exec file and copy to the new core image.
      * This procedure is a little bit tricky.  The logical way to load a segment

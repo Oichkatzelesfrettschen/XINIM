@@ -47,21 +47,21 @@
 #define DELAY_LOOP 1000     /* delay when printer is busy */
 #define MAX_REP 1000        /* controls max delay when busy */
 
-PRIVATE int port_base;  /* I/O port for printer: 0x 378 or 0x3BC */
-PRIVATE int caller;     /* process to tell when printing done (FS) */
-PRIVATE int proc_nr;    /* user requesting the printing */
-PRIVATE int orig_count; /* original byte count */
-PRIVATE int es;         /* (es, offset) point to next character to */
-PRIVATE int offset;     /* print, i.e., in the user's buffer */
-PUBLIC int pcount;      /* number of bytes left to print */
-PUBLIC int pr_busy;     /* TRUE when printing, else FALSE */
-PUBLIC int cum_count;   /* cumulative # characters printed */
-PUBLIC int prev_ct;     /* value of cum_count 100 msec ago */
+static int port_base;  /* I/O port for printer: 0x 378 or 0x3BC */
+static int caller;     /* process to tell when printing done (FS) */
+static int proc_nr;    /* user requesting the printing */
+static int orig_count; /* original byte count */
+static int es;         /* (es, offset) point to next character to */
+static int offset;     /* print, i.e., in the user's buffer */
+int pcount;            /* number of bytes left to print */
+int pr_busy;           /* TRUE when printing, else FALSE */
+int cum_count;         /* cumulative # characters printed */
+int prev_ct;           /* value of cum_count 100 msec ago */
 
 /*===========================================================================*
  *				printer_task				     *
  *===========================================================================*/
-PUBLIC printer_task() {
+printer_task() {
     /* Main routine of the printer task. */
 
     message print_mess; /* buffer for all incoming messages */
@@ -89,8 +89,7 @@ PUBLIC printer_task() {
 /*===========================================================================*
  *				do_write				     *
  *===========================================================================*/
-PRIVATE do_write(m_ptr)
-message *m_ptr; /* pointer to the newly arrived message */
+static do_write(m_ptr) message *m_ptr; /* pointer to the newly arrived message */
 {
     /* The printer is used by sending TTY_WRITE messages to it. Process one. */
 
@@ -153,8 +152,7 @@ message *m_ptr; /* pointer to the newly arrived message */
 /*===========================================================================*
  *				do_done					     *
  *===========================================================================*/
-PRIVATE do_done(m_ptr)
-message *m_ptr; /* pointer to the newly arrived message */
+static do_done(m_ptr) message *m_ptr; /* pointer to the newly arrived message */
 {
     /* Printing is finished.  Reply to caller (FS). */
 
@@ -172,8 +170,7 @@ message *m_ptr; /* pointer to the newly arrived message */
 /*===========================================================================*
  *				do_cancel				     *
  *===========================================================================*/
-PRIVATE do_cancel(m_ptr)
-message *m_ptr; /* pointer to the newly arrived message */
+static do_cancel(m_ptr) message *m_ptr; /* pointer to the newly arrived message */
 {
     /* Cancel a print request that has already started.  Usually this means that
      * the process doing the printing has been killed by a signal.
@@ -190,11 +187,10 @@ message *m_ptr; /* pointer to the newly arrived message */
 /*===========================================================================*
  *				reply					     *
  *===========================================================================*/
-PRIVATE reply(code, replyee, process, status)
-int code;    /* TASK_REPLY or REVIVE */
-int replyee; /* destination for message (normally FS) */
-int process; /* which user requested the printing */
-int status;  /* number of  chars printed or error code */
+static reply(code, replyee, process, status) int code; /* TASK_REPLY or REVIVE */
+int replyee;                                           /* destination for message (normally FS) */
+int process;                                           /* which user requested the printing */
+int status;                                            /* number of  chars printed or error code */
 {
     /* Send a reply telling FS that printing has started or stopped. */
 
@@ -209,8 +205,7 @@ int status;  /* number of  chars printed or error code */
 /*===========================================================================*
  *				pr_error				     *
  *===========================================================================*/
-PRIVATE pr_error(status)
-int status; /* printer status byte */
+static pr_error(status) int status; /* printer status byte */
 {
     /* The printer is not ready.  Display a message on the console telling why. */
 
@@ -225,7 +220,7 @@ int status; /* printer status byte */
 /*===========================================================================*
  *				print_init				     *
  *===========================================================================*/
-PRIVATE print_init() {
+static print_init() {
     /* Color display uses 0x378 for printer; mono display uses 0x3BC. */
 
     int i;
@@ -242,7 +237,7 @@ PRIVATE print_init() {
 /*===========================================================================*
  *				pr_char				     *
  *===========================================================================*/
-PUBLIC pr_char() {
+pr_char() {
     /* This is the interrupt handler.  When a character has been printed, an
      * interrupt occurs, and the assembly code routine trapped to calls pr_char().
      * One annoying problem is that the 8259A controller sometimes generates

@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int mount(special, name, rwflag)
+int mount(special, name, rwflag)
 char *name, *special;
 int rwflag;
 {
