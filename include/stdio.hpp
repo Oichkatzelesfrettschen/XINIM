@@ -44,6 +44,9 @@ extern struct _io_buf {
 #define stdout (_io_table[1])
 #define stderr (_io_table[2])
 
+// Flush the buffer associated with the given stream.
+int __fflush(FILE *stream);
+
 #define getchar() getc(stdin)
 
 /* Inline wrapper around std::putchar replacing the previous macro. */

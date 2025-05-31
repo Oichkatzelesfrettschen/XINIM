@@ -1,35 +1,33 @@
 #include "../include/lib.hpp" // C++17 header
 
-char *nullptr[1]; /* the EXEC calls need a zero pointer */
+// Helper used when no arguments or environment pointers are passed.
+static char *null_argv[] = { nullptr };
 
-PUBLIC int execl(name, arg0)
-char *name;
-char *arg0;
-{
-    return execve(name, &arg0, nullptr);
+// Forward declaration for the main exec implementation.
+int execve(const char *name, char *argv[], char *envp[]);
+
+// Execute a file with a single argument list terminated by a null pointer.
+int execl(const char *name, char *arg0) {
+    return execve(name, &arg0, null_argv);
 }
 
-PUBLIC int execle(name, argv)
-char *name, *argv;
-{
-    char **p;
-    p = (char **)&argv;
-    while (*p++) /* null statement */
+// Execute a file with the provided argument list followed by the environment
+// pointers located after the terminating null of the argument list.
+int execle(const char *name, char *argv) {
+    char **p = &argv;
+    while (*p++)
         ;
-    return execve(name, &argv, *p);
+    char **envp = reinterpret_cast<char **>(*p);
+    return execve(name, &argv, envp);
 }
 
-PUBLIC int execv(name, argv)
-char *name, *argv[];
-{
-    return execve(name, argv, nullptr);
+// Execute a file using the argument vector 'argv'.
+int execv(const char *name, char *argv[]) {
+    return execve(name, argv, null_argv);
 }
 
-PUBLIC int execve(name, argv, envp)
-char *name;   /* pointer to name of file to be executed */
-char *argv[]; /* pointer to argument array */
-char *envp[]; /* pointer to environment */
-{
+// Execute a file using both argument and environment vectors.
+int execve(const char *name, char *argv[], char *envp[]) {
     char stack[MAX_ISTACK_BYTES];
     char **argorg, **envorg, *hp, **ap, *p;
     int i, nargs, nenvps, stackbytes, ptrsize, offset;
@@ -48,7 +46,7 @@ char *envp[]; /* pointer to environment */
     /* Prepare to set up the initial stack. */
     hp = &stack[(nargs + nenvps + 3) * ptrsize];
     if (hp + nargs + nenvps >= &stack[MAX_ISTACK_BYTES])
-        return (ErrorCode::E2BIG);
+        return static_cast<int>(ErrorCode::E2BIG);
     ap = (char **)stack;
     *ap++ = (char *)nargs;
 
@@ -60,7 +58,7 @@ char *envp[]; /* pointer to environment */
         while (*p) {
             *hp++ = *p++;
             if (hp >= &stack[MAX_ISTACK_BYTES])
-                return (ErrorCode::E2BIG);
+                return static_cast<int>(ErrorCode::E2BIG);
         }
         *hp++ = (char)0;
     }
@@ -74,18 +72,18 @@ char *envp[]; /* pointer to environment */
         while (*p) {
             *hp++ = *p++;
             if (hp >= &stack[MAX_ISTACK_BYTES])
-                return (ErrorCode::E2BIG);
+                return static_cast<int>(ErrorCode::E2BIG);
         }
         *hp++ = (char)0;
     }
     *ap++ = NIL_PTR;
     stackbytes = (((hp - stack) + ptrsize - 1) / ptrsize) * ptrsize;
-    return callm1(MM_PROC_NR, EXEC, len(name), stackbytes, 0, name, stack, NIL_PTR);
+    return callm1(MM_PROC_NR, EXEC, len(const_cast<char *>(name)), stackbytes, 0,
+                  const_cast<char *>(name), stack, NIL_PTR);
 }
 
-PUBLIC execn(name)
-char *name; /* pointer to file to be exec'd */
-{
+// Optimized EXEC when there are no arguments or environment strings.
+int execn(const char *name) {
     /* Special version used when there are no args and no environment.  This call
      * is principally used by INIT, to avoid having to allocate MAX_ISTACK_BYTES.
      */
@@ -96,5 +94,6 @@ char *name; /* pointer to file to be exec'd */
     stack[1] = 0;
     stack[2] = 0;
     stack[3] = 0;
-    return callm1(MM_PROC_NR, EXEC, len(name), 4, 0, name, stack, NIL_PTR);
+    return callm1(MM_PROC_NR, EXEC, len(const_cast<char *>(name)), 4, 0,
+                  const_cast<char *>(name), stack, NIL_PTR);
 }

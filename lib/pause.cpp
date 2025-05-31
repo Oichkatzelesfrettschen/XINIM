@@ -1,3 +1,4 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int pause() { return callm1(MM, PAUSE, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR); }
+// Suspend the process until a signal is received.
+int pause() { return callm1(MM, PAUSE, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR); }

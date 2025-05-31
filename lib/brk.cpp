@@ -1,9 +1,10 @@
 #include "../include/lib.hpp" // C++17 header
 
+// Current end of the data segment managed by brk/sbrk.
 extern char *brksize;
 
 // Set the program break to the address specified by 'addr'.
-PUBLIC char *brk(char *addr) {
+char *brk(char *addr) {
     int k;
 
     k = callm1(MM, BRK, 0, 0, 0, addr, NIL_PTR, NIL_PTR);
@@ -16,7 +17,7 @@ PUBLIC char *brk(char *addr) {
 }
 
 // Increment the program break by 'incr' bytes.
-PUBLIC char *sbrk(int incr) {
+char *sbrk(int incr) {
     char *newsize, *oldsize;
     extern int endv, dorgv;
 

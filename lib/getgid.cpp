@@ -1,7 +1,7 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC gid getgid() {
-    int k;
-    k = callm1(MM, GETGID, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
-    return ((gid)k);
+// Obtain the real group ID of the calling process.
+gid getgid() {
+    int k = callm1(MM, GETGID, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
+    return static_cast<gid>(k);
 }

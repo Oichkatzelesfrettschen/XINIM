@@ -12,7 +12,8 @@ sighandler_t vectab[NR_SIGS]; /* array of functions to catch signals */
  * and change ../h/signal.h accordingly.
  */
 
-PUBLIC sighandler_t signal(int signr, sighandler_t func) {
+// Install a signal handler for 'signr' and return the previous handler.
+sighandler_t signal(int signr, sighandler_t func) {
     int r;
     sighandler_t old;
 

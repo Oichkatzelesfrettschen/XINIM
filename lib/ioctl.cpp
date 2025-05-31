@@ -2,13 +2,12 @@
 #include "../include/lib.hpp" // C++17 header
 #include "../include/sgtty.hpp"
 
-PUBLIC int ioctl(fd, request, u)
-int fd;
-int request;
-union {
-    struct sgttyb *argp;
-    struct tchars *argt;
-} u;
+// Perform an I/O control operation on a terminal device.
+int ioctl(int fd, int request,
+          union {
+              struct sgttyb *argp;
+              struct tchars *argt;
+          } u)
 
 {
     int n;
