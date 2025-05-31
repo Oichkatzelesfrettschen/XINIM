@@ -26,12 +26,12 @@
 #include "param.hpp"
 #include "type.hpp"
 
-PRIVATE message clock_mess;
+static message clock_mess;
 
 /*===========================================================================*
  *				do_utime				     *
  *===========================================================================*/
-PUBLIC int do_utime() {
+int do_utime() {
     /* Perform the utime(name, timep) system call. */
 
     register struct inode *rip;
@@ -60,7 +60,7 @@ PUBLIC int do_utime() {
 /*===========================================================================*
  *				do_time					     *
  *===========================================================================*/
-PUBLIC int do_time()
+int do_time()
 
 {
     /* Perform the time(tp) system call. */
@@ -74,7 +74,7 @@ PUBLIC int do_time()
 /*===========================================================================*
  *				do_stime				     *
  *===========================================================================*/
-PUBLIC int do_stime() {
+int do_stime() {
     /* Perform the stime(tp) system call. */
 
     register int k;
@@ -91,7 +91,7 @@ PUBLIC int do_stime() {
 /*===========================================================================*
  *				do_tims					     *
  *===========================================================================*/
-PUBLIC int do_tims() {
+int do_tims() {
     /* Perform the times(buffer) system call. */
 
     real_time t[4];

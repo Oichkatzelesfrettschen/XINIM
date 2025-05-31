@@ -79,7 +79,7 @@ class ScopedPortLock {
 #define DEV_PER_DRIVE 5     /* hd0 + hd1 + hd2 + hd3 + hd4 = 5 */
 
 /* Variables. */
-PRIVATE struct wini {             /* main drive struct, one entry per drive */
+static struct wini {              /* main drive struct, one entry per drive */
     int wn_opcode;                /* DISK_READ or DISK_WRITE */
     int wn_procnr;                /* which proc wanted this operation? */
     int wn_drive;                 /* drive number addressed */
@@ -94,16 +94,16 @@ PRIVATE struct wini {             /* main drive struct, one entry per drive */
     char wn_results[MAX_RESULTS]; /* the controller can give lots of output */
 } wini[NR_DEVICES];
 
-PRIVATE int w_need_reset = FALSE; /* set to 1 when controller must be reset */
-PRIVATE int nr_drives;            /* Number of drives */
+static int w_need_reset = FALSE; /* set to 1 when controller must be reset */
+static int nr_drives;            /* Number of drives */
 
-PRIVATE message w_mess; /* message buffer for in and out */
+static message w_mess; /* message buffer for in and out */
 
-PRIVATE int command[6]; /* Common command block */
+static int command[6]; /* Common command block */
 
-PRIVATE unsigned char buf[BLOCK_SIZE]; /* Buffer used by the startup routine */
+static unsigned char buf[BLOCK_SIZE]; /* Buffer used by the startup routine */
 
-PRIVATE struct param {
+static struct param {
     int nr_cyl;     /* Number of cylinders */
     int nr_heads;   /* Number of heads */
     int reduced_wr; /* First cylinder with reduced write current */
@@ -114,7 +114,7 @@ PRIVATE struct param {
 /*===========================================================================*
  *				winchester_task				     *
  *===========================================================================*/
-PUBLIC winchester_task() {
+winchester_task() {
     /* Main program of the winchester disk driver task. */
 
     int r, caller, proc_nr;

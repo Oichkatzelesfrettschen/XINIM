@@ -84,7 +84,7 @@ int main(int argc, char *argv[]) {
     if (topfiles == 0)
         print_total(0, nrfiles);
     print(0, nrfiles, expand_flag, "");
-    fflush(stdout);
+    mnx_fflush(stdout);
     exit(0);
 }
 
@@ -137,7 +137,7 @@ static int reversed(int i, int j, int expand_flag) {
     if (expand_flag) {
         if (fp1->size == -1L || fp2->size == -1L) {
             fprintf(stdout, "ls: internal bug: non-stat'ed file in reversed()\n");
-            fflush(stdout);
+            mnx_fflush(stdout);
             exit(1);
         }
         m1 = fp1->mode & I_TYPE;
@@ -273,7 +273,7 @@ static void fill_file(char *prefix, char *postfix, int statflag) {
 
     if (nrfiles == NFILE) {
         fprintf(stdout, "ls: Out of space\n");
-        fflush(stdout);
+        mnx_fflush(stdout);
         exit(1);
     }
     fp = &file[nrfiles++];

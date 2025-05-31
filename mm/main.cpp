@@ -26,13 +26,13 @@
 #define ENOUGH (phys_clicks)4096        /* any # > max(FS size, INIT size) */
 #define CLICK_TO_K (1024L / CLICK_SIZE) /* convert clicks to K */
 
-PRIVATE phys_clicks tot_mem;
+static phys_clicks tot_mem;
 extern (*call_vec[])();
 
 /*===========================================================================*
  *				main					     *
  *===========================================================================*/
-PUBLIC main() {
+main() {
     /* Main routine of the memory manager. */
 
     int error;
@@ -68,7 +68,7 @@ PUBLIC main() {
 /*===========================================================================*
  *				get_work				     *
  *===========================================================================*/
-PRIVATE get_work() {
+static get_work() {
     /* Wait for the next message and extract useful information from it. */
 
     if (receive(ANY, &mm_in) != OK)
@@ -82,11 +82,10 @@ PRIVATE get_work() {
 /*===========================================================================*
  *				reply					     *
  *===========================================================================*/
-PUBLIC reply(proc_nr, result, res2, respt)
-int proc_nr; /* process to reply to */
-int result;  /* result of the call (usually OK or error #)*/
-int res2;    /* secondary result */
-char *respt; /* result if pointer */
+reply(proc_nr, result, res2, respt) int proc_nr; /* process to reply to */
+int result;                                      /* result of the call (usually OK or error #)*/
+int res2;                                        /* secondary result */
+char *respt;                                     /* result if pointer */
 {
     /* Send a reply to a user process. */
 
@@ -106,7 +105,7 @@ char *respt; /* result if pointer */
 /*===========================================================================*
  *				mm_init					     *
  *===========================================================================*/
-PRIVATE mm_init() {
+static mm_init() {
     /* Initialize the memory manager. */
 
     extern phys_clicks get_tot_mem(), alloc_mem();
@@ -131,7 +130,7 @@ PRIVATE mm_init() {
 /*===========================================================================*
  *				do_brk2	   				     *
  *===========================================================================*/
-PUBLIC do_brk2() {
+do_brk2() {
     /* This "call" is made once by FS during system initialization and then never
      * again by anyone.  It contains the origin and size of INIT, and the combined
      * size of the 1536 bytes of unused mem, MINIX and RAM disk.
@@ -190,10 +189,9 @@ PUBLIC do_brk2() {
 /*===========================================================================*
  *				set_map	   				     *
  *===========================================================================*/
-PRIVATE set_map(proc_nr, base, clicks)
-int proc_nr;        /* whose map to set? */
-phys_clicks base;   /* where in memory does the process start? */
-phys_clicks clicks; /* total size in clicks (sep I & D not used) */
+static set_map(proc_nr, base, clicks) int proc_nr; /* whose map to set? */
+phys_clicks base;                                  /* where in memory does the process start? */
+phys_clicks clicks;                                /* total size in clicks (sep I & D not used) */
 {
     /* Set up the memory map as part of the system initialization. */
 

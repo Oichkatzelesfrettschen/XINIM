@@ -69,13 +69,13 @@
 
 extern phys_bytes umap();
 
-PRIVATE message m;
-PRIVATE char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
+static message m;
+static char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
 
 /*===========================================================================*
  *				sys_task				     *
  *===========================================================================*/
-PUBLIC sys_task() {
+sys_task() {
     /* Main entry point of sys_task.  Get the message and dispatch on type. */
 
     register int r;
@@ -123,7 +123,7 @@ PUBLIC sys_task() {
 /*===========================================================================*
  *				do_fork					     *
  *===========================================================================*/
-PRIVATE int do_fork(m_ptr)
+static int do_fork(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_fork().  'k1' has forked.  The child is 'k2'. */
@@ -164,7 +164,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_newmap				     *
  *===========================================================================*/
-PRIVATE int do_newmap(m_ptr)
+static int do_newmap(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_newmap().  Fetch the memory map from MM. */
@@ -205,7 +205,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_exec					     *
  *===========================================================================*/
-PRIVATE int do_exec(m_ptr)
+static int do_exec(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_exec().  A process has done a successful EXEC. Patch it up. */
@@ -232,7 +232,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_xit					     *
  *===========================================================================*/
-PRIVATE int do_xit(m_ptr)
+static int do_xit(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_xit().  A process has exited. */
@@ -287,7 +287,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_getsp				     *
  *===========================================================================*/
-PRIVATE int do_getsp(m_ptr)
+static int do_getsp(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_getsp().  MM wants to know what sp is. */
@@ -306,7 +306,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_times				     *
  *===========================================================================*/
-PRIVATE int do_times(m_ptr)
+static int do_times(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_times().  Retrieve the accounting information. */
@@ -330,7 +330,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_abort				     *
  *===========================================================================*/
-PRIVATE int do_abort(m_ptr)
+static int do_abort(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_abort.  MINIX is unable to continue.  Terminate operation. */
@@ -341,7 +341,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_sig					     *
  *===========================================================================*/
-PRIVATE int do_sig(m_ptr)
+static int do_sig(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_sig(). Signal a process.  The stack is known to be big enough. */
@@ -384,7 +384,7 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_copy					     *
  *===========================================================================*/
-PRIVATE int do_copy(m_ptr)
+static int do_copy(m_ptr)
 message *m_ptr; /* pointer to request message */
 {
     /* Handle sys_copy().  Copy data for MM or FS. */
@@ -422,9 +422,8 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				cause_sig				     *
  *===========================================================================*/
-PUBLIC cause_sig(proc_nr, sig_nr)
-int proc_nr; /* process to be signalled */
-int sig_nr;  /* signal to be sent in range 1 - 16 */
+cause_sig(proc_nr, sig_nr) int proc_nr; /* process to be signalled */
+int sig_nr;                             /* signal to be sent in range 1 - 16 */
 {
     /* A task wants to send a signal to a process.   Examples of such tasks are:
      *   TTY wanting to cause SIGINT upon getting a DEL
@@ -449,8 +448,7 @@ int sig_nr;  /* signal to be sent in range 1 - 16 */
 /*===========================================================================*
  *				inform					     *
  *===========================================================================*/
-PUBLIC inform(proc_nr)
-int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
+inform(proc_nr) int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
 {
     /* When a signal is detected by the kernel (e.g., DEL), or generated by a task
      * (e.g. clock task for SIGALRM), cause_sig() is called to set a bit in the
@@ -483,7 +481,7 @@ int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
 /*===========================================================================*
  *				umap					     *
  *===========================================================================*/
-PUBLIC phys_bytes umap(rp, seg, vir_addr, bytes)
+phys_bytes umap(rp, seg, vir_addr, bytes)
 register struct proc *rp; /* unused with paging */
 int seg;                  /* ignored */
 vir_bytes vir_addr;       /* virtual address */

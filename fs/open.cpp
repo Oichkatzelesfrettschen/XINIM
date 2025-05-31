@@ -25,7 +25,7 @@
 #include "param.hpp"
 #include "type.hpp"
 
-PRIVATE char mode_map[] = {R_BIT, W_BIT, R_BIT | W_BIT, 0};
+static char mode_map[] = {R_BIT, W_BIT, R_BIT | W_BIT, 0};
 
 /*===========================================================================*
  *				do_creat				     *
@@ -111,7 +111,7 @@ int do_mknod() {
 /*===========================================================================*
  *				new_node				     *
  *===========================================================================*/
-PRIVATE struct inode *new_node(path, bits, z0)
+static struct inode *new_node(path, bits, z0)
 char *path;     /* pointer to path name */
 mask_bits bits; /* mode of the new inode */
 zone_nr z0;     /* zone number 0 for new inode */

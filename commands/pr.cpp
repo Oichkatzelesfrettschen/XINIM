@@ -142,7 +142,7 @@ char *argv[];
         }
     }
 
-    (void)fflush(stdout);
+    (void)mnx_fflush(stdout);
     exit(0);
 }
 

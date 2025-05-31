@@ -47,24 +47,24 @@
 #define SQUARE_WAVE 0x36  /* mode for generating square wave */
 
 /* Clock task variables. */
-PRIVATE real_time boot_time;              /* time in seconds of system boot */
-PRIVATE real_time next_alarm;             /* probable time of next alarm */
-PRIVATE int sched_ticks = SCHED_RATE;     /* counter: when 0, call scheduler */
-PRIVATE struct proc *prev_ptr;            /* last user process run by clock task */
-PRIVATE message mc;                       /* message buffer for both input and output */
-PRIVATE int (*watch_dog[NR_TASKS + 1])(); /* watch_dog functions to call */
+static real_time boot_time;              /* time in seconds of system boot */
+static real_time next_alarm;             /* probable time of next alarm */
+static int sched_ticks = SCHED_RATE;     /* counter: when 0, call scheduler */
+static struct proc *prev_ptr;            /* last user process run by clock task */
+static message mc;                       /* message buffer for both input and output */
+static int (*watch_dog[NR_TASKS + 1])(); /* watch_dog functions to call */
 /* Forward declarations for internal helpers. */
-PRIVATE void do_setalarm(message *m_ptr);
-PRIVATE void do_get_time(void);
-PRIVATE void do_set_time(message *m_ptr);
-PRIVATE void do_clocktick(void);
-PRIVATE void accounting(void);
-PRIVATE void init_clock(void);
+static void do_setalarm(message *m_ptr);
+static void do_get_time(void);
+static void do_set_time(message *m_ptr);
+static void do_clocktick(void);
+static void accounting(void);
+static void init_clock(void);
 
 /*===========================================================================*
  *				clock_task				     *
  *===========================================================================*/
-PUBLIC clock_task() {
+clock_task() {
     /* Main program of clock task.  It determines which of the 4 possible
      * calls this is by looking at 'mc.m_type'.   Then it dispatches.
      */
@@ -105,7 +105,7 @@ PUBLIC clock_task() {
 /*===========================================================================*
  *				do_setalarm				     *
  *===========================================================================*/
-PRIVATE void do_setalarm(message *m_ptr) {
+static void do_setalarm(message *m_ptr) {
     /* A process wants an alarm signal or a task wants a given watch_dog function
      * called after a specified interval.  Record the request and check to see
      * it is the very next alarm needed.
@@ -136,7 +136,7 @@ PRIVATE void do_setalarm(message *m_ptr) {
 /*===========================================================================*
  *				do_get_time				     *
  *===========================================================================*/
-PRIVATE void do_get_time(void) {
+static void do_get_time(void) {
     /* Get and return the current clock time in ticks. */
 
     mc.m_type = REAL_TIME;                   /* set message type for reply */
@@ -146,7 +146,7 @@ PRIVATE void do_get_time(void) {
 /*===========================================================================*
  *				do_set_time				     *
  *===========================================================================*/
-PRIVATE void do_set_time(message *m_ptr) {
+static void do_set_time(message *m_ptr) {
     /* Set the real time clock.  Only the superuser can use this call. */
 
     boot_time = m_ptr->NEW_TIME - realtime / HZ;
@@ -155,7 +155,7 @@ PRIVATE void do_set_time(message *m_ptr) {
 /*===========================================================================*
  *				do_clocktick				     *
  *===========================================================================*/
-PRIVATE void do_clocktick(void) {
+static void do_clocktick(void) {
     /* This routine called on every clock tick. */
 
     register struct proc *rp;
@@ -214,7 +214,7 @@ PRIVATE void do_clocktick(void) {
 /*===========================================================================*
  *				accounting				     *
  *===========================================================================*/
-PRIVATE void accounting(void) {
+static void accounting(void) {
     /* Update user and system accounting times.  The variable 'bill_ptr' is always
      * kept pointing to the process to charge for CPU usage.  If the CPU was in
      * user code prior to this clock tick, charge the tick as user time, otherwise
@@ -230,7 +230,7 @@ PRIVATE void accounting(void) {
 /*===========================================================================*
  *				init_clock				     *
  *===========================================================================*/
-PRIVATE void init_clock(void) {
+static void init_clock(void) {
     /* Initialize channel 2 of the 8253A timer to e.g. 60 Hz. */
 
     unsigned int count, low_byte, high_byte;

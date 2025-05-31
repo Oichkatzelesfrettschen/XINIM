@@ -25,7 +25,7 @@
 /*===========================================================================*
  *				get_fd					     *
  *===========================================================================*/
-PUBLIC int get_fd(bits, k, fpt)
+int get_fd(bits, k, fpt)
 mask_bits bits;    /* mode of the file to be created (RWX bits) */
 int *k;            /* place to return file descriptor */
 struct filp **fpt; /* place to return filp slot */
@@ -70,7 +70,7 @@ struct filp **fpt; /* place to return filp slot */
 /*===========================================================================*
  *				get_filp				     *
  *===========================================================================*/
-PUBLIC struct filp *get_filp(fild)
+struct filp *get_filp(fild)
 int fild; /* file descriptor */
 {
     /* See if 'fild' refers to a valid file descr.  If so, return its filp ptr. */
@@ -84,7 +84,7 @@ int fild; /* file descriptor */
 /*===========================================================================*
  *				find_filp				     *
  *===========================================================================*/
-PUBLIC struct filp *find_filp(rip, bits)
+struct filp *find_filp(rip, bits)
 register struct inode *rip; /* inode referred to by the filp to be found */
 int bits;                   /* mode of the filp to be found (RWX bits) */
 {

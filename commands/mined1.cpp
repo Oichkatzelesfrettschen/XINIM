@@ -2240,7 +2240,7 @@ _getchar() {
     return c & 0177;
 }
 
-_flush() { (void)fflush(stdout); }
+_flush() { (void)mnx_fflush(stdout); }
 
 _putchar(c) char c;
 {

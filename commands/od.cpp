@@ -81,7 +81,7 @@ char *argv[];
             std_err("od: cannot open ");
             std_err(argv[k]);
             std_err("\n");
-            fflush(stdout);
+            mnx_fflush(stdout);
             exit(1);
         }
         k++;
@@ -98,7 +98,7 @@ char *argv[];
     dumpfile();
     addrout(off);
     printf("\n");
-    fflush(stdout);
+    mnx_fflush(stdout);
     exit(0);
 }
 
@@ -128,7 +128,7 @@ int k;
         c = *p++;
         if (c < '0' || c > '9') {
             printf("Bad character in offset: %c\n", c);
-            fflush(stdout);
+            mnx_fflush(stdout);
             exit(1);
         }
         val = radix * val + c - '0';

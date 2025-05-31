@@ -34,7 +34,7 @@ int main(int argc, char *argv[]) {
     if (nfiles == 0) {
         /* Print standard input only. */
         do_file(n);
-        fflush(stdout);
+        mnx_fflush(stdout);
         exit(0);
     }
 
@@ -51,7 +51,7 @@ int main(int argc, char *argv[]) {
         if (k < argc)
             prints("\n");
     }
-    fflush(stdout);
+    mnx_fflush(stdout);
     exit(0);
 }
 

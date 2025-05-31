@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int fstat(fd, buffer)
+int fstat(fd, buffer)
 int fd;
 char *buffer;
 {

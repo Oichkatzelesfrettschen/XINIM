@@ -15,7 +15,7 @@
 /*===========================================================================*
  *				do_getset				     *
  *===========================================================================*/
-PUBLIC int do_getset() {
+int do_getset() {
     /* Handle GETUID, GETGID, GETPID, SETUID, SETGID.  The three GETs return
      * their primary results in 'r'.  GETUID and GETGID also return secondary
      * results (the effective IDs) in 'result2', which is returned to the user.

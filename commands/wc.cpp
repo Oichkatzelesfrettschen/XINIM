@@ -96,7 +96,7 @@ char *argv[];
         if (cflag)
             printf(" %6D", ccount);
         printf(" \n");
-        fflush(stdout);
+        mnx_fflush(stdout);
         exit(0);
     }
 
@@ -133,7 +133,7 @@ char *argv[];
         printf(" total\n");
     }
 
-    fflush(stdout);
+    mnx_fflush(stdout);
     exit(0);
 }
 

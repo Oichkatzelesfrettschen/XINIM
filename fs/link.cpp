@@ -26,7 +26,7 @@
 /*===========================================================================*
  *				do_link					     *
  *===========================================================================*/
-PUBLIC int do_link() {
+int do_link() {
     /* Perform the link(name, name2) system call. */
 
     register struct inode *ip, *rip;
@@ -99,7 +99,7 @@ PUBLIC int do_link() {
 /*===========================================================================*
  *				do_unlink				     *
  *===========================================================================*/
-PUBLIC int do_unlink() {
+int do_unlink() {
     /* Perform the unlink(name) system call. */
 
     register struct inode *rip, *rlast_dir_ptr;
@@ -145,8 +145,7 @@ PUBLIC int do_unlink() {
 /*===========================================================================*
  *				truncate				     *
  *===========================================================================*/
-PUBLIC truncate(rip)
-register struct inode *rip; /* pointer to inode to be truncated */
+truncate(rip) register struct inode *rip; /* pointer to inode to be truncated */
 {
     /* Remove all the zones from the inode 'rip' and mark it dirty. */
 

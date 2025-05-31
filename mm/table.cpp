@@ -6,9 +6,6 @@
 #include "../h/type.h"
 #include "const.hpp"
 
-#undef EXTERN
-#define EXTERN
-
 #include "../h/callnr.h"
 #include "glo.hpp"
 #include "mproc.hpp"

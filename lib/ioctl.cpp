@@ -2,7 +2,7 @@
 #include "../include/lib.hpp" // C++17 header
 #include "../include/sgtty.hpp"
 
-PUBLIC int ioctl(fd, request, u)
+int ioctl(fd, request, u)
 int fd;
 int request;
 union {

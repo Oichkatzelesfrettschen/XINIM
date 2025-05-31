@@ -38,7 +38,7 @@ char *fn, *mode;
 
     if ((p = fopen(fn, mode)) == NULL) {
         perror("uniq");
-        fflush(stdout);
+        mnx_fflush(stdout);
         exit(1);
     }
     return (p);
@@ -94,7 +94,7 @@ main(argc, argv) char *argv[];
     }
 
     uniq();
-    fflush(stdout);
+    mnx_fflush(stdout);
     exit(0);
 }
 

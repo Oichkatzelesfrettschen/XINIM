@@ -4,15 +4,15 @@
 sighandler_t vectab[NR_SIGS]; /* array of functions to catch signals */
 
 /* The definition of signal really should be
- *  PUBLIC int (*signal(signr, func))()
+ *  int (*signal(signr, func))()
  * but some compilers refuse to accept this, even though it is correct.
  * The only thing to do if you are stuck with such a defective compiler is
  * change it to
- *  PUBLIC int *signal(signr, func)
+ *  int *signal(signr, func)
  * and change ../h/signal.h accordingly.
  */
 
-PUBLIC sighandler_t signal(int signr, sighandler_t func) {
+sighandler_t signal(int signr, sighandler_t func) {
     int r;
     sighandler_t old;
 

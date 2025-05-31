@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int pipe(fild)
+int pipe(fild)
 int fild[2];
 {
     int k;

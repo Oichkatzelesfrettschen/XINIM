@@ -30,12 +30,12 @@
 #include "param.hpp"
 #include "type.hpp"
 
-PRIVATE message mess;
+static message mess;
 
 /*===========================================================================*
  *				do_pipe					     *
  *===========================================================================*/
-PUBLIC int do_pipe() {
+int do_pipe() {
     /* Perform the pipe(fil_des) system call. */
 
     register struct fproc *rfp;
@@ -83,7 +83,7 @@ PUBLIC int do_pipe() {
 /*===========================================================================*
  *				pipe_check				     *
  *===========================================================================*/
-PUBLIC int pipe_check(rip, rw_flag, virgin, bytes, position)
+int pipe_check(rip, rw_flag, virgin, bytes, position)
 register struct inode *rip;  /* the inode of the pipe */
 int rw_flag;                 /* READING or WRITING */
 int virgin;                  /* 1 if no data transferred yet, else 0 */
@@ -142,8 +142,7 @@ register file_pos *position; /* pointer to current file position */
 /*===========================================================================*
  *				suspend					     *
  *===========================================================================*/
-PUBLIC suspend(task)
-int task; /* who is proc waiting for? (PIPE = pipe) */
+suspend(task) int task; /* who is proc waiting for? (PIPE = pipe) */
 {
     /* Take measures to suspend the processing of the present system call.
      * Store the parameters to be used upon resuming in the process table.
@@ -164,10 +163,9 @@ int task; /* who is proc waiting for? (PIPE = pipe) */
 /*===========================================================================*
  *				release					     *
  *===========================================================================*/
-PUBLIC release(ip, call_nr, count)
-register struct inode *ip; /* inode of pipe */
-int call_nr;               /* READ or WRITE */
-int count;                 /* max number of processes to release */
+release(ip, call_nr, count) register struct inode *ip; /* inode of pipe */
+int call_nr;                                           /* READ or WRITE */
+int count;                                             /* max number of processes to release */
 {
     /* Check to see if any process is hanging on the pipe whose inode is in 'ip'.
      * If one is, and it was trying to perform the call indicated by 'call_nr'
@@ -191,9 +189,8 @@ int count;                 /* max number of processes to release */
 /*===========================================================================*
  *				revive					     *
  *===========================================================================*/
-PUBLIC revive(proc_nr, bytes)
-int proc_nr; /* process to revive */
-int bytes;   /* if hanging on task, how many bytes read */
+revive(proc_nr, bytes) int proc_nr; /* process to revive */
+int bytes;                          /* if hanging on task, how many bytes read */
 {
     /* Revive a previously blocked process. When a process hangs on tty, this
      * is the way it is eventually released.
@@ -227,7 +224,7 @@ int bytes;   /* if hanging on task, how many bytes read */
 /*===========================================================================*
  *				do_unpause				     *
  *===========================================================================*/
-PUBLIC int do_unpause() {
+int do_unpause() {
     /* A signal has been sent to a user who is paused on the file system.
      * Abort the system call with the ErrorCode::EINTR error message.
      */

@@ -17,7 +17,7 @@
  * will eventually be rewritten to the disk.
  */
 
-EXTERN struct buf {
+struct buf {
     /* Data portion of the buffer. */
     union {
         char b__data[BLOCK_SIZE];           /* ordinary user data */
@@ -35,7 +35,9 @@ EXTERN struct buf {
     dev_nr b_dev;       /* major | minor device where block resides */
     char b_dirt;        /* CLEAN or DIRTY */
     char b_count;       /* number of users of this buffer */
-} buf[NR_BUFS];
+};
+
+extern struct buf buf[NR_BUFS];
 
 /* A block is free if b_dev == NO_DEV. */
 
@@ -48,11 +50,11 @@ EXTERN struct buf {
 #define b_inode b.b__inode
 #define b_int b.b__int
 
-EXTERN struct buf *buf_hash[NR_BUF_HASH]; /* the buffer hash table */
+extern struct buf *buf_hash[NR_BUF_HASH]; /* the buffer hash table */
 
-EXTERN struct buf *front; /* points to least recently used free block */
-EXTERN struct buf *rear;  /* points to most recently used free block */
-EXTERN int bufs_in_use;   /* # bufs currently in use (not on free list) */
+extern struct buf *front; /* points to least recently used free block */
+extern struct buf *rear;  /* points to most recently used free block */
+extern int bufs_in_use;   /* # bufs currently in use (not on free list) */
 
 /* When a block is released, the type of usage is passed to put_block(). */
 #define WRITE_IMMED 0100                       /* block should be written to disk now */

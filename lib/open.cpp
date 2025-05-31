@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int open(name, mode)
+int open(name, mode)
 char *name;
 int mode;
 {

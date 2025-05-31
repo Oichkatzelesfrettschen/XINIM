@@ -9,7 +9,7 @@
  * or even necessary to tell when a slot is free here.
  */
 
-EXTERN struct fproc {
+struct fproc {
     mask_bits fp_umask;           /* mask set by umask system call */
     struct inode *fp_workdir;     /* pointer to working directory's inode */
     struct inode *fp_rootdir;     /* pointer to current root dir (see chroot) */
@@ -25,7 +25,9 @@ EXTERN struct fproc {
     char fp_suspended;            /* set to indicate process hanging */
     char fp_revived;              /* set to indicate process being revived */
     char fp_task;                 /* which task is proc suspended on */
-} fproc[NR_PROCS];
+};
+
+extern struct fproc fproc[NR_PROCS];
 
 /* Field values. */
 #define NOT_SUSPENDED 0 /* process is not suspended on pipe or task */

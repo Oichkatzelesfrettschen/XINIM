@@ -31,12 +31,12 @@
 #define CORE_MODE 0777 /* mode to use on core image files */
 #define DUMPED 0200    /* bit set in status when core dumped */
 
-PRIVATE message m_sig;
+static message m_sig;
 
 /*===========================================================================*
  *				do_signal				     *
  *===========================================================================*/
-PUBLIC int do_signal() {
+int do_signal() {
     /* Perform the signal(sig, func) call by setting bits to indicate that a signal
      * is to be caught or ignored.
      */
@@ -67,7 +67,7 @@ PUBLIC int do_signal() {
 /*===========================================================================*
  *				do_kill					     *
  *===========================================================================*/
-PUBLIC int do_kill() {
+int do_kill() {
     /* Perform the kill(pid, kill_sig) system call. */
 
     return check_sig(pid, kill_sig, mp->mp_effuid);
@@ -76,7 +76,7 @@ PUBLIC int do_kill() {
 /*===========================================================================*
  *				do_ksig					     *
  *===========================================================================*/
-PUBLIC int do_ksig() {
+int do_ksig() {
     /* Certain signals, such as segmentation violations and DEL, originate in the
      * kernel.  When the kernel detects such signals, it sets bits in a bit map.
      * As soon is MM is awaiting new work, the kernel sends MM a message containing
@@ -124,7 +124,7 @@ PUBLIC int do_ksig() {
 /*===========================================================================*
  *				check_sig				     *
  *===========================================================================*/
-PRIVATE int check_sig(proc_id, sig_nr, send_uid)
+static int check_sig(proc_id, sig_nr, send_uid)
 int proc_id;  /* pid of process to signal, or 0 or -1 */
 int sig_nr;   /* which signal to send (1-16) */
 uid send_uid; /* identity of process sending the signal */
@@ -197,9 +197,8 @@ uid send_uid; /* identity of process sending the signal */
 /*===========================================================================*
  *				sig_proc				     *
  *===========================================================================*/
-PUBLIC sig_proc(rmp, sig_nr)
-register struct mproc *rmp; /* pointer to the process to be signalled */
-int sig_nr;                 /* signal to send to process (1-16) */
+sig_proc(rmp, sig_nr) register struct mproc *rmp; /* pointer to the process to be signalled */
+int sig_nr;                                       /* signal to send to process (1-16) */
 {
     /* Send a signal to a process.  Check to see if the signal is to be caught.
      * If so, the pc, psw, and signal number are to be pushed onto the process'
@@ -237,7 +236,7 @@ int sig_nr;                 /* signal to send to process (1-16) */
 /*===========================================================================*
  *				do_alarm				     *
  *===========================================================================*/
-PUBLIC int do_alarm() {
+int do_alarm() {
     /* Perform the alarm(seconds) system call. */
 
     register int r;
@@ -251,7 +250,7 @@ PUBLIC int do_alarm() {
 /*===========================================================================*
  *				set_alarm				     *
  *===========================================================================*/
-PUBLIC int set_alarm(proc_nr, sec)
+int set_alarm(proc_nr, sec)
 int proc_nr;  /* process that wants the alarm */
 unsigned sec; /* how many seconds delay before the signal */
 {
@@ -279,7 +278,7 @@ unsigned sec; /* how many seconds delay before the signal */
 /*===========================================================================*
  *				do_pause				     *
  *===========================================================================*/
-PUBLIC int do_pause() {
+int do_pause() {
     /* Perform the pause() system call. */
 
     mp->mp_flags |= PAUSED; /* turn on PAUSE bit */
@@ -290,8 +289,7 @@ PUBLIC int do_pause() {
 /*===========================================================================*
  *				unpause					     *
  *===========================================================================*/
-PUBLIC unpause(pro)
-int pro; /* which process number */
+unpause(pro) int pro; /* which process number */
 {
     /* A signal is to be sent to a process.  It that process is hanging on a
      * system call, the system call must be terminated with ErrorCode::EINTR.  Possible
@@ -327,8 +325,7 @@ int pro; /* which process number */
 /*===========================================================================*
  *				dump_core				     *
  *===========================================================================*/
-PRIVATE dump_core(rmp)
-register struct mproc *rmp; /* whose core is to be dumped */
+static dump_core(rmp) register struct mproc *rmp; /* whose core is to be dumped */
 {
     /* Make a core dump on the file "core", if possible. */
 

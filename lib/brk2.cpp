@@ -4,7 +4,7 @@
 extern phys_clicks get_size(void);
 
 /* Request memory segment move to the end of BSS. */
-PUBLIC void brk2(void) {
+void brk2(void) {
     char *p1, *p2;
 
     p1 = (char *)get_size();

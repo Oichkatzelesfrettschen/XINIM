@@ -159,6 +159,6 @@ static char *getline(char *buf, int size) {
 }
 
 static void done(int n) {
-    fflush(stdout);
+    mnx_fflush(stdout);
     exit(n);
 }

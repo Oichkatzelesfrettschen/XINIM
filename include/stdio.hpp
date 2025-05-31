@@ -128,3 +128,9 @@ inline int putc(int ch, FILE *iop) {
     }
     return 0;
 }
+
+/* Flush a stream managed by this lightweight stdio implementation. */
+extern "C" int mnx_fflush(FILE *iop);
+
+/* Flush all open streams; typically used at program exit. */
+void _cleanup();

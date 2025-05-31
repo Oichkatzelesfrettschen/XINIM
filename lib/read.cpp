@@ -1,6 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int read(fd, buffer, nbytes)
+int read(fd, buffer, nbytes)
 int fd;
 char *buffer;
 int nbytes;

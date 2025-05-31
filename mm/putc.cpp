@@ -10,15 +10,14 @@
 #define STD_OUTPUT 1 /* file descriptor for standard output */
 #define BUF_SIZE 100 /* print buffer size */
 
-PRIVATE int buf_count;            /* # characters in the buffer */
-PRIVATE char print_buf[BUF_SIZE]; /* output is buffered here */
-PRIVATE message putch_msg;        /* used for message to TTY task */
+static int buf_count;            /* # characters in the buffer */
+static char print_buf[BUF_SIZE]; /* output is buffered here */
+static message putch_msg;        /* used for message to TTY task */
 
 /*===========================================================================*
  *				putc					     *
  *===========================================================================*/
-PUBLIC putc(c)
-char c;
+putc(c) char c;
 {
 
     /* Accumulate another character.  If '\n' or buffer full, print it. */
@@ -32,7 +31,7 @@ char c;
 /*===========================================================================*
  *				F_l_u_s_h				     *
  *===========================================================================*/
-PRIVATE F_l_u_s_h() {
+static F_l_u_s_h() {
     /* Flush the print buffer by calling TTY task. */
 
     if (buf_count == 0)

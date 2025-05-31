@@ -698,7 +698,7 @@ defmac() {
         c = suck(); /* FLUSH HEADER LINE */
     while (copyline())
         ;
-    fflush(Macwrite);
+    mnx_fflush(Macwrite);
 }
 
 openmac() {
@@ -1292,7 +1292,7 @@ bomb() {
 
 done(n) int n;
 {
-    fflush(stdout);
+    mnx_fflush(stdout);
     _cleanup();
     exit(n);
 }

@@ -24,14 +24,14 @@
 
 #define LAST_FEW 2 /* last few slots reserved for superuser */
 
-PRIVATE next_pid = INIT_PROC_NR + 1; /* next pid to be assigned */
+static next_pid = INIT_PROC_NR + 1; /* next pid to be assigned */
 
 /* Some C compilers require static declarations to precede their first use. */
 
 /*===========================================================================*
  *				do_fork					     *
  *===========================================================================*/
-PUBLIC int do_fork() {
+int do_fork() {
     /* The process pointed to by 'mp' has forked.  Create a child process. */
 
     register struct mproc *rmp; /* pointer to parent */
@@ -116,7 +116,7 @@ PUBLIC int do_fork() {
 /*===========================================================================*
  *				do_mm_exit				     *
  *===========================================================================*/
-PUBLIC int do_mm_exit() {
+int do_mm_exit() {
     /* Perform the exit(status) system call. The real work is done by mm_exit(),
      * which is also called when a process is killed by a signal.
      */
@@ -129,9 +129,8 @@ PUBLIC int do_mm_exit() {
 /*===========================================================================*
  *				mm_exit					     *
  *===========================================================================*/
-PUBLIC mm_exit(rmp, exit_status)
-register struct mproc *rmp; /* pointer to the process to be terminated */
-int exit_status;            /* the process' exit status (for parent) */
+mm_exit(rmp, exit_status) register struct mproc *rmp; /* pointer to the process to be terminated */
+int exit_status;                                      /* the process' exit status (for parent) */
 {
     /* A process is done.  If parent is waiting for it, clean it up, else hang. */
 
@@ -157,7 +156,7 @@ int exit_status;            /* the process' exit status (for parent) */
 /*===========================================================================*
  *				do_wait					     *
  *===========================================================================*/
-PUBLIC int do_wait() {
+int do_wait() {
     /* A process wants to wait for a child to terminate. If one is already waiting,
      * go clean it up and let this WAIT call terminate.  Otherwise, really wait.
      */
@@ -195,8 +194,7 @@ PUBLIC int do_wait() {
 /*===========================================================================*
  *				cleanup					     *
  *===========================================================================*/
-PRIVATE cleanup(child)
-register struct mproc *child; /* tells which process is exiting */
+static cleanup(child) register struct mproc *child; /* tells which process is exiting */
 {
     /* Clean up the remains of a process.  This routine is only called if two
      * conditions are satisfied:
