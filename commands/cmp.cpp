@@ -5,12 +5,13 @@
 >>>*/
 
 /* cmp - compare two files	Authors: Paul Polderman & Michiel Huisjes */
+#include <array>
 
 #define BLOCK_SIZE 8192
 typedef unsigned short unshort;
 
 char *file_1, *file_2;
-char buf[2][BLOCK_SIZE];
+std::array<std::array<char, BLOCK_SIZE>, 2> buf{};
 unshort lflag, sflag;
 
 int main(int argc, char *argv[]) {

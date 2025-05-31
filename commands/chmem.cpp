@@ -5,6 +5,7 @@
 >>>*/
 
 /* chmem - set total memory size for execution	Author: Andy Tanenbaum */
+#include <array>
 
 #define HLONG 8           /* header size in longs */
 #define TEXT 2            /* where is text size in header */
@@ -32,7 +33,8 @@ int main(int argc, char *argv[]) {
     char *p;
     unsigned int n;
     int fd, separate;
-    long lsize, olddynam, newdynam, newtot, overflow, header[HLONG];
+    long lsize, olddynam, newdynam, newtot, overflow;
+    std::array<long, HLONG> header{};
 
     p = argv[1];
     if (argc != 3)
