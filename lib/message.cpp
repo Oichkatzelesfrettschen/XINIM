@@ -1,4 +1,4 @@
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 
 message M;

@@ -1,4 +1,4 @@
-#include "../h/com.h"
+#include "../h/com.hpp"
 #include "../include/lib.hpp" // C++17 header
 #include "../include/sgtty.hpp"
 

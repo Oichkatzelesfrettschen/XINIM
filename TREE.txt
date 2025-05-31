@@ -89,7 +89,7 @@
 │   ├── cache.cpp
 │   ├── compat.cpp
 │   ├── compat.h
-│   ├── const.h
+│   ├── const.hpp
 │   ├── dev.h
 │   ├── device.cpp
 │   ├── extent.h
@@ -118,18 +118,18 @@
 │   ├── super.h
 │   ├── table.cpp
 │   ├── time.cpp
-│   ├── type.h
+│   ├── type.hpp
 │   ├── utility.cpp
 │   └── write.cpp
 ├── h
-│   ├── callnr.h
-│   ├── com.h
-│   ├── const.h
-│   ├── error.h
+│   ├── callnr.hpp
+│   ├── com.hpp
+│   ├── const.hpp
+│   ├── error.hpp
 │   ├── sgtty.hpp
 │   ├── signal.h
 │   ├── stat.h
-│   └── type.h
+│   └── type.hpp
 ├── include
 │   ├── blocksiz.h
 │   ├── ctype.h
@@ -152,7 +152,7 @@
 │   ├── _link.bat
 │   ├── at_wini.cpp
 │   ├── clock.cpp
-│   ├── const.h
+│   ├── const.hpp
 │   ├── dmp.cpp
 │   ├── floppy.cpp
 │   ├── glo.h
@@ -177,7 +177,7 @@
 │   ├── system.cpp
 │   ├── table.cpp
 │   ├── tty.cpp
-│   ├── type.h
+│   ├── type.hpp
 │   ├── wini.cpp
 │   └── xt_wini.cpp
 ├── lib
@@ -314,7 +314,7 @@
 │   │   ├── _link.bat
 │   │   ├── linklist
 │   │   └── make.bat
-│   ├── const.h
+│   ├── const.hpp
 │   ├── exec.cpp
 │   ├── forkexit.cpp
 │   ├── getset.cpp
@@ -330,7 +330,7 @@
 │   ├── putc.cpp
 │   ├── signal.cpp
 │   ├── table.cpp
-│   ├── type.h
+│   ├── type.hpp
 │   ├── utility.cpp
 │   └── vm.cpp
 ├── test

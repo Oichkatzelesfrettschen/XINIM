@@ -15,10 +15,10 @@
  *   panic:       something awful has occurred;  MINIX cannot continue
  */
 
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "buf.hpp"
 #include "const.hpp"
 #include "file.hpp"

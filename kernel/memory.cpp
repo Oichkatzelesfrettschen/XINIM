@@ -22,11 +22,11 @@
  *
  */
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "proc.hpp"
 #include "type.hpp"

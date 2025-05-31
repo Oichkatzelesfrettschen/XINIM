@@ -12,9 +12,9 @@
  *   find_filp:	find a filp slot that points to a given inode
  */
 
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "file.hpp"
 #include "fproc.hpp"

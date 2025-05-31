@@ -13,10 +13,10 @@
  *   do_wait:	perform the WAIT system call
  */
 
-#include "../h/callnr.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"

@@ -96,7 +96,7 @@
     cache.cpp (K&R)
     compat.cpp (C++17)
     compat.h (unknown)
-    const.h (unknown)
+    const.hpp (unknown)
     dev.h (unknown)
     device.cpp (K&R)
     extent.h (unknown)
@@ -122,7 +122,7 @@
     super.h (unknown)
     table.cpp (K&R)
     time.cpp (K&R)
-    type.h (K&R)
+    type.hpp (K&R)
     utility.cpp (K&R)
     write.cpp (K&R)
     c86
@@ -133,14 +133,14 @@
       Makefile
       makefile.at
   h
-    callnr.h (unknown)
-    com.h (unknown)
-    const.h (unknown)
-    error.h (unknown)
+    callnr.hpp (unknown)
+    com.hpp (unknown)
+    const.hpp (unknown)
+    error.hpp (unknown)
     sgtty.hpp (K&R)
     signal.h (unknown)
     stat.h (unknown)
-    type.h (unknown)
+    type.hpp (unknown)
   include
     blocksiz.h (unknown)
     ctype.h (unknown)
@@ -165,7 +165,7 @@
     _link.bat
     at_wini.cpp (K&R)
     clock.cpp (K&R)
-    const.h (unknown)
+    const.hpp (unknown)
     dmp.cpp (K&R)
     floppy.cpp (K&R)
     glo.h (K&R)
@@ -186,7 +186,7 @@
     system.cpp (K&R)
     table.cpp (K&R)
     tty.cpp (K&R)
-    type.h (unknown)
+    type.hpp (unknown)
     wini.cpp (K&R)
     xt_wini.cpp (K&R)
     minix
@@ -324,7 +324,7 @@
     Makefile
     alloc.cpp (K&R)
     break.cpp (K&R)
-    const.h (unknown)
+    const.hpp (unknown)
     exec.cpp (K&R)
     forkexit.cpp (K&R)
     getset.cpp (K&R)
@@ -336,7 +336,7 @@
     putc.cpp (K&R)
     signal.cpp (K&R)
     table.cpp (unknown)
-    type.h (unknown)
+    type.hpp (unknown)
     utility.cpp (K&R)
     vm.cpp (C++17)
     c86

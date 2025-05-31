@@ -17,10 +17,10 @@
  *   no_call:	 dummy procedure (e.g., used when device need not be opened)
  */
 
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "dev.hpp"
 #include "file.hpp"
