@@ -1,27 +1,8 @@
-#include <cctype> // for std::isspace
-#include <cstdlib>
+#include "../include/number_parse.hpp" // shared decimal parser
 
-/* Convert a string to a long integer. */
+/* Convert a string to a long integer using the common parser. */
 long atol(char *s) {
-    long total = 0; /* running total */
-    unsigned digit; /* current digit */
-    int minus = 0;  /* leading '-' seen */
-
-    /* Skip whitespace characters. */
-    while (std::isspace(static_cast<unsigned char>(*s)))
-        s++;
-
-    /* Check for a sign prefix. */
-    if (*s == '-') {
-        s++;
-        minus = 1;
-    }
-
-    /* Accumulate decimal digits. */
-    while ((digit = *s++ - '0') < 10) {
-        total *= 10;
-        total += digit;
-    }
-
-    return minus ? -total : total;
+    // The historical prototype expects a mutable char pointer, so
+    // simply pass it to the helper which takes a const pointer.
+    return parse_signed_decimal(s);
 }
