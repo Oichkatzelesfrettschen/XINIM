@@ -1,8 +1,8 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int mount(special, name, rwflag)
-char *name, *special;
-int rwflag;
-{
-    return callm1(FS, MOUNT, len(special), len(name), rwflag, special, name, NIL_PTR);
+// Mount the file system from 'special' onto 'name'.
+int mount(const char *special, const char *name, int rwflag) {
+    return callm1(FS, MOUNT, len(const_cast<char *>(special)),
+                  len(const_cast<char *>(name)), rwflag,
+                  const_cast<char *>(special), const_cast<char *>(name), NIL_PTR);
 }

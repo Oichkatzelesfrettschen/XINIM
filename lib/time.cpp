@@ -1,8 +1,7 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC long time(tp)
-long *tp;
-{
+// Return the current system time; optionally store it in '*tp'.
+long time(long *tp) {
     int k;
     long l;
     k = callm1(FS, TIME, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);

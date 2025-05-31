@@ -6,7 +6,8 @@
  * Portable implementation of _setjmp using the host C library.
  * The custom jmp_buf stores a pointer to the real jmp_buf.
  */
-PUBLIC int _setjmp(jmp_buf env) {
+// Portable implementation of _setjmp using the host C library.
+int _setjmp(jmp_buf env) {
     /* Simply forward to the standard facility. */
     return std::setjmp(env);
 }
@@ -14,7 +15,8 @@ PUBLIC int _setjmp(jmp_buf env) {
 /*
  * Portable implementation of _longjmp using the host C library.
  */
-PUBLIC void _longjmp(jmp_buf env, int val) {
+// Portable implementation of _longjmp using the host C library.
+void _longjmp(jmp_buf env, int val) {
     if (val == 0) {
         val = 1;
     }

@@ -1,10 +1,8 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int stat(name, buffer)
-char *name;
-char *buffer;
-{
-    int n;
-    n = callm1(FS, STAT, len(name), 0, 0, name, buffer, NIL_PTR);
-    return (n);
+// Obtain information about the file named 'name'.
+int stat(const char *name, char *buffer) {
+    int n = callm1(FS, STAT, len(const_cast<char *>(name)), 0, 0,
+                   const_cast<char *>(name), buffer, NIL_PTR);
+    return n;
 }

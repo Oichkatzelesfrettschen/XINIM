@@ -1,5 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
+#include <unistd.h>
 
 /*
  * Close a stream and release its resources.
@@ -15,7 +16,7 @@ int fclose(FILE *fp) {
     }
     if (i >= NFILES)
         return EOF;
-    fflush(fp);
+    __fflush(fp);
     close(fp->_fd);
     if (testflag(fp, IOMYBUF) && fp->_buf)
         safe_free(fp->_buf);

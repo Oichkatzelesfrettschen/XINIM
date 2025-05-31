@@ -3,4 +3,5 @@
 /*
  * Empty csv stub for compatibility.
  */
-PUBLIC void csv(void) {}
+// Empty csv stub for compatibility.
+void csv() {}

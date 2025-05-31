@@ -1,10 +1,8 @@
 #include "../include/lib.hpp" // C++17 header
 
-PUBLIC int wait(status)
-int *status;
-{
-    int k;
-    k = callm1(MM, WAIT, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
+// Wait for a child process to change state.
+int wait(int *status) {
+    int k = callm1(MM, WAIT, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
     *status = M.m2_i1();
-    return (k);
+    return k;
 }

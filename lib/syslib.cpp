@@ -17,26 +17,23 @@ extern message M;
             Messages to systask (special calls)
 ----------------------------------------------------------------------------*/
 
-PUBLIC sys_xit(parent, proc)
-int parent; /* parent of exiting proc. */
-int proc;   /* which proc has exited */
-{
+// Notify the kernel that process 'proc' has exited.
+void sys_xit(int parent, int proc) {
     /* A proc has exited.  Tell the kernel. */
 
     callm1(SYSTASK, SYS_XIT, parent, proc, 0, NIL_PTR, NIL_PTR, NIL_PTR);
 }
 
-PUBLIC sys_getsp(proc, newsp)
-int proc;         /* which proc has enabled signals */
-vir_bytes *newsp; /* place to put sp read from kernel */
-{
+// Ask the kernel for the stack pointer of process 'proc'.
+void sys_getsp(int proc, vir_bytes *newsp) {
     /* Ask the kernel what the sp is. */
 
     callm1(SYSTASK, SYS_GETSP, proc, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
     *newsp = (vir_bytes)M.STACK_PTR;
 }
 
-PUBLIC sys_sig(int proc, int sig, sighandler_t sighandler) {
+// Signal process 'proc' with signal 'sig'.
+void sys_sig(int proc, int sig, sighandler_t sighandler) {
     /* A proc has to be signaled.  Tell the kernel. */
 
     M.m6_i1() = proc;
@@ -45,37 +42,29 @@ PUBLIC sys_sig(int proc, int sig, sighandler_t sighandler) {
     callx(SYSTASK, SYS_SIG);
 }
 
-PUBLIC sys_fork(parent, child, pid)
-int parent; /* proc doing the fork */
-int child;  /* which proc has been created by the fork */
-int pid;    /* process id assigned by MM */
-{
+// Tell the kernel a process has forked.
+void sys_fork(int parent, int child, int pid) {
     /* A proc has forked.  Tell the kernel. */
 
     callm1(SYSTASK, SYS_FORK, parent, child, pid, NIL_PTR, NIL_PTR, NIL_PTR);
 }
 
-PUBLIC sys_exec(proc, ptr)
-int proc;  /* proc that did exec */
-char *ptr; /* new stack pointer */
-{
+// Tell the kernel a process has exec'd.
+void sys_exec(int proc, char *ptr) {
     /* A proc has exec'd.  Tell the kernel. */
 
     callm1(SYSTASK, SYS_EXEC, proc, 0, 0, ptr, NIL_PTR, NIL_PTR);
 }
 
-PUBLIC sys_newmap(proc, ptr)
-int proc;  /* proc whose map is to be changed */
-char *ptr; /* pointer to new map */
-{
+// Notify the kernel of a new memory map for 'proc'.
+void sys_newmap(int proc, char *ptr) {
     /* A proc has been assigned a new memory map.  Tell the kernel. */
 
     callm1(SYSTASK, SYS_NEWMAP, proc, 0, 0, ptr, NIL_PTR, NIL_PTR);
 }
 
-PUBLIC sys_copy(mptr)
-message *mptr; /* pointer to message */
-{
+// Perform a copy on behalf of a user process.
+void sys_copy(message *mptr) {
     /* A proc wants to use local copy. */
 
     /* Make this routine better.  Also check other guys' error handling -DEBUG */
@@ -84,10 +73,8 @@ message *mptr; /* pointer to message */
         panic("sys_copy can't send", NO_NUM);
 }
 
-PUBLIC sys_times(proc, ptr)
-int proc;         /* proc whose times are needed */
-real_time ptr[4]; /* pointer to time buffer */
-{
+// Retrieve accounting times for process 'proc'.
+void sys_times(int proc, real_time ptr[4]) {
     /* Fetch the accounting info for a proc. */
 
     callm1(SYSTASK, SYS_TIMES, proc, 0, 0, ptr, NIL_PTR, NIL_PTR);
@@ -97,15 +84,15 @@ real_time ptr[4]; /* pointer to time buffer */
     ptr[3] = M.CHILD_STIME;
 }
 
-PUBLIC sys_abort() {
+// Abort execution after an irrecoverable error.
+void sys_abort() {
     /* Something awful has happened.  Abandon ship. */
 
     callm1(SYSTASK, SYS_ABORT, 0, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
 }
 
-PUBLIC int tell_fs(what, p1, p2, p3)
-int what, p1, p2, p3;
-{
+// Inform the file system of a significant event.
+int tell_fs(int what, int p1, int p2, int p3) {
     /* This routine is only used by MM to inform FS of certain events:
      *      tell_fs(CHDIR, slot, dir, 0)
      *      tell_fs(EXIT, proc, 0, 0)
