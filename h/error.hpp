@@ -1,4 +1,7 @@
 #pragma once
+#ifndef H_ERROR_HPP
+#define H_ERROR_HPP
+
 // Modernized for C++17
 
 /* Error codes.  They are negative since a few system calls, such as READ, can
@@ -68,3 +71,5 @@ enum class ErrorCode : int {
     E_BAD_ADDR = -10,  // bad address given to utility routine
     E_BAD_PROC = -11   // bad proc number given to utility
 };
+
+#endif // H_ERROR_HPP

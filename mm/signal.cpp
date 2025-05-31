@@ -16,12 +16,12 @@
  */
 
 #include "../h/signal.h"
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
 #include "../h/stat.h"
-#include "../h/type.h"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"

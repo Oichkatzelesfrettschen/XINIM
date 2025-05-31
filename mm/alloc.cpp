@@ -15,200 +15,198 @@
  *   max_hole:	returns the largest hole currently available
  */
 
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 
-constexpr int NR_HOLES = 128;           /* max # entries in hole table */
+constexpr int NR_HOLES = 128; /* max # entries in hole table */
 constexpr struct hole *NIL_HOLE = nullptr;
 
 PRIVATE struct hole {
-  phys_clicks h_base;		/* where does the hole begin? */
-  phys_clicks h_len;		/* how big is the hole? */
-  struct hole *h_next;		/* pointer to next entry on the list */
+    phys_clicks h_base;  /* where does the hole begin? */
+    phys_clicks h_len;   /* how big is the hole? */
+    struct hole *h_next; /* pointer to next entry on the list */
 } hole[NR_HOLES];
 
-
-PRIVATE struct hole *hole_head;	/* pointer to first hole */
-PRIVATE struct hole *free_slots;	/* ptr to list of unused table slots */
+PRIVATE struct hole *hole_head;  /* pointer to first hole */
+PRIVATE struct hole *free_slots; /* ptr to list of unused table slots */
 
 /*===========================================================================*
  *				alloc_mem				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC phys_clicks alloc_mem(phys_clicks clicks)
-{
-/* Allocate a block of memory from the free list using first fit. The block
- * consists of a sequence of contiguous bytes, whose length in clicks is
- * given by 'clicks'.  A pointer to the block is returned.  The block is
- * always on a click boundary.  This procedure is called when memory is
- * needed for FORK or EXEC.
- */
+[[nodiscard]] PUBLIC phys_clicks alloc_mem(phys_clicks clicks) {
+    /* Allocate a block of memory from the free list using first fit. The block
+     * consists of a sequence of contiguous bytes, whose length in clicks is
+     * given by 'clicks'.  A pointer to the block is returned.  The block is
+     * always on a click boundary.  This procedure is called when memory is
+     * needed for FORK or EXEC.
+     */
 
-  register struct hole *hp, *prev_ptr;
-  phys_clicks old_base;
+    register struct hole *hp, *prev_ptr;
+    phys_clicks old_base;
 
-  hp = hole_head;
-  while (hp != NIL_HOLE) {
-	if (hp->h_len >= clicks) {
-		/* We found a hole that is big enough.  Use it. */
-		old_base = hp->h_base;	/* remember where it started */
-		hp->h_base += clicks;	/* bite a piece off */
-		hp->h_len -= clicks;	/* ditto */
+    hp = hole_head;
+    while (hp != NIL_HOLE) {
+        if (hp->h_len >= clicks) {
+            /* We found a hole that is big enough.  Use it. */
+            old_base = hp->h_base; /* remember where it started */
+            hp->h_base += clicks;  /* bite a piece off */
+            hp->h_len -= clicks;   /* ditto */
 
-		/* If hole is only partly used, reduce size and return. */
-		if (hp->h_len != 0) return(old_base);
+            /* If hole is only partly used, reduce size and return. */
+            if (hp->h_len != 0)
+                return (old_base);
 
-		/* The entire hole has been used up.  Manipulate free list. */
-		del_slot(prev_ptr, hp);
-		return(old_base);
-	}
+            /* The entire hole has been used up.  Manipulate free list. */
+            del_slot(prev_ptr, hp);
+            return (old_base);
+        }
 
-	prev_ptr = hp;
-	hp = hp->h_next;
-  }
-  return(NO_MEM);
+        prev_ptr = hp;
+        hp = hp->h_next;
+    }
+    return (NO_MEM);
 }
-
 
 /*===========================================================================*
  *				free_mem				     *
  *===========================================================================*/
-PUBLIC void free_mem(phys_clicks base, phys_clicks clicks)
-{
-/* Return a block of free memory to the hole list.  The parameters tell where
- * the block starts in physical memory and how big it is.  The block is added
- * to the hole list.  If it is contiguous with an existing hole on either end,
- * it is merged with the hole or holes.
- */
+PUBLIC void free_mem(phys_clicks base, phys_clicks clicks) {
+    /* Return a block of free memory to the hole list.  The parameters tell where
+     * the block starts in physical memory and how big it is.  The block is added
+     * to the hole list.  If it is contiguous with an existing hole on either end,
+     * it is merged with the hole or holes.
+     */
 
-  register struct hole *hp, *new_ptr, *prev_ptr;
+    register struct hole *hp, *new_ptr, *prev_ptr;
 
-  if ( (new_ptr = free_slots) == NIL_HOLE) panic("Hole table full", NO_NUM);
-  new_ptr->h_base = base;
-  new_ptr->h_len = clicks;
-  free_slots = new_ptr->h_next;
-  hp = hole_head;
+    if ((new_ptr = free_slots) == NIL_HOLE)
+        panic("Hole table full", NO_NUM);
+    new_ptr->h_base = base;
+    new_ptr->h_len = clicks;
+    free_slots = new_ptr->h_next;
+    hp = hole_head;
 
-  /* If this block's address is numerically less than the lowest hole currently
-   * available, or if no holes are currently available, put this hole on the
-   * front of the hole list.
-   */
-  if (hp == NIL_HOLE || base <= hp->h_base) {
-	/* Block to be freed goes on front of hole list. */
-	new_ptr->h_next = hp;
-	hole_head = new_ptr;
-	merge(new_ptr);
-	return;
-  }
+    /* If this block's address is numerically less than the lowest hole currently
+     * available, or if no holes are currently available, put this hole on the
+     * front of the hole list.
+     */
+    if (hp == NIL_HOLE || base <= hp->h_base) {
+        /* Block to be freed goes on front of hole list. */
+        new_ptr->h_next = hp;
+        hole_head = new_ptr;
+        merge(new_ptr);
+        return;
+    }
 
-  /* Block to be returned does not go on front of hole list. */
-  while (hp != NIL_HOLE && base > hp->h_base) {
-	prev_ptr = hp;
-	hp = hp->h_next;
-  }
+    /* Block to be returned does not go on front of hole list. */
+    while (hp != NIL_HOLE && base > hp->h_base) {
+        prev_ptr = hp;
+        hp = hp->h_next;
+    }
 
-  /* We found where it goes.  Insert block after 'prev_ptr'. */
-  new_ptr->h_next = prev_ptr->h_next;
-  prev_ptr->h_next = new_ptr;
-  merge(prev_ptr);		/* sequence is 'prev_ptr', 'new_ptr', 'hp' */
+    /* We found where it goes.  Insert block after 'prev_ptr'. */
+    new_ptr->h_next = prev_ptr->h_next;
+    prev_ptr->h_next = new_ptr;
+    merge(prev_ptr); /* sequence is 'prev_ptr', 'new_ptr', 'hp' */
 }
-
 
 /*===========================================================================*
  *				del_slot				     *
  *===========================================================================*/
 PRIVATE void del_slot(struct hole *prev_ptr, struct hole *hp) {
-/* Remove an entry from the hole list.  This procedure is called when a
- * request to allocate memory removes a hole in its entirety, thus reducing
- * the numbers of holes in memory, and requiring the elimination of one
- * entry in the hole list.
- */
+    /* Remove an entry from the hole list.  This procedure is called when a
+     * request to allocate memory removes a hole in its entirety, thus reducing
+     * the numbers of holes in memory, and requiring the elimination of one
+     * entry in the hole list.
+     */
 
-  if (hp == hole_head)
-	hole_head = hp->h_next;
-  else
-	prev_ptr->h_next = hp->h_next;
+    if (hp == hole_head)
+        hole_head = hp->h_next;
+    else
+        prev_ptr->h_next = hp->h_next;
 
-  hp->h_next = free_slots;
-  free_slots = hp;
+    hp->h_next = free_slots;
+    free_slots = hp;
 }
-
 
 /*===========================================================================*
  *				merge					     *
  *===========================================================================*/
 PRIVATE void merge(struct hole *hp) {
-/* Check for contiguous holes and merge any found.  Contiguous holes can occur
- * when a block of memory is freed, and it happens to abut another hole on
- * either or both ends.  The pointer 'hp' points to the first of a series of
- * three holes that can potentially all be merged together.
- */
+    /* Check for contiguous holes and merge any found.  Contiguous holes can occur
+     * when a block of memory is freed, and it happens to abut another hole on
+     * either or both ends.  The pointer 'hp' points to the first of a series of
+     * three holes that can potentially all be merged together.
+     */
 
-  register struct hole *next_ptr;
+    register struct hole *next_ptr;
 
-  /* If 'hp' points to the last hole, no merging is possible.  If it does not,
-   * try to absorb its successor into it and free the successor's table entry.
-   */
-  if ( (next_ptr = hp->h_next) == NIL_HOLE) return;
-  if (hp->h_base + hp->h_len == next_ptr->h_base) {
-	hp->h_len += next_ptr->h_len;	/* first one gets second one's mem */
-	del_slot(hp, next_ptr);
-  } else {
-	hp = next_ptr;
-  }
+    /* If 'hp' points to the last hole, no merging is possible.  If it does not,
+     * try to absorb its successor into it and free the successor's table entry.
+     */
+    if ((next_ptr = hp->h_next) == NIL_HOLE)
+        return;
+    if (hp->h_base + hp->h_len == next_ptr->h_base) {
+        hp->h_len += next_ptr->h_len; /* first one gets second one's mem */
+        del_slot(hp, next_ptr);
+    } else {
+        hp = next_ptr;
+    }
 
-  /* If 'hp' now points to the last hole, return; otherwise, try to absorb its
-   * succesor into it.
-   */
-  if ( (next_ptr = hp->h_next) == NIL_HOLE) return;
-  if (hp->h_base + hp->h_len == next_ptr->h_base) {
-	hp->h_len += next_ptr->h_len;
-	del_slot(hp, next_ptr);
-  }
+    /* If 'hp' now points to the last hole, return; otherwise, try to absorb its
+     * succesor into it.
+     */
+    if ((next_ptr = hp->h_next) == NIL_HOLE)
+        return;
+    if (hp->h_base + hp->h_len == next_ptr->h_base) {
+        hp->h_len += next_ptr->h_len;
+        del_slot(hp, next_ptr);
+    }
 }
-
 
 /*===========================================================================*
  *				max_hole				     *
  *===========================================================================*/
 // Return the size of the largest hole currently available.
 [[nodiscard]] PUBLIC phys_clicks max_hole() {
-/* Scan the hole list and return the largest hole. */
+    /* Scan the hole list and return the largest hole. */
 
-  register struct hole *hp;
-  register phys_clicks max;
+    register struct hole *hp;
+    register phys_clicks max;
 
-  hp = hole_head;
-  max = 0;
-  while (hp != NIL_HOLE) {
-	if (hp->h_len > max) max = hp->h_len;
-	hp = hp->h_next;
-  }
-  return(max);
+    hp = hole_head;
+    max = 0;
+    while (hp != NIL_HOLE) {
+        if (hp->h_len > max)
+            max = hp->h_len;
+        hp = hp->h_next;
+    }
+    return (max);
 }
-
 
 /*===========================================================================*
  *				mem_init				     *
  *===========================================================================*/
 PUBLIC void mem_init(phys_clicks clicks) {
-/* Initialize hole lists.  There are two lists: 'hole_head' points to a linked
- * list of all the holes (unused memory) in the system; 'free_slots' points to
- * a linked list of table entries that are not in use.  Initially, the former
- * list has one entry, a single hole encompassing all of memory, and the second
- * list links together all the remaining table slots.  As memory becomes more
- * fragmented in the course of time (i.e., the initial big hole breaks up into
- * many small holes), new table slots are needed to represent them.  These
- * slots are taken from the list headed by 'free_slots'.
- */
+    /* Initialize hole lists.  There are two lists: 'hole_head' points to a linked
+     * list of all the holes (unused memory) in the system; 'free_slots' points to
+     * a linked list of table entries that are not in use.  Initially, the former
+     * list has one entry, a single hole encompassing all of memory, and the second
+     * list links together all the remaining table slots.  As memory becomes more
+     * fragmented in the course of time (i.e., the initial big hole breaks up into
+     * many small holes), new table slots are needed to represent them.  These
+     * slots are taken from the list headed by 'free_slots'.
+     */
 
-  register struct hole *hp;
+    register struct hole *hp;
 
-  for (hp = &hole[0]; hp < &hole[NR_HOLES]; hp++) hp->h_next = hp + 1;
-  hole[0].h_next = NIL_HOLE;	/* only 1 big hole initially */
-  hole[NR_HOLES-1].h_next = NIL_HOLE;
-  hole_head = &hole[0];
-  free_slots = &hole[1];
-  hole[0].h_base = 0;
-  hole[0].h_len = clicks;
+    for (hp = &hole[0]; hp < &hole[NR_HOLES]; hp++)
+        hp->h_next = hp + 1;
+    hole[0].h_next = NIL_HOLE; /* only 1 big hole initially */
+    hole[NR_HOLES - 1].h_next = NIL_HOLE;
+    hole_head = &hole[0];
+    free_slots = &hole[1];
+    hole[0].h_base = 0;
+    hole[0].h_len = clicks;
 }

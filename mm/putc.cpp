@@ -3,9 +3,9 @@
  * Printing is done by calling the TTY task directly, not going through FS.
  */
 
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 
 #define STD_OUTPUT 1 /* file descriptor for standard output */
 #define BUF_SIZE 100 /* print buffer size */

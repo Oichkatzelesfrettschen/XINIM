@@ -10,9 +10,9 @@
  * obviously can't do that, so FS calls the TTY task directly.
  */
 
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 
 #define STDOUTPUT 1 /* file descriptor for standard output */
 #define BUFSIZE 100 /* print buffer size */

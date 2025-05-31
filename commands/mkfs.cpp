@@ -19,8 +19,8 @@
  */
 
 #include "../fs/const.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #undef EXTERN
 #define EXTERN /* get rid of EXTERN by making it null */
 #include "../fs/super.h"

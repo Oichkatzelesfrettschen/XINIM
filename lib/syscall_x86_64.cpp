@@ -1,7 +1,7 @@
 #ifdef __x86_64__
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 
 PUBLIC int send(int dst, message *m_ptr) {
     register long rax __asm__("rax") = 0;

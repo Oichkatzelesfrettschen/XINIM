@@ -13,11 +13,11 @@
  *   reply:	send a reply to a process after the requested work is done
  */
 
-#include "../h/callnr.h"
-#include "../h/com.h"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/callnr.hpp"
+#include "../h/com.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "buf.hpp"
 #include "const.hpp"
 #include "file.hpp"

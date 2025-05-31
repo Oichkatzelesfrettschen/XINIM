@@ -1,6 +1,6 @@
 /* perror(s) print the current error message. */
 
-#include "../h/error.h"
+#include "../h/error.hpp"
 #include <unistd.h>
 
 /* Global errno provided by the C library. */
@@ -107,9 +107,7 @@ static int slen(const char *s) {
     while (*s++)
         k++;
     return k;
-    "No space left on device",
-        "Illegal seek",
-        "Read-only file system",
+    "No space left on device", "Illegal seek", "Read-only file system",
 
         "Too many links",
 
@@ -121,34 +119,34 @@ static int slen(const char *s) {
 };
 
 perror(s) char *s;
-    if (errno < 0 || errno > NERROR) {
-        write(2, "Invalid errno\n", 14);
-    } else {
-        write(2, s, slen(s));
-        write(2, ": ", 2);
-        write(2, error_message[errno], slen(error_message[errno]));
-        write(2, "\n", 1);
-    }
-    int k = 0;
-    while (*s++)
-        k++;
-    return (k);
-  if (errno < 0 || errno > NERROR) {
-	write(2, "Invalid errno\n", 14);
-  } else {
-	write(2, s, slen(s));
-	write(2, ": ", 2);
-	write(2, error_message[errno], slen(error_message[errno]));
-	write(2, "\n", 1);
-  }
+if (errno < 0 || errno > NERROR) {
+    write(2, "Invalid errno\n", 14);
+} else {
+    write(2, s, slen(s));
+    write(2, ": ", 2);
+    write(2, error_message[errno], slen(error_message[errno]));
+    write(2, "\n", 1);
 }
-
+int k = 0;
+while (*s++)
+    k++;
+return (k);
+if (errno < 0 || errno > NERROR) {
+    write(2, "Invalid errno\n", 14);
+} else {
+    write(2, s, slen(s));
+    write(2, ": ", 2);
+    write(2, error_message[errno], slen(error_message[errno]));
+    write(2, "\n", 1);
+}
+}
 
 static int slen(s)
 char *s;
 {
-  int k = 0;
+    int k = 0;
 
-  while (*s++) k++;
-  return(k);
+    while (*s++)
+        k++;
+    return (k);
 }

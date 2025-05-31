@@ -23,8 +23,8 @@
  * in one of the *.h files without the initialization.
  */
 
-#include "../h/const.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/type.hpp"
 #include "const.hpp"
 #include "type.hpp"
 #undef EXTERN
@@ -37,7 +37,7 @@ extern int sys_task(), clock_task(), mem_task(), floppy_task(), winchester_task(
 
 /* The startup routine of each task is given below, from -NR_TASKS upwards.
  * The order of the names here MUST agree with the numerical values assigned to
- * the tasks in ../h/com.h.
+ * the tasks in ../h/com.hpp.
  */
 int (*task[NR_TASKS + INIT_PROC_NR + 1])() = {printer_task,
                                               tty_task,

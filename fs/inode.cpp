@@ -19,9 +19,9 @@
  */
 
 #include "inode.hpp"
-#include "../h/const.h"
-#include "../h/error.h"
-#include "../h/type.h"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
+#include "../h/type.hpp"
 #include "buf.hpp"
 #include "compat.hpp"
 #include "const.hpp"
