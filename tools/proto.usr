@@ -1,3 +1,48 @@
+# MINIX User Prototype File (proto.usr)
+
+This file defines the filesystem structure and contents for the MINIX user partition. It follows the MINIX prototype file format used by the `mkfs` utility to create filesystem images.
+
+## File Format Structure
+
+- **Header**: `boot` followed by filesystem parameters (360 95)
+- **Root directory**: Permissions `d--755` with owner/group IDs `1 1`
+- **Directory entries**: Each line specifies file/directory properties
+
+## Directory Structure
+
+### `/ast`
+User home directory for user ID 8, containing:
+- `.profile` - User shell profile configuration
+
+### `/bin`
+System binaries directory containing essential Unix utilities:
+- File manipulation tools: `ar`, `chmod`, `chown`, `mv`, `ln`, `rmdir`
+- Text processing: `grep`, `head`, `tail`, `tr`, `sort`, `uniq`, `wc`
+- System utilities: `date`, `df`, `mkfs`, `mknod`, `passwd`, `su`
+- Development tools: `make`, `size`, `chmem`
+- I/O utilities: `dd`, `od`, `pr`, `lpr`, `tee`
+
+### `/include`
+C header files for system programming:
+- `errno.h` - Error number definitions
+- `signal.h` - Signal handling
+- `stdio.h` - Standard I/O library
+- `stat.h` - File status structures
+- `sgtty.h` - Terminal I/O control
+- `setjmp.h` - Non-local jumps
+- `blocksize.h` - Block size definitions
+
+### `/lib`
+System libraries and runtime components:
+- `cg`, `opt` - Code generation and optimization tools
+- `crtso.s`, `head.s`, `end.s` - Runtime startup/termination code
+- `libc.a` - Standard C library archive
+
+## Permission Format
+- Format: `[d/-][suid][permissions]`
+- `d` = directory, `-` = regular file
+- `u` in third position indicates setuid bit
+- Numbers represent octal permissions (owner/group/other)
 boot
 360 95
 d--755 1 1
@@ -54,7 +99,7 @@ d--755 1 1
    include	d--755 2 1
 	blocksize.h	---644 2 1 ../include/blocksize.h
 	errno.h		---644 2 1 ../include/errno.h
-	sgtty.hpp		---644 2 1 ../include/sgtty.hpp
+	sgtty.h		---644 2 1 ../include/sgtty.h
 	signal.h	---644 2 1 ../include/signal.h
 	stat.h		---644 2 1 ../include/stat.h
 	setjmp.h	---644 2 1 ../include/setjmp.h

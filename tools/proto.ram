@@ -8,7 +8,7 @@ d--777 2 1
 	getlf	---755 2 1 ../commands/bin/getlf
 	kill	---755 2 1 ../commands/bin/kill
 	ls	---755 2 1 ../commands/bin/ls
-	mkdir	-u-755 0 1 ../commands/bin/mkdir
+	mkdir	---755 2 1 ../commands/bin/mkdir
 	mined	---755 2 1 ../commands/bin/mined
 	rm	---755 2 1 ../commands/bin/rm
 	sh	---755 2 1 ../commands/bin/sh
@@ -33,8 +33,8 @@ d--777 2 1
 	lp	c--222 2 1 6 0
    $
    etc	d--755 2 1
-	mount	-u-755 0 1 ../commands/bin/mount
-	umount	-u-755 0 1 ../commands/bin/umount
+	mount	---755 2 1 ../commands/bin/mount
+	umount	---755 2 1 ../commands/bin/umount
 	update	---755 2 1 ../commands/bin/update
 	passwd	---644 2 1 passwd
 	rc	---644 2 1 rc

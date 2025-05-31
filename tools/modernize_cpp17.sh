@@ -1,6 +1,6 @@
 #!/bin/sh
-# modernize_cpp23.sh - Prepare the codebase for C++17 modernization.
-# This script renames source files to .cpppp/.hpp, updates include statements,
+# modernize_cpp17.sh - Prepare the codebase for C++17 modernization.
+# This script renames source files to .cpp/.hpp, updates include statements,
 # and inserts a temporary modernization header at the top of each file.
 # It does not overwrite existing headers if they already contain the marker.
 

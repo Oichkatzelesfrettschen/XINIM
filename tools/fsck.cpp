@@ -1,2012 +1,1472 @@
-/* fsck - file system checker		Author: Robbert van Renesse */
+/**
+ * @file fsck.cpp
+ * @brief Modern C++17 MINIX Filesystem Checker
+ *
+ * A comprehensive filesystem integrity checker and repair tool for MINIX filesystems.
+ * Provides type-safe operations, proper error handling, and modular architecture
+ * with support for interactive and automatic repair modes.
+ *
+ * @author Robbert van Renesse (original C implementation)
+ * @author Modern C++17 conversion
+ * @version 2.0
+ * @date 2024
+ *
+ * Features:
+ * - Complete filesystem structure validation
+ * - Interactive and automatic repair capabilities
+ * - Inode reference count verification
+ * - Zone bitmap consistency checking
+ * - Directory structure validation
+ * - Comprehensive error reporting and recovery
+ * - Performance monitoring and statistics
+ * - Cross-platform compatibility
+ */
 
-#include "../fs/const.hpp"
-#include "../fs/type.hpp"
-#include "../h/const.hpp"
-#include "../h/type.hpp"
-#include "../include/lib.hpp" // C++17 header
+#include "diskio.hpp"
+
+#include <algorithm>
+#include <array>
 #include <cctype>
+#include <cstdint>
+#include <cstdlib>
+#include <cstring>
+#include <exception>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <optional>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <type_traits>
+#include <vector>
 
-/* #define DOS			/* compile to run under MS-DOS */
-#define STANDALONE /* compile for the boot-diskette */
+// MINIX filesystem types and constants
+using inode_nr = std::uint16_t;
+using zone_nr = std::uint16_t;
+using block_nr = std::uint32_t;
+using file_pos = std::uint32_t;
 
-/* Fsck may be compiled to run in any of two situations. For each
- * a different symbol must be defined:
- *
- *   STANDALONE	will compile fsck to be part of the boot-diskette and
- *		all necessary routines are contained in the program
- *   DOS	will compile fsck to run under MS-DOS, using
- *		the standard DOS library for your compiler.
- *
- * The assembler file fsck1.asm must be assembled correspondingly. It has
- * only one symbol defined, namely STANDALONE.
- *  The assembler file fsck.s is only used under PC/IX to produce
- * a version for the boot diskette.
- *  When you have a problem look at the preprocessor output to see
- * which lines will actually be compiled.
- *  To produce an executable/binary version issue one of the following
- * commands, depending on your development environment:
- *
- * Development system:	MS-DOS
- *
- * fsck to run under:	MS-DOS
- * defined symbols:	fsck.cpp:	   DOS
- *			fsck1.asm:  -
- * command:		link fsck+fsck1,,,DOS-lib
- *
- * fsck to run under:	BOOT
- * defined symbols:	fsck.cpp:	   STANDALONE
- *			fsck1.asm: STANDALONE
- * command:		link fsck1+fsck,fsck,, {Minix-lib || DOS-lib}
- *			dos2out -d fsck
- *
- * fsck to run under:	MINIX	   -not yet implemented-
- * command:		link crtso+fsck,fsck,,Minix-lib
- *			dos2out -d fsck
- *
- *
- * Development system:	PC/IX
- *
- * fsck to run under:	PC/IX
- * command:		ld fsck -lc
- *
- * fsck to run under:	BOOT
- * defined symbols:	fsck.cpp:	   STANDALONE
- *			fsck1.s:   -
- * command:		ld fsck1.o fsck.0 -l../lib/lib.a
- *
- * fsck to run under:	MINIX
- * command:		ld fsck.o -l../lib/lib.a
- *
- */
+// MINIX filesystem constants
+constexpr std::uint16_t SUPER_MAGIC = 0x137F;
+constexpr inode_nr ROOT_INODE = 1;
+constexpr std::uint32_t SUPER_BLOCK = 1;
+constexpr std::uint32_t BLOCK_SIZE = 1024;
+constexpr std::uint32_t INODE_SIZE = 32;
+constexpr std::uint32_t INODES_PER_BLOCK = BLOCK_SIZE / INODE_SIZE;
 
-#ifndef STANDALONE
-#ifndef DOS
-- error:no system defined.
-#endif
-#endif
-
-#define BITSHIFT 4                    /* = 2log(#bits(int)) */
-#define BITMAPSHIFT 13                /* = 2log(#bits(block)); 13 means 1K blocks */
-#define MAXPRINT 8                    /* max. number of error lines in chkmap */
-#define MAXWIDTH 32                   /* max. width of an ``integer string'' */
-#define MAXDIRSIZE 5000               /* max. size of a reasonable directory */
-#define CINDIR 128                    /* number of indirect zno's read at a time */
-#define CDIRECT 16                    /* number of dir entries read at a time */
-#define SECT_SHIFT 9                  /* sectors are 512 bytes */
-#define SECTOR_SIZE (1 << SECT_SHIFT) /* bytes in a sector */
-
-#define BITMASK ((1 << BITSHIFT) - 1)
-#define PARB 6
-
-#define between(c, l, u) ((unsigned short)((c) - (l)) <= ((u) - (l)))
-
-#define quote(x) x
-#define nextarg(t) (*argp.quote(u_) t++)
-
-#define prn(t, b, s)                                                                               \
-    {                                                                                              \
-        printnum((long)nextarg(t), b, s, width, pad);                                              \
-        width = 0;                                                                                 \
-    }
-#define prc(c)                                                                                     \
-    {                                                                                              \
-        width -= printchar(c, mode);                                                               \
-    }
-
-#define setbit(w, b) (w[(b) >> BITSHIFT] |= 1 << ((b) & BITMASK))
-#define clrbit(w, b) (w[(b) >> BITSHIFT] &= ~(1 << ((b) & BITMASK)))
-#define bitset(w, b) (w[(b) >> BITSHIFT] & (1 << ((b) & BITMASK)))
-
-        int drive,
-        partition, cylsiz, tracksiz;
-int virgin = 1;  /* MUST be initialized to put it in data seg */
-int floptrk = 9; /* MUST be initialized to put it in data seg */
-int zone_ct = 360;
-int inode_ct = 95;
-
+// MINIX superblock structure
 struct dsb {
-    inode_nr s_ninodes;           /* # inodes on the minor device */
-    zone_nr s_nzones;             /* total dev size, incl. bit maps etc */
-    unsigned short s_imap_blocks; /* # of blocks used by inode bit map */
-    unsigned short s_zmap_blocks; /* # of blocks used by zone bit map */
-    zone_nr s_firstdatazone;      /* number of first data zone */
-    short s_log_zone_size;        /* log2 of blocks/zone */
-    file_pos s_maxsize;           /* maximum file size on this device */
-    int s_magic;                  /* magic number for super blocks */
-} sb;
-
-#define STICKY_BIT 01000 /* not defined anywhere else */
-
-/* ztob gives the block address of a zone
- * btoa gives the byte address of a block
- */
-#define ztob(z) ((block_nr)(z) << sb.s_log_zone_size)
-#define btoa(b) ((long)(b) * BLOCK_SIZE)
-
-#define SCALE ((int)ztob(1)) /* # blocks in a zone */
-
-#define FIRST sb.s_firstdatazone /* as the name says */
-
-/* # blocks of each type */
-#define N_SUPER 1
-#define N_IMAP (sb.s_imap_blocks)
-#define N_ZMAP (sb.s_zmap_blocks)
-#define N_ILIST ((sb.s_ninodes + INODES_PER_BLOCK - 1) / INODES_PER_BLOCK)
-#define N_DATA (sb.s_nzones - FIRST + 1)
-
-/* block address of each type */
-#define BLK_SUPER (SUPER_BLOCK)
-#define BLK_IMAP (BLK_SUPER + N_SUPER)
-#define BLK_ZMAP (BLK_IMAP + N_IMAP)
-#define BLK_ILIST (BLK_ZMAP + N_ZMAP)
-#define BLK_FIRST ztob(FIRST)
-
-#define ZONE_SIZE ((int)ztob(BLOCK_SIZE))
-
-#define NLEVEL (NR_ZONE_NUMS - NR_DZONE_NUM + 1)
-
-/* byte address of a zone/of an inode */
-#define zaddr(z) btoa(ztob(z))
-#define inoaddr(i) ((long)(i - 1) * INODE_SIZE + btoa(BLK_ILIST))
-
-#define INDCHUNK (CINDIR * ZONE_NUM_SIZE)
-#define DIRCHUNK (CDIRECT * DIR_ENTRY_SIZE)
-
-char *prog, *device;        /* program name (fsck), device name */
-int firstcnterr;            /* is this the first inode ref cnt error? */
-unsigned *imap, *spec_imap; /* inode bit maps */
-unsigned *zmap, *spec_zmap; /* zone bit maps */
-unsigned *dirmap;           /* directory (inode) bit map */
-char *rwbuf;                /* one block buffer cache */
-char rwbuf1[BLOCK_SIZE];    /* in case of a DMA-overrun under DOS .. */
-char rwbuf2[BLOCK_SIZE];    /* .. an other buffer can be used */
-char nullbuf[BLOCK_SIZE];   /* null buffer */
-links *count;               /* inode count */
-dir_struct nulldir;         /* empty directory entry */
-block_nr thisblk;           /* block that is now in the buffer */
-int changed;                /* has the diskette been written to? */
-struct stack {
-    dir_struct *st_dir;
-    struct stack *st_next;
-    char st_presence;
-} *top;
-
-extern long lseek();
-
-#ifdef DOS
-#define atol(s) atoi(s) /* kludge for C86 (no atol(s) in library) */
-#else
-long atol();
-#endif
-
-#ifdef STANDALONE
-extern end; /* last variable */
-int *brk;   /* the ``break'' (end of data space) */
-#else
-int dev; /* file descriptor of the device */
-#endif
-
-#define DOT 1
-#define DOTDOT 2
-
-/* counters for each type of inode/zone */
-int nfreeinode, nregular, ndirectory, nblkspec, ncharspec, nbadinode;
-int nfreezone, ztype[NLEVEL];
-
-int repair, automatic, listing, listsuper, makefs; /* flags */
-int firstlist;                                     /* has the listing header been printed? */
-unsigned part_offset;                              /* sector offset for this partition */
-char answer[] = {"Answer questions with y or n.  Then hit RETURN"};
-
-union types {
-    int *u_char;          /* %c */
-    int *u_int;           /* %d */
-    unsigned *u_unsigned; /* %u */
-    long *u_long;         /* %D */
-    char **u_charp;       /* %s */
+    inode_nr s_ninodes;
+    zone_nr s_nzones;
+    std::uint16_t s_imap_blocks;
+    std::uint16_t s_zmap_blocks;
+    zone_nr s_firstdatazone;
+    std::uint16_t s_log_zone_size;
+    file_pos s_maxsize;
+    std::uint16_t s_magic;
 };
 
-#ifndef STANDALONE
-#ifdef DOS
-#include "/lib/c86/stdio.h"
-#endif
-#else  /*STANDALONE*/
+namespace minix::fsck {
 
-/* Print the given character. */
-putchar(c) {
-    if (c == '\n')
-        putc('\r');
-    putc(c);
-}
-
-/* Get a character from the user and echo it. */
-getchar() {
-    register c;
-
-    if ((c = getc() & 0xFF) == '\r')
-        c = '\n';
-    putchar(c);
-    return (c);
-}
-#endif /*STANDALONE*/
-
-/* Print the number n.
+/**
+ * @brief Filesystem checker constants and configuration
  */
-printnum(n, base, sign, width, pad) long n;
-int base, sign;
-int width, pad;
-{
-    register short i, mod;
-    char a[MAXWIDTH];
-    register char *p = a;
+struct FsckConstants {
+    static constexpr std::size_t MAX_PRINT_ERRORS = 8;
+    static constexpr std::size_t MAX_WIDTH = 32;
+    static constexpr std::size_t MAX_DIR_SIZE = 5000;
+    static constexpr std::size_t CHUNK_INDIRECT = 128;
+    static constexpr std::size_t CHUNK_DIRECT = 16;
+    static constexpr std::size_t BITMAP_SHIFT = 13;
+    static constexpr std::size_t BIT_SHIFT = 4;
+    static constexpr std::uint32_t BITMAP_MASK = (1U << BIT_SHIFT) - 1;
+    static constexpr std::uint16_t STICKY_BIT = 01000;
+    static constexpr std::uint16_t MAX_LINKS = std::numeric_limits<std::uint16_t>::max();
+};
 
-    if (sign)
-        if (n < 0) {
-            n = -n;
-            width--;
-        } else
-            sign = 0;
-    do { /* mod = n % base; n /= base */
-        mod = 0;
-        for (i = 0; i < 32; i++) {
-            mod <<= 1;
-            if (n < 0)
-                mod++;
-            n <<= 1;
-            if (mod >= base) {
-                mod -= base;
-                n++;
+/**
+ * @brief Filesystem operation mode
+ */
+enum class FsckMode {
+    CHECK_ONLY,  ///< Read-only checking
+    INTERACTIVE, ///< Interactive repair mode
+    AUTOMATIC,   ///< Automatic repair mode
+    LIST_ONLY,   ///< List filesystem contents
+    CREATE_FS    ///< Create new filesystem
+};
+
+/**
+ * @brief Filesystem object type classification
+ */
+enum class InodeType {
+    REGULAR_FILE,
+    DIRECTORY,
+    BLOCK_SPECIAL,
+    CHAR_SPECIAL,
+    BAD_INODE,
+    FREE_INODE
+};
+
+/**
+ * @brief Zone indirection level for addressing
+ */
+enum class ZoneLevel : std::uint8_t {
+    DIRECT = 0,
+    SINGLE_INDIRECT = 1,
+    DOUBLE_INDIRECT = 2,
+    TRIPLE_INDIRECT = 3
+};
+
+/**
+ * @brief Strong type for bit operations in bitmaps
+ */
+struct BitNumber {
+    std::uint32_t value;
+
+    explicit BitNumber(std::uint32_t bit) : value(bit) {}
+    operator std::uint32_t() const noexcept { return value; }
+
+    [[nodiscard]] std::uint32_t word_index() const noexcept {
+        return value >> FsckConstants::BIT_SHIFT;
+    }
+
+    [[nodiscard]] std::uint32_t bit_mask() const noexcept {
+        return 1U << (value & FsckConstants::BITMAP_MASK);
+    }
+};
+
+/**
+ * @brief RAII bitmap management with type-safe operations
+ */
+class Bitmap {
+  private:
+    std::vector<std::uint32_t> data_;
+    std::size_t bit_count_;
+
+  public:
+    explicit Bitmap(std::size_t bit_count)
+        : data_((bit_count + 31) / 32, 0), bit_count_(bit_count) {
+        if (bit_count == 0) {
+            throw std::invalid_argument("Bitmap size cannot be zero");
+        }
+        // Bit 0 is always set (reserved)
+        set_bit(BitNumber(0));
+    }
+
+    void set_bit(BitNumber bit) {
+        if (bit.value >= bit_count_) {
+            throw std::out_of_range("Bit index out of range: " + std::to_string(bit.value));
+        }
+        data_[bit.word_index()] |= bit.bit_mask();
+    }
+
+    void clear_bit(BitNumber bit) {
+        if (bit.value >= bit_count_) {
+            throw std::out_of_range("Bit index out of range: " + std::to_string(bit.value));
+        }
+        data_[bit.word_index()] &= ~bit.bit_mask();
+    }
+
+    [[nodiscard]] bool is_set(BitNumber bit) const {
+        if (bit.value >= bit_count_) {
+            return false;
+        }
+        return (data_[bit.word_index()] & bit.bit_mask()) != 0;
+    }
+
+    void initialize_free_bits(BitNumber start_bit) {
+        for (std::uint32_t bit = start_bit.value; bit < bit_count_; ++bit) {
+            set_bit(BitNumber(bit));
+        }
+    }
+
+    [[nodiscard]] std::size_t size_bits() const noexcept { return bit_count_; }
+    [[nodiscard]] std::size_t size_words() const noexcept { return data_.size(); }
+    [[nodiscard]] const std::uint32_t *data() const noexcept { return data_.data(); }
+    [[nodiscard]] std::uint32_t *data() noexcept { return data_.data(); }
+
+    void load_from_disk(diskio::DiskInterface &disk, diskio::SectorAddress start_block,
+                        std::size_t block_count) {
+        const std::size_t words_per_block = BLOCK_SIZE / sizeof(std::uint32_t);
+
+        for (std::size_t i = 0; i < block_count; ++i) {
+            auto sector_data = disk.read_sector(diskio::SectorAddress(start_block.value + i));
+            const std::size_t dest_offset = i * words_per_block;
+            const std::size_t copy_words = std::min(words_per_block, data_.size() - dest_offset);
+            const std::size_t copy_bytes = copy_words * sizeof(std::uint32_t);
+
+            if (sector_data.size_bytes() >= copy_bytes && dest_offset < data_.size()) {
+                std::copy(sector_data.data(), sector_data.data() + copy_bytes,
+                          reinterpret_cast<std::uint8_t *>(data_.data() + dest_offset));
             }
         }
-        *p++ = "0123456789ABCDEF"[mod];
-        width--;
-    } while (n);
-    while (width-- > 0)
-        putchar(pad);
-    if (sign)
-        *p++ = '-';
-    while (p > a)
-        putchar(*--p);
-}
+        // Ensure bit 0 is always set (reserved)
+        set_bit(BitNumber(0));
+    }
 
-/* Print the character c.
+    void save_to_disk(diskio::DiskInterface &disk, diskio::SectorAddress start_block,
+                      std::size_t block_count) {
+        const std::size_t words_per_block = BLOCK_SIZE / sizeof(std::uint32_t);
+
+        for (std::size_t i = 0; i < block_count; ++i) {
+            const std::size_t src_offset = i * words_per_block;
+            if (src_offset < data_.size()) {
+                const std::size_t copy_words = std::min(words_per_block, data_.size() - src_offset);
+                const std::size_t copy_bytes = copy_words * sizeof(std::uint32_t);
+
+                diskio::SectorBuffer buffer(
+                    reinterpret_cast<const std::uint8_t *>(data_.data() + src_offset), copy_bytes);
+                disk.write_sector(diskio::SectorAddress(start_block.value + i), buffer);
+            }
+        }
+    }
+
+    [[nodiscard]] std::vector<BitNumber> find_differences(const Bitmap &other) const {
+        std::vector<BitNumber> differences;
+        const auto min_words = std::min(data_.size(), other.data_.size());
+
+        for (std::size_t word_idx = 0; word_idx < min_words; ++word_idx) {
+            std::uint32_t diff = data_[word_idx] ^ other.data_[word_idx];
+            for (std::uint8_t bit_pos = 0; diff != 0 && bit_pos < 32; ++bit_pos) {
+                if (diff & 1) {
+                    const auto bit_number = word_idx * 32 + bit_pos;
+                    if (bit_number < bit_count_) {
+                        differences.emplace_back(BitNumber(bit_number));
+                    }
+                }
+                diff >>= 1;
+            }
+        }
+        return differences;
+    }
+};
+
+/**
+ * @brief Filesystem statistics collection and reporting
  */
-printchar(c, mode) {
-    if (mode == 0 || (std::isprint(static_cast<unsigned char>(c)) && c != '\\')) {
-        putchar(c);
-        return (1);
-    } else {
-        putchar('\\');
-        switch (c) {
-        case '\0':
-            putchar('0');
-            break;
-        case '\b':
-            putchar('b');
-            break;
-        case '\n':
-            putchar('n');
-            break;
-        case '\r':
-            putchar('r');
-            break;
-        case '\t':
-            putchar('t');
-            break;
-        case '\f':
-            putchar('f');
-            break;
-        case '\\':
-            putchar('\\');
-            break;
+struct FilesystemStatistics {
+    std::uint32_t regular_files{0};
+    std::uint32_t directories{0};
+    std::uint32_t block_special{0};
+    std::uint32_t char_special{0};
+    std::uint32_t bad_inodes{0};
+    std::uint32_t free_inodes{0};
+    std::uint32_t free_zones{0};
+    std::array<std::uint32_t, 4> zone_types{}; // indexed by ZoneLevel
+    std::uint32_t errors_found{0};
+    std::uint32_t errors_fixed{0};
+
+    void reset() noexcept { *this = FilesystemStatistics{}; }
+
+    [[nodiscard]] std::uint32_t total_inodes() const noexcept {
+        return regular_files + directories + block_special + char_special + bad_inodes +
+               free_inodes;
+    }
+
+    [[nodiscard]] std::uint32_t total_zones() const noexcept {
+        std::uint32_t total = free_zones;
+        for (const auto &count : zone_types) {
+            total += count;
+        }
+        return total;
+    }
+};
+
+/**
+ * @brief Directory entry path tracking for error reporting
+ */
+class PathTracker {
+  private:
+    struct PathNode {
+        std::string name;
+        inode_nr inode_number;
+        std::shared_ptr<PathNode> parent;
+
+        PathNode(std::string n, inode_nr ino, std::shared_ptr<PathNode> p = nullptr)
+            : name(std::move(n)), inode_number(ino), parent(std::move(p)) {}
+    };
+
+    std::shared_ptr<PathNode> current_;
+
+  public:
+    PathTracker() : current_(std::make_shared<PathNode>("", ROOT_INODE)) {}
+
+    void enter_directory(std::string_view name, inode_nr inode) {
+        current_ = std::make_shared<PathNode>(std::string(name), inode, current_);
+    }
+
+    void exit_directory() {
+        if (current_->parent) {
+            current_ = current_->parent;
+        }
+    }
+
+    [[nodiscard]] std::string get_current_path() const {
+        std::vector<std::string> components;
+        auto node = current_;
+
+        while (node && node->parent) {
+            if (!node->name.empty()) {
+                components.push_back(node->name);
+            }
+            node = node->parent;
+        }
+
+        if (components.empty()) {
+            return "/";
+        }
+
+        std::string path;
+        for (auto it = components.rbegin(); it != components.rend(); ++it) {
+            path += "/" + *it;
+        }
+        return path;
+    }
+
+    [[nodiscard]] inode_nr get_current_inode() const noexcept { return current_->inode_number; }
+
+    [[nodiscard]] inode_nr get_parent_inode() const noexcept {
+        return current_->parent ? current_->parent->inode_number : ROOT_INODE;
+    }
+};
+
+/**
+ * @brief User interaction and repair decision management
+ */
+class UserInterface {
+  private:
+    FsckMode mode_;
+    bool changes_made_{false};
+
+  public:
+    explicit UserInterface(FsckMode mode) : mode_(mode) {}
+
+    void set_mode(FsckMode mode) noexcept { mode_ = mode; }
+    [[nodiscard]] FsckMode get_mode() const noexcept { return mode_; }
+    [[nodiscard]] bool changes_made() const noexcept { return changes_made_; }
+
+    void print_message(std::string_view message) const { std::cout << message << std::flush; }
+
+    void print_error(std::string_view error, const PathTracker &path) const {
+        std::cout << "ERROR: " << error << " in " << path.get_current_path() << " (inode "
+                  << path.get_current_inode() << ")" << std::endl;
+    }
+
+    void print_warning(std::string_view warning) const {
+        std::cout << "WARNING: " << warning << std::endl;
+    }
+
+    [[nodiscard]] bool ask_repair(std::string_view question) {
+        if (mode_ == FsckMode::CHECK_ONLY) {
+            std::cout << std::endl;
+            return false;
+        }
+
+        std::cout << question << "? ";
+
+        if (mode_ == FsckMode::AUTOMATIC) {
+            std::cout << "yes (automatic)" << std::endl;
+            changes_made_ = true;
+            return true;
+        }
+
+        // Interactive mode
+        std::string response;
+        std::getline(std::cin, response);
+
+        if (response.empty() || response[0] == 'q' || response[0] == 'Q') {
+            throw std::runtime_error("User requested exit");
+        }
+
+        const bool repair = !(response[0] == 'n' || response[0] == 'N');
+        if (repair) {
+            changes_made_ = true;
+        }
+        return repair;
+    }
+
+    template <typename T> [[nodiscard]] std::optional<T> get_input(std::string_view prompt) {
+        if (mode_ == FsckMode::CHECK_ONLY) {
+            return std::nullopt;
+        }
+
+        std::cout << prompt << ": ";
+
+        std::string input;
+        std::getline(std::cin, input);
+
+        if (input.empty()) {
+            return std::nullopt;
+        }
+
+        try {
+            if constexpr (std::is_same_v<T, std::string>) {
+                return T(input);
+            } else if constexpr (std::is_integral_v<T>) {
+                if constexpr (std::is_signed_v<T>) {
+                    auto value = std::stoll(input);
+                    if (value < std::numeric_limits<T>::min() ||
+                        value > std::numeric_limits<T>::max()) {
+                        print_error("Value out of range", PathTracker{});
+                        return std::nullopt;
+                    }
+                    return static_cast<T>(value);
+                } else {
+                    auto value = std::stoull(input);
+                    if (value > std::numeric_limits<T>::max()) {
+                        print_error("Value out of range", PathTracker{});
+                        return std::nullopt;
+                    }
+                    return static_cast<T>(value);
+                }
+            }
+        } catch (const std::exception &) {
+            print_error("Invalid input format", PathTracker{});
+        }
+        return std::nullopt;
+    }
+};
+
+/**
+ * @brief MINIX superblock management with validation
+ */
+class SuperBlock {
+  private:
+    struct dsb sb_;
+    bool modified_{false};
+
+  public:
+    void load_from_disk(diskio::DiskInterface &disk) {
+        auto sector_data = disk.read_sector(diskio::SectorAddress(SUPER_BLOCK));
+        if (sector_data.size_bytes() < sizeof(sb_)) {
+            throw std::runtime_error("Insufficient data for superblock");
+        }
+        std::copy(sector_data.data(), sector_data.data() + sizeof(sb_),
+                  reinterpret_cast<std::uint8_t *>(&sb_));
+    }
+
+    void save_to_disk(diskio::DiskInterface &disk) {
+        if (!modified_)
+            return;
+
+        diskio::SectorBuffer buffer(&sb_, sizeof(sb_));
+        disk.write_sector(diskio::SectorAddress(SUPER_BLOCK), buffer);
+        modified_ = false;
+    }
+
+    void validate() const {
+        if (sb_.s_magic != SUPER_MAGIC) {
+            throw std::runtime_error("Invalid superblock magic number: 0x" +
+                                     std::to_string(sb_.s_magic));
+        }
+
+        if (sb_.s_ninodes == 0) {
+            throw std::runtime_error("No inodes in filesystem");
+        }
+
+        if (sb_.s_nzones <= 2) {
+            throw std::runtime_error("Insufficient zones in filesystem");
+        }
+
+        if (sb_.s_imap_blocks == 0) {
+            throw std::runtime_error("No inode bitmap blocks");
+        }
+
+        if (sb_.s_zmap_blocks == 0) {
+            throw std::runtime_error("No zone bitmap blocks");
+        }
+
+        if (sb_.s_firstdatazone <= 1) {
+            throw std::runtime_error("First data zone too small");
+        }
+
+        // Note: s_log_zone_size is unsigned, so always >= 0
+        // But we should check for reasonable bounds
+        if (sb_.s_log_zone_size > 16) { // 2^16 blocks = 64MB zones max
+            throw std::runtime_error("Zone size too large: " + std::to_string(sb_.s_log_zone_size));
+        }
+
+        if (sb_.s_maxsize == 0) {
+            throw std::runtime_error("Invalid maximum file size");
+        }
+    }
+
+    void check_consistency(UserInterface &ui) {
+        const auto expected_imap_blocks =
+            (sb_.s_ninodes + (1 << FsckConstants::BITMAP_SHIFT) - 1) >> FsckConstants::BITMAP_SHIFT;
+        if (sb_.s_imap_blocks != expected_imap_blocks) {
+            ui.print_warning("Expected " + std::to_string(expected_imap_blocks) +
+                             " imap blocks, found " + std::to_string(sb_.s_imap_blocks));
+        }
+
+        const auto expected_zmap_blocks =
+            (sb_.s_nzones + (1 << FsckConstants::BITMAP_SHIFT) - 1) >> FsckConstants::BITMAP_SHIFT;
+        if (sb_.s_zmap_blocks != expected_zmap_blocks) {
+            ui.print_warning("Expected " + std::to_string(expected_zmap_blocks) +
+                             " zmap blocks, found " + std::to_string(sb_.s_zmap_blocks));
+        }
+
+        const auto scale = 1U << sb_.s_log_zone_size;
+        const auto expected_first_zone =
+            (get_inode_list_start() + get_inode_list_blocks() + scale - 1) >> sb_.s_log_zone_size;
+        if (sb_.s_firstdatazone != expected_first_zone) {
+            ui.print_warning("Expected first data zone " + std::to_string(expected_first_zone) +
+                             ", found " + std::to_string(sb_.s_firstdatazone));
+        }
+    }
+
+    // Accessors
+    [[nodiscard]] inode_nr get_inode_count() const noexcept { return sb_.s_ninodes; }
+    [[nodiscard]] zone_nr get_zone_count() const noexcept { return sb_.s_nzones; }
+    [[nodiscard]] std::uint16_t get_imap_blocks() const noexcept { return sb_.s_imap_blocks; }
+    [[nodiscard]] std::uint16_t get_zmap_blocks() const noexcept { return sb_.s_zmap_blocks; }
+    [[nodiscard]] zone_nr get_first_data_zone() const noexcept { return sb_.s_firstdatazone; }
+    [[nodiscard]] std::uint16_t get_log_zone_size() const noexcept { return sb_.s_log_zone_size; }
+    [[nodiscard]] file_pos get_max_file_size() const noexcept { return sb_.s_maxsize; }
+
+    [[nodiscard]] std::uint32_t get_scale() const noexcept { return 1U << sb_.s_log_zone_size; }
+
+    [[nodiscard]] block_nr get_imap_start() const noexcept { return SUPER_BLOCK + 1; }
+
+    [[nodiscard]] block_nr get_zmap_start() const noexcept {
+        return get_imap_start() + sb_.s_imap_blocks;
+    }
+
+    [[nodiscard]] block_nr get_inode_list_start() const noexcept {
+        return get_zmap_start() + sb_.s_zmap_blocks;
+    }
+
+    [[nodiscard]] std::uint32_t get_inode_list_blocks() const noexcept {
+        return (sb_.s_ninodes + INODES_PER_BLOCK - 1) / INODES_PER_BLOCK;
+    }
+
+    [[nodiscard]] std::uint64_t get_inode_address(inode_nr ino) const {
+        if (ino == 0 || ino > sb_.s_ninodes) {
+            throw std::out_of_range("Invalid inode number: " + std::to_string(ino));
+        }
+        const auto byte_offset = static_cast<std::uint64_t>(ino - 1) * INODE_SIZE;
+        const auto block_offset = static_cast<std::uint64_t>(get_inode_list_start()) * BLOCK_SIZE;
+        return byte_offset + block_offset;
+    }
+
+    [[nodiscard]] std::uint64_t get_zone_address(zone_nr zone) const {
+        const auto block = static_cast<std::uint64_t>(zone) << sb_.s_log_zone_size;
+        return block * BLOCK_SIZE;
+    }
+
+    // Mutators (mark as modified)
+    void set_inode_count(inode_nr count) {
+        sb_.s_ninodes = count;
+        modified_ = true;
+    }
+    void set_zone_count(zone_nr count) {
+        sb_.s_nzones = count;
+        modified_ = true;
+    }
+    void set_imap_blocks(std::uint16_t blocks) {
+        sb_.s_imap_blocks = blocks;
+        modified_ = true;
+    }
+    void set_zmap_blocks(std::uint16_t blocks) {
+        sb_.s_zmap_blocks = blocks;
+        modified_ = true;
+    }
+    void set_first_data_zone(zone_nr zone) {
+        sb_.s_firstdatazone = zone;
+        modified_ = true;
+    }
+    void set_log_zone_size(std::uint16_t size) {
+        sb_.s_log_zone_size = size;
+        modified_ = true;
+    }
+    void set_max_file_size(file_pos size) {
+        sb_.s_maxsize = size;
+        modified_ = true;
+    }
+
+    void print_info(UserInterface &ui) const {
+        ui.print_message("Superblock Information:\n");
+        ui.print_message("  Inodes: " + std::to_string(sb_.s_ninodes) + "\n");
+        ui.print_message("  Zones: " + std::to_string(sb_.s_nzones) + "\n");
+        ui.print_message("  Imap blocks: " + std::to_string(sb_.s_imap_blocks) + "\n");
+        ui.print_message("  Zmap blocks: " + std::to_string(sb_.s_zmap_blocks) + "\n");
+        ui.print_message("  First data zone: " + std::to_string(sb_.s_firstdatazone) + "\n");
+        ui.print_message("  Log zone size: " + std::to_string(sb_.s_log_zone_size) + "\n");
+        ui.print_message("  Max file size: " + std::to_string(sb_.s_maxsize) + "\n");
+        ui.print_message("  Block size: " + std::to_string(BLOCK_SIZE) + "\n");
+        ui.print_message("  Zone size: " + std::to_string(BLOCK_SIZE << sb_.s_log_zone_size) +
+                         "\n");
+    }
+};
+
+// MINIX inode structure
+struct d_inode {
+    std::uint16_t i_mode;
+    std::uint16_t i_uid;
+    std::uint32_t i_size;
+    std::uint32_t i_modtime;
+    std::uint8_t i_gid;
+    std::uint8_t i_nlinks;
+    std::array<zone_nr, 9> i_zone;
+};
+
+// MINIX directory entry
+struct dir_struct {
+    inode_nr d_inum;
+    std::array<char, 14> d_name;
+};
+
+// File type constants (from mode field)
+constexpr std::uint16_t I_TYPE = 0170000;
+constexpr std::uint16_t I_REGULAR = 0100000;
+constexpr std::uint16_t I_BLOCK_SPECIAL = 0060000;
+constexpr std::uint16_t I_DIRECTORY = 0040000;
+constexpr std::uint16_t I_CHAR_SPECIAL = 0020000;
+
+// Zone constants
+constexpr std::size_t NR_DIRECT_ZONES = 7;
+constexpr std::size_t NR_INDIRECTS = 1;
+constexpr std::size_t NR_DINDIRECTS = 1;
+
+/**
+ * @brief MINIX inode wrapper with validation and utility methods
+ */
+class Inode {
+  private:
+    d_inode inode_;
+    inode_nr number_;
+    bool modified_{false};
+
+  public:
+    explicit Inode(inode_nr number = 0) : number_(number) {
+        std::fill(reinterpret_cast<std::uint8_t *>(&inode_),
+                  reinterpret_cast<std::uint8_t *>(&inode_) + sizeof(inode_), 0);
+    }
+
+    // Load inode from disk
+    void load_from_disk(diskio::DiskInterface &disk, const SuperBlock &sb) {
+        const auto address = sb.get_inode_address(number_);
+        const auto sector =
+            static_cast<std::uint64_t>(address / diskio::DiskConstants::SECTOR_SIZE);
+        const auto offset = static_cast<std::size_t>(address % diskio::DiskConstants::SECTOR_SIZE);
+
+        auto sector_data = disk.read_sector(diskio::SectorAddress(sector));
+        if (offset + sizeof(inode_) > sector_data.size_bytes()) {
+            throw std::runtime_error("Inode spans sector boundary");
+        }
+
+        std::copy(sector_data.data() + offset, sector_data.data() + offset + sizeof(inode_),
+                  reinterpret_cast<std::uint8_t *>(&inode_));
+    }
+
+    // Save inode to disk
+    void save_to_disk(diskio::DiskInterface &disk, const SuperBlock &sb) {
+        if (!modified_)
+            return;
+
+        const auto address = sb.get_inode_address(number_);
+        const auto sector =
+            static_cast<std::uint64_t>(address / diskio::DiskConstants::SECTOR_SIZE);
+        const auto offset = static_cast<std::size_t>(address % diskio::DiskConstants::SECTOR_SIZE);
+
+        auto sector_data = disk.read_sector(diskio::SectorAddress(sector));
+        std::copy(reinterpret_cast<const std::uint8_t *>(&inode_),
+                  reinterpret_cast<const std::uint8_t *>(&inode_) + sizeof(inode_),
+                  sector_data.data() + offset);
+
+        disk.write_sector(diskio::SectorAddress(sector), sector_data);
+        modified_ = false;
+    }
+
+    // Type checking
+    [[nodiscard]] InodeType get_type() const noexcept {
+        const auto mode = inode_.i_mode & I_TYPE;
+        switch (mode) {
+        case I_REGULAR:
+            return InodeType::REGULAR_FILE;
+        case I_DIRECTORY:
+            return InodeType::DIRECTORY;
+        case I_BLOCK_SPECIAL:
+            return InodeType::BLOCK_SPECIAL;
+        case I_CHAR_SPECIAL:
+            return InodeType::CHAR_SPECIAL;
         default:
-            printnum((long)(c & 0xFF), 8, 0, 3, '0');
-            return (4);
+            return is_free() ? InodeType::FREE_INODE : InodeType::BAD_INODE;
         }
-        return (2);
     }
-}
 
-/* Print the arguments pointer to by `arg' according to format.
- */
-doprnt(format, argp) char *format;
-union types argp;
-{
-    register char *fmt, *s;
-    register short width, pad, mode;
+    [[nodiscard]] bool is_free() const noexcept {
+        return inode_.i_mode == 0 && inode_.i_nlinks == 0;
+    }
 
-    for (fmt = format; *fmt != 0; fmt++)
-        switch (*fmt) {
-        case '\n':
-            putchar('\r');
-        default:
-            putchar(*fmt);
-            break;
-        case '%':
-            if (*++fmt == '-')
-                fmt++;
-            pad = *fmt == '0' ? '0' : ' ';
-            width = 0;
-            while (std::isdigit(static_cast<unsigned char>(*fmt))) {
-                width *= 10;
-                width += *fmt++ - '0';
-            }
-            if (*fmt == 'l' && std::islower(static_cast<unsigned char>(*++fmt)))
-                *fmt = std::toupper(static_cast<unsigned char>(*fmt));
-            mode = std::isupper(static_cast<unsigned char>(*fmt));
-            switch (*fmt) {
-            case 'c':
-            case 'C':
-                prc(nextarg(char));
-                break;
-            case 'b':
-                prn(unsigned, 2, 0);
-                break;
-            case 'B':
-                prn(long, 2, 0);
-                break;
-            case 'o':
-                prn(unsigned, 8, 0);
-                break;
-            case 'O':
-                prn(long, 8, 0);
-                break;
-            case 'd':
-                prn(int, 10, 1);
-                break;
-            case 'D':
-                prn(long, 10, 1);
-                break;
-            case 'u':
-                prn(unsigned, 10, 0);
-                break;
-            case 'U':
-                prn(long, 10, 0);
-                break;
-            case 'x':
-                prn(unsigned, 16, 0);
-                break;
-            case 'X':
-                prn(long, 16, 0);
-                break;
-            case 's':
-            case 'S':
-                s = nextarg(charp);
-                while (*s)
-                    prc(*s++);
-                break;
-            case '\0':
-                break;
-            default:
-                putchar(*fmt);
-            }
-            while (width-- > 0)
-                putchar(pad);
+    [[nodiscard]] bool is_directory() const noexcept {
+        return (inode_.i_mode & I_TYPE) == I_DIRECTORY;
+    }
+
+    [[nodiscard]] bool is_regular_file() const noexcept {
+        return (inode_.i_mode & I_TYPE) == I_REGULAR;
+    }
+
+    // Accessors
+    [[nodiscard]] inode_nr get_number() const noexcept { return number_; }
+    [[nodiscard]] std::uint16_t get_mode() const noexcept { return inode_.i_mode; }
+    [[nodiscard]] std::uint16_t get_uid() const noexcept { return inode_.i_uid; }
+    [[nodiscard]] std::uint32_t get_size() const noexcept { return inode_.i_size; }
+    [[nodiscard]] std::uint32_t get_mtime() const noexcept { return inode_.i_modtime; }
+    [[nodiscard]] std::uint8_t get_gid() const noexcept { return inode_.i_gid; }
+    [[nodiscard]] std::uint8_t get_nlinks() const noexcept { return inode_.i_nlinks; }
+    [[nodiscard]] zone_nr get_zone(std::size_t index) const {
+        if (index >= inode_.i_zone.size()) {
+            throw std::out_of_range("Zone index out of range: " + std::to_string(index));
         }
-}
-
-/* Print the arguments according to fmt.
- */
-printf(fmt, args) char *fmt;
-{
-    doprnt(fmt, &args);
-}
-
-/* Initialize the variables used by this program.
- */
-initvars() {
-    register level;
-
-#ifdef STANDALONE
-    brk = &end;
-#endif
-    nregular = ndirectory = nblkspec = ncharspec = nbadinode = 0;
-    for (level = 0; level < NLEVEL; level++)
-        ztype[level] = 0;
-    changed = 0;
-    firstlist = 1;
-    firstcnterr = 1;
-    thisblk = kNoBlock;
-}
-
-/* Copy n bytes.
- */
-copy(p, q, n) register char *p, *q;
-register int n;
-{
-    do
-        *q++ = *p++;
-    while (--n);
-}
-
-/* Print the string `s' and exit.
- */
-fatal(s) char *s;
-{
-    printf("%s\n", s);
-    printf("fatal\n");
-    exit(-1);
-}
-
-/* Test for end of line.
- */
-eoln(c) { return (c < 0 || c == '\n' || c == '\r'); }
-
-/* Ask a question and get the answer unless automatic is set.
- */
-yes(question) char *question;
-{
-    register c, answer;
-
-    if (!repair) {
-        printf("\n");
-        return (0);
+        return inode_.i_zone[index];
     }
-    printf("%s? ", question);
-    if (automatic) {
-        printf("yes\n");
-        return (1);
+
+    // Mutators
+    void set_mode(std::uint16_t mode) {
+        inode_.i_mode = mode;
+        modified_ = true;
     }
-    if ((c = answer = getchar()) == 'q' || c == 'Q')
-        exit(1);
-    while (!eoln(c))
-        c = getchar();
-    return !(answer == 'n' || answer == 'N');
-}
-
-/* Convert string to integer.  Representation is octal.
- */
-atoo(s) char *s;
-{
-    register n = 0;
-
-    while ('0' <= *s && *s < '8') {
-        n *= 8;
-        n += *s++ - '0';
+    void set_uid(std::uint16_t uid) {
+        inode_.i_uid = uid;
+        modified_ = true;
     }
-    return (n);
-}
-
-/* If repairing the file system, print a prompt and get a string from the user.
- */
-input(buf, size) char *buf;
-{
-    register char *p = buf;
-
-    printf("\n");
-    if (repair) {
-        printf("--> ");
-        while (--size) {
-            *p = getchar();
-            if (eoln(*p)) {
-                *p = 0;
-                return (p > buf);
-            }
-            p++;
+    void set_size(std::uint32_t size) {
+        inode_.i_size = size;
+        modified_ = true;
+    }
+    void set_mtime(std::uint32_t mtime) {
+        inode_.i_modtime = mtime;
+        modified_ = true;
+    }
+    void set_gid(std::uint8_t gid) {
+        inode_.i_gid = gid;
+        modified_ = true;
+    }
+    void set_nlinks(std::uint8_t nlinks) {
+        inode_.i_nlinks = nlinks;
+        modified_ = true;
+    }
+    void set_zone(std::size_t index, zone_nr zone) {
+        if (index >= inode_.i_zone.size()) {
+            throw std::out_of_range("Zone index out of range: " + std::to_string(index));
         }
-        *p = 0;
-        while (!eoln(getchar()))
-            ;
-        return (1);
+        inode_.i_zone[index] = zone;
+        modified_ = true;
     }
-    return (0);
-}
 
-/* Allocate some memory and zero it.
- */
-char *alloc(nelem, elsize)
-unsigned nelem, elsize;
-{
-    char *p;
-#ifdef STANDALONE
-    register *r;
-
-    p = (char *)brk;
-    brk += nelem * ((elsize + sizeof(int) - 1) / sizeof(int));
-    for (r = (int *)p; r < brk; r++)
-        *r = 0;
-    return (p);
-#else
-    extern char *calloc();
-
-    if ((p = calloc(nelem, elsize)) == 0)
-        fatal("out of memory");
-    return (p);
-#endif
-}
-
-#ifndef STANDALONE
-/* Deallocate previously allocated memory.
- */
-dealloc(p) char *p;
-{
-    safe_free(p);
-}
-#endif
-
-/* Print the name in a directory entry.
- */
-printname(s) char *s;
-{
-    register n = NAME_SIZE;
-
-    do {
-        if (*s == 0)
-            break;
-        printf("%c", std::isprint(static_cast<unsigned char>(*s)) ? *s : '?');
-        s++;
-    } while (--n);
-}
-
-/* Print the pathname given by a linked list pointed to by `sp'.  The
- * names are in reverse order.
- */
-printrec(sp) struct stack *sp;
-{
-    if (sp->st_next != 0) {
-        printrec(sp->st_next);
-        printf("/");
-        printname(sp->st_dir->d_name);
+    void clear() {
+        std::fill(reinterpret_cast<std::uint8_t *>(&inode_),
+                  reinterpret_cast<std::uint8_t *>(&inode_) + sizeof(inode_), 0);
+        modified_ = true;
     }
-}
 
-/* Print the current pathname.
- */
-printpath(mode, nlcr) {
-    if (top->st_next == 0)
-        printf("/");
-    else
-        printrec(top);
-    switch (mode) {
-    case 1:
-        printf(" (ino = %u, ", top->st_dir->d_inum);
-        break;
-    case 2:
-        printf(" (ino = %u)", top->st_dir->d_inum);
-        break;
-    }
-    if (nlcr)
-        printf("\n");
-}
+    // Validation
+    [[nodiscard]] bool validate(const SuperBlock &sb, UserInterface &ui,
+                                const PathTracker &path) const {
+        bool valid = true;
 
-#ifndef STANDALONE
-#ifndef DOS /* don't need to open devices under DOS */
-
-/* Open the device.
- */
-devopen() {
-    if ((dev = open(device, repair ? 2 : 0)) < 0) {
-        perror(device);
-        fatal("");
-    }
-}
-
-/* Close the device.
- */
-devclose() {
-    if (close(dev) != 0) {
-        perror("close");
-        fatal("");
-    }
-}
-
-#else /*DOS*/
-devopen() {} /* dummies */
-devclose() {}
-sync() {}
-#endif
-#endif
-
-#ifdef DOS
-#ifndef STANDALONE
-#define STANDALONE /* DOS will need the diskio routine   */
-#define TMP        /* remember standalone wasn't defined */
-#endif
-#endif
-#ifdef STANDALONE
-disktype() {
-    register retry = 3, error, dir = READING;
-
-    /* test whether at or pc diskette. Note logical sectors
-     * count from 0 and bios counts from 1.
-     */
-
-    tracksiz = 15;
-    cylsiz = 30;
-    reset_diskette();
-    do
-        error = diskio(dir, 14, rwbuf, 1);
-    while (((error & 0xFF00) != 0) && (retry--));
-
-    if ((error & 0xFF00) != 0) { /* not an AT-diskette */
-        tracksiz = 9;
-        cylsiz = 18;
-        retry = 3;
-        reset_diskette();
-        do
-            error = diskio(dir, 8, rwbuf, 1);
-        while (((error & 0xFF00) != 0) && (retry--));
-        if ((error & 0xFF00) != 0)
-            fatal("can't determine diskette-type");
-    }
-}
-#ifdef TMP
-#undef TMP
-#undef STANDALONE
-#endif
-#endif
-
-/* Read or write a block.
- * Note that under STANDALONE or DOS only the
- * A-drive (drive 0) can be used
- */
-devio(bno, dir) block_nr bno;
-{
-    long lastone;
-    long offset = btoa(bno);
-    register error;
-
-    if (dir == READING && bno == thisblk)
-        return;
-    thisblk = bno;
-#ifdef DOS
-#ifndef STANDALONE
-#define STANDALONE /* DOS will need the diskio routine   */
-#define TMP        /* remember standalone wasn't defined */
-#endif
-#endif
-#ifdef STANDALONE
-    {
-        register sector = offset >> SECT_SHIFT, retry = 3;
-
-        lastone = sector + part_offset + (BLOCK_SIZE >> SECT_SHIFT);
-        if (lastone > 65535) {
-            printf("Fsck cannot read beyond sector 65535\n");
-            exit(1);
-        }
-        error = diskio(dir, sector + part_offset, rwbuf, BLOCK_SIZE >> SECT_SHIFT);
-        if ((error & 0xFF00) == 0)
-            return;
-        reset_diskette();
-        do {
-            printf("error 0x%x %s block %D, retry\n", error, dir == READING ? "reading" : "writing",
-                   (long)bno);
-            error = diskio(dir, sector + part_offset, rwbuf, BLOCK_SIZE >> SECT_SHIFT);
-            if ((error & 0xFF00) == 0)
-                return;
-        } while (--retry != 0);
-    }
-#ifdef TMP
-#undef TMP
-#undef STANDALONE
-#endif
-#else  /*STANDALONE*/
-    {
-        extern read(), write(), errno;
-
-        lseek(dev, offset, 0);
-        if (dir == READING)
-            if (read(dev, rwbuf, BLOCK_SIZE) == BLOCK_SIZE)
-                return;
-            else
-                error = errno;
-        else if (write(dev, rwbuf, BLOCK_SIZE) == BLOCK_SIZE)
-            return;
-        else
-            error = errno;
-    }
-#endif /*STANDALONE*/
-    printf("%s: can't %s block %D (error = 0x%x)\n", prog, dir == READING ? "read" : "write",
-           (long)bno, error);
-    fatal("");
-}
-
-/* Read `size' bytes from the disk starting at byte `offset'.
- */
-devread(offset, buf, size) long offset;
-char *buf;
-{
-    devio((block_nr)(offset / BLOCK_SIZE), READING);
-    copy(&rwbuf[offset % BLOCK_SIZE], buf, size);
-}
-
-/* Write `size' bytes to the disk starting at byte `offset'.
- */
-devwrite(offset, buf, size) long offset;
-char *buf;
-{
-    if (!repair)
-        fatal("internal error (devwrite)");
-    if (size != BLOCK_SIZE)
-        devio((block_nr)(offset / BLOCK_SIZE), READING);
-    copy(buf, &rwbuf[offset % BLOCK_SIZE], size);
-    devio((block_nr)(offset / BLOCK_SIZE), WRITING);
-    changed = 1;
-}
-
-/* Print a string with either a singular or a plural pronoun.
- */
-pr(fmt, cnt, s, p) char *fmt, *s, *p;
-{
-    printf(fmt, cnt, cnt == 1 ? s : p);
-}
-
-#ifndef STANDALONE
-
-/* Convert string to number.
- */
-bit_nr getnumber(s)
-char *s;
-{
-    register bit_nr n = 0;
-
-    if (s == 0)
-        return (NO_BIT);
-    while (*s != 0) {
-        if (!std::isdigit(static_cast<unsigned char>(*s)))
-            return (NO_BIT);
-        n *= 10;
-        n += *s++ - '0';
-    }
-    return (n);
-}
-
-/* See if the list pointed to by `argv' contains numbers.
- */
-char **getlist(argv, type)
-char ***argv, *type;
-{
-    register char **list = *argv;
-    register empty = 1;
-
-    while (getnumber(**argv) != NO_BIT) {
-        (*argv)++;
-        empty = 0;
-    }
-    if (empty) {
-        printf("warning: no %s numbers given\n", type);
-        return (0);
-    }
-    return (list);
-}
-
-#endif /*STANDALONE*/
-
-/* Make a listing of the super block.  If `repair' is set, ask the user
- * for changes.
- */
-lsuper() {
-    char buf[80];
-    long atol();
-
-    do {
-        printf("ninodes       = %u", sb.s_ninodes);
-        if (input(buf, 80))
-            sb.s_ninodes = atol(buf);
-        printf("nzones        = %u", sb.s_nzones);
-        if (input(buf, 80))
-            sb.s_nzones = atol(buf);
-        printf("imap_blocks   = %u", sb.s_imap_blocks);
-        if (input(buf, 80))
-            sb.s_imap_blocks = atol(buf);
-        printf("zmap_blocks   = %u", sb.s_zmap_blocks);
-        if (input(buf, 80))
-            sb.s_zmap_blocks = atol(buf);
-        printf("firstdatazone = %u", sb.s_firstdatazone);
-        if (input(buf, 80))
-            sb.s_firstdatazone = atol(buf);
-        printf("log_zone_size = %u", sb.s_log_zone_size);
-        if (input(buf, 80))
-            sb.s_log_zone_size = atol(buf);
-        printf("maxsize       = %U", sb.s_maxsize);
-        if (input(buf, 80))
-            sb.s_maxsize = atol(buf);
-        if (yes("ok now")) {
-            devwrite(btoa(BLK_SUPER), (char *)&sb, sizeof(sb));
-            return;
-        }
-    } while (yes("Do you want to try again"));
-    if (repair)
-        exit(0);
-}
-
-/* Add an empty root directory to the file system.
- */
-makedev() {
-    register long position = BLK_IMAP * BLOCK_SIZE;
-    register int n = N_IMAP + N_ZMAP + N_ILIST;
-    static dir_struct rootdir[] = {{1, "."}, {1, ".."}};
-    static d_inode inode = {I_DIRECTORY | 0755, 0, sizeof(rootdir), 0, 0, 2};
-
-    devio((block_nr)sb.s_nzones - 1, WRITING);
-    nullbuf[0] = 1 << (ROOT_INODE - 1); /* corrupt nullbuf */
-    do {
-        devwrite(position, nullbuf, BLOCK_SIZE);
-        nullbuf[0] = 0; /* nullbuf restored */
-        position += BLOCK_SIZE;
-    } while (--n);
-#ifndef STANDALONE
-    time(&inode.i_modtime);
-#endif
-    inode.i_zone[0] = FIRST;
-    devwrite(inoaddr(ROOT_INODE), (char *)&inode, INODE_SIZE);
-    devwrite(zaddr(FIRST), nullbuf, BLOCK_SIZE);
-    devwrite(zaddr(FIRST), (char *)rootdir, sizeof(rootdir));
-}
-
-/* Get the contents for the super block from the user.  Make him some
- * suggestions.
- */
-mkfs() {
-    char buf[80];
-    long atol();
-
-    printf("Hit RETURN key to select default values\n\n");
-    sb.s_nzones = zone_ct;
-    printf("# zones (default: %d) ", zone_ct);
-    if (input(buf, 80))
-        sb.s_nzones = atol(buf);
-
-    sb.s_log_zone_size = 0;
-    printf("log zonesize (default: %d) ", sb.s_log_zone_size);
-    if (input(buf, 80))
-        sb.s_log_zone_size = atol(buf);
-
-    sb.s_ninodes = inode_ct;
-    printf("#inodes (default: %u) ", sb.s_ninodes);
-    if (input(buf, 80))
-        sb.s_ninodes = atol(buf);
-
-    sb.s_imap_blocks = (sb.s_ninodes + (1 << BITMAPSHIFT) - 1) >> BITMAPSHIFT;
-    sb.s_zmap_blocks = (sb.s_nzones + (1 << BITMAPSHIFT) - 1) >> BITMAPSHIFT;
-    sb.s_firstdatazone = (BLK_ILIST + N_ILIST + SCALE - 1) >> sb.s_log_zone_size;
-    sb.s_maxsize = kMaxFilePos;
-    if (((sb.s_maxsize - 1) >> sb.s_log_zone_size) / BLOCK_SIZE >= MAX_ZONES)
-        sb.s_maxsize = ((long)MAX_ZONES * BLOCK_SIZE) << sb.s_log_zone_size;
-    sb.s_magic = SUPER_MAGIC;
-    printf("\n");
-    repair = 0;
-    lsuper();
-    repair = 1;
-    if (!yes("is this ok"))
-        lsuper();
-    else
-        devwrite(btoa(BLK_SUPER), (char *)&sb, sizeof(sb));
-    makedev();
-}
-
-/* Get the super block from either disk or user.  Do some initial checks.
- */
-getsuper() {
-    if (makefs)
-        mkfs();
-    else {
-        devread(btoa(BLK_SUPER), (char *)&sb, sizeof(sb));
-        if (listsuper)
-            lsuper();
-    }
-    if (sb.s_magic != SUPER_MAGIC)
-        fatal("bad magic number in super block");
-    if ((short)sb.s_ninodes <= 0)
-        fatal("no inodes");
-    if (sb.s_nzones <= 2)
-        fatal("no zones");
-    if ((short)sb.s_imap_blocks <= 0)
-        fatal("no imap");
-    if ((short)sb.s_zmap_blocks <= 0)
-        fatal("no zmap");
-    if ((short)sb.s_firstdatazone <= 1)
-        fatal("first data zone too small");
-    if ((short)sb.s_log_zone_size < 0)
-        fatal("zone size < block size");
-    if (sb.s_maxsize <= 0)
-        fatal("max. file size <= 0");
-}
-
-/* Check the super block for reasonable contents.
- */
-chksuper() {
-    register n;
-    register file_pos maxsize;
-
-    n = (sb.s_ninodes + (1 << BITMAPSHIFT)) >> BITMAPSHIFT;
-    if (sb.s_magic != SUPER_MAGIC)
-        fatal("bad magic number in super block");
-    if ((short)sb.s_imap_blocks < n)
-        fatal("too few imap blocks");
-    if (sb.s_imap_blocks != n) {
-        pr("warning: expected %d imap_block%s", n, "", "s");
-        printf(" instead of %d\n", sb.s_imap_blocks);
-    }
-    n = (sb.s_nzones + (1 << BITMAPSHIFT) - 1) >> BITMAPSHIFT;
-    if ((short)sb.s_zmap_blocks < n)
-        fatal("too few zmap blocks");
-    if (sb.s_zmap_blocks != n) {
-        pr("warning: expected %d zmap_block%s", n, "", "s");
-        printf(" instead of %d\n", sb.s_zmap_blocks);
-    }
-    if ((short)sb.s_firstdatazone >= sb.s_nzones)
-        fatal("first data zone too large");
-    if ((unsigned short)sb.s_log_zone_size >= 8 * sizeof(block_nr))
-        fatal("log_zone_size too large");
-    if (sb.s_log_zone_size > 8)
-        printf("warning: large log_zone_size (%d)\n", sb.s_log_zone_size);
-    n = (BLK_ILIST + N_ILIST + SCALE - 1) >> sb.s_log_zone_size;
-    if ((short)sb.s_firstdatazone < n)
-        fatal("first data zone too small");
-    if (sb.s_firstdatazone != n) {
-        printf("warning: expected first data zone to be %d ", n);
-        printf("instead of %u\n", sb.s_firstdatazone);
-    }
-    maxsize = kMaxFilePos;
-    if (((maxsize - 1) >> sb.s_log_zone_size) / BLOCK_SIZE >= MAX_ZONES)
-        maxsize = ((long)MAX_ZONES * BLOCK_SIZE) << sb.s_log_zone_size;
-    if (sb.s_maxsize != maxsize) {
-        printf("warning: expected max size to be %D ", maxsize);
-        printf("instead of %D\n", sb.s_maxsize);
-    }
-}
-
-#ifndef STANDALONE
-
-/* Make a listing of the inodes given by `clist'.  If `repair' is set, ask
- * the user for changes.
- */
-lsi(clist) char **clist;
-{
-    register bit_nr bit;
-    register inode_nr ino;
-    d_inode inode, *ip = &inode;
-    char buf[80];
-    long atol();
-
-    if (clist == 0)
-        return;
-    while ((bit = getnumber(*clist++)) != NO_BIT) {
-        setbit(spec_imap, bit);
-        ino = bit;
-        do {
-            devread(inoaddr(ino), (char *)ip, INODE_SIZE);
-            printf("inode %u:\n", ino);
-            printf("    mode   = %06o", ip->i_mode);
-            if (input(buf, 80))
-                ip->i_mode = atoo(buf);
-            printf("    nlinks = %6u", ip->i_nlinks);
-            if (input(buf, 80))
-                ip->i_nlinks = atol(buf);
-            printf("    size   = %6D", ip->i_size);
-            if (input(buf, 80))
-                ip->i_size = atol(buf);
-            if (yes("Write this back")) {
-                devwrite(inoaddr(ino), (char *)ip, INODE_SIZE);
-                break;
-            }
-        } while (yes("Do you want to change it again"));
-    }
-}
-
-#endif /*STANDALONE*/
-
-/* Allocate `nblk' blocks worth of bitmap.
- */
-unsigned *allocbitmap(nblk) {
-    register unsigned *bitmap;
-
-    bitmap = (unsigned *)alloc(nblk, BLOCK_SIZE);
-    *bitmap |= 1;
-    return (bitmap);
-}
-
-/* Load the bitmap starting at block `bno' from disk.
- */
-loadbitmap(bitmap, bno, nblk) unsigned *bitmap;
-block_nr bno;
-{
-    register i;
-    register unsigned *p;
-
-    p = bitmap;
-    for (i = 0; i < nblk; i++, bno++, p += INTS_PER_BLOCK)
-        devread(btoa(bno), (char *)p, BLOCK_SIZE);
-    *bitmap |= 1;
-}
-
-/* Write the bitmap starting at block `bno' to disk.
- */
-dumpbitmap(bitmap, bno, nblk) unsigned *bitmap;
-block_nr bno;
-{
-    register i;
-    register unsigned *p = bitmap;
-
-    for (i = 0; i < nblk; i++, bno++, p += INTS_PER_BLOCK)
-        devwrite(btoa(bno), (char *)p, BLOCK_SIZE);
-}
-
-/* Initialize the given bitmap by setting all the bits starting at `bit'.
- */
-initbitmap(bitmap, bit, nblk) unsigned *bitmap;
-bit_nr bit;
-{
-    register unsigned *first, *last;
-
-    while (bit & BITMASK) {
-        setbit(bitmap, bit);
-        bit++;
-    }
-    first = &bitmap[bit >> BITSHIFT];
-    last = &bitmap[nblk * INTS_PER_BLOCK];
-    while (first < last)
-        *first++ = ~0;
-}
-
-#ifndef STANDALONE
-
-/* Set the bits given by `list' in the bitmap.
- */
-fillbitmap(bitmap, lwb, upb, list) unsigned *bitmap;
-bit_nr lwb, upb;
-char **list;
-{
-    register bit_nr bit;
-
-    if (list == 0)
-        return;
-    while ((bit = getnumber(*list++)) != NO_BIT)
-        if (bit < lwb || bit >= upb) {
-            if (bitmap == spec_imap)
-                printf("inode number %u ", bit);
-            else
-                printf("zone number %u ", bit);
-            printf("out of range (ignored)\n");
-        } else
-            setbit(bitmap, bit - lwb + 1);
-}
-
-/* Deallocate the bitmap `p'.
- */
-freebitmap(p) unsigned *p;
-{
-    dealloc((char *)p);
-}
-
-#endif /*STANDALONE*/
-
-/* Get all the bitmaps used by this program.
- */
-getbitmaps() {
-    imap = allocbitmap(N_IMAP);
-    zmap = allocbitmap(N_ZMAP);
-    spec_imap = allocbitmap(N_IMAP);
-    spec_zmap = allocbitmap(N_ZMAP);
-    dirmap = allocbitmap(N_IMAP);
-}
-
-#ifndef STANDALONE
-/* Release all the space taken by the bitmaps.
- */
-putbitmaps() {
-    freebitmap(imap);
-    freebitmap(zmap);
-    freebitmap(spec_imap);
-    freebitmap(spec_zmap);
-    freebitmap(dirmap);
-}
-#endif
-
-/* `w1' and `w2' are differing words from two bitmaps that should be
- * identical.  Print what's the matter with them.
- */
-chkword(w1, w2, bit, type, n, report) unsigned w1, w2;
-char *type;
-bit_nr bit;
-int *n, *report;
-{
-    for (; w1 | w2; w1 >>= 1, w2 >>= 1, bit++)
-        if ((w1 ^ w2) & 1 && ++(*n) % MAXPRINT == 0 && *report &&
-            (!repair || automatic || yes("stop this listing")))
-            *report = 0;
-        else if (*report)
-            if ((w1 & 1) && !(w2 & 1))
-                printf("%s %u is missing\n", type, bit);
-            else if (!(w1 & 1) && (w2 & 1))
-                printf("%s %u is not free\n", type, bit);
-}
-
-/* Check if the given (correct) bitmap is identical with the one that is
- * on the disk.  If not, ask if the disk should be repaired.
- */
-chkmap(cmap, dmap, bit, blkno, nblk, nbit, type) unsigned *cmap, *dmap;
-bit_nr bit, nbit;
-block_nr blkno;
-char *type;
-{
-    register unsigned *p = dmap, *q = cmap;
-    int report = 1, nerr = 0;
-
-    if (makefs) {
-        dumpbitmap(cmap, blkno, nblk);
-        return;
-    }
-    printf("Checking %s map\n", type);
-    loadbitmap(dmap, blkno, nblk);
-    do {
-        if (*p != *q)
-            chkword(*p, *q, bit, type, &nerr, &report);
-        p++;
-        q++;
-    } while ((bit += 8 * sizeof(unsigned)) < nbit);
-    if ((!repair || automatic) && !report)
-        printf("etc. ");
-    if (nerr > MAXPRINT || nerr > 10)
-        printf("%d errors found. ", nerr);
-    if (nerr != 0 && yes("install a new map"))
-        dumpbitmap(cmap, blkno, nblk);
-    if (nerr > 0)
-        printf("\n");
-}
-
-/* See if the inodes that aren't allocated are cleared.
- */
-chkilist() {
-    register inode_nr ino = 1;
-    mask_bits mode;
-
-    if (makefs)
-        return;
-    printf("Checking inode list\n");
-    do
-        if (!bitset(imap, (bit_nr)ino)) {
-            devread(inoaddr(ino), (char *)&mode, sizeof(mode));
-            if (mode != I_NOT_ALLOC) {
-                printf("mode inode %u not cleared", ino);
-                if (yes(". clear"))
-                    devwrite(inoaddr(ino), nullbuf, INODE_SIZE);
+        // Check zone numbers
+        for (std::size_t i = 0; i < inode_.i_zone.size(); ++i) {
+            const auto zone = inode_.i_zone[i];
+            if (zone != 0 && (zone < sb.get_first_data_zone() || zone >= sb.get_zone_count())) {
+                ui.print_error(
+                    "Invalid zone " + std::to_string(zone) + " in zone " + std::to_string(i), path);
+                valid = false;
             }
         }
-    while (++ino <= sb.s_ninodes);
-    printf("\n");
-}
 
-/* Allocate an array to maintain the inode reference counts in.
- */
-getcount() { count = (links *)alloc(sb.s_ninodes + 1, sizeof(links)); }
-
-/* The reference count for inode `ino' is wrong.  Ask if it should be adjusted.
- */
-counterror(ino) inode_nr ino;
-{
-    d_inode inode;
-
-    if (firstcnterr) {
-        printf("INODE NLINK COUNT\n");
-        firstcnterr = 0;
-    }
-    devread(inoaddr(ino), (char *)&inode, INODE_SIZE);
-    count[ino] += inode.i_nlinks;
-    printf("%5u %5u %5u", ino, (unsigned)inode.i_nlinks, count[ino]);
-    if (yes(" adjust")) {
-        if ((inode.i_nlinks = count[ino]) == 0) {
-            fatal("internal error (counterror)");
-            /* This would be a patch
-                        inode.i_mode = I_NOT_ALLOC;
-                        clrbit(imap, (bit_nr) ino);
-            */
-        }
-        devwrite(inoaddr(ino), (char *)&inode, INODE_SIZE);
-    }
-}
-
-/* Check if the reference count of the inodes are correct.  The array `count'
- * is maintained as follows:  an entry indexed by the inode number is
- * incremented each time a link is found; when the inode is read the link
- * count in there is substracted from the corresponding entry in `count'.
- * Thus, when the whole file system has been traversed, all the entries
- * should be zero.
- */
-chkcount() {
-    register inode_nr ino;
-
-    for (ino = 1; ino <= sb.s_ninodes; ino++)
-        if (count[ino] != 0)
-            counterror(ino);
-    if (!firstcnterr)
-        printf("\n");
-}
-
-#ifndef STANDALONE
-/* Deallocate the `count' array.
- */
-freecount() { dealloc((char *)count); }
-#endif
-
-/* Print the inode permission bits given by mode and shift.
- */
-printperm(mode, shift, special, overlay) mask_bits mode;
-{
-    printf(mode >> shift & R_BIT ? "r" : "-");
-    printf(mode >> shift & W_BIT ? "w" : "-");
-    if (mode & special)
-        printf("%c", overlay);
-    else
-        printf(mode >> shift & X_BIT ? "x" : "-");
-}
-
-/* List the given inode.
- */
-list(ino, ip) inode_nr ino;
-d_inode *ip;
-{
-    if (firstlist) {
-        firstlist = 0;
-        printf(" inode permission link   size name\n");
-    }
-    printf("%6u ", ino);
-    switch (ip->i_mode & I_TYPE) {
-    case I_REGULAR:
-        printf("-");
-        break;
-    case I_DIRECTORY:
-        printf("d");
-        break;
-    case I_CHAR_SPECIAL:
-        printf("c");
-        break;
-    case I_BLOCK_SPECIAL:
-        printf("b");
-        break;
-    default:
-        printf("?");
-    }
-    printperm(ip->i_mode, 6, I_SET_UID_BIT, 's');
-    printperm(ip->i_mode, 3, I_SET_GID_BIT, 's');
-    printperm(ip->i_mode, 0, STICKY_BIT, 't');
-    printf(" %3u ", ip->i_nlinks);
-    switch (ip->i_mode & I_TYPE) {
-    case I_CHAR_SPECIAL:
-    case I_BLOCK_SPECIAL:
-        printf("  %2x,%2x ", (dev_nr)ip->i_zone[0] >> MAJOR & 0xFF,
-               (dev_nr)ip->i_zone[0] >> MINOR & 0xFF);
-        break;
-    default:
-        printf("%7D ", ip->i_size);
-    }
-    printpath(0, 1);
-}
-
-/* Remove an entry from a directory if ok with the user.
- */
-remove(dp) dir_struct *dp;
-{
-    int i;
-    char *cp1, *cp2;
-
-    setbit(spec_imap, (bit_nr)dp->d_inum);
-    if (yes(". remove entry")) {
-        count[dp->d_inum]--;
-        cp1 = (char *)&nulldir;
-        cp2 = (char *)dp;
-        i = sizeof(dir_struct);
-        while (i--)
-            *cp2++ = *cp1++;
-        return (1);
-    }
-    return (0);
-}
-
-/* See if the `.' or `..' entry is as expected.
- */
-chkdots(ino, pos, dp, exp) inode_nr ino, exp;
-file_pos pos;
-dir_struct *dp;
-{
-    if (dp->d_inum != exp) {
-        printf("bad %s in ", dp->d_name);
-        printpath(1, 0);
-        printf("%s is linked to %u ", dp->d_name, dp->d_inum);
-        printf("instead of %u)", exp);
-        setbit(spec_imap, (bit_nr)ino);
-        setbit(spec_imap, (bit_nr)dp->d_inum);
-        setbit(spec_imap, (bit_nr)exp);
-        if (yes(". repair")) {
-            count[dp->d_inum]--;
-            dp->d_inum = exp;
-            count[exp]++;
-            return (0);
-        }
-    } else if (pos != (dp->d_name[1] ? DIR_ENTRY_SIZE : 0)) {
-        printf("warning: %s has offset %D in ", dp->d_name, pos);
-        printpath(1, 0);
-        printf("%s is linked to %u)\n", dp->d_name, dp->d_inum);
-        setbit(spec_imap, (bit_nr)ino);
-        setbit(spec_imap, (bit_nr)dp->d_inum);
-        setbit(spec_imap, (bit_nr)exp);
-    }
-    return (1);
-}
-
-/* Check the name in a directory entry.
- */
-chkname(ino, dp) inode_nr ino;
-dir_struct *dp;
-{
-    register n = NAME_SIZE + 1;
-    register char *p = dp->d_name;
-
-    if (*p == 0) {
-        printf("null name found in ");
-        printpath(0, 0);
-        setbit(spec_imap, (bit_nr)ino);
-        if (remove(dp))
-            return (0);
-    }
-    while (--n != 0 && *p != 0)
-        if (*p++ == '/') {
-            printf("found a '/' in entry of directory ");
-            printpath(1, 0);
-            setbit(spec_imap, (bit_nr)ino);
-            printf("entry = '");
-            printname(dp->d_name);
-            printf("')");
-            if (remove(dp))
-                return (0);
-            break;
-        }
-    return (1);
-}
-
-/* Check a directory entry.  Here the routine `descendtree' is called
- * recursively to check the file or directory pointed to by the entry.
- */
-chkentry(ino, pos, dp) inode_nr ino;
-file_pos pos;
-dir_struct *dp;
-{
-    char *cp1, *cp2;
-    int i;
-    if (dp->d_inum < ROOT_INODE || dp->d_inum > sb.s_ninodes) {
-        printf("bad inode found in directory ");
-        printpath(1, 0);
-        printf("ino found = %u, ", dp->d_inum);
-        printf("name = '");
-        printname(dp->d_name);
-        printf("')");
-        if (yes(". remove entry")) {
-            cp1 = (char *)&nulldir;
-            cp2 = (char *)dp;
-            i = sizeof(dir_struct);
-            while (i--)
-                *cp2++ = *cp1++;
-            return (0);
-        }
-        return (1);
-    }
-    if ((unsigned)count[dp->d_inum] == kMaxLinks) {
-        printf("too many links to ino %u\n", dp->d_inum);
-        printf("discovered at entry '");
-        printname(dp->d_name);
-        printf("' in directory ");
-        printpath(0, 1);
-        if (remove(dp))
-            return (0);
-    }
-    count[dp->d_inum]++;
-    if (strcmp(dp->d_name, ".") == 0) {
-        top->st_presence |= DOT;
-        return (chkdots(ino, pos, dp, ino));
-    }
-    if (strcmp(dp->d_name, "..") == 0) {
-        top->st_presence |= DOTDOT;
-        return (chkdots(ino, pos, dp, ino == ROOT_INODE ? ino : top->st_next->st_dir->d_inum));
-    }
-    if (!chkname(ino, dp))
-        return (0);
-    if (bitset(dirmap, (bit_nr)dp->d_inum)) {
-        printf("link to directory discovered in ");
-        printpath(1, 0);
-        printf("name = '");
-        printname(dp->d_name);
-        printf("', dir ino = %u)", dp->d_inum);
-        return !remove(dp);
-    }
-    return (descendtree(dp));
-}
-
-/* Check a zone of a directory by checking all the entries in the zone.
- * The zone is split up into chunks to not allocate too much stack.
- */
-chkdirzone(ino, ip, pos, zno) inode_nr ino;
-d_inode *ip;
-file_pos pos;
-zone_nr zno;
-{
-    dir_struct dirblk[CDIRECT];
-    register dir_struct *dp;
-    register n = SCALE * (NR_DIR_ENTRIES / CDIRECT), dirty;
-    register long offset = zaddr(zno);
-
-    do {
-        devread(offset, (char *)dirblk, DIRCHUNK);
-        dirty = 0;
-        for (dp = dirblk; dp < &dirblk[CDIRECT]; dp++) {
-            if (ip->i_size - pos < DIR_ENTRY_SIZE) {
-                printf("bad format in directory ");
-                printpath(2, 0);
-                if (yes(". truncate")) {
-                    setbit(spec_imap, (bit_nr)ino);
-                    ip->i_size = pos;
-                    dirty = 1;
-                } else
-                    return (0);
+        // Check file size consistency
+        if (is_directory()) {
+            if (inode_.i_size % sizeof(dir_struct) != 0) {
+                ui.print_error("Directory size not multiple of directory entry size", path);
+                valid = false;
             }
-            if (dp->d_inum != NO_ENTRY && !chkentry(ino, pos, dp))
-                dirty = 1;
-            if ((pos += DIR_ENTRY_SIZE) >= ip->i_size)
-                break;
         }
-        if (dirty)
-            devwrite(offset, (char *)dirblk, DIRCHUNK);
-        offset += DIRCHUNK;
-    } while (--n && pos < ip->i_size);
-    return (1);
-}
 
-/* There is something wrong with the given zone.  Print some details.
- */
-errzone(mess, zno, level, pos) char *mess;
-zone_nr zno;
-file_pos pos;
-{
-    printf("%s zone in ", mess);
-    printpath(1, 0);
-    printf("zno = %u, type = ", zno);
-    switch (level) {
-    case 0:
-        printf("DATA");
-        break;
-    case 1:
-        printf("SINGLE INDIRECT");
-        break;
-    case 2:
-        printf("DOUBLE INDIRECT");
-        break;
-    default:
-        printf("VERY INDIRECT");
+        // Check link count
+        if (!is_free() && inode_.i_nlinks == 0) {
+            ui.print_error("Non-free inode with zero link count", path);
+            valid = false;
+        }
+
+        return valid;
     }
-    printf(", pos = %D)\n", pos);
-}
 
-/* Found the given zone in the given inode.  Check it, and if ok, mark it
- * in the zone bitmap.
- */
-markzone(ino, zno, level, pos) inode_nr ino;
-zone_nr zno;
-file_pos pos;
-{
-    register bit_nr bit = (bit_nr)zno - FIRST + 1;
+    // Calculate zones needed for current file size
+    [[nodiscard]] std::uint32_t calculate_zones_needed(const SuperBlock &sb) const {
+        if (inode_.i_size == 0)
+            return 0;
 
-    ztype[level]++;
-    if (zno < FIRST || zno >= sb.s_nzones) {
-        errzone("out-of-range", zno, level, pos);
-        return (0);
+        const auto zone_size = BLOCK_SIZE * sb.get_scale();
+        return (inode_.i_size + zone_size - 1) / zone_size;
     }
-    if (bitset(zmap, bit)) {
-        setbit(spec_zmap, bit);
-        errzone("duplicate", zno, level, pos);
-        return (0);
+
+    // Get all zones used by this inode
+    [[nodiscard]] std::vector<zone_nr> get_all_zones(diskio::DiskInterface &disk,
+                                                     const SuperBlock &sb) const {
+        std::vector<zone_nr> zones;
+
+        // Direct zones
+        for (std::size_t i = 0; i < NR_DIRECT_ZONES && inode_.i_zone[i] != 0; ++i) {
+            zones.push_back(inode_.i_zone[i]);
+        }
+
+        // Single indirect
+        if (inode_.i_zone[NR_DIRECT_ZONES] != 0) {
+            auto indirect_zones = read_indirect_zones(disk, sb, inode_.i_zone[NR_DIRECT_ZONES]);
+            zones.insert(zones.end(), indirect_zones.begin(), indirect_zones.end());
+        }
+
+        // Double indirect
+        if (inode_.i_zone[NR_DIRECT_ZONES + 1] != 0) {
+            auto double_indirect_zones =
+                read_double_indirect_zones(disk, sb, inode_.i_zone[NR_DIRECT_ZONES + 1]);
+            zones.insert(zones.end(), double_indirect_zones.begin(), double_indirect_zones.end());
+        }
+
+        return zones;
     }
-    nfreezone--;
-    if (bitset(spec_zmap, bit))
-        errzone("found", ino, zno, level, pos, bit);
-    setbit(zmap, bit);
-    return (1);
-}
 
-/* Check an indirect zone by checking all of its entries.
- * The zone is split up into chunks to not allocate too much stack.
- */
-chkindzone(ino, ip, pos, zno, level) inode_nr ino;
-d_inode *ip;
-file_pos *pos;
-zone_nr zno;
-{
-    zone_nr indirect[CINDIR];
-    register n = NR_INDIRECTS / CINDIR;
-    register long offset = zaddr(zno);
+  private:
+    [[nodiscard]] std::vector<zone_nr> read_indirect_zones(diskio::DiskInterface &disk,
+                                                           const SuperBlock &sb,
+                                                           zone_nr indirect_zone) const {
+        std::vector<zone_nr> zones;
+        const auto zone_address = sb.get_zone_address(indirect_zone);
+        const auto sector =
+            static_cast<std::uint64_t>(zone_address / diskio::DiskConstants::SECTOR_SIZE);
 
-    do {
-        devread(offset, (char *)indirect, INDCHUNK);
-        if (!chkzones(ino, ip, pos, indirect, CINDIR, level - 1))
-            return (0);
-        offset += INDCHUNK;
-    } while (--n && *pos < ip->i_size);
-    return (1);
-}
+        auto sector_data = disk.read_sector(diskio::SectorAddress(sector));
+        const auto *zone_ptrs = reinterpret_cast<const zone_nr *>(sector_data.data());
+        const auto max_zones = sector_data.size_bytes() / sizeof(zone_nr);
 
-/* Return the size of a gap in the file, represented by a null zone number
- * at some level of indirection.
- */
-file_pos jump(level) {
-    file_pos power = ZONE_SIZE;
+        for (std::size_t i = 0; i < max_zones && zone_ptrs[i] != 0; ++i) {
+            zones.push_back(zone_ptrs[i]);
+        }
 
-    if (level != 0)
-        do
-            power *= NR_INDIRECTS;
-        while (--level);
-    return (power);
-}
-
-/* Check a zone, which may be either a normal data zone, a directory zone,
- * or an indirect zone.
- */
-zonechk(ino, ip, pos, zno, level) inode_nr ino;
-d_inode *ip;
-file_pos *pos;
-zone_nr zno;
-{
-    if (level == 0) {
-        if ((ip->i_mode & I_TYPE) == I_DIRECTORY && !chkdirzone(ino, ip, *pos, zno))
-            return (0);
-        *pos += ZONE_SIZE;
-        return (1);
-    } else
-        return chkindzone(ino, ip, pos, zno, level);
-}
-
-/* Check a list of zones given by `zlist'.
- */
-chkzones(ino, ip, pos, zlist, len, level) inode_nr ino;
-d_inode *ip;
-file_pos *pos;
-zone_nr *zlist;
-{
-    register ok = 1, i;
-
-    for (i = 0; i < len && *pos < ip->i_size; i++)
-        if (zlist[i] == kNoZone)
-            *pos += jump(level);
-        else if (!markzone(ino, zlist[i], level, *pos)) {
-            *pos += jump(level);
-            ok = 0;
-        } else if (!zonechk(ino, ip, pos, zlist[i], level))
-            ok = 0;
-    return (ok);
-}
-
-/* Check a file or a directory.
- */
-chkfile(ino, ip) inode_nr ino;
-d_inode *ip;
-{
-    register ok, i, level;
-    file_pos pos = 0;
-
-    ok = chkzones(ino, ip, &pos, &ip->i_zone[0], NR_DZONE_NUM, 0);
-    for (i = NR_DZONE_NUM, level = 1; i < NR_ZONE_NUMS; i++, level++)
-        if (!chkzones(ino, ip, &pos, &ip->i_zone[i], 1, level))
-            ok = 0;
-    return (ok);
-}
-
-/* Check a directory by checking the contents.  Check if . and .. are present.
- */
-chkdirectory(ino, ip) inode_nr ino;
-d_inode *ip;
-{
-    register ok;
-
-    setbit(dirmap, (bit_nr)ino);
-    if (ip->i_size > MAXDIRSIZE) {
-        printf("warning: huge directory: ");
-        printpath(2, 1);
+        return zones;
     }
-    ok = chkfile(ino, ip);
-    if (!(top->st_presence & DOT)) {
-        printf(". missing in ");
-        printpath(2, 1);
-        ok = 0;
-    }
-    if (!(top->st_presence & DOTDOT)) {
-        printf(".. missing in ");
-        printpath(2, 1);
-        ok = 0;
-    }
-    return (ok);
-}
 
-/* Check the mode of an inode, and if it is a file or a directory, check
- * the contents.
+    [[nodiscard]] std::vector<zone_nr>
+    read_double_indirect_zones(diskio::DiskInterface &disk, const SuperBlock &sb,
+                               zone_nr double_indirect_zone) const {
+        std::vector<zone_nr> zones;
+
+        auto indirect_zones = read_indirect_zones(disk, sb, double_indirect_zone);
+        for (const auto indirect_zone : indirect_zones) {
+            auto data_zones = read_indirect_zones(disk, sb, indirect_zone);
+            zones.insert(zones.end(), data_zones.begin(), data_zones.end());
+        }
+
+        return zones;
+    }
+};
+
+/**
+ * @brief Directory entry management with path tracking
  */
-chkmode(ino, ip) inode_nr ino;
-d_inode *ip;
-{
-    switch (ip->i_mode & I_TYPE) {
-    case I_REGULAR:
-        nregular++;
-        return chkfile(ino, ip);
-        break;
-    case I_DIRECTORY:
-        ndirectory++;
-        return chkdirectory(ino, ip);
-    case I_BLOCK_SPECIAL:
-        nblkspec++;
-        return (1);
-    case I_CHAR_SPECIAL:
-        ncharspec++;
-        return (1);
-    default:
-        nbadinode++;
-        printf("bad mode of ");
-        printpath(1, 0);
-        printf("mode = %o)", ip->i_mode);
-        return (0);
-    }
-}
+class DirectoryEntry {
+  public:
+    struct Entry {
+        inode_nr inode_number;
+        std::string name;
 
-/* Check an inode.
- */
-chkinode(ino, ip) inode_nr ino;
-d_inode *ip;
-{
-    if (ino == ROOT_INODE && (ip->i_mode & I_TYPE) != I_DIRECTORY) {
-        printf("root inode is not a directory ");
-        printf("(ino = %u, mode = %o)\n", ino, ip->i_mode);
-        fatal("");
-    }
-    if (ip->i_nlinks == 0) {
-        printf("link count zero of ");
-        printpath(2, 0);
-        return (0);
-    }
-    nfreeinode--;
-    setbit(imap, (bit_nr)ino);
-    if ((unsigned)ip->i_nlinks > kMaxLinks) {
-        printf("link count too big in ");
-        printpath(1, 0);
-        printf("cnt = %u)\n", (unsigned)ip->i_nlinks);
-        count[ino] -= kMaxLinks;
-        setbit(spec_imap, (bit_nr)ino);
-    } else
-        count[ino] -= (unsigned)ip->i_nlinks;
-    return chkmode(ino, ip);
-}
+        Entry(inode_nr ino, std::string n) : inode_number(ino), name(std::move(n)) {}
 
-/* Check the directory entry pointed to by dp, by checking the inode.
- */
-descendtree(dp) dir_struct *dp;
-{
-    d_inode inode;
-    register inode_nr ino = dp->d_inum;
-    register visited;
-    struct stack stk;
-    char *cp1, *cp2;
-    int i;
+        [[nodiscard]] bool is_dot() const noexcept { return name == "."; }
+        [[nodiscard]] bool is_dot_dot() const noexcept { return name == ".."; }
+        [[nodiscard]] bool is_valid_name() const noexcept {
+            return !name.empty() && name.size() <= 14 && name.find('\0') == std::string::npos;
+        }
+    };
 
-    stk.st_dir = dp;
-    stk.st_next = top;
-    top = &stk;
-    if (bitset(spec_imap, (bit_nr)ino)) {
-        printf("found inode %u: ", ino);
-        printpath(0, 1);
-    }
-    visited = bitset(imap, (bit_nr)ino);
-    if (!visited || listing) {
-        devread(inoaddr(ino), (char *)&inode, INODE_SIZE);
-        if (listing)
-            list(ino, &inode);
-        if (!visited && !chkinode(ino, &inode)) {
-            setbit(spec_imap, (bit_nr)ino);
-            if (yes("remove")) {
-                count[ino] += inode.i_nlinks - 1;
-                clrbit(imap, (bit_nr)ino);
-                devwrite(inoaddr(ino), nullbuf, INODE_SIZE);
-                cp1 = (char *)&nulldir;
-                cp2 = (char *)dp;
-                i = sizeof(dir_struct);
-                while (i--)
-                    *cp2++ = *cp1++;
-                top = top->st_next;
-                return (0);
+  private:
+    std::vector<Entry> entries_;
+
+  public:
+    void load_from_inode(diskio::DiskInterface &disk, const SuperBlock &sb,
+                         const Inode &dir_inode) {
+        entries_.clear();
+
+        if (!dir_inode.is_directory()) {
+            throw std::invalid_argument("Inode is not a directory");
+        }
+
+        const auto zones = dir_inode.get_all_zones(disk, sb);
+
+        for (const auto zone : zones) {
+            const auto zone_address = sb.get_zone_address(zone);
+            const auto sector =
+                static_cast<std::uint64_t>(zone_address / diskio::DiskConstants::SECTOR_SIZE);
+
+            auto sector_data = disk.read_sector(diskio::SectorAddress(sector));
+            const auto *dir_entries = reinterpret_cast<const dir_struct *>(sector_data.data());
+            const auto max_entries = sector_data.size_bytes() / sizeof(dir_struct);
+
+            for (std::size_t i = 0; i < max_entries; ++i) {
+                if (dir_entries[i].d_inum != 0) {
+                    // Create string from null-terminated char array
+                    const char *name_ptr = dir_entries[i].d_name.data();
+                    std::size_t name_len = 0;
+                    while (name_len < dir_entries[i].d_name.size() && name_ptr[name_len] != '\0') {
+                        ++name_len;
+                    }
+                    std::string name(name_ptr, name_len);
+                    entries_.emplace_back(dir_entries[i].d_inum, std::move(name));
+                }
             }
         }
     }
-    top = top->st_next;
-    return (1);
-}
 
-/* Check the file system tree.
- */
-chktree() {
-    dir_struct dir;
+    [[nodiscard]] const std::vector<Entry> &get_entries() const noexcept { return entries_; }
 
-    if (!makefs)
-        nfreeinode = sb.s_ninodes;
-    nfreezone = N_DATA;
-    dir.d_inum = ROOT_INODE;
-    dir.d_name[0] = 0;
-    if (!descendtree(&dir))
-        fatal("bad root inode");
-    printf("\n");
-}
+    [[nodiscard]] bool validate(UserInterface &ui, const PathTracker &path,
+                                inode_nr expected_parent) const {
+        bool valid = true;
+        bool has_dot = false;
+        bool has_dot_dot = false;
 
-/* Print the totals of all the objects found.
- */
-printtotal() {
-    printf("blocksize = %5d        ", BLOCK_SIZE);
-    printf("zonesize  = %5d\n", ZONE_SIZE);
-    printf("\n");
-    pr("%6u    Regular file%s\n", nregular, "", "s");
-    pr("%6u    Director%s\n", ndirectory, "y", "ies");
-    pr("%6u    Block special file%s\n", nblkspec, "", "s");
-    pr("%6u    Character special file%s\n", ncharspec, "", "s");
-    if (nbadinode != 0)
-        pr("%6u    Bad inode%s\n", nbadinode, "", "s");
-    pr("%6u    Free inode%s\n", nfreeinode, "", "s");
-    /* Don't print some fields.
-        printf("\n");
-        pr("%6u    Data zone%s\n",		  ztype[0],	 "",   "s");
-        pr("%6u    Single indirect zone%s\n",	  ztype[1],	 "",   "s");
-        pr("%6u    Double indirect zone%s\n",	  ztype[2],	 "",   "s");
-    */
-    pr("%6u    Free zone%s\n", nfreezone, "", "s");
-}
-
-/* Check the device which name is given by `f'.  The inodes listed by `clist'
- * should be listed separately, and the inodes listed by `ilist' and the zones
- * listed by `zlist' should be watched for while checking the file system.
- */
-chkdev(f, clist, ilist, zlist) char *f, **clist, **ilist, **zlist;
-{
-    if (automatic || makefs)
-        repair = 1;
-    device = f;
-    initvars();
-#ifndef STANDALONE
-    devopen();
-#endif
-    getsuper();
-    chksuper();
-#ifndef STANDALONE
-    lsi(clist);
-#endif
-    getbitmaps();
-    initbitmap(imap, (bit_nr)sb.s_ninodes + 1, N_IMAP);
-    initbitmap(zmap, (bit_nr)sb.s_nzones - FIRST + 1, N_ZMAP);
-#ifndef STANDALONE
-    fillbitmap(spec_imap, (bit_nr)1, (bit_nr)sb.s_ninodes + 1, ilist);
-    fillbitmap(spec_zmap, (bit_nr)FIRST, (bit_nr)sb.s_nzones, zlist);
-#endif
-    getcount();
-    chktree();
-    chkmap(zmap, spec_zmap, (bit_nr)FIRST - 1, BLK_ZMAP, N_ZMAP, (bit_nr)sb.s_nzones, "zone");
-    chkcount();
-    chkmap(imap, spec_imap, (bit_nr)0, BLK_IMAP, N_IMAP, (bit_nr)sb.s_ninodes + 1, "inode");
-    chkilist();
-    printtotal();
-#ifndef STANDALONE
-    putbitmaps();
-    freecount();
-    devclose();
-#endif
-    if (changed)
-        printf("----- FILE SYSTEM HAS BEEN MODIFIED -----\n\n");
-}
-
-main(argc, argv) char **argv;
-{
-    register char **clist = 0, **ilist = 0, **zlist = 0;
-
-#ifdef STANDALONE
-    register c, command;
-
-    if (virgin)
-        floptrk = tracksiz; /* save 9 or 15 in floptrk */
-    virgin = 0;             /* only on first pass thru */
-    if (tracksiz < 9 || cylsiz < 18)
-        printf("Bootblok gave bad tracksiz\n");
-    rwbuf = rwbuf1;
-    prog = "fsck";
-    printf("\n\n\n\n");
-    for (;;) {
-        printf("\nHit key as follows:\n\n");
-        printf("    =  start MINIX (root file system in drive 0)\n");
-        printf("    f  check the file system (first insert any file system diskette)\n");
-        printf("    l  check and list file system (first insert any file system diskette)\n");
-        printf("    m  make an (empty) file system (first insert blank, formatted diskette)\n");
-        printf("    h  check hard disk file system\n");
-        printf("\n# ");
-        c = getc();
-        command = c & 0xFF;
-        printf("%c\n", command);
-        part_offset = 0;
-        partition = 0;
-        drive = 0;
-
-        switch (command) {
-
-        case 'h':
-            get_partition();
-            drive = (partition < PARB ? 0x80 : 0x81);
-            cylsiz = 68;
-            tracksiz = 17;
-            printf("Checking hard disk.  %s\n", answer);
-            if (read_partition() < 0)
+        for (const auto &entry : entries_) {
+            if (!entry.is_valid_name()) {
+                ui.print_error("Invalid directory entry name: '" + entry.name + "'", path);
+                valid = false;
                 continue;
-            repair = 1;
-            break;
-
-        case 'f':
-            printf("Checking diskette.  %s\n", answer);
-            disktype(); /* init tracksiz & cylsiz */
-            repair = 1;
-            break;
-
-        case 'l':
-            printf("Checking diskette.  %s\n", answer);
-            listing = listsuper = 1;
-            disktype(); /* init tracksiz & cylsiz */
-            break;
-
-        case 'm':
-            printf("Making empty file system\n");
-            disktype(); /* init tracksiz & cylsiz */
-            makefs = 1;
-            if (tracksiz == 15) {
-                /* 1.2M diskette. */
-                zone_ct = 1200;
-                inode_ct = 255;
             }
-            break;
 
-        case '=':
-            return ((c >> 8) & 0xFF);
-        default:
-            printf("Illegal command\n");
-            continue;
+            if (entry.is_dot()) {
+                if (has_dot) {
+                    ui.print_error("Duplicate '.' entry", path);
+                    valid = false;
+                } else {
+                    has_dot = true;
+                    if (entry.inode_number != path.get_current_inode()) {
+                        ui.print_error("'.' entry points to wrong inode", path);
+                        valid = false;
+                    }
+                }
+            } else if (entry.is_dot_dot()) {
+                if (has_dot_dot) {
+                    ui.print_error("Duplicate '..' entry", path);
+                    valid = false;
+                } else {
+                    has_dot_dot = true;
+                    if (entry.inode_number != expected_parent) {
+                        ui.print_error("'..' entry points to wrong inode", path);
+                        valid = false;
+                    }
+                }
+            }
         }
-        chkdev("disk(ette)", clist, ilist, zlist);
-        repair = listing = listsuper = makefs = 0;
+
+        if (!has_dot) {
+            ui.print_error("Missing '.' entry", path);
+            valid = false;
+        }
+
+        if (!has_dot_dot) {
+            ui.print_error("Missing '..' entry", path);
+            valid = false;
+        }
+
+        return valid;
     }
 
-#else /* STANDALONE */
-    register devgiven = 0;
-    register char *arg;
+    [[nodiscard]] std::optional<inode_nr> find_entry(std::string_view name) const {
+        for (const auto &entry : entries_) {
+            if (entry.name == name) {
+                return entry.inode_number;
+            }
+        }
+        return std::nullopt;
+    }
 
-    rwbuf = rwbuf1;
-#ifdef DOS
-    if (DMAoverrun(rwbuf1))
-        rwbuf = rwbuf2;
-    disktype() /* init tracksiz & cylsize for disk in A: */
-#endif
+    void add_entry(inode_nr inode_number, std::string name) {
+        entries_.emplace_back(inode_number, std::move(name));
+    }
 
-        sync();
-    prog = *argv++;
-    while ((arg = *argv++) != 0)
-        if (arg[0] == '-' && arg[1] != 0 && arg[2] == 0)
-            switch (arg[1]) {
-            case 'a':
-                automatic ^= 1;
+    void remove_entry(std::string_view name) {
+        entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
+                                      [name](const Entry &entry) { return entry.name == name; }),
+                       entries_.end());
+    }
+};
+
+/**
+ * @brief Complete filesystem checker with all validation phases
+ */
+class FilesystemChecker {
+  private:
+    diskio::DiskInterface &disk_;
+    SuperBlock superblock_;
+    Bitmap inode_bitmap_;
+    Bitmap zone_bitmap_;
+    std::vector<std::uint16_t> inode_link_counts_;
+    std::vector<bool> zone_usage_;
+    FilesystemStatistics statistics_;
+    UserInterface ui_;
+
+  public:
+    explicit FilesystemChecker(diskio::DiskInterface &disk, FsckMode mode)
+        : disk_(disk), inode_bitmap_(1), zone_bitmap_(1), ui_(mode) {}
+
+    /**
+     * @brief Main filesystem check entry point
+     * @return True if filesystem is consistent or was successfully repaired
+     */
+    [[nodiscard]] bool check_filesystem() {
+        try {
+            ui_.print_message("MINIX Filesystem Checker v2.0\n");
+            ui_.print_message("==============================\n\n");
+
+            // Phase 1: Load and validate superblock
+            phase1_check_superblock();
+
+            // Phase 2: Initialize data structures
+            phase2_initialize_structures();
+
+            // Phase 3: Check inodes and build usage maps
+            phase3_check_inodes();
+
+            // Phase 4: Check directories and build link counts
+            phase4_check_directories();
+
+            // Phase 5: Check bitmaps consistency
+            phase5_check_bitmaps();
+
+            // Phase 6: Verify link counts
+            phase6_verify_link_counts();
+
+            // Phase 7: Cleanup and summary
+            phase7_cleanup_and_summary();
+
+            return statistics_.errors_found == 0 || statistics_.errors_fixed > 0;
+
+        } catch (const std::exception &e) {
+            ui_.print_error("Fatal error during filesystem check: " + std::string(e.what()),
+                            PathTracker{});
+            return false;
+        }
+    }
+
+  private:
+    void phase1_check_superblock() {
+        ui_.print_message("Phase 1: Checking superblock...\n");
+
+        superblock_.load_from_disk(disk_);
+        superblock_.validate();
+        superblock_.check_consistency(ui_);
+
+        if (ui_.get_mode() != FsckMode::CHECK_ONLY) {
+            superblock_.print_info(ui_);
+        }
+    }
+
+    void phase2_initialize_structures() {
+        ui_.print_message("Phase 2: Initializing data structures...\n");
+
+        // Initialize bitmaps
+        inode_bitmap_ = Bitmap(superblock_.get_inode_count());
+        zone_bitmap_ = Bitmap(superblock_.get_zone_count());
+
+        // Load bitmaps from disk
+        inode_bitmap_.load_from_disk(disk_, diskio::SectorAddress(superblock_.get_imap_start()),
+                                     superblock_.get_imap_blocks());
+        zone_bitmap_.load_from_disk(disk_, diskio::SectorAddress(superblock_.get_zmap_start()),
+                                    superblock_.get_zmap_blocks());
+
+        // Initialize tracking arrays
+        inode_link_counts_.assign(superblock_.get_inode_count() + 1, 0);
+        zone_usage_.assign(superblock_.get_zone_count(), false);
+
+        // Mark system zones as used
+        for (zone_nr zone = 0; zone < superblock_.get_first_data_zone(); ++zone) {
+            zone_usage_[zone] = true;
+        }
+    }
+
+    void phase3_check_inodes() {
+        ui_.print_message("Phase 3: Checking inodes...\n");
+
+        PathTracker path;
+
+        for (inode_nr ino = 1; ino <= superblock_.get_inode_count(); ++ino) {
+            Inode inode(ino);
+            inode.load_from_disk(disk_, superblock_);
+
+            if (inode.is_free()) {
+                statistics_.free_inodes++;
+                continue;
+            }
+
+            // Check if inode is marked as allocated in bitmap
+            if (!inode_bitmap_.is_set(BitNumber(ino))) {
+                if (ui_.ask_repair("Inode " + std::to_string(ino) +
+                                   " is used but not marked in bitmap. Mark it")) {
+                    inode_bitmap_.set_bit(BitNumber(ino));
+                    statistics_.errors_fixed++;
+                }
+                statistics_.errors_found++;
+            }
+
+            // Validate inode structure
+            if (!inode.validate(superblock_, ui_, path)) {
+                statistics_.errors_found++;
+                if (ui_.ask_repair("Inode " + std::to_string(ino) + " has errors. Clear it")) {
+                    inode.clear();
+                    inode.save_to_disk(disk_, superblock_);
+                    inode_bitmap_.clear_bit(BitNumber(ino));
+                    statistics_.errors_fixed++;
+                    continue;
+                }
+            }
+
+            // Count by type
+            switch (inode.get_type()) {
+            case InodeType::REGULAR_FILE:
+                statistics_.regular_files++;
                 break;
-            case 'c':
-                clist = getlist(&argv, "inode");
+            case InodeType::DIRECTORY:
+                statistics_.directories++;
                 break;
-            case 'i':
-                ilist = getlist(&argv, "inode");
+            case InodeType::BLOCK_SPECIAL:
+                statistics_.block_special++;
                 break;
-            case 'z':
-                zlist = getlist(&argv, "zone");
+            case InodeType::CHAR_SPECIAL:
+                statistics_.char_special++;
                 break;
-            case 'r':
-                repair ^= 1;
-                break;
-            case 'l':
-                listing ^= 1;
-                break;
-            case 's':
-                listsuper ^= 1;
-                break;
-            case 'm':
-                makefs ^= 1;
+            case InodeType::BAD_INODE:
+                statistics_.bad_inodes++;
                 break;
             default:
-                printf("%s: unknown flag '%s'\n", prog, arg);
-            }
-        else {
-            chkdev(arg, clist, ilist, zlist);
-            clist = 0;
-            ilist = 0;
-            zlist = 0;
-            devgiven = 1;
-        }
-    if (!devgiven)
-        chkdev("/dev/disk", clist, ilist, zlist);
-    return (0);
-#endif /*STANDALONE*/
-}
-
-get_partition() {
-    /* Ask for a partition number and wait for it. */
-    char chr;
-    while (1) {
-        printf("\n\nPlease enter partition number. Drive 0: 1-4, drive 1: 6-9, then hit RETURN: ");
-        while (1) {
-            chr = getc();
-            printf("%c", chr);
-            if (chr == '\r') {
-                printf("\n");
-                if (partition > 0)
-                    return;
-                else
-                    break;
-            } else {
-                if (partition > 0)
-                    break;
-            }
-            if (chr < '1' || chr > '9' || chr == '5')
                 break;
-            partition = chr - '0';
-        }
-        partition = 0;
-    }
-}
-/* This define tells where to find things in partition table. */
-#define P1 0x1C6
-int read_partition() {
-    /* Read the partition table to find out where the requested partition
-     * begins.  Put the sector offset in 'part_offset'.
-     */
-    int error, p, retries = 0;
-    long val[4];
-    long b0, b1, b2, b3;
-    while (1) {
-        retries++;
-        if (retries > 5) {
-            printf("Disk errors.  Can't read partition table\n");
-            return (-1);
-        }
-        error = diskio(READING, 0, rwbuf, 1);
-        if ((error & 0xFF00) == 0)
-            break;
-    }
+            }
 
-    /* Find start of the requested partition and set 'part_offset'. */
-    for (p = 0; p < 4; p++) {
-        b0 = rwbuf[P1 + 16 * p + 0] & 0xFF;
-        b1 = rwbuf[P1 + 16 * p + 1] & 0xFF;
-        b2 = rwbuf[P1 + 16 * p + 2] & 0xFF;
-        b3 = rwbuf[P1 + 16 * p + 3] & 0xFF;
-        val[p] = (b3 << 24) | (b2 << 16) | (b1 << 8) | b0;
-        if (val[p] > 65535) {
-            printf("Fsck can't handle partitions above sector 65535\n");
-            exit(1);
+            // Mark zones as used
+            auto zones = inode.get_all_zones(disk_, superblock_);
+            for (const auto zone : zones) {
+                if (zone >= superblock_.get_zone_count()) {
+                    ui_.print_error("Zone " + std::to_string(zone) + " out of range", path);
+                    statistics_.errors_found++;
+                    continue;
+                }
+
+                if (zone_usage_[zone]) {
+                    ui_.print_error("Zone " + std::to_string(zone) + " multiply claimed", path);
+                    statistics_.errors_found++;
+                } else {
+                    zone_usage_[zone] = true;
+                }
+            }
         }
     }
-    p = (partition >= PARB ? partition - PARB + 1 : partition);
-    sort(val);
-    part_offset = (unsigned)val[p - 1];
-    if ((part_offset % (BLOCK_SIZE / SECTOR_SIZE)) != 0)
-        part_offset = (part_offset / (BLOCK_SIZE / SECTOR_SIZE) + 1) * (BLOCK_SIZE / SECTOR_SIZE);
-    return (0);
-}
 
-sort(val) register long *val;
-{
-    register int i, j;
+    void phase4_check_directories() {
+        ui_.print_message("Phase 4: Checking directories...\n");
 
-    for (i = 0; i < 4; i++)
-        for (j = 0; j < 3; j++)
-            if ((val[j] == 0) && (val[j + 1] != 0))
-                swap(&val[j], &val[j + 1]);
-            else if (val[j] > val[j + 1] && val[j + 1] != 0)
-                swap(&val[j], &val[j + 1]);
-}
+        // Start with root directory
+        check_directory_recursive(ROOT_INODE, ROOT_INODE, PathTracker{});
+    }
 
-swap(first, second) register long *first, *second;
-{
-    register long tmp;
+    void check_directory_recursive(inode_nr dir_ino, inode_nr parent_ino, PathTracker path) {
+        if (dir_ino == parent_ino && dir_ino != ROOT_INODE) {
+            ui_.print_error("Directory is its own parent", path);
+            statistics_.errors_found++;
+            return;
+        }
+        Inode dir_inode(dir_ino);
+        dir_inode.load_from_disk(disk_, superblock_);
 
-    tmp = *first;
-    *first = *second;
-    *second = tmp;
+        if (!dir_inode.is_directory()) {
+            ui_.print_error(
+                "Expected directory, found " + inode_type_to_string(dir_inode.get_type()), path);
+            statistics_.errors_found++;
+            return;
+        }
+
+        // Increment link count for this directory
+        if (dir_ino <= superblock_.get_inode_count()) {
+            inode_link_counts_[dir_ino]++;
+        }
+
+        DirectoryEntry dir_entries;
+        dir_entries.load_from_inode(disk_, superblock_, dir_inode);
+
+        // Validate directory structure
+        if (!dir_entries.validate(ui_, path, parent_ino)) {
+            statistics_.errors_found++;
+        }
+
+        // Process each entry
+        for (const auto &entry : dir_entries.get_entries()) {
+            if (entry.is_dot() || entry.is_dot_dot()) {
+                continue; // Already validated
+            }
+
+            if (entry.inode_number > superblock_.get_inode_count()) {
+                ui_.print_error("Directory entry '" + entry.name + "' points to invalid inode " +
+                                    std::to_string(entry.inode_number),
+                                path);
+                statistics_.errors_found++;
+                continue;
+            }
+
+            // Increment link count
+            inode_link_counts_[entry.inode_number]++;
+
+            // Recursively check subdirectories
+            Inode child_inode(entry.inode_number);
+            child_inode.load_from_disk(disk_, superblock_);
+
+            if (child_inode.is_directory()) {
+                path.enter_directory(entry.name, entry.inode_number);
+                check_directory_recursive(entry.inode_number, dir_ino, path);
+                path.exit_directory();
+            }
+        }
+    }
+
+    void phase5_check_bitmaps() {
+        ui_.print_message("Phase 5: Checking bitmaps...\n");
+
+        // Create expected bitmaps based on usage
+        Bitmap expected_inode_bitmap(superblock_.get_inode_count());
+        Bitmap expected_zone_bitmap(superblock_.get_zone_count());
+
+        // Build expected inode bitmap
+        for (inode_nr ino = 1; ino <= superblock_.get_inode_count(); ++ino) {
+            if (inode_link_counts_[ino] > 0) {
+                expected_inode_bitmap.set_bit(BitNumber(ino));
+            }
+        }
+
+        // Build expected zone bitmap
+        for (zone_nr zone = 0; zone < superblock_.get_zone_count(); ++zone) {
+            if (zone_usage_[zone]) {
+                expected_zone_bitmap.set_bit(BitNumber(zone));
+            }
+        }
+
+        // Check inode bitmap differences
+        auto inode_differences = inode_bitmap_.find_differences(expected_inode_bitmap);
+        if (!inode_differences.empty()) {
+            ui_.print_error("Inode bitmap has " + std::to_string(inode_differences.size()) +
+                                " inconsistencies",
+                            PathTracker{});
+            statistics_.errors_found++;
+
+            if (ui_.ask_repair("Fix inode bitmap")) {
+                inode_bitmap_ = std::move(expected_inode_bitmap);
+                inode_bitmap_.save_to_disk(disk_,
+                                           diskio::SectorAddress(superblock_.get_imap_start()),
+                                           superblock_.get_imap_blocks());
+                statistics_.errors_fixed++;
+            }
+        }
+
+        // Check zone bitmap differences
+        auto zone_differences = zone_bitmap_.find_differences(expected_zone_bitmap);
+        if (!zone_differences.empty()) {
+            ui_.print_error("Zone bitmap has " + std::to_string(zone_differences.size()) +
+                                " inconsistencies",
+                            PathTracker{});
+            statistics_.errors_found++;
+
+            if (ui_.ask_repair("Fix zone bitmap")) {
+                zone_bitmap_ = std::move(expected_zone_bitmap);
+                zone_bitmap_.save_to_disk(disk_,
+                                          diskio::SectorAddress(superblock_.get_zmap_start()),
+                                          superblock_.get_zmap_blocks());
+                statistics_.errors_fixed++;
+            }
+        }
+    }
+
+    void phase6_verify_link_counts() {
+        ui_.print_message("Phase 6: Verifying link counts...\n");
+
+        for (inode_nr ino = 1; ino <= superblock_.get_inode_count(); ++ino) {
+            if (inode_link_counts_[ino] == 0) {
+                continue; // Free inode
+            }
+
+            Inode inode(ino);
+            inode.load_from_disk(disk_, superblock_);
+
+            const auto actual_links = inode.get_nlinks();
+            const auto counted_links = inode_link_counts_[ino];
+
+            if (actual_links != counted_links) {
+                ui_.print_error("Inode " + std::to_string(ino) + " has " +
+                                    std::to_string(actual_links) + " links, counted " +
+                                    std::to_string(counted_links),
+                                PathTracker{});
+                statistics_.errors_found++;
+
+                if (ui_.ask_repair("Fix link count")) {
+                    inode.set_nlinks(counted_links);
+                    inode.save_to_disk(disk_, superblock_);
+                    statistics_.errors_fixed++;
+                }
+            }
+        }
+    }
+
+    void phase7_cleanup_and_summary() {
+        ui_.print_message("Phase 7: Cleanup and summary...\n");
+
+        // Save any modified structures
+        if (ui_.changes_made()) {
+            ui_.print_message("Saving changes to disk...\n");
+            superblock_.save_to_disk(disk_);
+            disk_.sync();
+        }
+
+        // Print summary
+        print_summary();
+    }
+
+    void print_summary() {
+        ui_.print_message("\nFilesystem Check Summary:\n");
+        ui_.print_message("========================\n");
+        ui_.print_message("Regular files: " + std::to_string(statistics_.regular_files) + "\n");
+        ui_.print_message("Directories: " + std::to_string(statistics_.directories) + "\n");
+        ui_.print_message("Block special: " + std::to_string(statistics_.block_special) + "\n");
+        ui_.print_message("Char special: " + std::to_string(statistics_.char_special) + "\n");
+        ui_.print_message("Bad inodes: " + std::to_string(statistics_.bad_inodes) + "\n");
+        ui_.print_message("Free inodes: " + std::to_string(statistics_.free_inodes) + "\n");
+        ui_.print_message("Free zones: " + std::to_string(statistics_.free_zones) + "\n");
+        ui_.print_message("\nErrors found: " + std::to_string(statistics_.errors_found) + "\n");
+        ui_.print_message("Errors fixed: " + std::to_string(statistics_.errors_fixed) + "\n");
+
+        if (statistics_.errors_found == 0) {
+            ui_.print_message("\nFilesystem is clean.\n");
+        } else if (statistics_.errors_fixed > 0) {
+            ui_.print_message("\nFilesystem was repaired.\n");
+        } else {
+            ui_.print_message("\nFilesystem has errors that were not fixed.\n");
+        }
+    }
+
+    [[nodiscard]] std::string inode_type_to_string(InodeType type) const {
+        switch (type) {
+        case InodeType::REGULAR_FILE:
+            return "regular file";
+        case InodeType::DIRECTORY:
+            return "directory";
+        case InodeType::BLOCK_SPECIAL:
+            return "block special";
+        case InodeType::CHAR_SPECIAL:
+            return "char special";
+        case InodeType::BAD_INODE:
+            return "bad inode";
+        case InodeType::FREE_INODE:
+            return "free inode";
+        default:
+            return "unknown";
+        }
+    }
+};
+
+/**
+ * @brief Command line argument parsing and main entry point
+ */
+class FsckApplication {
+  private:
+    FsckMode mode_{FsckMode::CHECK_ONLY};
+    std::string device_path_;
+    bool verbose_{false};
+
+  public:
+    int run(int argc, char *argv[]) {
+        try {
+            parse_arguments(argc, argv);
+
+            if (device_path_.empty()) {
+                print_usage(argv[0]);
+                return 1;
+            }
+
+            // Open device
+            diskio::DiskInterface disk(device_path_, mode_ == FsckMode::CHECK_ONLY);
+
+            // Create and run checker
+            FilesystemChecker checker(disk, mode_);
+            bool success = checker.check_filesystem();
+
+            return success ? 0 : 1;
+
+        } catch (const std::exception &e) {
+            std::cerr << "Error: " << e.what() << std::endl;
+            return 1;
+        }
+    }
+
+  private:
+    void parse_arguments(int argc, char *argv[]) {
+        for (int i = 1; i < argc; ++i) {
+            std::string arg = argv[i];
+
+            if (arg == "-a") {
+                mode_ = FsckMode::AUTOMATIC;
+            } else if (arg == "-i") {
+                mode_ = FsckMode::INTERACTIVE;
+            } else if (arg == "-l") {
+                mode_ = FsckMode::LIST_ONLY;
+            } else if (arg == "-v") {
+                verbose_ = true;
+            } else if (arg == "-h" || arg == "--help") {
+                print_usage(argv[0]);
+                std::exit(0);
+            } else if (arg[0] == '-') {
+                throw std::invalid_argument("Unknown option: " + arg);
+            } else {
+                if (device_path_.empty()) {
+                    device_path_ = arg;
+                } else {
+                    throw std::invalid_argument("Multiple device paths specified");
+                }
+            }
+        }
+    }
+
+    void print_usage(const char *program_name) {
+        std::cout << "Usage: " << program_name << " [options] device\n\n";
+        std::cout << "Options:\n";
+        std::cout << "  -a          Automatic repair mode (answer 'yes' to all questions)\n";
+        std::cout << "  -i          Interactive repair mode (ask before each repair)\n";
+        std::cout << "  -l          List filesystem contents only\n";
+        std::cout << "  -v          Verbose output\n";
+        std::cout << "  -h, --help  Show this help message\n\n";
+        std::cout << "Examples:\n";
+        std::cout << "  " << program_name << " /dev/fd0       # Check filesystem (read-only)\n";
+        std::cout << "  " << program_name << " -a /dev/fd0    # Automatic repair\n";
+        std::cout << "  " << program_name << " -i /dev/fd0    # Interactive repair\n";
+    }
+};
+
+} // namespace minix::fsck
+
+/**
+ * @brief Main entry point for the filesystem checker
+ * @param argc Argument count
+ * @param argv Argument vector
+ * @return Exit status: 0 for success, 1 for failure
+ *
+ * @details The main function creates an FsckApplication instance and delegates
+ * the entire program execution to it. This provides proper exception handling
+ * and ensures clean resource management.
+ */
+int main(int argc, char *argv[]) {
+    try {
+        minix::fsck::FsckApplication app;
+        return app.run(argc, argv);
+    } catch (const std::exception &e) {
+        std::cerr << "Fatal error: " << e.what() << std::endl;
+        return 2;
+    } catch (...) {
+        std::cerr << "Unknown fatal error occurred" << std::endl;
+        return 3;
+    }
 }

@@ -1,626 +1,967 @@
-/* This program takes the previously compiled and linked pieces of the
- * operating system, and puts them together to build a boot diskette.
- * The files are read and put on the boot diskette in this order:
+/**
+ * @file build.cpp
+ * @brief MINIX boot image builder implementation
  *
- *      bootblok:       the diskette boot program
- *      kernel:         the operating system kernel
- *      mm:             the memory manager
- *      fs:             the file system
- *      init:           the system initializer
- *      fsck:           the file system checker
+ * This file contains the complete implementation for building MINIX boot images from
+ * component executables. The builder combines a bootblock, kernel, and system processes
+ * into a single bootable image file with proper memory layout and cross-references.
  *
- * The bootblok file goes in sector 0 of the boot diskette.  The operating system
- * begins directly after it.  The kernel, mm, fs, init, and fsck are each
- * padded out to a multiple of 16 bytes, and then concatenated into a
- * single file beginning 512 bytes into the file.  The first byte of sector 1
- * contains executable code for the kernel.  There is no header present.
+ * The build process involves:
+ * 1. Copying the bootblock (boot sector)
+ * 2. Loading and analyzing executable headers for kernel, mm, fs, init, and fsck
+ * 3. Copying program code and data with proper alignment
+ * 4. Patching the bootblock with total size and kernel entry point
+ * 5. Creating kernel process table with memory layout information
+ * 6. Setting up file system initialization data
  *
- * After the boot image has been built, build goes back and makes several
- * patches to the image file or diskette:
+ * The resulting image follows the MINIX boot format with 512-byte sectors and
+ * supports both separate and combined instruction/data space programs.
  *
- *      1. The last 4 words of the boot block are set as follows:
- *	   Word at 504:	Number of sectors to load
- *	   Word at 506:	DS value for running fsck
- *	   Word at 508:	PC value for starting fsck
- *	   Word at 510:	CS value for running fsck
+ * Memory layout in the boot image:
+ * - Sector 0: Bootblock (512 bytes)
+ * - Sector 1+: Kernel, MM, FS, Init, FSCK (in that order)
  *
- *	2. Build writes a table into the first 8 words of the kernel's
- *	   data space.  It has 4 entries, the cs and ds values for each
- *	   program.  The kernel needs this information to run mm, fs, and
- *	   init.  Build also writes the kernel's DS value into address 4
- *	   of the kernel's TEXT segment, so the kernel can set itself up.
+ * Key features:
+ * - Strong typing for byte offsets to prevent parameter confusion
+ * - RAII-based file management with automatic buffering
+ * - Comprehensive error handling with descriptive messages
+ * - Support for both 32-byte and 48-byte executable headers
+ * - Automatic alignment and padding for memory layout requirements
+ * - Magic number validation for data integrity
  *
- *      3. The origin and size of the init program are patched into bytes 4-9
- *         of the file system data space. The file system needs this
- *         information, and expects to find it here.
+ * This program assembles the MINIX operating system components into a bootable
+ * disk image. It combines the bootloader, kernel, memory manager, file system,
+ * init, and fsck into a single boot image with proper sector alignment and
+ * patching for runtime execution.
  *
- * Build is called by:
+ * Modern C++17 implementation with proper error handling, type safety,
+ * and architectural design patterns.
  *
- *      build bootblok kernel mm fs init fsck image
- *
- * to get the resulting image onto the file "image".
+ * @namespace minix::builder
+ * @author MINIX build tools
+ * @version 1.0
  */
 
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <fstream>
+#include <iomanip>
+#include <iostream>
+#include <limits>
+#include <memory>
+#include <stdexcept>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <vector>
 
-#define PROGRAMS 5              /* kernel + mm + fs + init + fsck = 5 */
-#define PROG_ORG 1536           /* where does kernel begin in abs mem */
-#define DS_OFFSET 4L            /* position of DS written in kernel text seg */
-#define SECTOR_SIZE 512         /* size of buf */
-#define READ_UNIT 512           /* how big a chunk to read in */
-#define KERNEL_D_MAGIC 0x526F   /* identifies kernel data space */
-#define FS_D_MAGIC 0xDADA	/* identifies fs data space */
-#define CLICK_SHIFT 4
-#define KERN 0
-#define MM   1
-#define FS   2
-#define INIT 3
-#define FSCK 4
+namespace minix::builder {
 
-/* Information about the file header. */
-#define HEADER1 32              /* short form header size */
-#define HEADER2 48              /* long form header size */
-#define SEP_POS 1               /* tells where sep I & D bit is */
-#define HDR_LEN 2               /* tells where header length is */
-#define TEXT_POS 0              /* where is text size in header */
-#define DATA_POS 1              /* where is data size in header */
-#define BSS_POS 2               /* where is bss size in header */
-#define SEP_ID_BIT 0x20         /* bit that tells if file is separate I & D */
-
-#ifdef MSDOS
-# define BREAD 4                /* value 0 means ASCII read */
-#else
-# define BREAD 0
-#endif
-
-int image;                      /* file descriptor used for output file */
-int cur_sector;                 /* which 512-byte sector to be written next */
-int buf_bytes;                  /* # bytes in buf at present */
-char buf[SECTOR_SIZE];          /* buffer for output file */
-char zero[SECTOR_SIZE];         /* zeros, for writing bss segment */
-
-long cum_size;                  /* Size of kernel+mm+fs+init */
-long all_size;                  /* Size of all 5 programs */
-
-struct sizes {
-  unsigned text_size;           /* size in bytes */
-  unsigned data_size;           /* size in bytes */
-  unsigned bss_size;            /* size in bytes */
-  int sep_id;                   /* 1 if separate, 0 if not */
-} sizes[PROGRAMS];
-
-char *name[] = {"\nkernel", "mm    ", "fs    ", "init  ", "fsck  "};
-
-main(argc, argv)
-int argc;
-char *argv[];
-{
-/* Copy the boot block and the 5 programs to the output. */
-
-  int i;
-
-  if (argc != PROGRAMS+3) pexit("seven file names expected. ", "");
-
-  IOinit();			/* check for DMAoverrun (DOS) */
-  create_image(argv[7]);              /* create the output file */
-
-  /* Go get the boot block and copy it to the output file or diskette. */
-  copy1(argv[1]);
-
-  /* Copy the 5 programs to the output file or diskette. */
-  for (i = 0; i < PROGRAMS; i++) copy2(i, argv[i+2]);
-  flush();
-  printf("                                               -----     -----\n");
-#ifdef PCIX
-  printf("Operating system size  %29ld     %5lx\n", cum_size, cum_size);
-  printf("\nTotal size including fsck is %ld.\n", all_size);
-#else
-  printf("Operating system size  %29D     %5X\n", cum_size, cum_size);
-  printf("\nTotal size including fsck is %D.\n", all_size);
-#endif
-
-  /* Make the three patches to the output file or diskette. */
-  patch1(all_size);
-  patch2();
-  patch3();
-  exit(0);
-}
-
-
-
-copy1(file_name)
-char *file_name;
-{
-/* Copy the specified file to the output.  The file has no header.  All the
- * bytes are copied, until end-of-file is hit.
- */
-
-  int fd, bytes_read;
-  char inbuf[READ_UNIT];
-
-  if ( (fd = open(file_name, BREAD)) < 0) pexit("can't open ",file_name);
-
-  do {
-        bytes_read = read(fd, inbuf, READ_UNIT);
-        if (bytes_read < 0) pexit("read error on file ", file_name);
-        if (bytes_read > 0) wr_out(inbuf, bytes_read);
-  } while (bytes_read > 0);
-  flush();
-  close(fd);
-}
-
-
-copy2(num, file_name)
-int num;                        /* which program is this (0 - 4) */
-char *file_name;                /* file to open */
-{
-/* Open and read a file, copying it to output.  First read the header,
- * to get the text, data, and bss sizes.  Also see if it is separate I & D.
- * write the text, data, and bss to output.  The sum of these three pieces
- * must be padded upwards to a multiple of 16, if need be.  The individual
- * pieces need not be multiples of 16 bytes, except for the text size when
- * separate I & D is in use.  The total size must be less than 64K, even
- * when separate I & D space is used.
- */
-
-  int fd, sepid, bytes_read, count;
-  unsigned text_bytes, data_bytes, bss_bytes, tot_bytes, rest, filler;
-  unsigned left_to_read;
-  char inbuf[READ_UNIT];
-  
-  if ( (fd = open(file_name, BREAD)) < 0) pexit("can't open ", file_name);
-
-  /* Read the header to see how big the segments are. */
-  read_header(fd, &sepid, &text_bytes, &data_bytes, &bss_bytes, file_name);
-
-  /* Pad the total size to a 16-byte multiple, if needed. */
-  if (sepid && ((text_bytes % 16) != 0) ) {
-        pexit("separate I & D but text size not multiple of 16 bytes.  File: ", 
-                                                                file_name);
-  }
-  tot_bytes = text_bytes + data_bytes + bss_bytes;
-  rest = tot_bytes % 16;
-  filler = (rest > 0 ? 16 - rest : 0);
-  bss_bytes += filler;
-  tot_bytes += filler;
-  if (num < FSCK) cum_size += tot_bytes;
-  all_size += tot_bytes;
-
-  /* Record the size information in the table. */
-  sizes[num].text_size = text_bytes;
-  sizes[num].data_size = data_bytes;
-  sizes[num].bss_size  = bss_bytes;
-  sizes[num].sep_id    = sepid;
-
-  /* Print a message giving the program name and size, except for fsck. */
-  if (num < FSCK) { 
-        printf("%s  text=%5u  data=%5u  bss=%5u  tot=%5u  hex=%4x  %s\n",
-                name[num], text_bytes, data_bytes, bss_bytes, tot_bytes,
-                tot_bytes, (sizes[num].sep_id ? "Separate I & D" : ""));
-  }
-
-
-  /* Read in the text and data segments, and copy them to output. */
-  left_to_read = text_bytes + data_bytes;
-  while (left_to_read > 0) {
-        count = (left_to_read < READ_UNIT ? left_to_read : READ_UNIT);
-        bytes_read = read(fd, inbuf, count);
-        if (bytes_read < 0) pexit("read error on file ", file_name);
-        if (bytes_read > 0) wr_out(inbuf, bytes_read);
-        left_to_read -= count;
-  }
-
-  /* Write the bss to output. */
-  while (bss_bytes > 0) {
-        count = (bss_bytes < SECTOR_SIZE ? bss_bytes : SECTOR_SIZE);
-        wr_out(zero, count);
-        bss_bytes -= count;
-  }
-  close(fd);
-}
-
-
-read_header(fd, sepid, text_bytes, data_bytes, bss_bytes, file_name)
-int fd, *sepid;
-unsigned *text_bytes, *data_bytes, *bss_bytes;
-char *file_name;
-{
-/* Read the header and check the magic number.  The standard Monix header 
- * consists of 8 longs, as follows:
- *      0: 0x04100301L (combined I & D space) or 0x04200301L (separate I & D)
- *      1: 0x00000020L (stripped file) or 0x00000030L (unstripped file)
- *      2: size of text segments in bytes
- *      3: size of initialized data segment in bytes
- *      4: size of bss in bytes
- *      5: 0x00000000L
- *      6: total memory allocated to program (text, data and stack, combined)
- *      7: 0x00000000L
- * The longs are represented low-order byte first and high-order byte last.
- * The first byte of the header is always 0x01, followed by 0x03.
- * The header is followed directly by the text and data segments, whose sizes
- * are given in the header.
- */
-
-  long head[12];
-  unsigned short hd[4];
-  int n, header_len;
-
-  /* Read first 8 bytes of header to get header length. */
-  if ((n = read(fd, hd, 8)) != 8) pexit("file header too short: ", file_name);
-  header_len = hd[HDR_LEN];
-  if (header_len != HEADER1 && header_len != HEADER2) 
-        pexit("bad header length. File: ", file_name);
-
-  /* Extract separate I & D bit. */
-  *sepid = hd[SEP_POS] & SEP_ID_BIT;
-
-  /* Read the rest of the header and extract the sizes. */
-  if ((n = read(fd, head, header_len - 8)) != header_len - 8)
-        pexit("header too short: ", file_name);
-
-  *text_bytes = (unsigned) head[TEXT_POS];
-  *data_bytes = (unsigned) head[DATA_POS];
-  *bss_bytes  = (unsigned) head[BSS_POS];
-}
-
-
-wr_out(buffer, bytes)
-char buffer[READ_UNIT];
-int bytes;
-{
-/* Write some bytes to the output file.  This procedure must avoid writes
- * that are not entire 512-byte blocks, because when this program runs on
- * MS-DOS, the only way it can write the raw diskette is by using the system
- * calls for raw block I/O.
- */
-
-  int room, count, count1;
-  register char *p, *q;
-
-  /* Copy the data to the output buffer. */
-  room = SECTOR_SIZE - buf_bytes;
-  count = (bytes <= room ? bytes : room);
-  count1 = count;
-  p = &buf[buf_bytes];
-  q = buffer;
-  while (count--) *p++ = *q++;
-  
-  /* See if the buffer is full. */
-  buf_bytes += count1;
-  if (buf_bytes == SECTOR_SIZE) {
-        /* Write the whole block to the disk. */
-        write_block(cur_sector, buf);
-        clear_buf();
-  }
-
-  /* Is there any more data to copy. */
-  if (count1 == bytes) return;
-  bytes -= count1;
-  buf_bytes = bytes;
-  p = buf;
-  while (bytes--) *p++ = *q++;
-}
-
-
-flush()
-{
-  if (buf_bytes == 0) return;
-  write_block(cur_sector, buf);
-  clear_buf();
-}
-
-
-clear_buf()
-{
-  register char *p;
-
-  for (p = buf; p < &buf[SECTOR_SIZE]; p++) *p = 0;
-  buf_bytes = 0;
-  cur_sector++;
-}
-
-
-patch1(all_size)
-long all_size;
-{
-/* Patch the boot block with the number of sectors to load and the 64‑bit
- * kernel entry address.  The last four words of the sector contain these
- * values in little endian order.  Older fields for fsck are no longer used.
- */
-
-  unsigned short ubuf[SECTOR_SIZE/2];
-  unsigned short sectrs;
-  unsigned long entry = 0x00100000L; /* 64-bit kernel entry */
-
-  /* calc number of sectors (starting at 0) */
-  sectrs = (unsigned) (all_size / 512L);
-
-  read_block(0, ubuf);          /* read in boot block */
-  ubuf[(SECTOR_SIZE/2) - 4] = sectrs + 1;             /* sector count */
-  ubuf[(SECTOR_SIZE/2) - 3] = entry & 0xFFFF;         /* entry low */
-  ubuf[(SECTOR_SIZE/2) - 2] = (entry >> 16) & 0xFFFF; /* entry high */
-  ubuf[(SECTOR_SIZE/2) - 1] = 0;                      /* reserved */
-  write_block(0, ubuf);
-}
-
-patch2()
-{
-/* This program now has information about the sizes of the kernel, mm, fs, and
- * init.  This information is patched into the kernel as follows. The first 8
- * words of the kernel data space are reserved for a table filled in by build.
- * The first 2 words are for kernel, then 2 words for mm, then 2 for fs, and
- * finally 2 for init.  The first word of each set is the text size in clicks;
- * the second is the data+bss size in clicks.  If separate I & D is NOT in
- * use, the text size is 0, i.e., the whole thing is data.
+/**
+ * @brief Strong type for byte offsets to prevent parameter confusion
  *
- * In addition, the DS value the kernel is to use is computed here, and loaded
- * at location 4 in the kernel's text space.  It must go in text space because
- * when the kernel starts up, only CS is correct.  It does not know DS, so it
- * can't load DS from data space, but it can load DS from text space.
+ * This wrapper class provides type safety for byte offset values, preventing
+ * accidental mixing of different numeric types in function parameters.
+ * Uses explicit construction to avoid implicit conversions.
  */
+struct ByteOffset {
+    std::size_t value;
 
-  int i, j;
-  unsigned short t, d, b, text_clicks, data_clicks, ds;
-  long data_offset;
+    /**
+     * @brief Explicit constructor from size_t value
+     * @param val The byte offset value
+     * @note Explicit to prevent implicit conversions
+     */
+    explicit ByteOffset(std::size_t val) : value(val) {}
 
-  /* See if the magic number is where it should be in the kernel. */
-  data_offset = 512L + (long)sizes[KERN].text_size;    /* start of kernel data */
-  i = (get_byte(data_offset+1L) << 8) + get_byte(data_offset);
-  if (i != KERNEL_D_MAGIC)  {
-	pexit("kernel data space: no magic #","");
-  }
-  
-  for (i = 0; i < PROGRAMS - 1; i++) {
-        t = sizes[i].text_size;
-        d = sizes[i].data_size;
-        b = sizes[i].bss_size;
-        if (sizes[i].sep_id) {
-                text_clicks = t >> CLICK_SHIFT;
-                data_clicks = (d + b) >> CLICK_SHIFT;
-        } else {
-                text_clicks = 0;
-                data_clicks = (t + d + b) >> CLICK_SHIFT;
-        }
-        put_byte(data_offset + 4*i + 0L, (text_clicks>>0) & 0377);
-        put_byte(data_offset + 4*i + 1L, (text_clicks>>8) & 0377);
-        put_byte(data_offset + 4*i + 2L, (data_clicks>>0) & 0377);
-        put_byte(data_offset + 4*i + 3L, (data_clicks>>8) & 0377);
-  }
-
-  /* Now write the DS value into word 4 of the kernel text space. */
-  if (sizes[KERN].sep_id == 0)
-        ds = PROG_ORG >> CLICK_SHIFT;   /* combined I & D space */
-  else
-        ds = (PROG_ORG + sizes[KERN].text_size) >> CLICK_SHIFT; /* separate */
-  put_byte(512L + DS_OFFSET, ds & 0377);
-  put_byte(512L + DS_OFFSET + 1L, (ds>>8) & 0377);
-}
-
-
-patch3()
-{
-/* Write the origin and text and data sizes of the init program in FS's data
- * space.  The file system expects to find these 3 words there.
- */
-
-  unsigned short init_text_size, init_data_size, init_buf[SECTOR_SIZE/2], i;
-  unsigned short w0, w1, w2;
-  int b0, b1, b2, b3, b4, b5, mag;
-  long init_org, fs_org, fbase, mm_data;
-
-  init_org  = PROG_ORG;
-  init_org += sizes[KERN].text_size+sizes[KERN].data_size+sizes[KERN].bss_size;
-  mm_data = init_org - PROG_ORG +512L;	/* offset of mm in file */
-  mm_data += (long) sizes[MM].text_size;
-  init_org += sizes[MM].text_size + sizes[MM].data_size + sizes[MM].bss_size;
-  fs_org = init_org - PROG_ORG + 512L;   /* offset of fs-text into file */
-  fs_org +=  (long) sizes[FS].text_size;
-  init_org += sizes[FS].text_size + sizes[FS].data_size + sizes[FS].bss_size;
-  init_text_size = sizes[INIT].text_size;
-  init_data_size = sizes[INIT].data_size + sizes[INIT].bss_size;
-  init_org  = init_org >> CLICK_SHIFT;  /* convert to clicks */
-  if (sizes[INIT].sep_id == 0) {
-        init_data_size += init_text_size;
-        init_text_size = 0;
-  }
-  init_text_size = init_text_size >> CLICK_SHIFT;
-  init_data_size = init_data_size >> CLICK_SHIFT;
-
-  w0 = (unsigned short) init_org;
-  w1 = init_text_size;
-  w2 = init_data_size;
-  b0 =  w0 & 0377;
-  b1 = (w0 >> 8) & 0377;
-  b2 = w1 & 0377;
-  b3 = (w1 >> 8) & 0377;
-  b4 = w2 & 0377;
-  b5 = (w2 >> 8) & 0377;
-
-  /* Check for appropriate magic numbers. */
-  fbase = fs_org;
-  mag = (get_byte(mm_data+1L) << 8) + get_byte(mm_data+0L);
-  if (mag != FS_D_MAGIC) pexit("mm data space: no magic #","");
-  mag = (get_byte(fbase+1L) << 8) + get_byte(fbase+0L);
-  if (mag != FS_D_MAGIC) pexit("fs data space: no magic #","");
-
-  put_byte(fbase+4L, b0);
-  put_byte(fbase+5L, b1);
-  put_byte(fbase+6L, b2);
-  put_byte(fbase+7L, b3);
-  put_byte(fbase+8L ,b4);
-  put_byte(fbase+9L, b5);
-}
-
-
-int get_byte(offset)
-long offset;
-{
-/* Fetch one byte from the output file. */
-
-  char buff[SECTOR_SIZE];
-
-  read_block( (unsigned) (offset / SECTOR_SIZE), buff);
-  return(buff[(unsigned) (offset % SECTOR_SIZE)] & 0377);
-}
-
-put_byte(offset, byte_value)
-long offset;
-int byte_value;
-{
-/* Write one byte into the output file. This is not very efficient, but
- * since it is only called to write a few words it is just simpler.
- */
-
-  char buff[SECTOR_SIZE];
-
-  read_block( (unsigned) (offset/SECTOR_SIZE), buff);
-  buff[(unsigned) (offset % SECTOR_SIZE)] = byte_value;
-  write_block( (unsigned)(offset/SECTOR_SIZE), buff);
-}
-
-
-pexit(s1, s2)
-char *s1, *s2;
-{
-  printf("Build: %s%s\n", s1, s2);
-  exit(1);
-}
-
-
-
-/*===========================================================================
- * The following code is only used in the UNIX version of this program.
- *===========================================================================*/
-#ifndef MSDOS
-create_image(f)
-char *f;
-{
-/* Create the output file. */
-  image = creat(f, 0666);
-  close(image);
-  image = open(f, 2);
-}
-
-read_block(blk, buff)
-int blk;
-char buff[SECTOR_SIZE];
-{
-  lseek(image, (long)SECTOR_SIZE * (long) blk, 0);
-  if (read(image, buff, SECTOR_SIZE) != SECTOR_SIZE) pexit("block read error", "");
-}
-
-write_block(blk, buff)
-int blk;
-char buff[SECTOR_SIZE];
-{
-  lseek(image, (long)SECTOR_SIZE * (long) blk, 0);
-  if (write(image, buff, SECTOR_SIZE) != SECTOR_SIZE) pexit("block write error", "");
-}
-
-IOinit() {}	/* dummy */
-
-#else /*MSDOS*/
-/*===========================================================================
- *   This is the raw diskette I/O for MSDOS. It uses diskio.asm or biosio.asm
- *==========================================================================*/
-
-#define MAX_RETRIES     5
-
-char *buff;
-char buff1[SECTOR_SIZE];
-char buff2[SECTOR_SIZE];
-int drive;
-
-IOinit()			/* check if no DMAoverrun & assign the buffer */
-{
-  if (DMAoverrun(buff1))
-     buff = buff2;
-  else
-     buff = buff1;
-}
-
-
-read_block (blocknr,user)
-int blocknr;
-char user[SECTOR_SIZE];
-{
-  /* read the requested MINIX-block in core */
-  int retries,err,i;
-  char *p;
-
-  retries = MAX_RETRIES;
-  do
-      err = absread (drive, blocknr, buff);
-  while (err && --retries);
-
-  if (!retries)
-    dexit ("reading",drive,blocknr,err);
-
-  p=buff; i=SECTOR_SIZE;
-  while (i--) *(user++) = *(p++);
-}
-
-
-
-write_block (blocknr,user)
-int blocknr;
-char user[SECTOR_SIZE];
-{
-  /* write the requested MINIX-block to disk */
-  int retries,err,i;
-  char *p;
-
-  p=buff; i=SECTOR_SIZE;
-  while (i--) *(p++) = *(user++);
-
-  retries = MAX_RETRIES;
-  do
-      err = abswrite (drive, blocknr, buff);
-  while (err && --retries);
-
-  if (!retries)
-    dexit ("writing",drive,blocknr,err);
-}
-
-
-
-dexit (s,drive,sectnum,err)
-int sectnum, err,drive;
-char *s;
-{ extern char *derrtab[];
-  printf ("Error %s drive %c, sector: %d, code: %d, %s\n",
-           s, drive+'A',sectnum, err, derrtab[err] );
-  exit (2);
-}
-
-
-create_image (s)
-char *s;
-{
-  char kbstr[10];
-  if (s[1] != ':') pexit ("wrong drive name (dos): ",s);
-  drive = (s[0] & ~32) - 'A';
-  if (drive<0 || drive>32) pexit ("no such drive: ",s);
-  printf("Put a blank, formatted diskette in drive %s\nHit return when ready",s);
-  gets (kbstr,10);
-  puts("");
-}
-
-char *derrtab[14] = {
-        "no error",
-        "disk is read-only",
-        "unknown unit",
-        "device not ready",
-        "bad command",
-        "data error",
-        "internal error: bad request structure length",
-        "seek error",
-        "unknown media type",
-        "sector not found",
-        "printer out of paper (??)",
-        "write fault",
-        "read error",
-        "general error"
+    /**
+     * @brief Implicit conversion operator to size_t
+     * @return The underlying byte offset value
+     * @note Marked noexcept as it cannot fail
+     */
+    operator std::size_t() const noexcept { return value; }
 };
 
+/**
+ * @brief Constants for the MINIX boot image format
+ *
+ * This struct contains all compile-time constants used throughout the boot
+ * image building process. All values are based on the MINIX operating system
+ * specification and memory layout requirements.
+ */
+struct BuildConstants {
+    static constexpr std::size_t SECTOR_SIZE = 512; ///< Standard disk sector size in bytes
+    static constexpr std::size_t PROGRAM_COUNT =
+        5; ///< Number of programs: kernel + mm + fs + init + fsck
+    static constexpr std::size_t PROGRAM_ORIGIN = 1536; ///< Base address where kernel loads (0x600)
+    static constexpr std::size_t CLICK_SHIFT = 4;       ///< Bit shift for 16-byte memory clicks
+    static constexpr std::size_t DS_OFFSET = 4;         ///< Offset for data segment value in kernel
 
-#endif /*MSDOS*/
+    // Magic numbers for validation
+    static constexpr std::uint16_t KERNEL_DATA_MAGIC =
+        0x526F; ///< Magic number in kernel data space
+    static constexpr std::uint16_t FS_DATA_MAGIC =
+        0xDADA; ///< Magic number in file system data space
+
+    // Header format constants
+    static constexpr std::size_t HEADER_SHORT = 32; ///< Short executable header size
+    static constexpr std::size_t HEADER_LONG = 48;  ///< Long executable header size
+    static constexpr std::size_t SEP_ID_BIT =
+        0x20; ///< Bit flag for separate instruction/data space
+
+    // 64-bit kernel entry point
+    static constexpr std::uint64_t KERNEL_ENTRY = 0x00100000ULL; ///< Kernel entry point address
+};
+
+/**
+ * @brief Program type enumeration
+ *
+ * Defines the different types of programs that make up the MINIX system.
+ * The order matters as it determines the loading sequence in the boot image.
+ */
+enum class ProgramType : std::size_t {
+    KERNEL = 0, ///< MINIX kernel - core OS functionality
+    MM = 1,     ///< Memory Manager - handles process memory allocation
+    FS = 2,     ///< File System - manages file operations
+    INIT = 3,   ///< Init process - first user process
+    FSCK = 4    ///< File System Checker - disk integrity tool
+};
+
+/**
+ * @brief Program segment information
+ *
+ * Contains all the metadata about a program's memory layout including
+ * text (code), data, and BSS (uninitialized data) segments. Also tracks
+ * whether the program uses separate instruction and data spaces.
+ */
+struct ProgramInfo {
+    std::uint32_t text_size{0}; ///< Size of text (code) segment in bytes
+    std::uint32_t data_size{0}; ///< Size of initialized data segment in bytes
+    std::uint32_t bss_size{0};  ///< Size of uninitialized data (BSS) segment in bytes
+    bool separate_id{false};    ///< True if program uses separate instruction/data spaces
+    std::string name;           ///< Human-readable program name for debugging
+
+    /**
+     * @brief Calculate total program size in memory
+     * @return Sum of text, data, and BSS segments in bytes
+     * @note Marked noexcept as arithmetic cannot fail
+     */
+    [[nodiscard]] std::uint32_t total_size() const noexcept {
+        return text_size + data_size + bss_size;
+    }
+
+    /**
+     * @brief Calculate program size aligned to 16-byte boundaries
+     * @return Total size rounded up to next 16-byte boundary
+     * @note MINIX requires 16-byte alignment for memory management
+     * @note Marked noexcept as arithmetic cannot fail
+     */
+    [[nodiscard]] std::uint32_t aligned_size() const noexcept {
+        const auto total = total_size();
+        const auto remainder = total % 16;
+        return total + (remainder ? 16 - remainder : 0);
+    }
+
+    /**
+     * @brief Calculate text segment size in 16-byte clicks
+     * @return Number of 16-byte clicks for text segment
+     * @note Only relevant for separate I&D programs, returns 0 otherwise
+     * @note Marked noexcept as arithmetic cannot fail
+     */
+    [[nodiscard]] std::uint32_t text_clicks() const noexcept {
+        return separate_id ? (text_size >> BuildConstants::CLICK_SHIFT) : 0;
+    }
+
+    /**
+     * @brief Calculate data segment size in 16-byte clicks
+     * @return Number of 16-byte clicks for data segment
+     * @note For separate I&D: data+BSS size, for combined: total size
+     * @note Marked noexcept as arithmetic cannot fail
+     */
+    [[nodiscard]] std::uint32_t data_clicks() const noexcept {
+        const auto size = separate_id ? (data_size + bss_size) : total_size();
+        return size >> BuildConstants::CLICK_SHIFT;
+    }
+};
+
+/**
+ * @brief Boot image sector buffer with automatic alignment
+ *
+ * Manages a single 512-byte sector buffer with automatic padding and
+ * alignment. Provides safe access methods and tracks usage to prevent
+ * buffer overflows. Used for building the boot image sector by sector.
+ */
+class SectorBuffer {
+  private:
+    std::array<std::uint8_t, BuildConstants::SECTOR_SIZE> buffer_{}; ///< Fixed-size sector buffer
+    std::size_t used_bytes_{0}; ///< Number of bytes currently used in buffer
+
+  public:
+    /**
+     * @brief Default constructor initializes empty buffer
+     * @note Buffer is zero-initialized by default
+     */
+    SectorBuffer() = default;
+
+    /**
+     * @brief Reset buffer to empty state with zero fill
+     * @note Marked noexcept as fill() and assignment cannot fail
+     */
+    void clear() noexcept {
+        buffer_.fill(0);
+        used_bytes_ = 0;
+    }
+
+    /**
+     * @brief Check if buffer is completely full
+     * @return True if buffer contains exactly 512 bytes
+     * @note Marked noexcept as comparison cannot fail
+     */
+    [[nodiscard]] bool is_full() const noexcept {
+        return used_bytes_ >= BuildConstants::SECTOR_SIZE;
+    }
+
+    /**
+     * @brief Check if buffer is completely empty
+     * @return True if buffer contains no data
+     * @note Marked noexcept as comparison cannot fail
+     */
+    [[nodiscard]] bool is_empty() const noexcept { return used_bytes_ == 0; }
+
+    /**
+     * @brief Get number of bytes available for writing
+     * @return Number of free bytes remaining in buffer
+     * @note Marked noexcept as arithmetic cannot fail
+     */
+    [[nodiscard]] std::size_t available() const noexcept {
+        return BuildConstants::SECTOR_SIZE - used_bytes_;
+    }
+
+    /**
+     * @brief Get number of bytes currently used
+     * @return Number of bytes written to buffer
+     * @note Marked noexcept as member access cannot fail
+     */
+    [[nodiscard]] std::size_t size() const noexcept { return used_bytes_; }
+
+    /**
+     * @brief Get read-only pointer to buffer data
+     * @return Const pointer to buffer start
+     * @note Marked noexcept as data() cannot fail
+     */
+    [[nodiscard]] const std::uint8_t *data() const noexcept { return buffer_.data(); }
+
+    /**
+     * @brief Get writable pointer to buffer data
+     * @return Mutable pointer to buffer start
+     * @note Marked noexcept as data() cannot fail
+     */
+    [[nodiscard]] std::uint8_t *data() noexcept { return buffer_.data(); }
+
+    /**
+     * @brief Write data to buffer with overflow protection
+     * @param data Pointer to source data
+     * @param bytes Number of bytes to write
+     * @return Number of bytes actually written (may be less than requested)
+     * @note Automatically limits write size to available space
+     * @note Uses std::copy for safe memory copying
+     */
+    std::size_t write(const std::uint8_t *data, std::size_t bytes) {
+        const auto to_write = std::min(bytes, available());
+        std::copy(data, data + to_write, buffer_.data() + used_bytes_);
+        used_bytes_ += to_write;
+        return to_write;
+    }
+
+    /**
+     * @brief Set a single byte at specific offset
+     * @param offset Byte position within sector (0-511)
+     * @param value Byte value to set
+     * @note Bounds checking prevents buffer overflow
+     * @note Does not update used_bytes_ counter
+     */
+    void set_byte(std::size_t offset, std::uint8_t value) {
+        if (offset < BuildConstants::SECTOR_SIZE) {
+            buffer_[offset] = value;
+        }
+    }
+
+    /**
+     * @brief Get a single byte at specific offset
+     * @param offset Byte position within sector (0-511)
+     * @return Byte value at offset, or 0 if offset is out of bounds
+     * @note Bounds checking prevents buffer overflow
+     */
+    [[nodiscard]] std::uint8_t get_byte(std::size_t offset) const {
+        return offset < BuildConstants::SECTOR_SIZE ? buffer_[offset] : 0;
+    }
+};
+
+/**
+ * @brief Boot image file manager with proper RAII
+ *
+ * Manages the output boot image file with sector-based I/O and automatic
+ * buffering. Provides high-level operations for reading/writing sectors
+ * and individual bytes with proper error handling and resource management.
+ */
+class ImageFile {
+  private:
+    std::fstream file_;             ///< File stream for read/write access
+    std::size_t current_sector_{0}; ///< Current sector position for sequential writing
+    SectorBuffer buffer_;           ///< Internal sector buffer for sequential writes
+
+    /**
+     * @ @brief Flush internal buffer to current sector
+     * @throws std::system_error if write operation fails
+     * @note Automatically advances to next sector after flush
+     * @note Only flushes if buffer contains data
+     */
+    void flush_buffer() {
+        if (!buffer_.is_empty()) {
+            write_sector(current_sector_, buffer_);
+            buffer_.clear();
+            ++current_sector_;
+        }
+    }
+
+  public:
+    /**
+     * @brief Construct image file manager and create output file
+     * @param path Filesystem path for the output image
+     * @throws std::system_error if file cannot be created or opened
+     * @note Opens file in binary read/write mode with truncation
+     * @note File is created if it doesn't exist
+     */
+    explicit ImageFile(const std::string &path) {
+        // Create and open file for read/write
+        file_.open(path, std::ios::binary | std::ios::in | std::ios::out | std::ios::trunc);
+        if (!file_.is_open()) {
+            throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
+                                    "Failed to create image file: " + path);
+        }
+    }
+
+    /**
+     * @brief Destructor ensures buffer is flushed before destruction
+     * @note Uses RAII pattern for automatic resource cleanup
+     * @note Catches and logs exceptions to prevent destructor from throwing
+     */
+    ~ImageFile() {
+        try {
+            flush_buffer();
+        } catch (const std::exception &) {
+            // Log error but don't throw in destructor
+            std::cerr << "Warning: Failed to flush buffer in destructor\n";
+        }
+    }
+
+    /**
+     * @brief Write arbitrary data with automatic sector management
+     * @param data Pointer to source data
+     * @param size Number of bytes to write
+     * @throws std::system_error if write operation fails
+     * @note Automatically handles sector boundaries and buffering
+     * @note Large writes are split across multiple sectors as needed
+     */
+    void write_data(const std::uint8_t *data, std::size_t size) {
+        std::size_t remaining = size;
+        const std::uint8_t *ptr = data;
+
+        while (remaining > 0) {
+            const auto written = buffer_.write(ptr, remaining);
+            ptr += written;
+            remaining -= written;
+
+            if (buffer_.is_full()) {
+                flush_buffer();
+            }
+        }
+    }
+
+    /**
+     * @brief Write complete sector to specific position
+     * @param sector Zero-based sector number
+     * @param data Sector buffer containing exactly 512 bytes
+     * @throws std::system_error if seek or write operation fails
+     * @note Performs random access to any sector position
+     * @note Always writes exactly 512 bytes regardless of buffer content
+     */
+    void write_sector(std::size_t sector, const SectorBuffer &data) {
+        if (sector > static_cast<std::size_t>(std::numeric_limits<std::streamoff>::max() /
+                                              BuildConstants::SECTOR_SIZE)) {
+            throw std::system_error(std::make_error_code(std::errc::value_too_large),
+                                    "Sector number too large");
+        }
+        const auto pos = static_cast<std::streamoff>(sector) *
+                         static_cast<std::streamoff>(BuildConstants::SECTOR_SIZE);
+        file_.seekp(pos);
+        file_.write(reinterpret_cast<const char *>(data.data()),
+                    static_cast<std::streamsize>(BuildConstants::SECTOR_SIZE));
+        if (!file_.good()) {
+            throw std::system_error(std::make_error_code(std::errc::io_error),
+                                    "Failed to write sector " + std::to_string(sector));
+        }
+    }
+
+    /**
+     * @brief Read complete sector from specific position
+     * @param sector Zero-based sector number
+     * @param data Sector buffer to receive 512 bytes
+     * @throws std::system_error if seek or read operation fails
+     * @note Performs random access to any sector position
+     * @note Always reads exactly 512 bytes into the buffer
+     */
+    void read_sector(std::size_t sector, SectorBuffer &data) {
+        if (sector > static_cast<std::size_t>(std::numeric_limits<std::streamoff>::max() /
+                                              BuildConstants::SECTOR_SIZE)) {
+            throw std::system_error(std::make_error_code(std::errc::value_too_large),
+                                    "Sector number too large");
+        }
+        const auto pos = static_cast<std::streamoff>(sector) *
+                         static_cast<std::streamoff>(BuildConstants::SECTOR_SIZE);
+        file_.seekg(pos);
+        file_.read(reinterpret_cast<char *>(data.data()),
+                   static_cast<std::streamsize>(BuildConstants::SECTOR_SIZE));
+        if (!file_.good()) {
+            throw std::system_error(std::make_error_code(std::errc::io_error),
+                                    "Failed to read sector " + std::to_string(sector));
+        }
+    }
+
+    /**
+     * @brief Modify single byte at absolute file offset
+     * @param offset Byte offset from start of file
+     * @param value New byte value
+     * @throws std::system_error if read/write operations fail
+     * @note Implements read-modify-write cycle for single byte
+     * @note Automatically calculates sector and byte offset
+     */
+    void put_byte(ByteOffset offset, std::uint8_t value) {
+        const auto sector = offset.value / BuildConstants::SECTOR_SIZE;
+        const auto byte_offset = offset.value % BuildConstants::SECTOR_SIZE;
+
+        SectorBuffer temp;
+        read_sector(sector, temp);
+        temp.set_byte(byte_offset, value);
+        write_sector(sector, temp);
+    }
+
+    /**
+     * @brief Read single byte from absolute file offset
+     * @param offset Byte offset from start of file
+     * @return Byte value at specified offset
+     * @throws std::system_error if read operation fails
+     * @note Automatically calculates sector and byte offset
+     */
+    [[nodiscard]] std::uint8_t get_byte(ByteOffset offset) {
+        const auto sector = offset.value / BuildConstants::SECTOR_SIZE;
+        const auto byte_offset = offset.value % BuildConstants::SECTOR_SIZE;
+
+        SectorBuffer temp;
+        read_sector(sector, temp);
+        return temp.get_byte(byte_offset);
+    }
+
+    /**
+     * @brief Force all buffered data to be written to disk
+     * @throws std::system_error if flush operations fail
+     * @note Ensures data persistence before program exit
+     * @note Flushes both internal buffer and file stream
+     */
+    void flush() {
+        flush_buffer();
+        file_.flush();
+    }
+
+    /**
+     * @brief Get current write position in bytes
+     * @return Current file offset for next write operation
+     * @note Combines sector position with buffer usage
+     * @note Marked noexcept as arithmetic cannot fail
+     */
+    [[nodiscard]] std::size_t current_position() const noexcept {
+        return current_sector_ * BuildConstants::SECTOR_SIZE + buffer_.size();
+    }
+};
+
+/**
+ * @brief MINIX executable header parser
+ *
+ * Parses MINIX executable file headers to extract program segment information.
+ * Supports both 32-byte and 48-byte header formats and validates header
+ * integrity during parsing.
+ */
+class ExecutableHeader {
+  private:
+    std::array<std::uint32_t, 12> header_data_{}; ///< Raw header data storage
+
+  public:
+    /**
+     * @brief Parse executable header from file stream
+     * @param file Input file stream positioned at header start
+     * @throws std::runtime_error if header is invalid or read fails
+     * @note Automatically detects header length (32 or 48 bytes)
+     * @note File stream must be opened in binary mode
+     */
+    explicit ExecutableHeader(std::ifstream &file) {
+        // Read first 8 bytes to get header length
+        std::array<std::uint16_t, 4> initial_data{};
+        file.read(reinterpret_cast<char *>(initial_data.data()), 8);
+        if (!file.good()) {
+            throw std::runtime_error("Failed to read executable header");
+        }
+
+        const auto header_len = initial_data[2]; // HDR_LEN position
+        if (header_len != BuildConstants::HEADER_SHORT &&
+            header_len != BuildConstants::HEADER_LONG) {
+            throw std::runtime_error("Invalid header length: " + std::to_string(header_len));
+        }
+
+        // Read rest of header
+        const auto remaining = header_len - 8;
+        file.read(reinterpret_cast<char *>(header_data_.data()), remaining);
+        if (!file.good()) {
+            throw std::runtime_error("Failed to read complete header");
+        }
+
+        // Store the initial data
+        std::copy(initial_data.begin(), initial_data.end(),
+                  reinterpret_cast<std::uint16_t *>(header_data_.data()));
+    }
+
+    /**
+     * @brief Check if program uses separate instruction and data spaces
+     * @return True if program has separate I&D space
+     * @note Separate I&D allows larger programs by using distinct address spaces
+     * @note Marked noexcept as bit operations cannot fail
+     */
+    [[nodiscard]] bool is_separate_id() const noexcept {
+        const auto *hd = reinterpret_cast<const std::uint16_t *>(header_data_.data());
+        return (hd[1] & BuildConstants::SEP_ID_BIT) != 0;
+    }
+
+    /**
+     * @brief Get text (code) segment size
+     * @return Size of text segment in bytes
+     * @note Text segment contains executable machine code
+     * @note Marked noexcept as array access cannot fail
+     */
+    [[nodiscard]] std::uint32_t text_size() const noexcept {
+        return header_data_[2]; // TEXT_POS
+    }
+
+    /**
+     * @brief Get initialized data segment size
+     * @return Size of data segment in bytes
+     * @note Data segment contains initialized global variables
+     * @note Marked noexcept as array access cannot fail
+     */
+    [[nodiscard]] std::uint32_t data_size() const noexcept {
+        return header_data_[3]; // DATA_POS
+    }
+
+    /**
+     * @brief Get uninitialized data (BSS) segment size
+     * @return Size of BSS segment in bytes
+     * @note BSS segment contains uninitialized global variables
+     * @note Marked noexcept as array access cannot fail
+     */
+    [[nodiscard]] std::uint32_t bss_size() const noexcept {
+        return header_data_[4]; // BSS_POS
+    }
+};
+
+/**
+ * @brief Main boot image builder class
+ *
+ * Orchestrates the entire boot image building process. Manages program
+ * information, handles file I/O, and applies all necessary patches to
+ * create a bootable MINIX image.
+ */
+class BootImageBuilder {
+  private:
+    std::array<ProgramInfo, BuildConstants::PROGRAM_COUNT>
+        programs_;                     ///< Information for all 5 programs
+    std::unique_ptr<ImageFile> image_; ///< Output image file manager
+    std::uint64_t os_size_{0};         ///< Size of OS without fsck
+    std::uint64_t total_size_{0};      ///< Total size including fsck
+
+    /// Program names for display and debugging
+    static constexpr std::array<const char *, 5> program_names_ = {"kernel", "mm", "fs", "init",
+                                                                   "fsck"};
+
+    /**
+     * @brief Copy bootblock (boot sector) to image
+     * @param bootblock_path Path to bootblock binary file
+     * @throws std::system_error if file cannot be opened
+     * @throws std::runtime_error if file is empty
+     * @note Bootblock must be exactly 512 bytes or less
+     * @note Bootblock contains the initial boot code loaded by BIOS
+     */
+    void copy_bootblock(const std::string &bootblock_path) {
+        std::ifstream file(bootblock_path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
+                                    "Cannot open bootblock: " + bootblock_path);
+        }
+
+        std::array<std::uint8_t, BuildConstants::SECTOR_SIZE> buffer{};
+        file.read(reinterpret_cast<char *>(buffer.data()), BuildConstants::SECTOR_SIZE);
+        const auto bytes_read = file.gcount();
+
+        if (bytes_read <= 0) {
+            throw std::runtime_error("Empty bootblock file");
+        }
+
+        image_->write_data(buffer.data(), bytes_read);
+    }
+
+    /**
+     * @brief Copy program executable to image with header parsing
+     * @param type Program type (KERNEL, MM, FS, INIT, or FSCK)
+     * @param program_path Path to executable file
+     * @throws std::system_error if file cannot be opened
+     * @throws std::runtime_error if header is invalid or read fails
+     * @note Parses executable header and extracts segment information
+     * @note Applies 16-byte alignment padding as required
+     * @note Updates global size counters for later use
+     */
+    void copy_program(ProgramType type, const std::string &program_path) {
+        const auto index = static_cast<std::size_t>(type);
+        auto &prog = programs_[index];
+        prog.name = program_names_[index];
+
+        std::ifstream file(program_path, std::ios::binary);
+        if (!file.is_open()) {
+            throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
+                                    "Cannot open program: " + program_path);
+        }
+
+        ExecutableHeader header(file);
+        prog.text_size = header.text_size();
+        prog.data_size = header.data_size();
+        prog.bss_size = header.bss_size();
+        prog.separate_id = header.is_separate_id();
+
+        // Validate separate I&D alignment
+        if (prog.separate_id && (prog.text_size % 16) != 0) {
+            throw std::runtime_error("Separate I&D requires 16-byte aligned text size in " +
+                                     program_path);
+        }
+
+        const auto total = prog.total_size();
+        const auto remainder = total % 16;
+        const auto filler = remainder ? 16 - remainder : 0;
+        prog.bss_size += filler;
+
+        const auto final_size = prog.aligned_size();
+        if (type != ProgramType::FSCK) {
+            os_size_ += final_size;
+        }
+        total_size_ += final_size;
+
+        // Print program info
+        if (type != ProgramType::FSCK) {
+            std::cout << std::setw(8) << prog.name << "  text=" << std::setw(5) << prog.text_size
+                      << "  data=" << std::setw(5) << prog.data_size << "  bss=" << std::setw(5)
+                      << prog.bss_size << "  tot=" << std::setw(5) << final_size
+                      << "  hex=" << std::setw(4) << std::hex << final_size << std::dec
+                      << (prog.separate_id ? "  Separate I & D" : "") << '\n';
+        }
+
+        // Copy text and data
+        const auto code_size = prog.text_size + prog.data_size;
+        std::vector<std::uint8_t> code_buffer(code_size);
+        file.read(reinterpret_cast<char *>(code_buffer.data()), code_size);
+        if (file.gcount() != static_cast<std::streamsize>(code_size)) {
+            throw std::runtime_error("Failed to read program code from " + program_path);
+        }
+
+        image_->write_data(code_buffer.data(), code_size);
+
+        // Write BSS (zeros)
+        std::vector<std::uint8_t> bss_buffer(prog.bss_size, 0);
+        image_->write_data(bss_buffer.data(), prog.bss_size);
+    }
+
+    /**
+     * @brief Patch bootblock with total size and kernel entry point
+     * @throws std::system_error if read/write operations fail
+     * @note Updates the last 8 bytes of bootblock with:
+     *       - Total sectors in image (16-bit)
+     *       - Kernel entry point address (32-bit)
+     *       - Reserved field (16-bit)
+     * @note All values stored in little-endian format
+     * @note Bootloader reads these values to load the complete image
+     */
+    void patch_bootblock() {
+        const auto sectors =
+            (total_size_ + BuildConstants::SECTOR_SIZE - 1) / BuildConstants::SECTOR_SIZE;
+
+        SectorBuffer boot_sector;
+        image_->read_sector(0, boot_sector);
+
+        // Patch sector count and kernel entry (little-endian)
+        const auto entry = BuildConstants::KERNEL_ENTRY;
+        const auto base_offset = BuildConstants::SECTOR_SIZE - 8;
+
+        auto *data = reinterpret_cast<std::uint16_t *>(boot_sector.data());
+        data[(base_offset / 2) + 0] = static_cast<std::uint16_t>(sectors + 1);
+        data[(base_offset / 2) + 1] = static_cast<std::uint16_t>(entry & 0xFFFF);
+        data[(base_offset / 2) + 2] = static_cast<std::uint16_t>((entry >> 16) & 0xFFFF);
+        data[(base_offset / 2) + 3] = 0; // Reserved
+
+        image_->write_sector(0, boot_sector);
+    }
+
+    /**
+     * @brief Patch kernel data space with process table information
+     * @throws std::runtime_error if kernel magic number not found
+     * @throws std::system_error if read/write operations fail
+     * @note Updates kernel's process table with memory layout for each program
+     * @note Writes text and data click counts for memory manager
+     * @note Updates kernel's data segment (DS) register value
+     * @note Validates kernel data space using magic number
+     */
+    void patch_kernel_table() {
+        // Find kernel data space
+        const auto data_offset = BuildConstants::SECTOR_SIZE + programs_[0].text_size;
+
+        // Verify magic number
+        const auto magic =
+            (static_cast<std::uint16_t>(image_->get_byte(ByteOffset(data_offset + 1))) << 8) |
+            image_->get_byte(ByteOffset(data_offset));
+        if (magic != BuildConstants::KERNEL_DATA_MAGIC) {
+            throw std::runtime_error("Kernel data magic number not found");
+        }
+
+        // Write program table
+        for (std::size_t i = 0; i < BuildConstants::PROGRAM_COUNT - 1; ++i) {
+            const auto &prog = programs_[i];
+            const auto text_clicks = prog.text_clicks();
+            const auto data_clicks = prog.data_clicks();
+
+            const auto offset = data_offset + 4 * i;
+            image_->put_byte(ByteOffset(offset + 0), text_clicks & 0xFF);
+            image_->put_byte(ByteOffset(offset + 1), (text_clicks >> 8) & 0xFF);
+            image_->put_byte(ByteOffset(offset + 2), data_clicks & 0xFF);
+            image_->put_byte(ByteOffset(offset + 3), (data_clicks >> 8) & 0xFF);
+        }
+
+        // Write kernel DS value
+        const auto kernel_ds = programs_[0].separate_id
+                                   ? (BuildConstants::PROGRAM_ORIGIN + programs_[0].text_size) >>
+                                         BuildConstants::CLICK_SHIFT
+                                   : BuildConstants::PROGRAM_ORIGIN >> BuildConstants::CLICK_SHIFT;
+
+        const auto ds_offset = BuildConstants::SECTOR_SIZE + BuildConstants::DS_OFFSET;
+        image_->put_byte(ByteOffset(ds_offset), kernel_ds & 0xFF);
+        image_->put_byte(ByteOffset(ds_offset + 1), (kernel_ds >> 8) & 0xFF);
+    }
+
+    /**
+     * @brief Patch file system data space with init process information
+     * @throws std::runtime_error if file system magic number not found
+     * @throws std::system_error if read/write operations fail
+     * @note Updates file system's data space with init process location
+     * @note Provides memory layout information for launching init
+     * @note Validates file system data space using magic number
+     * @note Init is the first user process started by the file system
+     */
+    void patch_fs_init_info() {
+        // Calculate file system data offset
+        auto fs_offset = BuildConstants::SECTOR_SIZE;
+        fs_offset += programs_[0].aligned_size(); // kernel
+        fs_offset += programs_[1].text_size;      // mm text
+
+        // Verify FS magic
+        const auto magic =
+            (static_cast<std::uint16_t>(image_->get_byte(ByteOffset(fs_offset + 1))) << 8) |
+            image_->get_byte(ByteOffset(fs_offset));
+        if (magic != BuildConstants::FS_DATA_MAGIC) {
+            throw std::runtime_error("File system data magic number not found");
+        }
+
+        // Calculate init program location
+        auto init_org = BuildConstants::PROGRAM_ORIGIN;
+        init_org += programs_[0].aligned_size(); // kernel
+        init_org += programs_[1].aligned_size(); // mm
+        init_org += programs_[2].aligned_size(); // fs
+
+        const auto init_org_clicks = init_org >> BuildConstants::CLICK_SHIFT;
+        const auto init_text_clicks = programs_[3].text_clicks();
+        const auto init_data_clicks = programs_[3].data_clicks();
+
+        // Write init info to FS data space
+        image_->put_byte(ByteOffset(fs_offset + 4), init_org_clicks & 0xFF);
+        image_->put_byte(ByteOffset(fs_offset + 5), (init_org_clicks >> 8) & 0xFF);
+        image_->put_byte(ByteOffset(fs_offset + 6), init_text_clicks & 0xFF);
+        image_->put_byte(ByteOffset(fs_offset + 7), (init_text_clicks >> 8) & 0xFF);
+        image_->put_byte(ByteOffset(fs_offset + 8), init_data_clicks & 0xFF);
+        image_->put_byte(ByteOffset(fs_offset + 9), (init_data_clicks >> 8) & 0xFF);
+    }
+
+  public:
+    /**
+     * @brief Construct boot image builder with output file
+     * @param output_path Path where boot image will be created
+     * @throws std::system_error if output file cannot be created
+     * @note Creates and opens output file immediately
+     * @note Uses RAII for automatic resource management
+     */
+    explicit BootImageBuilder(const std::string &output_path) {
+        image_ = std::make_unique<ImageFile>(output_path);
+    }
+
+    /**
+     * @brief Build complete boot image from input files
+     * @param input_files Vector of paths: [bootblock, kernel, mm, fs, init, fsck]
+     * @throws std::invalid_argument if wrong number of input files provided
+     * @throws std::system_error for file I/O errors
+     * @throws std::runtime_error for data validation errors
+     * @note Coordinates entire build process:
+     *       1. Copy bootblock and all programs
+     *       2. Apply size and alignment calculations
+     *       3. Patch bootblock with metadata
+     *       4. Update kernel process table
+     *       5. Initialize file system data
+     */
+    void build(const std::vector<std::string> &input_files) {
+        if (input_files.size() != 6) {
+            throw std::invalid_argument("Expected 6 input files");
+        }
+
+        std::cout << "Building MINIX boot image...\n\n";
+
+        // Copy bootblock
+        copy_bootblock(input_files[0]);
+
+        // Copy programs
+        for (std::size_t i = 0; i < BuildConstants::PROGRAM_COUNT; ++i) {
+            copy_program(static_cast<ProgramType>(i), input_files[i + 1]);
+        }
+
+        image_->flush();
+
+        // Print summary
+        std::cout << "                                               -----     -----\n";
+        std::cout << "Operating system size  " << std::setw(29) << os_size_ << "     "
+                  << std::setw(5) << std::hex << os_size_ << std::dec << '\n';
+        std::cout << "\nTotal size including fsck is " << total_size_ << ".\n\n";
+
+        // Apply patches
+        std::cout << "Applying patches...\n";
+        patch_bootblock();
+        patch_kernel_table();
+        patch_fs_init_info();
+
+        std::cout << "Boot image successfully created.\n";
+    }
+
+    /**
+     * @brief Command line argument parser
+     *
+     * Parses and validates command line arguments for the boot image builder.
+     * Ensures all required files are provided and exist before building begins.
+     */
+    class ArgumentParser {
+    public:
+        /**
+         * @brief Parsed command line arguments structure
+         */
+        struct Arguments {
+            std::string output_file;              ///< Path for output boot image
+            std::vector<std::string> input_files; ///< Paths for input components
+        };
+
+        /**
+         * @brief Parse command line arguments with validation
+         * @param argc Number of command line arguments
+         * @param argv Array of command line argument strings
+         * @return Parsed and validated arguments structure
+         * @throws std::invalid_argument if wrong number of arguments
+         * @throws std::system_error if input files don't exist
+         * @note Expects exactly 8 arguments: program name + 6 inputs + 1 output
+         * @note Validates existence of all input files before proceeding
+         * @note Prints usage information on error
+         */
+        static Arguments parse(int argc, char *argv[]) {
+            if (argc != 8) {
+                print_usage(argv[0]);
+                throw std::invalid_argument("Invalid number of arguments");
+            }
+
+            Arguments args;
+            args.output_file = argv[7];
+
+            for (int i = 1; i < 7; ++i) {
+                args.input_files.emplace_back(argv[i]);
+
+                // Verify file exists
+                std::ifstream test_file(args.input_files.back());
+                if (!test_file.good()) {
+                    throw std::system_error(
+                        std::make_error_code(std::errc::no_such_file_or_directory),
+                        "Input file not found: " + args.input_files.back());
+                }
+            }
+
+            return args;
+        }
+
+      private:
+        /**
+         * @brief Print program usage information
+         * @param program_name Name of the program executable
+         * @note Displays expected argument format and descriptions
+         * @note Called automatically when argument parsing fails
+         */
+        static void print_usage(const char *program_name) {
+            std::cout << "Usage: " << program_name
+                      << " bootblock kernel mm fs init fsck output_image\n"
+                      << "\nBuilds a MINIX boot image from component files.\n"
+                      << "\nArguments:\n"
+                      << "  bootblock    Boot sector binary (512 bytes)\n"
+                      << "  kernel       MINIX kernel executable\n"
+                      << "  mm           Memory manager executable\n"
+                      << "  fs           File system executable\n"
+                      << "  init         Init process executable\n"
+                      << "  fsck         File system checker executable\n"
+                      << "  output_image Output boot image file\n";
+        }
+    };
+
+} // namespace minix::builder
+
+    /**
+     * @brief Application entry point
+     *
+     * Main function coordinates argument parsing and boot image building
+     * with comprehensive error handling and proper exit codes.
+     *
+     * @param argc Number of command line arguments
+     * @param argv Array of command line argument strings
+     * @return Exit code: 0 for success, 1 for errors, 2 for unknown errors
+     * @note Marked noexcept to prevent exceptions from escaping main
+     * @note Catches all exceptions and converts to appropriate exit codes
+     * @note Provides user-friendly error messages for all failure cases
+     */
+    int
+    main(int argc, char *argv[]) noexcept {
+    try {
+        const auto args = minix::builder::ArgumentParser::parse(argc, argv);
+
+        minix::builder::BootImageBuilder builder(args.output_file);
+        builder.build(args.input_files);
+
+        return 0;
+
+    } catch (const std::exception &e) {
+        std::cerr << "Error: " << e.what() << '\n';
+        return 1;
+    } catch (...) {
+        std::cerr << "Unknown error occurred\n";
+        return 2;
+    }
+}
