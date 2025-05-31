@@ -6,8 +6,8 @@
 
 /* cal - print a calendar		Author: Maritn Minow */
 
-#include "../include/stdio.h"
 #include <array>
+#include <cstdio>
 #include <string_view>
 
 #define do3months domonth
@@ -28,11 +28,16 @@ char *how = {"Usage: cal [month] year\n"};
  * calendar() stuffs data into layout[],
  * output() copies from layout[] to outline[], (then trims blanks).
  */
-char layout[MONTHS_PER_LINE][WEEKS_PER_MONTH][DAYS_PER_WEEK][ENTRY_SIZE];
-char outline[(MONTHS_PER_LINE * DAYS_PER_WEEK * ENTRY_SIZE) + (MONTHS_PER_LINE * MONTH_SPACE) + 1];
+std::array<std::array<std::array<std::array<char, ENTRY_SIZE>, DAYS_PER_WEEK>, WEEKS_PER_MONTH>,
+           MONTHS_PER_LINE>
+    layout{};
+std::array<char,
+           (MONTHS_PER_LINE * DAYS_PER_WEEK * ENTRY_SIZE) + (MONTHS_PER_LINE * MONTH_SPACE) + 1>
+    outline{};
 
 constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
-constexpr std::array<std::string_view, 13> monthname = {"???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+constexpr std::array<std::string_view, 13> monthname = {
+    "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
 int main(int argc, char *argv[]) {
     register int month;
@@ -126,7 +131,7 @@ static void output(int nmonths) /* Number of months to do */
     char tmpbuf[21], *p;
 
     for (week = 0; week < WEEKS_PER_MONTH; week++) {
-        outp = outline;
+        outp = outline.data();
         for (month = 0; month < nmonths; month++) {
             /*
              * The -1 in the following removes
@@ -140,10 +145,10 @@ static void output(int nmonths) /* Number of months to do */
             sprintf(outp, "%s   ", tmpbuf);
             outp += (DAYS_PER_WEEK * ENTRY_SIZE) + MONTH_SPACE - 1;
         }
-        while (outp > outline && outp[-1] == ' ')
+        while (outp > outline.data() && outp[-1] == ' ')
             outp--;
         *outp = EOS;
-        puts(outline);
+        puts(outline.data());
     }
 }
 

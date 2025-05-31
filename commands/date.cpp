@@ -7,13 +7,15 @@
 /* date - print or set the date		Author: Adri Koppes */
 
 #include "stdio.hpp"
+#include <array>
+#include <string_view>
 
 int qflag;
 
-int days_per_month[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-char *months[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-char *days[] = {"Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"};
+std::array<int, 12> days_per_month = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+std::array<std::string_view, 12> months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
+                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
+std::array<std::string_view, 7> days = {"Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"};
 
 struct {
     int year, month, day, hour, min, sec;

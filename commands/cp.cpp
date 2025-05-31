@@ -7,9 +7,10 @@
 /* cp - copy files	Author: Andy Tanenbaum */
 
 #include "stat.hpp"
+#include <array>
 
 #define TRANSFER_UNIT 16384
-char cpbuf[TRANSFER_UNIT];
+std::array<char, TRANSFER_UNIT> cpbuf{};
 int isfloppy; /* set to 1 for cp x /dev/fd? */
 
 int main(int argc, char *argv[]) {
@@ -59,7 +60,8 @@ int main(int argc, char *argv[]) {
 
 static void cp_to_dir(int argc, char *argv[]) {
     int i, fd1, fd2;
-    char dirname[256], *ptr, *dp;
+    std::array<char, 256> dirname{};
+    char *ptr, *dp;
     struct stat sbuf;
 
     for (i = 1; i < argc - 1; i++) {
@@ -70,7 +72,7 @@ static void cp_to_dir(int argc, char *argv[]) {
         }
 
         ptr = argv[argc - 1];
-        dp = dirname;
+        dp = dirname.data();
         while (*ptr != 0)
             *dp++ = *ptr++;
 
@@ -88,9 +90,9 @@ static void cp_to_dir(int argc, char *argv[]) {
             *dp++ = *ptr++;
         *dp++ = 0;
         fstat(fd1, &sbuf);
-        fd2 = creat(dirname, sbuf.st_mode & 0777);
+        fd2 = creat(dirname.data(), sbuf.st_mode & 0777);
         if (fd2 < 0) {
-            stderr3("Cannot create ", dirname, "\n");
+            stderr3("Cannot create ", dirname.data(), "\n");
             continue;
         }
         copyfile(fd1, fd2);

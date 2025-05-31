@@ -36,8 +36,8 @@ int main(int argc, char *argv[]) {
 }
 
 /* Convert octal string to int */
-static int oatoi(char *arg) {
-    register c, i;
+static int oatoi(const char *arg) {
+    register int c, i;
 
     i = 0;
     while ((c = *arg++) >= '0' && c <= '7')

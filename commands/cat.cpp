@@ -6,16 +6,16 @@
 
 /* cat - concatenates files  		Author: Andy Tanenbaum */
 
-extern int errno; /*DEBUG*/
+#include <cerrno>
 
 #include "blocksiz.hpp"
 #include "stat.hpp"
 #include <array>
 
 constexpr std::size_t BUF_SIZE = 512; /* size of the output buffer */
-int unbuffered;                        /* non-zero for unbuffered operation */
-std::array<char, BUF_SIZE> buffer{};   /* output buffer */
-char *next = buffer.data();            /* next free byte in buffer */
+int unbuffered;                       /* non-zero for unbuffered operation */
+std::array<char, BUF_SIZE> buffer{};  /* output buffer */
+char *next = buffer.data();           /* next free byte in buffer */
 
 /* Function prototypes */
 static void copyfile(int fd1, int fd2);
@@ -74,16 +74,16 @@ static void copyfile(int fd1, int fd2) {
      * immediately.
      */
     int n, j, m;
-    char buf[BLOCK_SIZE];
+    std::array<char, BLOCK_SIZE> buf{};
 
     while (1) {
-        n = read(fd1, buf, BLOCK_SIZE);
+        n = read(fd1, buf.data(), BLOCK_SIZE);
         if (n < 0)
             quit();
         if (n == 0)
             return;
         if (unbuffered) {
-            m = write(fd2, buf, n);
+            m = write(fd2, buf.data(), n);
             if (m != n)
                 quit();
         } else {
