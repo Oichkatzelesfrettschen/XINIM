@@ -6,6 +6,8 @@
 
 #define MAXDIGITS 12
 
+#include "../include/shared/number_to_ascii.hpp"
+
 static int bintoascii(long num, int radix, char a[MAXDIGITS]);
 
 void printk(char *s, int *arglist) {
@@ -95,52 +97,5 @@ void printk(char *s, int *arglist) {
 }
 
 static int bintoascii(long num, int radix, char a[MAXDIGITS]) {
-
-    int i, n, hit, negative;
-
-    negative = 0;
-    if (num == 0) {
-        a[0] = '0';
-        return (1);
-    }
-    if (num < 0 && radix == 10) {
-        num = -num;
-        negative++;
-    }
-    for (n = 0; n < MAXDIGITS; n++)
-        a[n] = 0;
-    n = 0;
-
-    do {
-        if (radix == 10) {
-            a[n] = num % 10;
-            num = (num - a[n]) / 10;
-        }
-        if (radix == 8) {
-            a[n] = num & 0x7;
-            num = (num >> 3) & 0x1FFFFFFF;
-        }
-        if (radix == 16) {
-            a[n] = num & 0xF;
-            num = (num >> 4) & 0x0FFFFFFF;
-        }
-        n++;
-    } while (num != 0);
-
-    /* Convert to ASCII. */
-    hit = 0;
-    for (i = n - 1; i >= 0; i--) {
-        if (a[i] == 0 && hit == 0) {
-            a[i] = ' ';
-        } else {
-            if (a[i] < 10)
-                a[i] += '0';
-            else
-                a[i] += 'A' - 10;
-            hit++;
-        }
-    }
-    if (negative)
-        a[n++] = '-';
-    return (n);
+    return number_to_ascii(num, radix, a);
 }
