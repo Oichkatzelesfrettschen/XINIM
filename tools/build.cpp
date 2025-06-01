@@ -312,7 +312,7 @@ class ImageFile {
     SectorBuffer buffer_;           ///< Internal sector buffer for sequential writes
 
     /**
-     * @ @brief Flush internal buffer to current sector
+     * @brief Flush internal buffer to current sector
      * @throws std::system_error if write operation fails
      * @note Automatically advances to next sector after flush
      * @note Only flushes if buffer contains data
@@ -866,7 +866,7 @@ class BootImageBuilder {
      * Ensures all required files are provided and exist before building begins.
      */
     class ArgumentParser {
-    public:
+      public:
         /**
          * @brief Parsed command line arguments structure
          */
@@ -932,23 +932,24 @@ class BootImageBuilder {
         }
     };
 
+}; // End of BootImageBuilder class
+
 } // namespace minix::builder
 
-    /**
-     * @brief Application entry point
-     *
-     * Main function coordinates argument parsing and boot image building
-     * with comprehensive error handling and proper exit codes.
-     *
-     * @param argc Number of command line arguments
-     * @param argv Array of command line argument strings
-     * @return Exit code: 0 for success, 1 for errors, 2 for unknown errors
-     * @note Marked noexcept to prevent exceptions from escaping main
-     * @note Catches all exceptions and converts to appropriate exit codes
-     * @note Provides user-friendly error messages for all failure cases
-     */
-    int
-    main(int argc, char *argv[]) noexcept {
+/**
+ * @brief Application entry point
+ *
+ * Main function coordinates argument parsing and boot image building
+ * with comprehensive error handling and proper exit codes.
+ *
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ * @return Exit code: 0 for success, 1 for errors, 2 for unknown errors
+ * @note Marked noexcept to prevent exceptions from escaping main
+ * @note Catches all exceptions and converts to appropriate exit codes
+ * @note Provides user-friendly error messages for all failure cases
+ */
+int main(int argc, char *argv[]) noexcept {
     try {
         const auto args = minix::builder::ArgumentParser::parse(argc, argv);
 
