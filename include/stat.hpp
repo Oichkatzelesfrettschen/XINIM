@@ -4,19 +4,11 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
-struct stat {
-    short int st_dev;
-    unsigned short st_ino;
-    unsigned short st_mode;
-    short int st_nlink;
-    short int st_uid;
-    short int st_gid;
-    short int st_rdev;
-    long st_size;
-    long st_atime;
-    long st_mtime;
-    long st_ctime;
-};
+#pragma once
+
+// Shared stat structure used by user space. The layout is provided by the
+// common header to keep it consistent with the kernel version.
+#include "shared/stat_struct.hpp"
 
 /* Some common definitions. */
 #define S_IFMT 0170000  /* type of file */
