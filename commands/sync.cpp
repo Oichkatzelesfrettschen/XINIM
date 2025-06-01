@@ -6,4 +6,11 @@
 
 /* sync - flush the file system buffers.  Author: Andy Tanenbaum */
 
-main() { sync(); } /* First prize in shortest useful program contest. */
+#include <unistd.h>
+
+// Program entry point
+int main() {
+    // Flush all pending file system data to disk
+    sync();
+    return 0; // RAII not required since no resources are acquired
+}

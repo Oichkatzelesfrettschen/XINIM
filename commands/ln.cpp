@@ -7,56 +7,50 @@
 /* ln - link a file		Author: Andy Tanenbaum */
 
 #include "stat.hpp"
-char name[17];
-struct stat stb;
+#include <filesystem>
+#include <string>
+
+// No global buffers needed; std::filesystem manages paths safely.
+// The path objects automatically free any allocated resources
+// when they go out of scope (RAII).
 
 int main(int argc, char **argv) {
-    char *file1, *file2;
-
+    // Validate argument count
     if (argc < 2 || argc > 3)
-        usage();
-    if (access(argv[1], 0) < 0) {
+        return usage();
+
+    std::filesystem::path src{argv[1]};
+
+    // Ensure the source exists
+    if (access(src.c_str(), 0) < 0) {
         std_err("ln: cannot access ");
         std_err(argv[1]);
         std_err("\n");
-        exit(1);
-    }
-    if (stat(argv[1], &stb) >= 0 && (stb.st_mode & S_IFMT) == S_IFDIR)
-        usage();
-    file1 = argv[1];
-
-    /* "ln file" means "ln file ." */
-    if (argc == 2)
-        file2 = ".";
-    else
-        file2 = argv[2];
-
-    /* Check to see if target is a directory. */
-    if (stat(file2, &stb) >= 0 && (stb.st_mode & S_IFMT) == S_IFDIR) {
-        strcpy(name, file2);
-        strcat(name, "/");
-        strcat(name, last_comp(file1));
-        file2 = name;
+        return 1;
     }
 
-    if (link(file1, file2)) {
+    // Source must not be a directory
+    struct stat sb{};
+    if (stat(src.c_str(), &sb) >= 0 && (sb.st_mode & S_IFMT) == S_IFDIR)
+        return usage();
+
+    std::filesystem::path dest =
+        (argc == 2) ? std::filesystem::path{"."} : std::filesystem::path{argv[2]};
+
+    // If destination is a directory append the source file name
+    if (stat(dest.c_str(), &sb) >= 0 && (sb.st_mode & S_IFMT) == S_IFDIR)
+        dest /= src.filename();
+
+    // Create the link
+    if (link(src.c_str(), dest.c_str()) != 0) {
         std_err("ln: Can't link\n");
-        exit(1);
+        return 1;
     }
-    exit(0);
+
+    return 0;
 }
 
-static char *last_comp(char *s) {
-    /* Return pointer to last component of string. */
-    int n;
-    n = strlen(s);
-    while (n--)
-        if (*(s + n) == '/')
-            return (s + n + 1);
-    return (s);
-}
-
-static void usage() {
+static int usage() {
     std_err("Usage: ln file1 [file2]\n");
-    exit(1);
+    return 1;
 }
