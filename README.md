@@ -266,6 +266,11 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 - **MINIX Community**: For the foundational filesystem design
 - **C++ Community**: For modern language features and best practices
 
+## Roadmap
+
+See [ROADMAP.md](ROADMAP.md) for the long-term plan including QEMU stability and optional WebAssembly support.
+
+
 ## Contact
 
 For questions, bug reports, or contributions, please open an issue in the project repository.
