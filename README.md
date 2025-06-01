@@ -69,6 +69,24 @@ sudo make install
 | `release` | Optimized production build | `-O3 -DNDEBUG -flto -march=native` |
 | `profile` | Profiling build | `-O2 -g -pg` |
 
+### Make vs CMake
+
+The repository includes both a traditional `Makefile` and a full
+`CMakeLists.txt`. Each defines a `fsck` target, so use only **one** build system
+at a time and run `make clean` when switching to avoid mixing artifacts.
+
+Use **Make** for quick manual compilation of the filesystem tools or when you
+only need to build a single component.
+
+Use **CMake** to build the entire system, enable optional drivers, or perform
+out-of-tree and cross-compilation builds. A typical CMake workflow is:
+
+```bash
+cmake -B build
+cmake --build build
+```
+
+
 ### Build Targets
 
 ```bash
@@ -82,6 +100,30 @@ make format       # Format source code
 make docs         # Generate documentation
 make valgrind     # Run memory checking
 ```
+
+### Cross Compilation
+
+Cross compilation is currently supported only for bare x86-64 targets.
+
+Build with CMake:
+
+```bash
+cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
+cmake --build build
+```
+
+The equivalent Make invocation is:
+
+```bash
+make CROSS_PREFIX=x86_64-elf-
+```
+
+The `CROSS_PREFIX` value selects the appropriate cross toolchain (e.g.
+`x86_64-elf-gcc`).
+
+To target additional architectures add a new `CROSS_COMPILE_<ARCH>` option to
+`CMakeLists.txt`, update the root `Makefile` with matching variables, and set
+`CMAKE_SYSTEM_NAME` and `CMAKE_SYSTEM_PROCESSOR` for the target.
 
 ## Usage
 
