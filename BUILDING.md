@@ -85,7 +85,7 @@ provide the needed functionality and are built automatically.
 
 ## Modernization Script
 
-A helper script `tools/modernize_cpp23.sh` automates renaming sources to
+A helper script `tools/modernize_cpp17.sh` automates renaming sources to
 `.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
 header into each file. Invoke it from the repository root when ready to move
 the codebase fully to C++17.
