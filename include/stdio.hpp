@@ -19,7 +19,7 @@ constexpr int READMODE = 1;
 constexpr int WRITEMODE = 2;
 constexpr int UNBUFF = 4;
 constexpr int _EOF = 8;
-constexpr int _ERR = 16;
+constexpr int ERR = 16;
 constexpr int IOMYBUF = 32;
 constexpr int PERPRINTF = 64;
 constexpr int STRINGS = 128;
@@ -34,7 +34,7 @@ extern struct _io_buf {
     int _flags; /** status flags */
     char *_buf; /** buffer start */
     char *_ptr; /** next char in buffer */
-} *_io_table[NFILES];
+} *io_table[NFILES];
 
 #endif /* FILE */
 
@@ -45,7 +45,7 @@ extern struct _io_buf {
 #define stderr (_io_table[2])
 
 // Flush the buffer associated with the given stream.
-int __fflush(FILE *stream);
+int fflush(FILE *stream);
 
 #define getchar() getc(stdin)
 
@@ -76,7 +76,7 @@ inline int putchar(int c) { return std::putchar(c); }
 // Inline wrappers replacing historical getc/putc macros
 inline int getc(FILE *iop) {
     int ch;
-    if (testflag(iop, (_EOF | _ERR)))
+    if (testflag(iop, (_EOF | ERR)))
         return EOF;
     if (!testflag(iop, READMODE))
         return EOF;
@@ -89,7 +89,7 @@ inline int getc(FILE *iop) {
             if (iop->_count == 0)
                 iop->_flags |= _EOF;
             else
-                iop->_flags |= _ERR;
+                iop->_flags |= ERR;
             return EOF;
         } else {
             iop->_ptr = iop->_buf;
@@ -103,7 +103,7 @@ inline int getc(FILE *iop) {
 inline int putc(int ch, FILE *iop) {
     int n = 0;
     bool didwrite = false;
-    if (testflag(iop, (_ERR | _EOF)))
+    if (testflag(iop, (ERR | _EOF)))
         return EOF;
     if (!testflag(iop, WRITEMODE))
         return EOF;
@@ -122,7 +122,7 @@ inline int putc(int ch, FILE *iop) {
     if (didwrite) {
         if (n <= 0 || iop->_count != n) {
             if (n < 0)
-                iop->_flags |= _ERR;
+                iop->_flags |= ERR;
             else
                 iop->_flags |= _EOF;
             return EOF;
