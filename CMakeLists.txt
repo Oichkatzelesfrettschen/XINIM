@@ -17,6 +17,16 @@ set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Add global include directories
+include_directories(h)
+include_directories(include)
+# Add subdirectory-specific include paths that might be expected by sources
+include_directories(commands) # For includes like "mined.hpp" from commands/mined1.cpp
+include_directories(fs)       # For includes like "buf.hpp", "const.hpp" from fs sources
+include_directories(kernel)   # For includes like "proc.hpp", "const.hpp" from kernel sources
+include_directories(mm)       # For includes like "mproc.hpp", "const.hpp" from mm sources
+include_directories(lib)      # For includes like "lib.h" (now lib.hpp if it exists)
+
 # Optional cross compilation support for x86_64.
 option(CROSS_COMPILE_X86_64 "Cross compile for bare x86_64" OFF)
 set(CROSS_PREFIX "" CACHE STRING "Prefix for cross compilation tools")
@@ -66,4 +76,3 @@ endif()
 # Enable unit testing and add the tests directory
 enable_testing()
 add_subdirectory(tests)
-
