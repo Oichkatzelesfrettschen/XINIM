@@ -1,43 +1,41 @@
-#include "../include/stdio.h"
+// Content for lib/putc.cpp
+#include "../../include/minix/io/stream.hpp"
+#include "../../include/minix/io/standard_streams.hpp" // For get_standard_output
+#include <cstdio> // For EOF (or define it in a minix header)
 
+// Define EOF if not available from a common header yet
+#ifndef EOF
+#define EOF (-1)
+#endif
 
-putc(ch, iop)
-char ch;
-FILE *iop;
-{
-	int n,
-	didwrite = 0;
+extern "C" int fputc(int c, minix::io::Stream* stream_ptr) {
+    if (!stream_ptr) {
+        // TODO: Set errno appropriately (e.g., EBADF)
+        return EOF;
+    }
+    if (!stream_ptr->is_open() || !stream_ptr->is_writable()) {
+        // TODO: Set errno (e.g. EBADF)
+        return EOF;
+    }
 
-	if (testflag(iop, (_ERR | _EOF)))
-		return (EOF); 
+    minix::io::Stream& stream = *stream_ptr; // Dereference for use
+    auto result = stream.put_char(static_cast<char>(c)); // Assuming Stream has put_char()
 
-	if ( !testflag(iop,WRITEMODE))
-		return(EOF);
-
-	if ( testflag(iop,UNBUFF)){
-		n = write(iop->_fd,&ch,1);
-		iop->_count = 1;
-		didwrite++;
-	}
-	else{
-		*iop->_ptr++ = ch;
-		if ((++iop->_count) >= BUFSIZ && !testflag(iop,STRINGS) ){
-			n = write(iop->_fd,iop->_buf,iop->_count);
-			iop->_ptr = iop->_buf;
-			didwrite++;
-		}
-	}
-
-	if (didwrite){
-		if (n<=0 || iop->_count != n){
-			if (n < 0)
-				iop->_flags |= _ERR;
-			else
-				iop->_flags |= _EOF;
-			return (EOF);
-		}
-		iop->_count=0;
-	}
-	return(0);
+    if (!result) {
+        // TODO: Set error flag on stream and errno
+        return EOF;
+    }
+    return static_cast<unsigned char>(c); // Success, return the character written
 }
 
+extern "C" int putc(int c, minix::io::Stream* stream_ptr) {
+    return fputc(c, stream_ptr);
+}
+
+extern "C" int putchar(int c) {
+    minix::io::Stream& sout = minix::io::get_standard_output();
+    if (!sout.is_open() || !sout.is_writable()) {
+        return EOF;
+    }
+    return fputc(c, &sout);
+}

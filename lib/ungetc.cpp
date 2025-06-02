@@ -1,4 +1,4 @@
-#include "../include/stdio.h"
+#include "../include/stdio_compat.hpp"
 
 ungetc(ch, iop)
 int ch;

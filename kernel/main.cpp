@@ -31,10 +31,12 @@ void init_syscall_msrs(void);
 #define CPU_TY2 0x000E /* BIOS offset that tells CPU type */
 #define PC_AT 0xFC     /* IBM code for PC-AT (in BIOS at 0xFFFFE) */
 
+namespace minix::kernel {
+
 /*===========================================================================*
  *                                   main                                    *
  *===========================================================================*/
-PUBLIC main() {
+main() {
     /* Start the ball rolling. */
 
     register struct proc *rp;
@@ -133,7 +135,7 @@ PUBLIC main() {
 /*===========================================================================*
  *                                   unexpected_int                          * 
  *===========================================================================*/
-PUBLIC unexpected_int()
+unexpected_int()
 {
 /* A trap or interrupt has occurred that was not expected. */
 
@@ -146,7 +148,7 @@ PUBLIC unexpected_int()
 /*===========================================================================*
  *                                   trap                                    * 
  *===========================================================================*/
-PUBLIC trap()
+trap()
 {
 /* A trap (vector >= 16) has occurred.  It was not expected. */
 
@@ -161,7 +163,7 @@ PUBLIC trap()
 /*===========================================================================*
  *                                   div_trap                                * 
  *===========================================================================*/
-PUBLIC div_trap()
+div_trap()
 {
 /* The divide intruction traps to vector 0 upon overflow. */
 
@@ -174,7 +176,7 @@ PUBLIC div_trap()
 /*===========================================================================*
  *                                   panic                                   * 
  *===========================================================================*/
-PUBLIC panic(s,n)
+panic(s,n)
 char *s;
 int n; 
 {
@@ -193,3 +195,5 @@ int n;
   wreboot();
 
 }
+
+} // namespace minix::kernel

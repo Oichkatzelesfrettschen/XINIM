@@ -1,5 +1,5 @@
 #include <stdarg.h>
-#include <stdio.h>
+#include "../include/stdio_compat.hpp"
 
 /*
  * Simplified scanf wrappers that delegate to the host C library.
