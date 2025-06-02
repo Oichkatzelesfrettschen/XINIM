@@ -3,10 +3,52 @@
 
 /* Forward declarations for helper routines. */
 #include "../include/shared/number_to_ascii.hpp"
+// Forward declaration for the helper that handles padded output.
 static void _printit(char *str, int w1, int w2, char padchar, int length, FILE *file);
 
 // Use a constant for the maximum number of digits handled.
 inline constexpr int kMaxDigits = 12;
+
+// Convert an integer to a null-terminated ASCII string using the
+// specified radix. The caller must ensure `a` has room for at least
+// `kMaxDigits` characters plus the null terminator.
+static void _bintoascii(long num, int radix, char *a) {
+    // Buffer to build the number in reverse.
+    char buf[kMaxDigits]{};
+    int idx = 0;
+
+    // Track negativity for decimal output.
+    bool negative = false;
+    if (radix == 10 && num < 0) {
+        negative = true;
+        num = -num;
+    }
+
+    // Special case for zero.
+    if (num == 0) {
+        a[0] = '0';
+        a[1] = '\0';
+        return;
+    }
+
+    // Generate digits in reverse order.
+    while (num != 0 && idx < kMaxDigits - 1) {
+        int digit = static_cast<int>(num % radix);
+        buf[idx++] = static_cast<char>(digit < 10 ? '0' + digit : 'a' + digit - 10);
+        num /= radix;
+    }
+
+    // Add a minus sign if needed.
+    if (negative && idx < kMaxDigits - 1) {
+        buf[idx++] = '-';
+    }
+
+    // Reverse the temporary buffer into the output string.
+    for (int i = 0; i < idx; ++i) {
+        a[i] = buf[idx - 1 - i];
+    }
+    a[idx] = '\0';
+}
 
 /* This is the same as varargs , on BSD systems */
 
@@ -115,9 +157,6 @@ static void _doprintf(FILE *fp, char *format, int args) {
         format++;
     }
 }
-
-/* Convert a number to an ASCII string using the shared helper. */
-static void _bintoascii(long num, int radix, char *a) { number_to_ascii(num, radix, a); }
 
 /* Output a formatted string with padding control. */
 static void _printit(char *str, int w1, int w2, char padchar, int length, FILE *file) {

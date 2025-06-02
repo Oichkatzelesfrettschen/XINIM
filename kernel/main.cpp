@@ -133,63 +133,75 @@ PUBLIC main() {
 /*===========================================================================*
  *                                   unexpected_int                          * 
  *===========================================================================*/
-PUBLIC unexpected_int()
-{
-/* A trap or interrupt has occurred that was not expected. */
+//------------------------------------------------------------------------------
+// Handles unexpected interrupts that trigger on vectors lower than 16. This
+// routine simply reports the event and the current program counter.
+//------------------------------------------------------------------------------
+void unexpected_int() {
+    // Inform that an unexpected interrupt occurred.
+    printf("Unexpected trap: vector < 16\n");
 
-  printf("Unexpected trap: vector < 16\n");
-  printf("pc = 0x%x    text+data+bss = 0x%x\n",proc_ptr->p_pcpsw.pc,
-					proc_ptr->p_map[D].mem_len<<4);
+    // Print the current PC and the size of text+data+bss for debugging.
+    printf("pc = 0x%x    text+data+bss = 0x%x\n", proc_ptr->p_pcpsw.pc,
+           proc_ptr->p_map[D].mem_len << 4);
 }
 
 
 /*===========================================================================*
  *                                   trap                                    * 
  *===========================================================================*/
-PUBLIC trap()
-{
-/* A trap (vector >= 16) has occurred.  It was not expected. */
+//------------------------------------------------------------------------------
+// Handles traps for vectors greater than or equal to 16. These generally
+// indicate an unexpected fault within the kernel or user space.
+//------------------------------------------------------------------------------
+void trap() {
+    // Notify about the unexpected trap.
+    printf("\nUnexpected trap: vector >= 16 ");
 
-  printf("\nUnexpected trap: vector >= 16 ");
-  printf("This may be due to accidentally including\n");
-  printf("a non-MINIX library routine that is trying to make a system call.\n");
-  printf("pc = 0x%x    text+data+bss = 0x%x\n",proc_ptr->p_pcpsw.pc,
-					proc_ptr->p_map[D].mem_len<<4);
+    // Provide additional context for developers.
+    printf("This may be due to accidentally including\n");
+    printf(
+        "a non-MINIX library routine that is trying to make a system call.\n");
+    printf("pc = 0x%x    text+data+bss = 0x%x\n", proc_ptr->p_pcpsw.pc,
+           proc_ptr->p_map[D].mem_len << 4);
 }
 
 
 /*===========================================================================*
  *                                   div_trap                                * 
  *===========================================================================*/
-PUBLIC div_trap()
-{
-/* The divide intruction traps to vector 0 upon overflow. */
+//------------------------------------------------------------------------------
+// Called when a divide instruction causes an overflow trap (vector 0). This
+// routine reports the fault location to assist debugging.
+//------------------------------------------------------------------------------
+void div_trap() {
+    // Inform that a divide overflow occurred.
+    printf("Trap to vector 0: divide overflow.  ");
 
-  printf("Trap to vector 0: divide overflow.  ");
-  printf("pc = 0x%x    text+data+bss = 0x%x\n",proc_ptr->p_pcpsw.pc,
-					proc_ptr->p_map[D].mem_len<<4);
+    // Show the program counter and memory size for context.
+    printf("pc = 0x%x    text+data+bss = 0x%x\n", proc_ptr->p_pcpsw.pc,
+           proc_ptr->p_map[D].mem_len << 4);
 }
 
 
 /*===========================================================================*
  *                                   panic                                   * 
  *===========================================================================*/
-PUBLIC panic(s,n)
-char *s;
-int n; 
-{
-/* The system has run aground of a fatal error.  Terminate execution.
- * If the panic originated in MM or FS, the string will be empty and the
- * file system already syncked.  If the panic originates in the kernel, we are
- * kind of stuck. 
- */
+//------------------------------------------------------------------------------
+// Handle unrecoverable kernel errors. This routine prints the provided message
+// and halts the system after flushing any pending output.
+//------------------------------------------------------------------------------
+void panic(const char *s, int n) {
+    // Display the panic message if one was supplied.
+    if (*s != 0) {
+        printf("\nKernel panic: %s", s);
+        if (n != NO_NUM) {
+            printf(" %d", n);
+        }
+        printf("\n");
+    }
 
-  if (*s != 0) {
-	printf("\nKernel panic: %s",s); 
-	if (n != NO_NUM) printf(" %d", n);
-	printf("\n");
-  }
-  printf("\nType space to reboot\n");
-  wreboot();
-
+    // Prompt for reboot to recover from the fatal error.
+    printf("\nType space to reboot\n");
+    wreboot();
 }
