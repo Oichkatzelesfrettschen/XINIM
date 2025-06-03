@@ -1,15 +1,23 @@
-# XINIM Filesystem Tools
+# XINIM Operating System
+
+Modern C++17 reimplementation of the classic MINIX 1 operating system. The
+project combines kernel, memory management, userland utilities, and disk tools
+into a cohesive educational system.
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Documentation](https://img.shields.io/badge/docs-doxygen-blue.svg)
 
-Modern C++17 implementation of MINIX filesystem utilities with enhanced type safety, performance optimization, and comprehensive error handling.
+Modern C++17 implementation of the entire MINIX 1 codebase with enhanced type
+safety, improved portability, and comprehensive error handling. The repository
+includes the kernel, memory manager, file system, standard commands, system
+libraries, and auxiliary build tools.
 
 ## Overview
 
-This project provides a complete, modern implementation of MINIX filesystem tools, rewritten from the ground up in C++17. The codebase emphasizes:
+This project provides a complete reimplementation of MINIX 1 written in C++17.
+The codebase emphasizes:
 
 - **Type Safety**: Strong typing and RAII patterns throughout
 - **Performance**: Optimized algorithms with caching and batched operations
@@ -17,7 +25,16 @@ This project provides a complete, modern implementation of MINIX filesystem tool
 - **Maintainability**: Clean architecture with comprehensive documentation
 - **Reliability**: Extensive error handling and validation
 
-## Features
+## Components
+
+- **kernel**: Low-level hardware management, interrupts, and process scheduling
+- **mm**: Memory management and paging facilities
+- **fs**: MINIX file system implementation and disk drivers
+- **lib**: Standard C library and runtime support
+- **commands**: Core userland utilities
+- **tools**: Boot image builder and filesystem tools
+
+## Disk System
 
 ### Filesystem Checker (`fsck`)
 
@@ -38,6 +55,11 @@ This project provides a complete, modern implementation of MINIX filesystem tool
 
 ## Building
 
+Each major component can be built individually using the Makefiles located in
+`kernel/`, `mm/`, `fs/`, `commands/`, and `lib/`. The top-level CMake
+configuration builds the entire system in one step and is recommended for new
+users.
+
 ### Prerequisites
 
 - **Compiler**: GCC 7+ or Clang 5+ with C++17 support
@@ -49,7 +71,7 @@ This project provides a complete, modern implementation of MINIX filesystem tool
 ```bash
 # Clone the repository
 git clone <repository-url>
-cd minix1
+cd XINIM
 
 # Build debug version (default)
 make
@@ -202,18 +224,17 @@ graph TD
 ## File Organization
 
 ```
-minix1/
-├── tools/
-│   ├── fsck.cpp          # Filesystem checker implementation
-│   ├── fsck.hpp          # Public interface (if needed)
-│   ├── diskio.cpp        # Disk I/O implementation
-│   └── diskio.hpp        # Disk I/O interface
-├── Makefile              # Build configuration
-├── Doxyfile              # Documentation configuration
-├── README.md             # This file
-├── obj/                  # Build artifacts (created)
-├── bin/                  # Compiled binaries (created)
-└── docs/                 # Generated documentation (created)
+XINIM/
+├── kernel/      # Core operating system kernel
+├── mm/          # Memory manager
+├── fs/          # File system server
+├── lib/         # C library and runtime
+├── commands/    # Standard userland utilities
+├── tools/       # Boot image builder and disk tools
+├── tests/       # Unit and integration tests
+├── include/     # Public headers
+├── Makefile     # Top-level build rules
+└── CMakeLists.txt # CMake configuration
 ```
 
 ## Development
