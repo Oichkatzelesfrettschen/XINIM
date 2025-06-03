@@ -2,7 +2,7 @@ MINIX License History
 =====================
 
 The original MINIX 1 sources (1987–2001) carried the following notice in
-`h/const.hpp` and related files:
+`h/const.h` and related files:
 
 Copyright (C) 1987 by Prentice-Hall, Inc.
 Permission is hereby granted to private individuals and educational
