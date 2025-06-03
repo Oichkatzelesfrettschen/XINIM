@@ -1,4 +1,4 @@
-# MINIX Filesystem Tools
+# XINIM Filesystem Tools
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
