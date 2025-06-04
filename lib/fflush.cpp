@@ -22,3 +22,5 @@ int __fflush(FILE *iop) {
     return EOF;
 }
 
+// Public interface wrapper.
+int fflush(FILE *stream) { return __fflush(stream); }
