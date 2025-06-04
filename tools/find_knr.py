@@ -16,9 +16,9 @@ def scan(root: str) -> list[Path]:
     knr_files = []
     for dirpath, _, files in os.walk(root):
         for name in files:
-            if name.endswith('.cpp'):
+            if name.endswith(".cpp"):
                 path = Path(dirpath) / name
-                if classify_file(str(path)) == 'K&R':
+                if classify_file(str(path)) == "K&R":
                     knr_files.append(path)
     return knr_files
 
@@ -30,5 +30,5 @@ def main() -> None:
         print(p)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
