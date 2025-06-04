@@ -27,9 +27,43 @@ target_include_directories(minix_test_syscall PUBLIC
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
 #Fastpath unit test
+#Add Stream architecture tests
+add_executable(minix_test_streams test_streams.cpp)
+target_link_libraries(minix_test_streams PRIVATE minix_libc)
+target_include_directories(minix_test_streams PUBLIC
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/h"
+)
+add_test(NAME minix_test_streams COMMAND minix_test_streams)
+
+#Wormhole unit test
 add_executable(minix_test_fastpath test_fastpath.cpp
     "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp")
 target_include_directories(minix_test_fastpath PUBLIC
     "${CMAKE_SOURCE_DIR}/kernel"  # For fastpath headers
 )
 add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
+
+#Semantic region unit test
+add_executable(minix_test_semantic_region test_semantic_region.cpp)
+target_include_directories(minix_test_semantic_region PUBLIC
+    "${CMAKE_SOURCE_DIR}/include"
+)
+add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
+
+#Stream foundation verification test
+add_executable(minix_test_stream_foundation
+    test_stream_foundation.cpp
+    "${CMAKE_SOURCE_DIR}/lib/io/src/file_stream.cpp"
+    "${CMAKE_SOURCE_DIR}/lib/io/src/file_operations.cpp"
+    "${CMAKE_SOURCE_DIR}/lib/io/src/standard_streams.cpp"
+)
+set_target_properties(minix_test_stream_foundation PROPERTIES
+    CXX_STANDARD 20
+    CXX_STANDARD_REQUIRED ON
+)
+target_include_directories(minix_test_stream_foundation PUBLIC
+    "${CMAKE_SOURCE_DIR}/include"
+)
+add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
+

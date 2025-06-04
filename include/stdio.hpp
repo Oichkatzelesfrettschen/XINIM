@@ -1,5 +1,4 @@
 #pragma once
-#include <cstdio>
 #include <unistd.h>
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
@@ -7,7 +6,6 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
-#include <cstdio>
 
 #define BUFSIZ 1024
 #define NFILES 20
@@ -50,8 +48,10 @@ int fflush(FILE *stream);
 
 #define getchar() getc(stdin)
 
-/* Inline wrapper around std::putchar replacing the previous macro. */
-inline int putchar(int c) { return std::putchar(c); }
+/* Write a character to stdout using the low-level write call. */
+inline int putchar(int c) {
+    return ::write(1, &c, 1) == 1 ? c : EOF;
+}
 
 #define puts(s) fputs(s, stdout)
 #define fgetc(f) getc(f)

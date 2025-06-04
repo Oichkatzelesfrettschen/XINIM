@@ -5,9 +5,14 @@
 #include <cstdint>
 #include <optional>
 #include <vector>
+#include "../include/psd/vm/semantic_memory.hpp"
 
 namespace fastpath {
 
+// Alias simplifying access to message semantic region type.  The
+// wormhole relies on a zero-copy capable message region to move
+// data between threads efficiently.
+using MessageRegion = psd::vm::semantic_region<psd::vm::semantic_message_tag>;
 // State components as described in the formalization.
 
 // Possible thread execution states.
@@ -39,7 +44,10 @@ struct Capability {
     uint32_t badge{};   // badge value delivered to receiver
 };
 
-// Thread template provides configurable message register count.
+
+// Thread template provides configurable message register count.  In the
+// actual kernel MR_COUNT is architecture dependent.  Here we expose it
+// for testing and flexibility.
 template <size_t MR_COUNT = 8> struct ThreadTemplate {
     uint32_t tid{};                             // thread identifier
     ThreadStatus status{ThreadStatus::Blocked}; // scheduler state
@@ -61,21 +69,28 @@ template <size_t MR_COUNT = 8> struct ThreadTemplate {
 // Default thread type using eight message registers.
 using Thread = ThreadTemplate<>;
 
-// Endpoint structure holding a queue of waiting threads.
+// Endpoint structure holding a queue of waiting threads.  Only one
+// endpoint is modeled for this simplified fastpath implementation.
+
 struct Endpoint {
     uint32_t eid{};              // endpoint identifier
     std::vector<uint32_t> queue; // queued thread ids
     EndpointState state{EndpointState::Idle};
 };
 
-// Complete system state used by the fastpath.
+
+// Complete system state used by the fastpath.  Tests construct this
+// structure directly to model kernel behavior during IPC.
 struct State {
-    Thread sender;          // sending thread
-    Thread receiver;        // receiving thread
-    Endpoint endpoint;      // communication endpoint
-    Capability cap;         // capability used by sender
-    size_t msg_len{};       // message length
-    size_t extra_caps{};    // number of extra caps
+    Thread sender;       // sending thread
+    Thread receiver;     // receiving thread
+    Endpoint endpoint;   // communication endpoint
+    Capability cap;      // capability used by sender
+    size_t msg_len{};    // message length
+    size_t extra_caps{}; // number of extra caps
+    MessageRegion msg_region{0, 0};
+    // region used for zero-copy transfer of message registers
+
     uint32_t current_tid{}; // currently running thread id
 };
 
@@ -83,7 +98,9 @@ struct State {
 // Preconditions enumerated for statistic indexing.
 enum class Precondition : size_t { P1, P2, P3, P4, P5, P6, P7, P8, P9, Count };
 
-// Statistics collected from fastpath execution.
+
+// Statistics collected from fastpath execution.  They allow tests to
+// confirm that each precondition is checked correctly.
 struct FastpathStats {
     std::atomic<uint64_t> success_count{0}; // completed runs
     std::atomic<uint64_t> failure_count{0}; // failed runs
@@ -97,15 +114,30 @@ struct FastpathStats {
     }
 };
 
-// Fastpath operation modeled as a partial function on State.
+// Fastpath operation modeled as a partial function on State.  Returns
+// true on success and records statistics when provided.
 bool execute_fastpath(State &s, FastpathStats *stats = nullptr);
 
+// Assign a zero-copy message region to the fastpath state.  The
+// region must satisfy the alignment requirements of MessageRegion.
+void set_message_region(State &s, const MessageRegion &region);
+
+// Validate that a message region can hold the specified number of message
+// registers based on its size and alignment.
+bool message_region_valid(const MessageRegion &region, size_t msg_len);
+
 namespace detail {
+// Remove the receiver from the endpoint queue.
 void dequeue_receiver(State &s);
+// Transfer the sender's badge to the receiver.
 void transfer_badge(State &s);
+// Link the sender to the receiver for replies.
 void establish_reply(State &s);
+// Copy message registers using the configured message region.
 void copy_mrs(State &s);
+// Update thread states after IPC.
 void update_thread_state(State &s);
+// Switch execution to the receiver.
 void context_switch(State &s);
 } // namespace detail
 

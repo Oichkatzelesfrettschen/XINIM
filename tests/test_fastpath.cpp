@@ -3,9 +3,11 @@
 
 using namespace fastpath;
 
-// Simple sanity test of the fastpath partial function.
+// Simple sanity test of the fastpath partial function with zero-copy buffer.
 int main() {
     State s{};
+    alignas(64) uint64_t buffer[8]{};
+    set_message_region(s, MessageRegion(reinterpret_cast<std::uintptr_t>(buffer), sizeof(buffer)));
     s.sender.tid = 1;
     s.sender.status = ThreadStatus::Running;
     s.sender.priority = 5;
@@ -42,6 +44,7 @@ int main() {
     assert(ok);
     assert(stats.success_count == 1);
     assert(s.receiver.mrs[0] == 42);
+    assert(buffer[0] == 42);
     assert(s.receiver.status == ThreadStatus::Running);
     assert(s.sender.status == ThreadStatus::Blocked);
     assert(s.receiver.badge == s.cap.badge);

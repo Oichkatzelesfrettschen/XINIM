@@ -1,12 +1,39 @@
 #include "wormhole.hpp"
-
 #include <algorithm>
+#include <cassert>
 
 namespace fastpath {
 
 namespace detail {
 
 // --\tau_dequeue-- remove receiver from endpoint queue and adjust endpoint state
+
+// Implementation of the fastpath "wormhole" IPC model used for
+// unit testing.  The code is intentionally simplified but mirrors the
+// semantics of the real kernel fastpath.
+
+namespace fastpath {
+
+// Set the zero-copy message region for fastpath execution.  Compile-time
+// checks guarantee that the provided region type supports zero-copy
+// mappings.
+void set_message_region(State &state, const MessageRegion &region) {
+    static_assert(MessageRegion::traits::is_zero_copy_capable,
+                  "MessageRegion must support zero-copy");
+    assert(region.aligned());
+    state.msg_region = region;
+}
+
+// Verify that the message region can hold the requested message length.
+bool message_region_valid(const MessageRegion &region, size_t msg_len) {
+    return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
+}
+
+namespace detail {
+
+// --\tau_dequeue-- remove receiver from endpoint queue and adjust
+// endpoint state.  When the queue becomes empty the endpoint returns to
+// the Idle state.
 inline void dequeue_receiver(State &state) {
     auto it =
         std::find(state.endpoint.queue.begin(), state.endpoint.queue.end(), state.receiver.tid);
@@ -22,6 +49,7 @@ inline void dequeue_receiver(State &state) {
 inline void transfer_badge(State &state) { state.receiver.badge = state.cap.badge; }
 
 // --\tau_reply-- set up reply linkage from sender to receiver
+
 inline void establish_reply(State &state) { state.sender.reply_to = state.receiver.tid; }
 
 // --\tau_mrs-- copy message registers from sender to receiver
@@ -32,20 +60,37 @@ inline void copy_mrs(State &state) {
 }
 
 // --\tau_state-- update scheduling state after IPC
+    // Ensure the provided message region is large and aligned enough.
+    assert(message_region_valid(state.msg_region, state.msg_len));
+
+    // Use zero_copy_map to access the region without additional copies.
+    auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
+
+    // Copy from sender to the shared region then into the receiver registers.
+    for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
+        buffer[i] = state.sender.mrs[i];
+        state.receiver.mrs[i] = buffer[i];
+    }
+}
+
+// --\tau_state-- update scheduling state after IPC.  The receiver
+// becomes runnable while the sender blocks waiting for a reply.
 inline void update_thread_state(State &state) {
     state.receiver.status = ThreadStatus::Running;
     state.sender.status = ThreadStatus::Blocked;
 }
 
-// --\tau_switch-- context switch to the receiver thread
+
+// --\tau_switch-- context switch to the receiver thread.
 inline void context_switch(State &state) { state.current_tid = state.receiver.tid; }
 
 } // namespace detail
 
-// helper to determine if capability conveys send rights
+// update statistics for a failed precondition
+// Helper to determine if a capability conveys send rights.
 static bool has_send_right(const CapRights &rights) { return rights.write; }
 
-// update statistics for a failed precondition
+// Helper for updating statistics when a precondition check fails.
 static bool check(bool condition, Precondition idx, FastpathStats *stats) {
     if (condition) {
         return true;
@@ -58,7 +103,8 @@ static bool check(bool condition, Precondition idx, FastpathStats *stats) {
     return false;
 }
 
-// evaluate all preconditions
+
+// Evaluate all preconditions for a fastpath execution attempt.
 static bool preconditions(const State &s, FastpathStats *stats) {
     return check(s.extra_caps == 0, Precondition::P1, stats) &&
            check(s.msg_len <= s.sender.mrs.size(), Precondition::P2, stats) &&
@@ -76,7 +122,9 @@ static bool preconditions(const State &s, FastpathStats *stats) {
 // convenient alias for transformation function pointer
 using Transformer = void (*)(State &);
 
-// main fastpath entry: apply transformations when allowed
+
+// Main fastpath entry: apply all transformation steps when the
+// preconditions hold.
 bool execute_fastpath(State &state, FastpathStats *stats) {
     if (!preconditions(state, stats)) {
         return false;
