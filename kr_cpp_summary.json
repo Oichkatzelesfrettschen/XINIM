@@ -1,0 +1,26 @@
+{
+  "count": 141,
+  "files": [
+    "fs/table.cpp",
+    "fs/filedes.cpp",
+    "fs/pipe.cpp",
+    "fs/cache.cpp",
+    "fs/utility.cpp",
+    "fs/open.cpp",
+    "fs/link.cpp",
+    "fs/stadir.cpp",
+    "fs/write.cpp",
+    "fs/protect.cpp",
+    "fs/misc.cpp",
+    "fs/inode.cpp",
+    "fs/main.cpp",
+    "fs/mount.cpp",
+    "fs/putc.cpp",
+    "fs/device.cpp",
+    "fs/super.cpp",
+    "fs/time.cpp",
+    "fs/read.cpp",
+    "kernel/wini.cpp"
+  ]
+}
+

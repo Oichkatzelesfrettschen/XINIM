@@ -1,4 +1,4 @@
-#include "../kernel/fastpath.hpp"
+#include "../kernel/wormhole.hpp"
 #include <cassert>
 
 using namespace fastpath;
