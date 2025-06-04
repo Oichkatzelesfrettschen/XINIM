@@ -18,7 +18,7 @@ int __fflush(FILE *iop) {
         return count;
     }
 
-    iop->_flags |= _ERR;
+    iop->_flags |= ERR;
     return EOF;
 }
 
