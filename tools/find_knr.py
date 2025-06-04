@@ -2,7 +2,13 @@
 """List .cpp files that appear to use K&R-style function definitions."""
 
 import os
+import sys
 from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+ROOT_DIR = SCRIPT_DIR.parent
+sys.path.insert(0, str(ROOT_DIR))
+
 from classify_style import classify_file
 
 

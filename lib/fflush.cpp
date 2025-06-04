@@ -23,7 +23,4 @@ int __fflush(FILE *iop) {
 }
 
 // Public interface wrapper.
-int fflush(FILE *stream) {
-    return __fflush(stream);
-}
-
+int fflush(FILE *stream) { return __fflush(stream); }
