@@ -25,3 +25,11 @@ target_include_directories(minix_test_syscall PUBLIC
     "${CMAKE_SOURCE_DIR}/h"
 )
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
+
+# Fastpath unit test
+add_executable(minix_test_fastpath test_fastpath.cpp
+    "${CMAKE_SOURCE_DIR}/kernel/fastpath.cpp")
+target_include_directories(minix_test_fastpath PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"  # For fastpath headers
+)
+add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)

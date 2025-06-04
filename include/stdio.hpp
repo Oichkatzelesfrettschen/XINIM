@@ -20,6 +20,7 @@ constexpr int WRITEMODE = 2;
 constexpr int UNBUFF = 4;
 constexpr int _EOF = 8;
 constexpr int ERR = 16;
+constexpr int _ERR = ERR; // compatibility with historical macro
 constexpr int IOMYBUF = 32;
 constexpr int PERPRINTF = 64;
 constexpr int STRINGS = 128;
@@ -34,7 +35,7 @@ extern struct _io_buf {
     int _flags; /** status flags */
     char *_buf; /** buffer start */
     char *_ptr; /** next char in buffer */
-} *io_table[NFILES];
+} *_io_table[NFILES];
 
 #endif /* FILE */
 

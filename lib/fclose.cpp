@@ -9,8 +9,8 @@ int fclose(FILE *fp) {
     int i; /* index within _io_table */
 
     for (i = 0; i < NFILES; i++) {
-        if (fp == io_table[i]) {
-            io_table[i] = 0;
+        if (fp == _io_table[i]) {
+            _io_table[i] = 0;
             break;
         }
     }
