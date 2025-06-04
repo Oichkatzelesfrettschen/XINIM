@@ -23,10 +23,14 @@ Result<StreamPtr> open_stream(std::string_view path, OpenMode mode, Permissions 
     } else if (mode & OpenMode::write) {
         flags |= O_WRONLY;
     }
-    if (mode & OpenMode::create) flags |= O_CREAT;
-    if (mode & OpenMode::exclusive) flags |= O_EXCL;
-    if (mode & OpenMode::truncate) flags |= O_TRUNC;
-    if (mode & OpenMode::append) flags |= O_APPEND;
+    if (mode & OpenMode::create)
+        flags |= O_CREAT;
+    if (mode & OpenMode::exclusive)
+        flags |= O_EXCL;
+    if (mode & OpenMode::truncate)
+        flags |= O_TRUNC;
+    if (mode & OpenMode::append)
+        flags |= O_APPEND;
 
     int fd = ::open(buf.data(), flags, perms.mode);
     if (fd < 0) {

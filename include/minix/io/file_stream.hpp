@@ -5,7 +5,7 @@
 namespace minix::io {
 
 class FileStream : public Stream {
-public:
+  public:
     explicit FileStream(int fd, bool write) : fd_(fd), writable_(write) {}
     ~FileStream() override = default;
 
@@ -14,7 +14,7 @@ public:
     std::error_code close() override;
     int descriptor() const override { return fd_; }
 
-private:
+  private:
     int fd_{-1};
     bool writable_{false};
 };

@@ -1,10 +1,10 @@
 #include "minix/io/file_stream.hpp"
 
-#include <span>
-#include <unistd.h>
-#include <fcntl.h>
 #include <cerrno>
 #include <cstring>
+#include <fcntl.h>
+#include <span>
+#include <unistd.h>
 
 namespace minix::io {
 

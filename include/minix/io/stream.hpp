@@ -1,27 +1,26 @@
 #pragma once
 
-#include <span>
 #include <cstddef>
 #include <memory>
+#include <optional>
+#include <span>
 #include <system_error>
 #include <vector>
-#include <optional>
 
 namespace minix::io {
 
 // Basic result type using std::optional with error codes
-template <typename T>
-struct Result {
+template <typename T> struct Result {
     std::optional<T> value{};
     std::error_code error{};
 
     explicit operator bool() const { return value.has_value(); }
-    T& operator*() { return *value; }
-    const T& operator*() const { return *value; }
+    T &operator*() { return *value; }
+    const T &operator*() const { return *value; }
 };
 
 class Stream {
-public:
+  public:
     virtual ~Stream() = default;
 
     // Read bytes into buffer, returning number read or error

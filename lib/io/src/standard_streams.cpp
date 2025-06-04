@@ -9,8 +9,8 @@ static FileStream stdin_stream{0, false};
 static FileStream stdout_stream{1, true};
 static FileStream stderr_stream{2, true};
 
-Stream& stdin() { return stdin_stream; }
-Stream& stdout() { return stdout_stream; }
-Stream& stderr() { return stderr_stream; }
+Stream &stdin() { return stdin_stream; }
+Stream &stdout() { return stdout_stream; }
+Stream &stderr() { return stderr_stream; }
 
 } // namespace minix::io
