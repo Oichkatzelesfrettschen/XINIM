@@ -1,5 +1,6 @@
 #include "../include/lib.hpp" // C++17 header
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
+#include <fcntl.h>
 
 #define PMODE 0644
 
@@ -62,7 +63,7 @@ FILE *fopen(const char *name, const char *mode) {
     fp->_count = 0;
     fp->_fd = fd;
     fp->_flags = flags;
-    fp->_buf = safe_malloc(BUFSIZ);
+    fp->_buf = static_cast<char*>(safe_malloc(BUFSIZ));
     fp->_flags |= IOMYBUF;
 
     fp->_ptr = fp->_buf;

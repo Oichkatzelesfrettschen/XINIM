@@ -26,10 +26,20 @@ target_include_directories(minix_test_syscall PUBLIC
 )
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
-#Fastpath unit test
+# Add Stream architecture tests
+add_executable(minix_test_streams test_streams.cpp)
+target_link_libraries(minix_test_streams PRIVATE minix_libc)
+target_include_directories(minix_test_streams PUBLIC
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/h"
+)
+add_test(NAME minix_test_streams COMMAND minix_test_streams)
+
+#Wormhole unit test
 add_executable(minix_test_fastpath test_fastpath.cpp
     "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp")
 target_include_directories(minix_test_fastpath PUBLIC
     "${CMAKE_SOURCE_DIR}/kernel"  # For fastpath headers
 )
 add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
+
