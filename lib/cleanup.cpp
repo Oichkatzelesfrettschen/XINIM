@@ -11,4 +11,4 @@ void _cleanup(void) {
             __fflush(_io_table[i]);
         }
     }
-
+}
