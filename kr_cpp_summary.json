@@ -1,4 +1,5 @@
 {
+
   "count": 140,
   "files": [
     "commands/ar.cpp",
@@ -141,5 +142,29 @@
     "tools/getcore.cpp",
     "tools/init.cpp",
     "tools/mkfs.cpp"
+
+  "count": 141,
+  "files": [
+    "test/test6.cpp",
+    "test/test7.cpp",
+    "test/test10.cpp",
+    "test/test3.cpp",
+    "test/test5.cpp",
+    "test/test2.cpp",
+    "test/test8.cpp",
+    "test/test11.cpp",
+    "test/test4.cpp",
+    "test/t10a.cpp",
+    "test/test1.cpp",
+    "test/t15a.cpp",
+    "test/test9.cpp",
+    "tools/build.cpp",
+    "tools/mkfs.cpp",
+    "tools/diskio.cpp",
+    "tools/fsck.cpp",
+    "tools/bootblok1.cpp",
+    "tools/getcore.cpp",
+    "tools/init.cpp"
+
   ]
 }
