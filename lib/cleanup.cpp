@@ -4,5 +4,5 @@
 void _cleanup(void) {
     for (int i = 0; i < NFILES; i++)
         if (_io_table[i] != nullptr)
-            __fflush(_io_table[i]);
+            fflush(_io_table[i]);
 }
