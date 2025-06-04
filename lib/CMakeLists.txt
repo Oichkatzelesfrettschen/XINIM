@@ -5,6 +5,7 @@ file(GLOB LIB_SRC
     CONFIGURE_DEPENDS
     "*.cpp"
     "minix/*.cpp"
+    "io/src/*.cpp"
 )
 
 # Define the static library target as minix_libc
