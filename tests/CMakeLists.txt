@@ -26,6 +26,7 @@ target_include_directories(minix_test_syscall PUBLIC
 )
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
+#Fastpath unit test
 #Add Stream architecture tests
 add_executable(minix_test_streams test_streams.cpp)
 target_link_libraries(minix_test_streams PRIVATE minix_libc)
@@ -65,3 +66,4 @@ target_include_directories(minix_test_stream_foundation PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
 add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
+

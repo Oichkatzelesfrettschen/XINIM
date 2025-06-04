@@ -5,7 +5,6 @@
 #include <cstdint>
 #include <optional>
 #include <vector>
-
 #include "../include/psd/vm/semantic_memory.hpp"
 
 namespace fastpath {
@@ -14,7 +13,6 @@ namespace fastpath {
 // wormhole relies on a zero-copy capable message region to move
 // data between threads efficiently.
 using MessageRegion = psd::vm::semantic_region<psd::vm::semantic_message_tag>;
-
 // State components as described in the formalization.
 
 // Possible thread execution states.
@@ -46,6 +44,7 @@ struct Capability {
     uint32_t badge{};   // badge value delivered to receiver
 };
 
+
 // Thread template provides configurable message register count.  In the
 // actual kernel MR_COUNT is architecture dependent.  Here we expose it
 // for testing and flexibility.
@@ -72,11 +71,13 @@ using Thread = ThreadTemplate<>;
 
 // Endpoint structure holding a queue of waiting threads.  Only one
 // endpoint is modeled for this simplified fastpath implementation.
+
 struct Endpoint {
     uint32_t eid{};              // endpoint identifier
     std::vector<uint32_t> queue; // queued thread ids
     EndpointState state{EndpointState::Idle};
 };
+
 
 // Complete system state used by the fastpath.  Tests construct this
 // structure directly to model kernel behavior during IPC.
@@ -89,12 +90,14 @@ struct State {
     size_t extra_caps{}; // number of extra caps
     MessageRegion msg_region{0, 0};
     // region used for zero-copy transfer of message registers
+
     uint32_t current_tid{}; // currently running thread id
 };
 
 // Statistics collected from fastpath execution.
 // Preconditions enumerated for statistic indexing.
 enum class Precondition : size_t { P1, P2, P3, P4, P5, P6, P7, P8, P9, Count };
+
 
 // Statistics collected from fastpath execution.  They allow tests to
 // confirm that each precondition is checked correctly.

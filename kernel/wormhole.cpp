@@ -1,11 +1,16 @@
 #include "wormhole.hpp"
+#include <algorithm>
+#include <cassert>
+
+namespace fastpath {
+
+namespace detail {
+
+// --\tau_dequeue-- remove receiver from endpoint queue and adjust endpoint state
 
 // Implementation of the fastpath "wormhole" IPC model used for
 // unit testing.  The code is intentionally simplified but mirrors the
 // semantics of the real kernel fastpath.
-
-#include <algorithm>
-#include <cassert>
 
 namespace fastpath {
 
@@ -40,14 +45,21 @@ inline void dequeue_receiver(State &state) {
     }
 }
 
-// --\tau_badge-- deliver badge from capability to receiver.
+// --\tau_badge-- deliver badge from capability to receiver
 inline void transfer_badge(State &state) { state.receiver.badge = state.cap.badge; }
 
-// --\tau_reply-- set up reply linkage from sender to receiver.
+// --\tau_reply-- set up reply linkage from sender to receiver
+
 inline void establish_reply(State &state) { state.sender.reply_to = state.receiver.tid; }
 
 // --\tau_mrs-- copy message registers from sender to receiver
 inline void copy_mrs(State &state) {
+    for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
+        state.receiver.mrs[i] = state.sender.mrs[i];
+    }
+}
+
+// --\tau_state-- update scheduling state after IPC
     // Ensure the provided message region is large and aligned enough.
     assert(message_region_valid(state.msg_region, state.msg_len));
 
@@ -68,11 +80,13 @@ inline void update_thread_state(State &state) {
     state.sender.status = ThreadStatus::Blocked;
 }
 
+
 // --\tau_switch-- context switch to the receiver thread.
 inline void context_switch(State &state) { state.current_tid = state.receiver.tid; }
 
 } // namespace detail
 
+// update statistics for a failed precondition
 // Helper to determine if a capability conveys send rights.
 static bool has_send_right(const CapRights &rights) { return rights.write; }
 
@@ -88,6 +102,7 @@ static bool check(bool condition, Precondition idx, FastpathStats *stats) {
     }
     return false;
 }
+
 
 // Evaluate all preconditions for a fastpath execution attempt.
 static bool preconditions(const State &s, FastpathStats *stats) {
@@ -106,6 +121,7 @@ static bool preconditions(const State &s, FastpathStats *stats) {
 
 // convenient alias for transformation function pointer
 using Transformer = void (*)(State &);
+
 
 // Main fastpath entry: apply all transformation steps when the
 // preconditions hold.
