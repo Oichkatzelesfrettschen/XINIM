@@ -17,23 +17,21 @@
 int heading; /* set when heading printed */
 int error;
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point using modern parameters
+int main(int argc, char *argv[]) {
     int i;
 
     if (argc == 1) {
         size("a.out");
-        exit(error);
+        return error;
     }
 
     for (i = 1; i < argc; i++)
         size(argv[i]);
-    exit(error);
+    return error;
 }
 
-size(name) char *name;
-{
+static void size(const char *name) {
     int fd, separate;
     long head[HLONG], dynam, allmem;
 
@@ -66,8 +64,7 @@ size(name) char *name;
     close(fd);
 }
 
-stderr3(s1, s2, s3) char *s1, *s2, *s3;
-{
+static void stderr3(const char *s1, const char *s2, const char *s3) {
     std_err(s1);
     std_err(s2);
     std_err(s3);

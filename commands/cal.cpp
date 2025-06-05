@@ -8,6 +8,8 @@
 
 #include <array>
 #include <cstdio>
+#include <cstring>
+#include <string>
 #include <string_view>
 
 #define do3months domonth
@@ -39,19 +41,19 @@ constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
 constexpr std::array<std::string_view, 13> monthname = {
     "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-int main(int argc, char *argv[]) {
-    register int month;
-    register int year;
+int main(int argc, char* argv[]) {
+    int month = 0;
+    int year = 0;
 
-    register int arg1val;
-    int arg1len;
-    int arg2val;
+    int arg1val = 0;
+    int arg1len = 0;
+    int arg2val = 0;
 
     if (argc <= 1) {
         usage(how);
     } else {
-        arg1val = atoi(argv[1]);
-        arg1len = strlen(argv[1]);
+        arg1val = std::stoi(argv[1]);
+        arg1len = std::strlen(argv[1]);
         if (argc == 2) {
             /*
              * Only one argument, if small, it's a month.  If
@@ -67,14 +69,14 @@ int main(int argc, char *argv[]) {
             /*
              * Two arguments, allow 1980 12 or 12 1980
              */
-            arg2val = atoi(argv[2]);
+            arg2val = std::stoi(argv[2]);
             if (arg1len > 2)
                 do3months(arg1val, arg2val);
             else
                 do3months(arg2val, arg1val);
         }
     }
-    exit(IO_SUCCESS);
+    return IO_SUCCESS;
 }
 
 static void doyear(int year)

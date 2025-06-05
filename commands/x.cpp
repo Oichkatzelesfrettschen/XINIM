@@ -5,7 +5,8 @@
 >>>*/
 
 char buf[30000];
-main() {
+// Entry point using modern signature
+int main() {
     int i, n;
 
     while (1) {
@@ -13,9 +14,9 @@ main() {
         for (i = 0; i < n; i++)
             if (buf[i] == 015) {
                 printf("DOS\n");
-                exit();
+                exit(0);
             }
         if (n < 30000)
-            exit(0);
+            return 0;
     }
 }

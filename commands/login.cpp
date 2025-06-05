@@ -6,15 +6,28 @@
 
 /* login - log into the system		Author: Patrick van Kleef */
 
-#include "pwd.hpp"
-#include "sgtty.hpp"
-#include "signal.hpp"
+#include "pwd.hpp"    // password entry handling
+#include "sgtty.hpp"  // terminal control
+#include "signal.hpp" // signal handling
+#include <array>
+#include <cstring>
+#include <string_view>
 
-main() {
-    char buf[30], buf1[30], *crypt();
-    int n, n1, bad;
-    struct sgttyb args;
-    struct passwd *pwd, *getpwnam();
+int main() {
+    // Buffers for the user name and password
+    std::array<char, 30> name{};
+    std::array<char, 30> pwd_buf{};
+
+    // Temporary variables
+    int n = 0;
+    int n1 = 0;
+    int bad = 0;
+
+    // Terminal settings for password input
+    struct sgttyb args{};
+
+    // Password database entry
+    struct passwd* pwd = nullptr;
 
     args.sg_kill = '@';
     args.sg_erase = '\b';
@@ -26,24 +39,25 @@ main() {
         bad = 0;
         do {
             write(1, "login: ", 7);
-            n = read(0, buf, 30);
+            n = read(0, name.data(), name.size());
         } while (n < 2);
-        buf[n - 1] = 0;
+        name[n - 1] = 0;
 
         /* Look up login/passwd. */
-        if ((pwd = getpwnam(buf)) == 0)
+        pwd = getpwnam(name.data());
+        if (pwd == nullptr)
             bad++;
 
-        if (bad || strlen(pwd->pw_passwd) != 0) {
+        if (bad || std::strlen(pwd->pw_passwd) != 0) {
             args.sg_flags = 06020;
             ioctl(0, TIOCSETP, &args);
             write(1, "Password: ", 10);
-            n1 = read(0, buf1, 30);
-            buf1[n1 - 1] = 0;
+            n1 = read(0, pwd_buf.data(), pwd_buf.size());
+            pwd_buf[n1 - 1] = 0;
             write(1, "\n", 1);
             args.sg_flags = 06030;
             ioctl(0, TIOCSETP, &args);
-            if (bad || strcmp(pwd->pw_passwd, crypt(buf1, pwd->pw_passwd))) {
+            if (bad || std::strcmp(pwd->pw_passwd, crypt(pwd_buf.data(), pwd->pw_passwd))) {
                 write(1, "Login incorrect\n", 16);
                 continue;
             }
@@ -59,4 +73,6 @@ main() {
         execl("/bin/sh", "-", 0);
         write(1, "exec failure\n", 13);
     }
+
+    return 0; // unreachable but silences compiler warnings
 }

@@ -5,6 +5,7 @@
 >>>*/
 
 /* libpack - pack ASCII assembly code	Author: Andy Tanenbaum */
+#include <string_view>
 
 #define BUFSIZ 20000
 
@@ -147,7 +148,7 @@ struct node *hash[MAX]; /* hash table */
 
 char input[BUFSIZ + 2];
 char xbuf[BUFSIZ + 2];
-main() {
+int main() {
     int n, count, outbytes;
     char *p;
 
@@ -165,6 +166,8 @@ main() {
         outbytes = pack88(input, xbuf, n);
         write(1, xbuf, outbytes);
     }
+
+    return 0; // unreachable
 }
 
 int pack88(inp, outp, count)

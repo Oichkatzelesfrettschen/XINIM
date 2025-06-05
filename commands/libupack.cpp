@@ -4,6 +4,7 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
+#include <string_view>
 char *table[] = {"push ax",
                  "ret",
                  "mov bp,sp",
@@ -130,7 +131,7 @@ char *table[] = {"push ax",
 
 char input[IBUFSIZE + 1], output[OBUFSIZE + 1];
 
-main() {
+int main() {
     int n, count;
 
     while (1) {
@@ -141,6 +142,8 @@ main() {
         count = unpack88(input, output);
         n = write(1, output, count);
     }
+
+    return 0; // unreachable
 }
 
 unpack88(inp, outp) register char *inp, *outp;

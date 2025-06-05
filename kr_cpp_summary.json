@@ -1,6 +1,5 @@
 {
-
-  "count": 140,
+  "count": 147,
   "files": [
     "commands/ar.cpp",
     "commands/cal.cpp",
@@ -93,6 +92,10 @@
     "lib/getuid.cpp",
     "lib/getutil.cpp",
     "lib/index.cpp",
+    "lib/io/src/file_operations.cpp",
+    "lib/io/src/file_stream.cpp",
+    "lib/io/src/standard_streams.cpp",
+    "lib/io/src/stdio_compat.cpp",
     "lib/isatty.cpp",
     "lib/itoa.cpp",
     "lib/malloc.cpp",
@@ -135,6 +138,9 @@
     "test/test7.cpp",
     "test/test8.cpp",
     "test/test9.cpp",
+    "tests/test_fastpath.cpp",
+    "tests/test_semantic_region.cpp",
+    "tests/test_streams.cpp",
     "tools/bootblok1.cpp",
     "tools/build.cpp",
     "tools/diskio.cpp",
@@ -142,29 +148,5 @@
     "tools/getcore.cpp",
     "tools/init.cpp",
     "tools/mkfs.cpp"
-
-  "count": 141,
-  "files": [
-    "test/test6.cpp",
-    "test/test7.cpp",
-    "test/test10.cpp",
-    "test/test3.cpp",
-    "test/test5.cpp",
-    "test/test2.cpp",
-    "test/test8.cpp",
-    "test/test11.cpp",
-    "test/test4.cpp",
-    "test/t10a.cpp",
-    "test/test1.cpp",
-    "test/t15a.cpp",
-    "test/test9.cpp",
-    "tools/build.cpp",
-    "tools/mkfs.cpp",
-    "tools/diskio.cpp",
-    "tools/fsck.cpp",
-    "tools/bootblok1.cpp",
-    "tools/getcore.cpp",
-    "tools/init.cpp"
-
   ]
 }

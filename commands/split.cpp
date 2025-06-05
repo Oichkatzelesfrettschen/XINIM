@@ -13,9 +13,8 @@ int infile;
 char out_file[100];
 char *suffix;
 
-main(argc, argv) int argc;
-char **argv;
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     unsigned short i;
 
     out_file[0] = 'x';
@@ -48,10 +47,10 @@ char **argv;
     /* Appendix now points to last `a' of "aa". We have to decrement it by one */
     *suffix = 'a' - 1;
     split();
-    exit(0);
+    return 0;
 }
 
-split() {
+static void split() {
     char buf[BLOCK_SIZE];
     register char *index, *base;
     register int n;
@@ -76,7 +75,7 @@ split() {
     }
 }
 
-newfile() {
+static int newfile() {
     int fd;
 
     if (++*suffix > 'z') { /* Increment letter */
@@ -92,12 +91,12 @@ newfile() {
     return fd;
 }
 
-usage() {
+[[noreturn]] static void usage() {
     std_err("Usage: split [-n] [file [name]].\n");
     exit(1);
 }
 
-quit() {
+[[noreturn]] static void quit() {
     std_err("split: write error\n");
     exit(1);
 }

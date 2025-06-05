@@ -23,6 +23,7 @@
 #include <array>
 #include <errno.h>
 #include <signal.h>
+#include <string_view>
 
 constexpr int MAXARGC = 64;   /* maximum number of arguments allowed in a list */
 constexpr int USTR_SIZE = 64; /* maximum length of string variable */
@@ -133,8 +134,8 @@ static void trapcc(int sig) {
     cleanup(ofile);
 }
 
-int main(int argc, char *argv[]) {
-    char *str;
+int main(int argc, char* argv[]) {
+    std::string_view str;
     char **argvec;
     int count;
     int ext;
@@ -148,8 +149,9 @@ int main(int argc, char *argv[]) {
     signal(SIGINT, trapcc);
     signal(SIGQUIT, trapcc);
     while (--argc > 0) {
-        if (*(str = *argv++) != '-') {
-            append(&SRCFILES, str);
+        str = *argv++;
+        if (str.empty() || str[0] != '-') {
+            append(&SRCFILES, str.data());
             continue;
         }
 

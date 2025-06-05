@@ -28,9 +28,8 @@ BOOL invec[ASCII + 1], outvec[ASCII + 1];
 
 short in_index, out_index;
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     register unsigned char *ptr;
     int index = 1;
     short i;
@@ -74,9 +73,11 @@ char *argv[];
             outvec[*ptr] = TRUE;
     }
     convert();
+    return 0;
 }
 
-convert() {
+// Perform the translation
+static void convert() {
     short read_chars = 0;
     short c, coded;
     short last = -1;
@@ -109,8 +110,8 @@ convert() {
     /* NOTREACHED */
 }
 
-map(string1, string2) register unsigned char *string1, *string2;
-{
+// Map characters from string1 to string2
+static void map(unsigned char *string1, unsigned char *string2) {
     unsigned char last;
 
     while (*string1) {
@@ -122,9 +123,8 @@ map(string1, string2) register unsigned char *string1, *string2;
     }
 }
 
-expand(arg, buffer) register char *arg;
-register unsigned char *buffer;
-{
+// Expand bracket and escape sequences
+static void expand(char *arg, unsigned char *buffer) {
     int i, ac;
 
     while (*arg) {
@@ -157,8 +157,8 @@ register unsigned char *buffer;
     }
 }
 
-complement(buffer) unsigned char *buffer;
-{
+// Compute the complement of a character set
+static void complement(unsigned char *buffer) {
     register unsigned char *ptr;
     register short i, index;
     unsigned char conv[ASCII + 2];

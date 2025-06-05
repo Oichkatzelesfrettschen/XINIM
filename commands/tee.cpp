@@ -9,9 +9,8 @@
 
 int fd[MAXFD];
 
-main(argc, argv) int argc;
-char **argv;
-{
+// Entry point with modern arguments
+int main(int argc, char *argv[]) {
     char iflag = 0, aflag = 0;
     char buf[BLOCK_SIZE];
     int i, s, n;
@@ -60,5 +59,5 @@ char **argv;
 
     for (i = 0; i < s; i++) /* Close all fd's */
         close(fd[i]);
-    exit(0);
+    return 0;
 }

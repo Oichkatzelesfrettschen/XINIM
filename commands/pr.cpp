@@ -45,9 +45,8 @@ short length = DEF_LENGTH;
 char output[1024];
 FILE *fopen();
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     FILE *file;
     char *ptr;
     int index = 1;

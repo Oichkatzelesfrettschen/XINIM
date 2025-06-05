@@ -7,10 +7,10 @@
 /* cat - concatenates files  		Author: Andy Tanenbaum */
 
 #include <cerrno>
-
+#include <array>
+#include <string_view>
 #include "blocksiz.hpp"
 #include "stat.hpp"
-#include <array>
 
 constexpr std::size_t BUF_SIZE = 512; /* size of the output buffer */
 int unbuffered;                       /* non-zero for unbuffered operation */
@@ -22,33 +22,32 @@ static void copyfile(int fd1, int fd2);
 static void flush(void);
 static void quit(void);
 
-int main(int argc, char *argv[]) {
-    /*
-     * Entry point.  Parse the command line and copy each file to
-     * standard output.  The special file name '-' denotes standard
-     * input.  The -u flag selects unbuffered operation.
-     */
-    int i, k, m, fd1;
-    char *p;
-    struct stat sbuf;
+int main(int argc, char* argv[]) {
+    // Parse options and copy each file to standard output.
 
-    k = 1;
-    /* Check for the -u flag -- unbuffered operation. */
-    p = argv[1];
-    if (argc >= 2 && *p == '-' && *(p + 1) == 'u') {
-        unbuffered = 1;
-        k = 2;
+    int k = 1;                        // Start of file arguments
+    std::string_view p{};             // Potential '-u' flag
+
+    if (argc >= 2) {
+        p = argv[1];
+        if (p == "-u") {
+            unbuffered = 1;
+            k = 2;
+        }
     }
 
     if (k >= argc) {
+        // No files specified; default to standard input
         copyfile(0, 1);
         flush();
-        exit(0);
+        return 0;
     }
 
     for (i = k; i < argc; i++) {
-        if (argv[i][0] == '-' && argv[i][1] == 0) {
-            fd1 = 0;
+        std::string_view file = argv[i];
+        int fd1;
+        if (file == "-") {
+            fd1 = 0; // Use standard input
         } else {
             fd1 = open(argv[i], 0);
             if (fd1 < 0) {
@@ -63,7 +62,7 @@ int main(int argc, char *argv[]) {
             close(fd1);
     }
     flush();
-    exit(0);
+    return 0;
 }
 
 static void copyfile(int fd1, int fd2) {
