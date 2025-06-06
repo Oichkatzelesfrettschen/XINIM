@@ -6,9 +6,8 @@
 
 /* mknod - build a special file		Author: Andy Tanenbaum */
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point using modern signature
+int main(int argc, char *argv[]) {
     /* mknod name b/c major minor makes a node. */
 
     int mode, major, minor;
@@ -24,12 +23,11 @@ char *argv[];
         badcomm();
     if (mknod(argv[1], mode, (major << 8) | minor) < 0)
         perror("mknod");
-    exit(0);
+    return 0;
 }
 
-int atoi(p)
-char *p;
-{
+// Convert ASCII digits to an integer value
+static int atoi(const char *p) {
     /* Ascii to integer conversion. */
     int c, n;
 
@@ -42,7 +40,8 @@ char *p;
     return (n);
 }
 
-badcomm() {
+// Print usage and terminate the program
+[[noreturn]] static void badcomm() {
     std_err("Usage: mknod name b/c major minor\n");
     exit(1);
 }

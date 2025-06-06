@@ -43,9 +43,8 @@ long ltotal; /* Total count of lines */
 long wtotal; /* Total count of words */
 long ctotal; /* Total count of characters */
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     int k;
     char *cp;
     int tflag, files;
@@ -88,7 +87,7 @@ char *argv[];
 
     /* Check to see if input comes from std input. */
     if (k >= argc) {
-        count();
+        static void count();
         if (lflag)
             printf(" %6D", lcount);
         if (wflag)
@@ -97,7 +96,7 @@ char *argv[];
             printf(" %6D", ccount);
         printf(" \n");
         fflush(stdout);
-        exit(0);
+        return 0;
     }
 
     /* There is an explicit list of files.  Loop on files. */
@@ -134,10 +133,10 @@ char *argv[];
     }
 
     fflush(stdout);
-    exit(0);
+    return 0;
 }
 
-count() {
+static void count() {
     register int c;
     register int word = 0;
 
@@ -164,7 +163,7 @@ count() {
     ctotal += ccount;
 }
 
-usage() {
+[[noreturn]] static void usage() {
     std_err("Usage: wc [-lwc] [name ...]\n");
     exit(1);
 }

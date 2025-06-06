@@ -5,6 +5,9 @@
 >>>*/
 
 /* libpack - pack ASCII assembly code	Author: Andy Tanenbaum */
+#include <string_view>
+#include <cstdlib>   // for exit
+#include <unistd.h>  // for read, write
 
 #define BUFSIZ 20000
 
@@ -147,7 +150,10 @@ struct node *hash[MAX]; /* hash table */
 
 char input[BUFSIZ + 2];
 char xbuf[BUFSIZ + 2];
-main() {
+
+// Forward declaration for the packing routine.
+static int pack88(char* inp, char* outp, int count);
+int main() {
     int n, count, outbytes;
     char *p;
 
@@ -165,13 +171,13 @@ main() {
         outbytes = pack88(input, xbuf, n);
         write(1, xbuf, outbytes);
     }
+
+    return 0; // unreachable
 }
 
-int pack88(inp, outp, count)
-register char *inp;
-char *outp;
-int count;
-{
+// Pack an ASCII assembly string ``inp`` of length ``count`` into ``outp``.
+// Returns the number of bytes in the packed output.
+static int pack88(char* inp, char* outp, int count) {
     /* Take a string and pack it to compact assembly code. */
 
     int k, hit, whchar, n;

@@ -92,8 +92,7 @@ char gwarning[] = {65, 46, 83, 46, 84, 97, 110, 101, 110, 98, 97, 117, 109, 10};
  *                    mkfs  -  make filesystem
  *===============================================================*/
 
-main(argc, argv) int argc;
-char *argv[];
+int main(int argc, char* argv[])
 {
     int i, blocks, zones, inodes, mode, usrid, grpid, badusage = 0;
     char *token[MAX_TOKENS], buf[BLOCK_SIZE];
@@ -216,7 +215,7 @@ char *argv[];
     if (print)
         print_fs();
     flush();
-    exit(0);
+    return 0;
 
 } /* end main */
 

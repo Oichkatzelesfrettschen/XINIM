@@ -44,8 +44,8 @@ char *fn, *mode;
     return (p);
 }
 
-main(argc, argv) char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     char *p;
     int inf = -1, outf;
 
@@ -95,7 +95,7 @@ main(argc, argv) char *argv[];
 
     uniq();
     fflush(stdout);
-    exit(0);
+    return 0;
 }
 
 char *skip(s)
@@ -130,8 +130,7 @@ char *s1, *s2;
     return !strcmp(skip(s1), skip(s2));
 }
 
-show(line, count) char *line;
-{
+static void show(char *line, int count) {
     if (cflag)
         printf("%4d %s", count, line);
     else {
@@ -145,41 +144,37 @@ show(line, count) char *line;
  */
 char *nowline, *prevline, buf1[1024], buf2[1024];
 
-uniq() {
-    char *p;
-    int seen;
+static int uniq() char *p;
+int seen;
 
-    /* setup */
-    prevline = buf1;
-    if (getline(prevline, 1024) < 0)
-        return (0);
-    seen = 1;
-    nowline = buf2;
+/* setup */
+prevline = buf1;
+if (getline(prevline, 1024) < 0)
+    return (0);
+seen = 1;
+nowline = buf2;
 
-    /* get nowline and compare
-     * if not equal, dump prevline and swap pointers
-     * else continue, bumping seen count
-     */
-    while (getline(nowline, 1024) > 0) {
-        if (!equal(prevline, nowline)) {
-            show(prevline, seen);
-            seen = 1;
-            p = nowline;
-            nowline = prevline;
-            prevline = p;
-        } else
-            seen += 1;
-    }
-    show(prevline, seen);
-    return 0;
+/* get nowline and compare
+ * if not equal, dump prevline and swap pointers
+ * else continue, bumping seen count
+ */
+while (getline(nowline, 1024) > 0) {
+    if (!equal(prevline, nowline)) {
+        show(prevline, seen);
+        seen = 1;
+        p = nowline;
+        nowline = prevline;
+        prevline = p;
+    } else
+        seen += 1;
+}
+show(prevline, seen);
+return 0;
 }
 
-usage() { std_err("Usage: uniq [-udc] [+n] [-n] [input [output]]\n"); }
+[[noreturn]] static void usage() { std_err("Usage: uniq [-udc] [+n] [-n] [input [output]]\n"); }
 
-int getline(buf, count)
-char *buf;
-int count;
-{
+static int getline(char *buf, int count) {
     char c;
     int ct = 0;
 

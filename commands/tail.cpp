@@ -16,9 +16,8 @@
 int lines, chars;
 char buff[BUFSIZ];
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with arguments using C++ style
+int main(int argc, char *argv[]) {
     char *s;
     FILE *input, *fopen();
     int count;
@@ -72,12 +71,13 @@ char *argv[];
     }
 
     done(0);
+    return 0; // Unreachable
 }
 
 /* stoi - convert string to integer */
 
-stoi(s) char *s;
-{
+// Convert string to integer
+static int stoi(char *s) {
     int n, sign;
 
     while (*s == BLANK || *s == NEWL || *s == TAB)
@@ -106,9 +106,8 @@ stoi(s) char *s;
 
 char cbuf[BUF_SIZE];
 
-tail(in, goal) FILE *in;
-int goal;
-{
+// Print the last part of the input
+static void tail(FILE *in, int goal) {
     int c, count;
     char *start, *finish, *end;
 
@@ -168,8 +167,8 @@ int goal;
 
 } /* end tail */
 
-done(n) int n;
-{
+// Terminate the program, flushing stdio buffers
+[[noreturn]] static void done(int n) {
     _cleanup(); /* flush stdio's internal buffers */
     exit(n);
 }

@@ -7,6 +7,7 @@
 #include "../include/lib.hpp" // C++17 header
 #include "errno.hpp"
 #include "stdio.hpp"
+#include <string_view>
 #include <cctype>
 extern int errno;
 

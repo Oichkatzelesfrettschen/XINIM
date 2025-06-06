@@ -16,9 +16,8 @@ int next;
 int bytespresent;
 char hexit();
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     int k, flags;
     long offset();
     char *p;

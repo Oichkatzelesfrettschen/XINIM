@@ -78,9 +78,8 @@ error(s1, s2) char *s1, *s2;
     exit(1);
 }
 
-main(argc, argv) int argc;
-register char *argv[];
-{
+// Entry point for the tar command
+int main(int argc, char *argv[]) {
     register char *ptr;
     int i;
 
@@ -119,7 +118,7 @@ register char *argv[];
         tarfile();
 
     flush();
-    exit(0);
+    return 0;
 }
 
 BOOL get_header() {

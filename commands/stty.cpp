@@ -20,16 +20,15 @@ struct tchars tch;
 #define EOFC 004   /* CTRL-D */
 #define DELC 0177  /* DEL */
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
 
     /* stty with no arguments just reports on current status. */
     ioctl(0, TIOCGETP, &args);
     ioctl(0, TIOCGETC, &tch);
     if (argc == 1) {
         report();
-        exit(0);
+        return 0;
     }
 
     /* Process the options specified. */
@@ -40,10 +39,10 @@ char *argv[];
     }
     ioctl(0, TIOCSETP, &args);
     ioctl(0, TIOCSETC, &tch);
-    exit(0);
+    return 0;
 }
 
-report() {
+static void report() {
     int mode;
 
     mode = args.sg_flags;
@@ -63,16 +62,14 @@ report() {
     prints("\n");
 }
 
-pr(f, n) int f, n;
-{
+static void pr(int f, int n) {
     if (f)
         prints("%s ", on[n]);
     else
         prints("%s ", off[n]);
 }
 
-option(opt, next) char *opt, *next;
-{
+static void option(char *opt, char *next) {
     if (match(opt, "-tabs")) {
         args.sg_flags &= ~XTABS;
         return;
@@ -167,8 +164,7 @@ char *s1, *s2;
     }
 }
 
-prctl(c) char c;
-{
+static void prctl(char c) {
     if (c < ' ')
         prints("^%c", 'A' + c - 1);
     else if (c == 0177)
