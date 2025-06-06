@@ -1,23 +1,15 @@
-#include "../include/stdio.h"
+// clang-format off
+#include <cstdio>
+#include "../include/stdio.hpp"
+// clang-format on
 
-fwrite(ptr, size, count, file)
-unsigned size, count;
-char *ptr;
-FILE *file;
-{
-	unsigned s;
-	unsigned ndone = 0;
-
-	if (size)
-		while ( ndone < count ) {
-			s = size;
-			do {
-				putc(*ptr++, file);
-				if (ferror(file))
-					return(ndone);
-			} 
-			while (--s);
-			ndone++;
-		}
-	return(ndone);
+// Write elements from buffer to the specified stream.
+size_t fwrite(const void *ptr, size_t size, size_t count, FILE *file) {
+    const char *bytes = static_cast<const char *>(ptr);
+    size_t total = size * count;
+    for (size_t i = 0; i < total; ++i) {
+        if (putc(bytes[i], file) == EOF)
+            return i / size;
+    }
+    return count;
 }
