@@ -1,9 +1,12 @@
-#include "../include/stdio.h"
+// clang-format off
+#include <cstdio>
+#include "../include/stdio.hpp"
+// clang-format on
 
-fputs(s,file)
-register char *s;
-FILE *file;
-{
-	while ( *s ) 
-		putc(*s++,file);
+// Write a string to the specified file stream.
+int fputs(const char *s, FILE *file) {
+    while (*s != '\0') {
+        putc(*s++, file);
+    }
+    return 0;
 }
