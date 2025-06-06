@@ -5,6 +5,8 @@
 >>>*/
 
 #include <string_view>
+#include <cstdlib>   // for exit
+#include <unistd.h>  // for read, write
 char *table[] = {"push ax",
                  "ret",
                  "mov bp,sp",
@@ -129,10 +131,16 @@ char *table[] = {"push ax",
 #define IBUFSIZE 10000
 #define OBUFSIZE 30000
 
-char input[IBUFSIZE + 1], output[OBUFSIZE + 1];
+// Input buffer for packed bytes and output buffer for the unpacked result.
+char input[IBUFSIZE + 1];
+char output[OBUFSIZE + 1];
+
+// Forward declaration of the unpack routine.
+static int unpack88(char* inp, char* outp);
 
 int main() {
-    int n, count;
+    int n;          // number of bytes read from stdin
+    int count;      // count of bytes produced by unpack88
 
     while (1) {
         n = read(0, input, IBUFSIZE);
@@ -146,23 +154,27 @@ int main() {
     return 0; // unreachable
 }
 
-unpack88(inp, outp) register char *inp, *outp;
-{
+// Expand packed assembly opcodes from ``inp`` into ``outp``.
+// Returns the number of bytes written to ``outp``.
+static int unpack88(char* inp, char* outp) {
+    int k;       // Current input byte as an unsigned value
+    char* p;     // Pointer for table lookups
+    char* orig = outp; // Keep start to compute byte count
 
-    register k;
-    char *p, *orig;
-
-    orig = outp;
     while (*inp != 0) {
         k = *inp & 0377;
         if (k < 128) {
+            // Values below 128 are copied directly
             *outp++ = *inp++;
         } else {
+            // Higher values index into the expansion table
             p = table[k - 128];
-            while (*p != 0)
+            while (*p != 0) {
                 *outp++ = *p++;
-            *inp++;
+            }
+            inp++;
         }
     }
-    return (outp - orig);
+
+    return outp - orig;
 }
