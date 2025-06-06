@@ -3,7 +3,9 @@
 #include <cstddef>
 #include <memory>
 #include <optional>
-#include <span>
+#if __cpp_lib_span
+#include <span> // std::span overloads (C++20)
+#endif
 #include <system_error>
 #include <vector>
 
@@ -23,11 +25,23 @@ class Stream {
   public:
     virtual ~Stream() = default;
 
-    // Read bytes into buffer, returning number read or error
-    virtual Result<size_t> read(std::span<std::byte> buffer) = 0;
+    // Read bytes into ``buffer`` of size ``length``.
+    virtual Result<size_t> read(std::byte *buffer, size_t length) = 0;
+#if __cpp_lib_span
+    // Convenience overload when std::span is available.
+    virtual Result<size_t> read(std::span<std::byte> buffer) {
+        return read(buffer.data(), buffer.size());
+    }
+#endif
 
-    // Write bytes from buffer, returning number written or error
-    virtual Result<size_t> write(std::span<const std::byte> buffer) = 0;
+    // Write bytes from ``buffer`` of size ``length``.
+    virtual Result<size_t> write(const std::byte *buffer, size_t length) = 0;
+#if __cpp_lib_span
+    // Convenience overload when std::span is available.
+    virtual Result<size_t> write(std::span<const std::byte> buffer) {
+        return write(buffer.data(), buffer.size());
+    }
+#endif
 
     // Flush buffered data if applicable
     virtual std::error_code flush() { return {}; }

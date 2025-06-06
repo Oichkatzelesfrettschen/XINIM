@@ -8,6 +8,12 @@ file(GLOB LIB_SRC
     "io/src/*.cpp"
 )
 
+# Exclude legacy duplicates now provided inline.
+list(REMOVE_ITEM LIB_SRC
+    "${CMAKE_CURRENT_LIST_DIR}/getc.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/putc.cpp"
+)
+
 # Define the static library target as minix_libc
 add_library(minix_libc STATIC ${LIB_SRC})
 

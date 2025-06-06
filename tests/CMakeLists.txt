@@ -67,3 +67,16 @@ target_include_directories(minix_test_stream_foundation PUBLIC
 )
 add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
 
+#MemoryStream unit test
+add_executable(minix_test_memory_stream
+    test_memory_stream.cpp
+    "${CMAKE_SOURCE_DIR}/lib/io/src/memory_stream.cpp"
+)
+set_target_properties(minix_test_memory_stream PROPERTIES
+    CXX_STANDARD 17
+    CXX_STANDARD_REQUIRED ON
+)
+target_include_directories(minix_test_memory_stream PUBLIC
+    "${CMAKE_SOURCE_DIR}/include"
+)
+add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
