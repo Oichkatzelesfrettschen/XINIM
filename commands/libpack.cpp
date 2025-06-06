@@ -6,6 +6,7 @@
 
 /* libpack - pack ASCII assembly code	Author: Andy Tanenbaum */
 #include <string_view>
+
 #include <cstdlib>   // for exit
 #include <unistd.h>  // for read, write
 
@@ -150,7 +151,6 @@ struct node *hash[MAX]; /* hash table */
 
 char input[BUFSIZ + 2];
 char xbuf[BUFSIZ + 2];
-
 // Forward declaration for the packing routine.
 static int pack88(char* inp, char* outp, int count);
 int main() {
