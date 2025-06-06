@@ -19,16 +19,15 @@ struct time_buf {
 
 int digit_seen;
 char a[12] = {"        . \n"};
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
 
     struct time_buf pre_buf, post_buf;
     int status, pid;
     long start_time, end_time;
 
     if (argc == 1)
-        exit(0);
+        return 0;
 
     args = &argv[1];
     name = argv[1];
@@ -39,7 +38,7 @@ char *argv[];
     /* Fork off child. */
     if ((pid = fork()) < 0) {
         std_err("Cannot fork\n");
-        exit(1);
+        return 1;
     }
 
     if (pid == 0)
@@ -60,14 +59,13 @@ char *argv[];
 
     /* Print results. */
     print_time("real ", (end_time - start_time) * HZ);
-    print_time("user ", post_buf.cpphildu - pre_buf.cpphildu);
-    print_time("sys  ", post_buf.cpphilds - pre_buf.cpphilds);
-    exit(status >> 8);
+    print_time("user ", post_buf.childu - pre_buf.childu);
+    print_time("sys  ", post_buf.childs - pre_buf.childs);
+    return status >> 8;
 }
 
-print_time(mess, t) char *mess;
-register long t;
-{
+// Pretty print a time value
+static void print_time(char *mess, long t) {
     /* Print the time 't' in hours: minutes: seconds.  't' is in ticks. */
     int hours, minutes, seconds, tenths, i;
 
@@ -100,9 +98,8 @@ register long t;
     std_err(a);
 }
 
-twin(n, p) int n;
-char *p;
-{
+// Print a two-digit number
+static void twin(int n, char *p) {
     char c1, c2;
     c1 = (n / 10) + '0';
     c2 = (n % 10) + '0';
@@ -116,12 +113,13 @@ char *p;
 
 char *newargs[MAX_ISTACK_BYTES >> 2] = {"/bin/sh"}; /* 256 args */
 
-execute() {
+// Search for command and execute it
+static void execute() {
     register int i;
 
-    try(""); /* try local directory */
-    try("/bin/");
-    try("/usr/bin/");
+    try_path(""); /* try local directory */
+    try_path("/bin/");
+    try_path("/usr/bin/");
 
     for (i = 0; newargs[i + 1] = args[i]; i++)
         ;
@@ -132,8 +130,8 @@ execute() {
 }
 
 char pathname[200];
-try(path) char *path;
-{
+// Attempt to execute using the provided path
+static void try_path(const char *path) {
     register char *p1, *p2;
 
     p1 = path;

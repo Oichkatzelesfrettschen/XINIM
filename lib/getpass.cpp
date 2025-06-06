@@ -2,9 +2,8 @@
 
 static char pwdbuf[9];
 
-char *getpass(prompt)
-char *prompt;
-{
+// Read a password from the terminal without echoing input
+char *getpass(const char *prompt) {
     int i = 0;
     struct sgttyb tty;
 
@@ -19,5 +18,5 @@ char *prompt;
     tty.sg_flags = 06030;
     ioctl(0, TIOCSETP, &tty);
     prints("\n");
-    return (pwdbuf);
+    return pwdbuf;
 }

@@ -10,9 +10,8 @@
 
 extern int errno;
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern signature
+int main(int argc, char *argv[]) {
 
     if (argc != 2)
         usage();
@@ -25,10 +24,11 @@ char *argv[];
     }
     std_err(argv[1]);
     std_err(" unmounted\n");
-    exit(0);
+    return 0;
 }
 
-usage() {
+// Display usage message and terminate
+[[noreturn]] static void usage() {
     std_err("Usage: umount special\n");
     exit(1);
 }

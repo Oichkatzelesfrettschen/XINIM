@@ -17,7 +17,7 @@
 /*
  * Move one line up.
  */
-UP() {
+void UP() {
     if (y == 0) { /* Top line of screen. Scroll one line */
         (void)reverse_scroll();
         move_to(x, y);
@@ -28,7 +28,7 @@ UP() {
 /*
  * Move one line down.
  */
-DN() {
+void DN() {
     if (y == last_y) { /* Last line of screen. Scroll one line */
         if (bot_line->next == tail && bot_line->text[0] != '\n') {
             dummy_line(); /* Create new empty line */
@@ -45,7 +45,7 @@ DN() {
 /*
  * Move left one position.
  */
-LF() {
+void LF() {
     if (x == 0 && get_shift(cur_line->shift_count) == 0) { /* Begin of line */
         if (cur_line->prev != header) {
             UP(); /* Move one line up */
@@ -58,7 +58,7 @@ LF() {
 /*
  * Move right one position.
  */
-RT() {
+void RT() {
     if (*cur_text == '\n') {
         if (cur_line->next != tail) { /* Last char of file */
             DN();                     /* Move one line down */

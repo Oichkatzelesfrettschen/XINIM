@@ -34,9 +34,8 @@ char search[] = ":/bin:/usr/bin";
 
 int (*qflag)() = SIG_IGN;
 
-main(argc, argv) int argc;
-register char **argv;
-{
+// Entry point for the shell command
+int main(int argc, char *argv[]) {
     register int f;
     register char *s;
     int cflag;
@@ -250,6 +249,7 @@ onecommand() {
         if (talking)
             signal(SIGINT, SIG_IGN);
     }
+    return 0;
 }
 
 void fail() {

@@ -284,9 +284,8 @@ catch () {
     exit(2);
 }
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point for the sort command
+int main(int argc, char *argv[]) {
     int arg_count = 1; /* Offset in argv */
     struct stat st;
     register char *ptr; /* Ptr to *argv in use */
@@ -351,7 +350,7 @@ char *argv[];
         while (argv[args_limit] != NIL_PTR)
             args_limit++; /* Find nr of args */
         files_merge(args_limit - arg_count);
-        exit(0);
+        return 0;
     }
 
     if (arg_count == argc) { /* No args left. Use stdin */
@@ -379,15 +378,15 @@ char *argv[];
         }
 
     if (check)
-        exit(0);
+        return 0;
 
     sort(); /* Sort whatever is left */
 
     if (nr_of_files == 1) /* Only one file sorted -> don't merge*/
-        exit(0);
+        return 0;
 
     files_merge(nr_of_files);
-    exit(0);
+    return 0;
 }
 
 /*

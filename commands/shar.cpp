@@ -14,9 +14,8 @@ char input[IO_SIZE];
 char output[IO_SIZE];
 int index = 0;
 
-main(argc, argv) int argc;
-register char *argv[];
-{
+// Entry point with modern parameters
+int main(int argc, char *argv[]) {
     register int i;
     int fd;
 
@@ -36,11 +35,10 @@ register char *argv[];
     }
     if (index)
         write(1, output, index);
-    exit(0);
+    return 0;
 }
 
-cat(fd) int fd;
-{
+static void cat(int fd) {
     static char *current, *last;
     register int r = 0;
     register char *cur_pos = current;
@@ -62,14 +60,12 @@ cat(fd) int fd;
     current = cur_pos;
 }
 
-print(str) register char *str;
-{
+static void print(char *str) {
     while (*str)
         putchar(*str++);
 }
 
-putchar(c) register char c;
-{
+static void putchar(char c) {
     output[index++] = c;
     if (index == IO_SIZE) {
         write(1, output, index);

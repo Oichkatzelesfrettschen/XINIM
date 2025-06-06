@@ -69,9 +69,8 @@ struct sgttyb tty;
 
 FILE *fopen();
 
-main(argc, argv) int argc;
-char **argv;
-{
+// Entry point for the roff command
+int main(int argc, char *argv[]) {
     if (!isatty(1))
         setbuf(stdout, cumbuf);
     while (--argc)
@@ -125,6 +124,7 @@ endargs:
         blankpage();
     mesg(1); /* ALLOW MESSAGES */
     done(0);
+    return 0;
 }
 
 mesg(f) int f;

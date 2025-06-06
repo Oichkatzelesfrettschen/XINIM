@@ -4,7 +4,8 @@
 
 #include "signal.hpp"
 
-main() {
+// Entry point using modern C++ signature
+int main() {
     int fd, buf[2];
 
     /* Disable SIGTERM */
@@ -25,4 +26,6 @@ main() {
         sync();
         sleep(30);
     }
+
+    return 0; // Unreachable but keeps the compiler happy
 }

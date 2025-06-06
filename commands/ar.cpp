@@ -16,6 +16,7 @@
 #include <array>
 #include <cstring>
 #include <string>
+#include <string_view>
 
 /* Modern constants and helpers */
 constexpr int MAGIC_NUMBER = 0177545;
@@ -149,15 +150,17 @@ static void catch (void) {
     exit(2);
 }
 
-int main(int argc, char *argv[]) {
-    register char *ptr;
+int main(int argc, char* argv[]) {
+    // Parse command flags from argv[1]
+    std::string_view flags = argv[1];
     int pow, pid;
+    char* ptr = nullptr; // scratch pointer
 
     if (argc < 3)
         usage();
 
-    for (ptr = argv[1]; *ptr; ptr++) {
-        switch (*ptr) {
+    for (char flag : flags) {
+        switch (flag) {
         case 't':
             show_fl = TRUE;
             break;
