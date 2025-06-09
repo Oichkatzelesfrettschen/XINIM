@@ -1,14 +1,14 @@
 #!/bin/sh
 # setup.sh - Install dependencies for building and testing this project.
 # This script installs clang and related tools so that the sources can be
-# compiled as C++17 and analyzed with clang-tidy and clang-format.
+# compiled as C++23 and analyzed with clang-tidy and clang-format.
 
 set -euo pipefail
 
 # Update package lists.
 sudo apt-get update
 
-# Install build utilities and clang tools.
+# Install build utilities, analysis tools and documentation generators.
 sudo apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -21,7 +21,32 @@ sudo apt-get install -y --no-install-recommends \
     lld \
     llvm \
     llvm-dev \
-    libclang-dev
+    libclang-dev \
+    libclang-cpp-dev \
+    libpolly-dev \
+    cppcheck \
+    valgrind \
+    lcov \
+    strace \
+    gdb \
+    rustc \
+    cargo \
+    rustfmt \
+    cargo-clippy \
+    g++ \
+    afl++ \
+    ninja-build \
+    doxygen \
+    graphviz \
+    python3-sphinx \
+    python3-breathe \
+    python3-sphinx-rtd-theme \
+    python3-pip \
+    qemu-system-x86 \
+    qemu-utils \
+    qemu-user \
+    tmux \
+    cloc
 
 # Ensure ack is installed for convenient searching
 if ! command -v ack >/dev/null 2>&1; then

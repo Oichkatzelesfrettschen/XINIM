@@ -1,11 +1,11 @@
 #pragma once
 
+#include "../include/psd/vm/semantic_memory.hpp"
 #include <array>
 #include <atomic>
 #include <cstdint>
 #include <optional>
 #include <vector>
-#include "../include/psd/vm/semantic_memory.hpp"
 
 namespace fastpath {
 
@@ -44,7 +44,6 @@ struct Capability {
     uint32_t badge{};   // badge value delivered to receiver
 };
 
-
 // Thread template provides configurable message register count.  In the
 // actual kernel MR_COUNT is architecture dependent.  Here we expose it
 // for testing and flexibility.
@@ -78,7 +77,6 @@ struct Endpoint {
     EndpointState state{EndpointState::Idle};
 };
 
-
 // Complete system state used by the fastpath.  Tests construct this
 // structure directly to model kernel behavior during IPC.
 struct State {
@@ -98,7 +96,6 @@ struct State {
 // Preconditions enumerated for statistic indexing.
 enum class Precondition : size_t { P1, P2, P3, P4, P5, P6, P7, P8, P9, Count };
 
-
 // Statistics collected from fastpath execution.  They allow tests to
 // confirm that each precondition is checked correctly.
 struct FastpathStats {
@@ -114,30 +111,50 @@ struct FastpathStats {
     }
 };
 
-// Fastpath operation modeled as a partial function on State.  Returns
-// true on success and records statistics when provided.
+/**
+ * @brief Execute the fastpath transformations if preconditions are met.
+ *
+ * Applies each transformation step to @p s and updates @p stats when
+ * provided.
+ *
+ * @param s     Mutable fastpath state.
+ * @param stats Optional statistics collector.
+ * @return @c true when all preconditions pass and the fastpath completed.
+ */
 bool execute_fastpath(State &s, FastpathStats *stats = nullptr);
 
-// Assign a zero-copy message region to the fastpath state.  The
-// region must satisfy the alignment requirements of MessageRegion.
+/**
+ * @brief Configure a zero-copy message region for the fastpath.
+ *
+ * The region must satisfy the alignment requirements defined by
+ * MessageRegion.
+ *
+ * @param s      Fastpath state to modify.
+ * @param region Zero-copy message region.
+ */
 void set_message_region(State &s, const MessageRegion &region);
 
-// Validate that a message region can hold the specified number of message
-// registers based on its size and alignment.
+/**
+ * @brief Validate that a message region can hold @p msg_len registers.
+ *
+ * @param region Region to validate.
+ * @param msg_len Number of message registers required.
+ * @return @c true if the region is large and aligned enough.
+ */
 bool message_region_valid(const MessageRegion &region, size_t msg_len);
 
 namespace detail {
-// Remove the receiver from the endpoint queue.
+/// Remove the receiver from the endpoint queue.
 void dequeue_receiver(State &s);
-// Transfer the sender's badge to the receiver.
+/// Transfer the sender's badge to the receiver.
 void transfer_badge(State &s);
-// Link the sender to the receiver for replies.
+/// Link the sender to the receiver for replies.
 void establish_reply(State &s);
-// Copy message registers using the configured message region.
+/// Copy message registers using the configured message region.
 void copy_mrs(State &s);
-// Update thread states after IPC.
+/// Update thread states after IPC.
 void update_thread_state(State &s);
-// Switch execution to the receiver.
+/// Switch execution to the receiver.
 void context_switch(State &s);
 } // namespace detail
 

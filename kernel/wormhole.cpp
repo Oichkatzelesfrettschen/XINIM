@@ -1,4 +1,9 @@
 #include "wormhole.hpp"
+
+/**
+ * @file wormhole.cpp
+ * @brief Simplified fastpath implementation for unit tests.
+ */
 #include <algorithm>
 #include <cassert>
 
@@ -14,9 +19,14 @@ namespace detail {
 
 namespace fastpath {
 
-// Set the zero-copy message region for fastpath execution.  Compile-time
-// checks guarantee that the provided region type supports zero-copy
-// mappings.
+/**
+ * @brief Assign a zero-copy message region used for IPC.
+ *
+ * Compile-time checks ensure the region type supports zero-copy mappings.
+ *
+ * @param state  Fastpath state to modify.
+ * @param region Message region meeting alignment requirements.
+ */
 void set_message_region(State &state, const MessageRegion &region) {
     static_assert(MessageRegion::traits::is_zero_copy_capable,
                   "MessageRegion must support zero-copy");
@@ -24,16 +34,20 @@ void set_message_region(State &state, const MessageRegion &region) {
     state.msg_region = region;
 }
 
-// Verify that the message region can hold the requested message length.
+/**
+ * @brief Check that @p region can store @p msg_len registers.
+ *
+ * @param region Region to validate.
+ * @param msg_len Number of message registers.
+ * @return True when the region size and alignment are sufficient.
+ */
 bool message_region_valid(const MessageRegion &region, size_t msg_len) {
     return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
 }
 
 namespace detail {
 
-// --\tau_dequeue-- remove receiver from endpoint queue and adjust
-// endpoint state.  When the queue becomes empty the endpoint returns to
-// the Idle state.
+/// Remove the receiver from the endpoint queue and update endpoint state.
 inline void dequeue_receiver(State &state) {
     auto it =
         std::find(state.endpoint.queue.begin(), state.endpoint.queue.end(), state.receiver.tid);
@@ -45,14 +59,13 @@ inline void dequeue_receiver(State &state) {
     }
 }
 
-// --\tau_badge-- deliver badge from capability to receiver
+/// Deliver the sender's badge to the receiver.
 inline void transfer_badge(State &state) { state.receiver.badge = state.cap.badge; }
 
-// --\tau_reply-- set up reply linkage from sender to receiver
-
+/// Establish reply linkage from sender to receiver.
 inline void establish_reply(State &state) { state.sender.reply_to = state.receiver.tid; }
 
-// --\tau_mrs-- copy message registers from sender to receiver
+/// Copy message registers from sender to receiver.
 inline void copy_mrs(State &state) {
     for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
         state.receiver.mrs[i] = state.sender.mrs[i];
@@ -60,28 +73,27 @@ inline void copy_mrs(State &state) {
 }
 
 // --\tau_state-- update scheduling state after IPC
-    // Ensure the provided message region is large and aligned enough.
-    assert(message_region_valid(state.msg_region, state.msg_len));
+// Ensure the provided message region is large and aligned enough.
+assert(message_region_valid(state.msg_region, state.msg_len));
 
-    // Use zero_copy_map to access the region without additional copies.
-    auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
+// Use zero_copy_map to access the region without additional copies.
+auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
 
-    // Copy from sender to the shared region then into the receiver registers.
-    for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
-        buffer[i] = state.sender.mrs[i];
-        state.receiver.mrs[i] = buffer[i];
-    }
+// Copy from sender to the shared region then into the receiver registers.
+for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
+    buffer[i] = state.sender.mrs[i];
+    state.receiver.mrs[i] = buffer[i];
+}
 }
 
-// --\tau_state-- update scheduling state after IPC.  The receiver
-// becomes runnable while the sender blocks waiting for a reply.
+/// Update scheduling state after IPC.
+/// The receiver becomes runnable while the sender blocks waiting for a reply.
 inline void update_thread_state(State &state) {
     state.receiver.status = ThreadStatus::Running;
     state.sender.status = ThreadStatus::Blocked;
 }
 
-
-// --\tau_switch-- context switch to the receiver thread.
+/// Context switch to the receiver thread.
 inline void context_switch(State &state) { state.current_tid = state.receiver.tid; }
 
 } // namespace detail
@@ -103,7 +115,6 @@ static bool check(bool condition, Precondition idx, FastpathStats *stats) {
     return false;
 }
 
-
 // Evaluate all preconditions for a fastpath execution attempt.
 static bool preconditions(const State &s, FastpathStats *stats) {
     return check(s.extra_caps == 0, Precondition::P1, stats) &&
@@ -122,9 +133,7 @@ static bool preconditions(const State &s, FastpathStats *stats) {
 // convenient alias for transformation function pointer
 using Transformer = void (*)(State &);
 
-
-// Main fastpath entry: apply all transformation steps when the
-// preconditions hold.
+/// Apply all transformation steps when fastpath preconditions hold.
 bool execute_fastpath(State &state, FastpathStats *stats) {
     if (!preconditions(state, stats)) {
         return false;

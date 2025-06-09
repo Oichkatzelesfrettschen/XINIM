@@ -14,7 +14,7 @@ target_include_directories(minix_test_lib PUBLIC
     "${CMAKE_SOURCE_DIR}/h"
 )
 
-target_compile_options(minix_test_lib PRIVATE -std=c++17 -fno-builtin)
+target_compile_options(minix_test_lib PRIVATE -std=c++23 -fno-builtin)
 
 add_test(NAME minix_test_lib COMMAND minix_test_lib)
 
@@ -59,7 +59,7 @@ add_executable(minix_test_stream_foundation
     "${CMAKE_SOURCE_DIR}/lib/io/src/standard_streams.cpp"
 )
 set_target_properties(minix_test_stream_foundation PROPERTIES
-    CXX_STANDARD 20
+    CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
 )
 target_include_directories(minix_test_stream_foundation PUBLIC
@@ -73,7 +73,7 @@ add_executable(minix_test_memory_stream
     "${CMAKE_SOURCE_DIR}/lib/io/src/memory_stream.cpp"
 )
 set_target_properties(minix_test_memory_stream PROPERTIES
-    CXX_STANDARD 17
+    CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
 )
 target_include_directories(minix_test_memory_stream PUBLIC

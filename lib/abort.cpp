@@ -1,5 +1,14 @@
-/* Minimal abort implementation */
+/**
+ * @file abort.cpp
+ * @brief Minimal stub for the C @c abort function.
+ */
+
 #include <stdlib.h>
 
-/* Abort the program */
-void abort(void) { exit(99); }
+/**
+ * @brief Terminate the program abnormally.
+ *
+ * Simply exits with status code 99 to indicate failure. In a full
+ * implementation this would raise SIGABRT and generate a core dump.
+ */
+[[noreturn]] void abort() { exit(99); }
