@@ -2,10 +2,16 @@
 
 #include <cctype> // for std::isspace
 
-// Parse a signed decimal string and return the resulting value as a long.
-// Leading whitespace is skipped and an optional leading '-' is honored.
-// Parsing stops at the first non-digit character.
-static inline long parse_signed_decimal(const char *str) {
+/**
+ * @brief Parse a signed decimal string.
+ *
+ * Leading whitespace is skipped and an optional minus sign is permitted.
+ * Parsing stops when the first non-digit character is encountered.
+ *
+ * @param str Null-terminated ASCII string to parse.
+ * @return Resulting numeric value as a long.
+ */
+[[nodiscard]] constexpr long parse_signed_decimal(const char *str) noexcept {
     // Convert to unsigned char pointer for safe character math.
     const unsigned char *s = reinterpret_cast<const unsigned char *>(str);
 

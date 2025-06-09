@@ -64,6 +64,11 @@ PRIVATE void init_clock(void);
 /*===========================================================================*
  *				clock_task				     *
  *===========================================================================*/
+/**
+ * @brief Entry point for the clock task.
+ *
+ * Handles timer interrupts and time management requests from other tasks.
+ */
 PUBLIC clock_task() {
     /* Main program of clock task.  It determines which of the 4 possible
      * calls this is by looking at 'mc.m_type'.   Then it dispatches.
@@ -214,6 +219,9 @@ PRIVATE void do_clocktick(void) {
 /*===========================================================================*
  *				accounting				     *
  *===========================================================================*/
+/**
+ * @brief Update user and system accounting statistics.
+ */
 PRIVATE void accounting(void) {
     /* Update user and system accounting times.  The variable 'bill_ptr' is always
      * kept pointing to the process to charge for CPU usage.  If the CPU was in

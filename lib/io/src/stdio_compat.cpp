@@ -8,14 +8,24 @@
 
 namespace minix::io::compat {
 
+/// Map tracking FILE* handles to their owning Stream objects.
 static std::unordered_map<FILE *, Stream *> file_to_stream_map;
+/// Guards modifications to file_to_stream_map.
 static std::mutex map_mutex;
 
+/// Associate a stdio FILE pointer with a Stream object.
+///
+/// \param file   The FILE* handle.
+/// \param stream Stream instance managing the descriptor.
 void register_file_stream(FILE *file, Stream *stream) {
     std::lock_guard<std::mutex> lock(map_mutex);
     file_to_stream_map[file] = stream;
 }
 
+/// Retrieve the Stream associated with a stdio FILE pointer.
+///
+/// \param file The FILE* to look up.
+/// \return     Pointer to the corresponding Stream or nullptr.
 Stream *get_stream(FILE *file) {
     if (file == stdin)
         return &minix::io::stdin();
@@ -30,6 +40,11 @@ Stream *get_stream(FILE *file) {
 
 extern "C" {
 
+/// fopen replacement using the Stream API.
+///
+/// \param path Path to open.
+/// \param mode Mode string as accepted by fopen.
+/// \return     Newly allocated FILE pointer or nullptr on error.
 FILE *fopen_compat(const char *path, const char *mode) {
     bool read = false, write = false, append = false;
     OpenMode open_mode{};
@@ -71,6 +86,10 @@ FILE *fopen_compat(const char *path, const char *mode) {
     return fake;
 }
 
+/// fclose replacement for Stream backed FILE pointers.
+///
+/// \param fp FILE pointer returned by fopen_compat.
+/// \return   0 on success or EOF on error.
 int fclose_compat(FILE *fp) {
     auto *stream = get_stream(fp);
     if (!stream)
@@ -86,6 +105,13 @@ int fclose_compat(FILE *fp) {
     return err ? EOF : 0;
 }
 
+/// fread replacement using Stream::read.
+///
+/// \param ptr   Destination buffer.
+/// \param size  Size of each element.
+/// \param nmemb Number of elements to read.
+/// \param fp    FILE pointer to read from.
+/// \return      Number of elements successfully read.
 size_t fread_compat(void *ptr, size_t size, size_t nmemb, FILE *fp) {
     auto *stream = get_stream(fp);
     if (!stream)
@@ -95,6 +121,13 @@ size_t fread_compat(void *ptr, size_t size, size_t nmemb, FILE *fp) {
     return result ? (*result.value / size) : 0;
 }
 
+/// fwrite replacement using Stream::write.
+///
+/// \param ptr   Source buffer.
+/// \param size  Size of each element.
+/// \param nmemb Number of elements to write.
+/// \param fp    FILE pointer to write to.
+/// \return      Number of elements successfully written.
 size_t fwrite_compat(const void *ptr, size_t size, size_t nmemb, FILE *fp) {
     auto *stream = get_stream(fp);
     if (!stream)
@@ -105,6 +138,11 @@ size_t fwrite_compat(const void *ptr, size_t size, size_t nmemb, FILE *fp) {
     return result ? (*result.value / size) : 0;
 }
 
+/// fprintf replacement using the Stream API.
+///
+/// \param fp     FILE pointer to write to.
+/// \param format printf style format string.
+/// \return       Number of characters written or negative on error.
 int fprintf_compat(FILE *fp, const char *format, ...) {
     auto *stream = get_stream(fp);
     if (!stream)

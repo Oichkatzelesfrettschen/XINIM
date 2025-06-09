@@ -1,8 +1,15 @@
+/**
+ * @file atol.cpp
+ * @brief Implementation of the standard @c atol function.
+ */
+
 #include "../include/number_parse.hpp" // shared decimal parser
 
-/* Convert a string to a long integer using the common parser. */
-long atol(char *s) {
-    // The historical prototype expects a mutable char pointer, so
-    // simply pass it to the helper which takes a const pointer.
-    return parse_signed_decimal(s);
-}
+/**
+ * @brief Convert a numeric string to a long integer.
+ *
+ * @param s Pointer to a null-terminated numeric string. The parameter is kept
+ *          non-const for compatibility with historic prototypes.
+ * @return Converted @c long value.
+ */
+[[nodiscard]] constexpr long atol(char *s) noexcept { return parse_signed_decimal(s); }

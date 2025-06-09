@@ -9,6 +9,12 @@
 
 namespace minix::io {
 
+/// Open a file path and return a stream for I/O operations.
+///
+/// \param path  Filesystem path to open.
+/// \param mode  Combination of OpenMode flags controlling access.
+/// \param perms File permission bits applied when creating the file.
+/// \return      A newly allocated FileStream on success or an error code.
 Result<StreamPtr> open_stream(std::string_view path, OpenMode mode, Permissions perms) {
     std::array<char, 256> buf{};
     if (path.size() >= buf.size()) {
@@ -41,6 +47,12 @@ Result<StreamPtr> open_stream(std::string_view path, OpenMode mode, Permissions 
     return {std::move(ptr), {}};
 }
 
+/// Convenience wrapper around open_stream that always creates/truncates the
+/// file for writing.
+///
+/// \param path  Filesystem path to create.
+/// \param perms File permission bits for the new file.
+/// \return      A FileStream opened for writing or an error code.
 Result<StreamPtr> create_stream(std::string_view path, Permissions perms) {
     return open_stream(path, OpenMode::write | OpenMode::create | OpenMode::truncate, perms);
 }

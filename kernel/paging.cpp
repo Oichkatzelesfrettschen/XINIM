@@ -10,7 +10,9 @@ PRIVATE virt_addr64 next_kernel_va;
 /*===========================================================================*
  *                              paging_init                                  *
  *===========================================================================*/
-/* Initialize kernel paging structures. */
+/**
+ * @brief Initialize kernel paging structures.
+ */
 PUBLIC void paging_init(void) {
     int i;
     for (i = 0; i < PT_ENTRIES; i++)
@@ -22,9 +24,12 @@ PUBLIC void paging_init(void) {
 /*===========================================================================*
  *                              alloc_virtual                                *
  *===========================================================================*/
-/* Allocate virtual kernel address space.
- * bytes: size in bytes.
- * flags: allocation flags (unused).
+/**
+ * @brief Allocate virtual kernel address space.
+ *
+ * @param bytes Size in bytes to allocate.
+ * @param flags Allocation flags (unused).
+ * @return Pointer to allocated virtual address space.
  */
 PUBLIC void *alloc_virtual(u64_t bytes, int flags) {
     virt_addr64 va = next_kernel_va;
@@ -37,10 +42,13 @@ PUBLIC void *alloc_virtual(u64_t bytes, int flags) {
 /*===========================================================================*
  *                              map_page                                     *
  *===========================================================================*/
-/* Record a mapping from virtual to physical address.
- * va: virtual address to map.
- * pa: physical address to map to.
- * flags: mapping attributes (unused).
+/**
+ * @brief Record a mapping from virtual to physical address.
+ *
+ * @param va    Virtual address to map.
+ * @param pa    Physical address to map to.
+ * @param flags Mapping attributes (unused).
+ * @return OK on success.
  */
 PUBLIC int map_page(virt_addr64 va, phys_addr64 pa, int flags) {
     /* Mapping is not actually implemented.  We only preserve bookkeeping. */
