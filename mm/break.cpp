@@ -19,9 +19,11 @@
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../h/signal.h"
-#include "../h/type.hpp"
+#include "../h/type.hpp" // Defines vir_bytes, vir_clicks, CLICK_SIZE, CLICK_SHIFT
 #include "const.hpp"
 #include "glo.hpp"
+#include <cstddef>   // For std::size_t
+#include <cstdint>   // For int64_t
 #include "mproc.hpp"
 #include "param.hpp"
 
@@ -44,13 +46,17 @@ PUBLIC int do_brk() {
 
     register struct mproc *rmp;
     int r;
-    vir_bytes v, new_sp;
-    vir_clicks new_clicks;
+    std::size_t v, new_sp; // vir_bytes -> std::size_t
+    std::size_t new_clicks; // vir_clicks -> std::size_t
 
     rmp = mp;
-    v = (vir_bytes)addr; /* 'addr' is the new data segment size */
-    new_clicks = (vir_clicks)(((long)v + CLICK_SIZE - 1) >> CLICK_SHIFT);
-    sys_getsp(who, &new_sp); /* ask kernel for current sp value */
+    // Assuming addr (char*) can be meaningfully converted to a size/offset.
+    // The original cast to vir_bytes (unsigned) then to long could lose info if pointers are > long.
+    // Prefer casting directly to size_t if it's an offset, or uintptr_t if it's an address value.
+    // For this specific formula, using v directly as size_t should be fine if it represents a segment size.
+    v = reinterpret_cast<std::size_t>(addr); /* 'addr' is the new data segment size */
+    new_clicks = (v + CLICK_SIZE - 1) >> CLICK_SHIFT; // Simplified calculation
+    sys_getsp(who, &new_sp); /* ask kernel for current sp value, new_sp is std::size_t* */
     r = adjust(rmp, new_clicks, new_sp);
     res_ptr = (r == OK ? addr : (char *)-1);
     return (r); /* return new size or -1 */
@@ -59,7 +65,7 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				adjust  				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, vir_clicks data_clicks, vir_bytes sp) {
+[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, std::size_t data_clicks, std::size_t sp) { // vir_clicks, vir_bytes -> std::size_t
     /* See if data and stack segments can coexist, adjusting them if need be.
      * Memory is never allocated or freed.  Instead it is added or removed from the
      * gap between data segment and stack segment.  If the gap size becomes
@@ -67,22 +73,24 @@ PUBLIC int do_brk() {
      */
 
     register struct mem_map *mem_sp, *mem_dp;
-    vir_clicks sp_click, gap_base, lower, old_clicks;
+    std::size_t sp_click, gap_base, lower, old_clicks; // vir_clicks -> std::size_t
     int changed, r, ft;
-    long base_of_stack, delta; /* longs avoid certain problems */
+    int64_t base_of_stack, delta; // Changed from long for clarity and defined width
 
     mem_dp = &rmp->mp_seg[D]; /* pointer to data segment map */
     mem_sp = &rmp->mp_seg[S]; /* pointer to stack segment map */
     changed = 0;              /* set when either segment changed */
 
     /* See if stack size has gone negative (i.e., sp too close to 0xFFFF...) */
-    base_of_stack = (long)mem_sp->mem_vir + (long)mem_sp->mem_len;
-    sp_click = sp >> CLICK_SHIFT; /* click containing sp */
-    if (sp_click >= base_of_stack)
+    // mem_vir and mem_len are std::size_t (from vir_clicks in mem_map)
+    base_of_stack = static_cast<int64_t>(mem_sp->mem_vir) + static_cast<int64_t>(mem_sp->mem_len);
+    sp_click = sp >> CLICK_SHIFT; /* click containing sp (sp is std::size_t) */
+    if (sp_click >= static_cast<std::size_t>(base_of_stack)) // Compare compatible types
         return (ErrorCode::ENOMEM); /* sp too high */
 
     /* Compute size of gap between stack and data segments. */
-    delta = (long)mem_sp->mem_vir - (long)sp_click;
+    delta = static_cast<int64_t>(mem_sp->mem_vir) - static_cast<int64_t>(sp_click);
+    // lower and gap_base are std::size_t. Ensure delta comparison is safe or types are consistent.
     lower = (delta > 0 ? sp_click : mem_sp->mem_vir);
     gap_base = mem_dp->mem_vir + data_clicks;
     if (lower < gap_base)
@@ -127,8 +135,8 @@ PUBLIC int do_brk() {
 /*===========================================================================*
  *				size_ok  				     *
  *===========================================================================*/
-[[nodiscard]] PUBLIC int size_ok(int file_type, vir_clicks tc, vir_clicks dc, vir_clicks sc,
-                                 vir_clicks dvir, vir_clicks s_vir) {
+[[nodiscard]] PUBLIC int size_ok(int file_type, std::size_t tc, std::size_t dc, std::size_t sc,
+                                 std::size_t dvir, std::size_t s_vir) { // vir_clicks -> std::size_t
     /* Check to see if the sizes are feasible and enough segmentation registers
      * exist.  On a machine with eight 8K pages, text, data, stack sizes of
      * (32K, 16K, 16K) will fit, but (33K, 17K, 13K) will not, even though the
@@ -136,11 +144,14 @@ PUBLIC int do_brk() {
      * is needed, since the data and stack may not exceed 4096 clicks.
      */
 
-    int pt, pd, ps; /* segment sizes in pages */
+    std::size_t pt, pd, ps; /* segment sizes in pages, should be size_t */
 
-    pt = ((tc << CLICK_SHIFT) + PAGE_SIZE - 1) / PAGE_SIZE;
-    pd = ((dc << CLICK_SHIFT) + PAGE_SIZE - 1) / PAGE_SIZE;
-    ps = ((sc << CLICK_SHIFT) + PAGE_SIZE - 1) / PAGE_SIZE;
+    // PAGE_SIZE is from mm/const.hpp (was int, ideally std::size_t)
+    // Assuming PAGE_SIZE is compatible or made std::size_t.
+    // tc, dc, sc are std::size_t. CLICK_SHIFT is int.
+    pt = ((tc << CLICK_SHIFT) + static_cast<std::size_t>(PAGE_SIZE) - 1) / static_cast<std::size_t>(PAGE_SIZE);
+    pd = ((dc << CLICK_SHIFT) + static_cast<std::size_t>(PAGE_SIZE) - 1) / static_cast<std::size_t>(PAGE_SIZE);
+    ps = ((sc << CLICK_SHIFT) + static_cast<std::size_t>(PAGE_SIZE) - 1) / static_cast<std::size_t>(PAGE_SIZE);
 
     if (file_type == SEPARATE) {
         if (pt > MAX_PAGES || pd + ps > MAX_PAGES)
@@ -166,10 +177,10 @@ PRIVATE void stack_fault(int proc_nr) {
 
     register struct mproc *rmp;
     int r;
-    vir_bytes new_sp;
+    std::size_t new_sp; // vir_bytes -> std::size_t
 
     rmp = &mproc[proc_nr];
-    sys_getsp(rmp - mproc, &new_sp);
+    sys_getsp(rmp - mproc, &new_sp); // new_sp is std::size_t*
     r = adjust(rmp, rmp->mp_seg[D].mem_len, new_sp);
     if (r == OK)
         return;

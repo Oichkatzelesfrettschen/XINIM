@@ -1,5 +1,8 @@
 #pragma once
-#include <unistd.h>
+#include <unistd.h> // For read, write, ssize_t
+#include <cstddef>  // For std::size_t, nullptr
+// #include "../../xinim/core_types.hpp" // Not directly using xinim types here
+
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
@@ -7,11 +10,11 @@
 >>>*/
 
 
-#define BUFSIZ 1024
-#define NFILES 20
-#define NULL 0
-#define EOF (-1)
-#define CMASK 0377
+inline constexpr std::size_t BUFSIZ = 1024;
+inline constexpr int NFILES = 20;
+// MODERNIZED: #define NULL 0 // Use nullptr in C++ code
+inline constexpr int STDIO_EOF = -1; // Renamed from EOF
+inline constexpr int CMASK = 0377;
 
 constexpr int READMODE = 1;
 constexpr int WRITEMODE = 2;
@@ -44,13 +47,14 @@ extern struct _io_buf {
 #define stderr (_io_table[2])
 
 // Flush the buffer associated with the given stream.
-int fflush(FILE *stream);
+extern "C" int fflush(FILE *stream);
 
 #define getchar() getc(stdin)
 
 /* Write a character to stdout using the low-level write call. */
 inline int putchar(int c) {
-    return ::write(1, &c, 1) == 1 ? c : EOF;
+    // ::write's 3rd param is size_t.
+    return ::write(1, &c, static_cast<size_t>(1)) == 1 ? c : STDIO_EOF;
 }
 
 #define puts(s) fputs(s, stdout)
@@ -59,7 +63,7 @@ inline int putchar(int c) {
 #define feof(p) (((p)->_flags & _EOF) != 0)
 #define ferror(p) (((p)->_flags & _ERR) != 0)
 #define fileno(p) ((p)->_fd)
-#define rewind(f) fseek(f, 0L, 0)
+#define rewind(f) fseek(f, 0L, 0) // fseek takes long for offset
 #define testflag(p, x) ((p)->_flags & (x))
 
 /* If you want a stream to be flushed after each printf use:
@@ -76,59 +80,63 @@ inline int putchar(int c) {
 
 // Inline wrappers replacing historical getc/putc macros
 inline int getc(FILE *iop) {
-    int ch;
+    char c_unbuf; // Temporary for unbuffered read character
     if (testflag(iop, (_EOF | ERR)))
-        return EOF;
+        return STDIO_EOF;
     if (!testflag(iop, READMODE))
-        return EOF;
-    if (--iop->_count <= 0) {
-        if (testflag(iop, UNBUFF))
-            iop->_count = read(iop->_fd, &ch, 1);
-        else
-            iop->_count = read(iop->_fd, iop->_buf, BUFSIZ);
-        if (iop->_count <= 0) {
-            if (iop->_count == 0)
-                iop->_flags |= _EOF;
-            else
-                iop->_flags |= ERR;
-            return EOF;
+        return STDIO_EOF;
+    if (--iop->_count < 0) { // Buffer is empty or was initially zero (for unbuffered)
+        if (testflag(iop, UNBUFF)) {
+            ssize_t nread = ::read(iop->_fd, &c_unbuf, static_cast<size_t>(1));
+            if (nread <= 0) {
+                iop->_flags |= (nread == 0 ? _EOF : ERR);
+                return STDIO_EOF;
+            }
+            iop->_count = 0;
+            return c_unbuf & CMASK;
         } else {
+            ssize_t nread = ::read(iop->_fd, iop->_buf, BUFSIZ); // BUFSIZ is std::size_t
+            if (nread <= 0) {
+                iop->_flags |= (nread == 0 ? _EOF : ERR);
+                return STDIO_EOF;
+            }
             iop->_ptr = iop->_buf;
+            iop->_count = static_cast<int>(nread - 1); // One char is about to be consumed
         }
     }
-    if (testflag(iop, UNBUFF))
-        return ch & CMASK;
     return *iop->_ptr++ & CMASK;
 }
 
 inline int putc(int ch, FILE *iop) {
-    int n = 0;
+    ssize_t n = 0; // To match return type of write
     bool didwrite = false;
     if (testflag(iop, (ERR | _EOF)))
-        return EOF;
+        return STDIO_EOF;
     if (!testflag(iop, WRITEMODE))
-        return EOF;
+        return STDIO_EOF;
     if (testflag(iop, UNBUFF)) {
-        n = write(iop->_fd, &ch, 1);
-        iop->_count = 1;
+        char c_val = static_cast<char>(ch);
+        n = ::write(iop->_fd, &c_val, static_cast<size_t>(1));
+        // iop->_count = 1; // This was original logic, seems incorrect for unbuffered putc.
+                         // _count usually refers to buffered chars.
         didwrite = true;
     } else {
-        *iop->_ptr++ = ch;
-        if (++iop->_count >= BUFSIZ && !testflag(iop, STRINGS)) {
-            n = write(iop->_fd, iop->_buf, iop->_count);
+        *iop->_ptr++ = static_cast<char>(ch);
+        if (++iop->_count >= static_cast<int>(BUFSIZ) && !testflag(iop, STRINGS)) { // BUFSIZ is std::size_t
+            n = ::write(iop->_fd, iop->_buf, static_cast<size_t>(iop->_count));
             iop->_ptr = iop->_buf;
             didwrite = true;
         }
     }
     if (didwrite) {
-        if (n <= 0 || iop->_count != n) {
+        if (n <= 0 || iop->_count != static_cast<int>(n)) { // n is ssize_t, iop->_count is int
             if (n < 0)
                 iop->_flags |= ERR;
-            else
-                iop->_flags |= _EOF;
-            return EOF;
+            else // This case (n > 0 but n != iop->_count) is a short write.
+                iop->_flags |= _EOF; // Original code set _EOF for short write too.
+            return STDIO_EOF;
         }
         iop->_count = 0;
     }
-    return 0;
+    return ch & CMASK; // putc returns the character written on success
 }

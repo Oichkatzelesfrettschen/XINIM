@@ -7,8 +7,9 @@
  * It contains the process' registers, memory map, accounting, and message
  * send/receive information.
  */
-#include "../include/defs.h"
-#include "type.hpp"
+#include "../include/defs.hpp" // Changed to .hpp
+#include "../h/type.hpp"      // For message, mem_map, real_time
+#include "type.hpp"           // For pc_psw
 
 EXTERN struct proc {
     u64_t p_reg[NR_REGS];          /* process' registers */
@@ -38,18 +39,18 @@ EXTERN struct proc {
 } proc[NR_TASKS + NR_PROCS];
 
 /* Bits for p_flags in proc[].  A process is runnable iff p_flags == 0 */
-#define P_SLOT_FREE 001 /* set when slot is not in use */
-#define NO_MAP 002      /* keeps unmapped forked child from running */
-#define SENDING 004     /* set when process blocked trying to send */
-#define RECEIVING 010   /* set when process blocked trying to recv */
+inline constexpr unsigned int P_SLOT_FREE = 001; /* set when slot is not in use */
+inline constexpr unsigned int NO_MAP = 002;      /* keeps unmapped forked child from running */
+inline constexpr unsigned int SENDING = 004;     /* set when process blocked trying to send */
+inline constexpr unsigned int RECEIVING = 010;   /* set when process blocked trying to recv */
 
-#define proc_addr(n) &proc[NR_TASKS + n]
-#define NIL_PROC (struct proc *)0
+#define proc_addr(n) &proc[NR_TASKS + n] // Macro for pointer arithmetic, can be kept
+inline constexpr struct proc* NIL_PROC = nullptr;
 
 EXTERN struct proc *proc_ptr;                        /* &proc[cur_proc] */
 EXTERN struct proc *bill_ptr;                        /* ptr to process to bill for clock ticks */
 EXTERN struct proc *rdy_head[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list heads */
 EXTERN struct proc *rdy_tail[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list tails */
 
-EXTERN unsigned busy_map;                /* bit map of busy tasks */
+EXTERN unsigned int busy_map;            /* bit map of busy tasks */
 EXTERN message *task_mess[NR_TASKS + 1]; /* ptrs to messages for busy tasks */

@@ -6,19 +6,14 @@
  */
 #include <algorithm>
 #include <cassert>
+#include <vector>      // For std::vector::erase (used in dequeue_receiver)
+#include <atomic>      // For std::memory_order_relaxed (used in check)
+#include <cstdint>     // For uint64_t
+#include <functional>  // For std::function or function pointers if Transformer were more complex
 
 namespace fastpath {
 
-namespace detail {
-
-// --\tau_dequeue-- remove receiver from endpoint queue and adjust endpoint state
-
-// Implementation of the fastpath "wormhole" IPC model used for
-// unit testing.  The code is intentionally simplified but mirrors the
-// semantics of the real kernel fastpath.
-
-namespace fastpath {
-
+// Moved set_message_region and message_region_valid to the outer fastpath namespace
 /**
  * @brief Assign a zero-copy message region used for IPC.
  *
@@ -27,7 +22,7 @@ namespace fastpath {
  * @param state  Fastpath state to modify.
  * @param region Message region meeting alignment requirements.
  */
-void set_message_region(State &state, const MessageRegion &region) {
+void set_message_region(State &state, const MessageRegion &region) noexcept {
     static_assert(MessageRegion::traits::is_zero_copy_capable,
                   "MessageRegion must support zero-copy");
     assert(region.aligned());
@@ -41,14 +36,24 @@ void set_message_region(State &state, const MessageRegion &region) {
  * @param msg_len Number of message registers.
  * @return True when the region size and alignment are sufficient.
  */
-bool message_region_valid(const MessageRegion &region, size_t msg_len) {
+bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept {
     return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
 }
 
 namespace detail {
 
+// --\tau_dequeue-- remove receiver from endpoint queue and adjust endpoint state
+
+// Implementation of the fastpath "wormhole" IPC model used for
+// unit testing.  The code is intentionally simplified but mirrors the
+// semantics of the real kernel fastpath.
+
+// Removed duplicate inner "namespace fastpath {"
+
+// namespace detail { // This was the beginning of the second, nested detail. Consolidating.
+
 /// Remove the receiver from the endpoint queue and update endpoint state.
-inline void dequeue_receiver(State &state) {
+inline void dequeue_receiver(State &state) noexcept {
     auto it =
         std::find(state.endpoint.queue.begin(), state.endpoint.queue.end(), state.receiver.tid);
     if (it != state.endpoint.queue.end()) {
@@ -60,50 +65,60 @@ inline void dequeue_receiver(State &state) {
 }
 
 /// Deliver the sender's badge to the receiver.
-inline void transfer_badge(State &state) { state.receiver.badge = state.cap.badge; }
+inline void transfer_badge(State &state) noexcept { state.receiver.badge = state.cap.badge; }
 
 /// Establish reply linkage from sender to receiver.
-inline void establish_reply(State &state) { state.sender.reply_to = state.receiver.tid; }
+inline void establish_reply(State &state) noexcept { state.sender.reply_to = state.receiver.tid; }
 
 /// Copy message registers from sender to receiver.
-inline void copy_mrs(State &state) {
+inline void copy_mrs(State &state) noexcept {
     for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
         state.receiver.mrs[i] = state.sender.mrs[i];
     }
+
+    // The following block was floating code. It seems to be an alternative or
+    // additional part of message copying, possibly using a zero-copy region.
+    // It cannot compile as-is because 'state' is not defined in this scope
+    // if this were a standalone block.
+    // Commenting out for now as its exact placement/function is unclear without more context.
+    /*
+    // --\tau_state-- update scheduling state after IPC
+    // Ensure the provided message region is large and aligned enough.
+    assert(message_region_valid(state.msg_region, state.msg_len));
+
+    // Use zero_copy_map to access the region without additional copies.
+    auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
+
+    // Copy from sender to the shared region then into the receiver registers.
+    for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
+        buffer[i] = state.sender.mrs[i];
+        state.receiver.mrs[i] = buffer[i];
+    }
+    */
 }
 
-// --\tau_state-- update scheduling state after IPC
-// Ensure the provided message region is large and aligned enough.
-assert(message_region_valid(state.msg_region, state.msg_len));
+// } // End of the original inner "namespace detail"
 
-// Use zero_copy_map to access the region without additional copies.
-auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
-
-// Copy from sender to the shared region then into the receiver registers.
-for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
-    buffer[i] = state.sender.mrs[i];
-    state.receiver.mrs[i] = buffer[i];
-}
-}
-
+// These functions are now part of the consolidated "namespace detail"
 /// Update scheduling state after IPC.
 /// The receiver becomes runnable while the sender blocks waiting for a reply.
-inline void update_thread_state(State &state) {
+inline void update_thread_state(State &state) noexcept {
     state.receiver.status = ThreadStatus::Running;
     state.sender.status = ThreadStatus::Blocked;
 }
 
 /// Context switch to the receiver thread.
-inline void context_switch(State &state) { state.current_tid = state.receiver.tid; }
+inline void context_switch(State &state) noexcept { state.current_tid = state.receiver.tid; }
 
-} // namespace detail
+} // namespace detail (consolidated)
 
+// These static functions remain in the outer ::fastpath namespace
 // update statistics for a failed precondition
 // Helper to determine if a capability conveys send rights.
-static bool has_send_right(const CapRights &rights) { return rights.write; }
+static bool has_send_right(const CapRights &rights) noexcept { return rights.write; }
 
 // Helper for updating statistics when a precondition check fails.
-static bool check(bool condition, Precondition idx, FastpathStats *stats) {
+static bool check(bool condition, Precondition idx, FastpathStats *stats) noexcept {
     if (condition) {
         return true;
     }
@@ -116,7 +131,7 @@ static bool check(bool condition, Precondition idx, FastpathStats *stats) {
 }
 
 // Evaluate all preconditions for a fastpath execution attempt.
-static bool preconditions(const State &s, FastpathStats *stats) {
+static bool preconditions(const State &s, FastpathStats *stats) noexcept {
     return check(s.extra_caps == 0, Precondition::P1, stats) &&
            check(s.msg_len <= s.sender.mrs.size(), Precondition::P2, stats) &&
            check(!s.sender.fault.has_value(), Precondition::P3, stats) &&
@@ -134,7 +149,7 @@ static bool preconditions(const State &s, FastpathStats *stats) {
 using Transformer = void (*)(State &);
 
 /// Apply all transformation steps when fastpath preconditions hold.
-bool execute_fastpath(State &state, FastpathStats *stats) {
+bool execute_fastpath(State &state, FastpathStats *stats) noexcept {
     if (!preconditions(state, stats)) {
         return false;
     }

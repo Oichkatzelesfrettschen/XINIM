@@ -3,9 +3,13 @@
 
 /* Global variables used in the kernel. */
 
+#include "../h/type.hpp"    // For real_time, message
+#include "const.hpp"      // For TASK_STACK_BYTES, K_STACK_BYTES
+// NR_TASKS is expected to be included via a general config header (e.g. minix/config.h)
+
 /* Clocks and timers */
 EXTERN real_time realtime; /* real time clock */
-EXTERN int lost_ticks;     /* incremented when clock int can't send mess*/
+EXTERN real_time lost_ticks;     /* incremented when clock int can't send mess, (was int) */
 
 /* Processes, signals, and messages. */
 EXTERN int cur_proc;     /* current process */

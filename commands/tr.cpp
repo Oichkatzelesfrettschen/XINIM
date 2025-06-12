@@ -14,7 +14,8 @@
 #define BUFFER_SIZE 1024
 #define ASCII 0377
 
-typedef char BOOL;
+// Converted to C++ using alias
+using BOOL = char;
 #define TRUE 1
 #define FALSE 0
 

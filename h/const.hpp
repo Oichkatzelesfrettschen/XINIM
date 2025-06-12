@@ -13,9 +13,6 @@
 
 // Storage class macros have been removed in favor of standard C++ keywords.
 
-inline constexpr bool TRUE = true;   // C++17 boolean constant
-inline constexpr bool FALSE = false; // C++17 boolean constant
-
 inline constexpr int HZ = 60;              // clock frequency
 inline constexpr int BLOCK_SIZE = 1024;    // number of bytes in a disk block
 inline constexpr int MAJOR = 8;            // major device shift
@@ -28,7 +25,8 @@ inline constexpr int T = 0;                // text segment index
 inline constexpr int D = 1;                // data segment index
 inline constexpr int S = 2;                // stack segment index
 
-inline constexpr long kMaxPLong = 2147483647L; // maximum positive long
+inline constexpr int32_t kMaxPLong = 2147483647; // maximum positive signed 32-bit long
+// Note: Original was 2147483647L. Changed to int32_t for clarity.
 
 // Memory is allocated in clicks.
 inline constexpr int CLICK_SIZE = 0020; // allocation unit in bytes
@@ -62,16 +60,17 @@ inline constexpr dev_nr ROOT_DEV = static_cast<dev_nr>(256);
 inline constexpr dev_nr BOOT_DEV = static_cast<dev_nr>(512);
 
 // Flag bits for i_mode in the inode.
-inline constexpr int I_TYPE = 0170000;          // inode type field
-inline constexpr int I_REGULAR = 0100000;       // regular file
-inline constexpr int I_BLOCK_SPECIAL = 0060000; // block special file
-inline constexpr int I_DIRECTORY = 0040000;     // directory file
-inline constexpr int I_CHAR_SPECIAL = 0020000;  // character special file
-inline constexpr int I_SET_UID_BIT = 0004000;   // set effective uid on exec
-inline constexpr int I_SET_GID_BIT = 0002000;   // set effective gid on exec
-inline constexpr int ALL_MODES = 0006777;       // all bits for user, group and others
-inline constexpr int RWX_MODES = 0000777;       // RWX permission bits
-inline constexpr int R_BIT = 0000004;           // read protection bit
-inline constexpr int W_BIT = 0000002;           // write protection bit
-inline constexpr int X_BIT = 0000001;           // execute protection bit
-inline constexpr int I_NOT_ALLOC = 0000000;     // inode is free
+// Changed from int to mask_bits (uint16_t) for type safety.
+inline constexpr mask_bits I_TYPE = 0170000;          // inode type field
+inline constexpr mask_bits I_REGULAR = 0100000;       // regular file
+inline constexpr mask_bits I_BLOCK_SPECIAL = 0060000; // block special file
+inline constexpr mask_bits I_DIRECTORY = 0040000;     // directory file
+inline constexpr mask_bits I_CHAR_SPECIAL = 0020000;  // character special file
+inline constexpr mask_bits I_SET_UID_BIT = 0004000;   // set effective uid on exec
+inline constexpr mask_bits I_SET_GID_BIT = 0002000;   // set effective gid on exec
+inline constexpr mask_bits ALL_MODES = 0006777;       // all bits for user, group and others
+inline constexpr mask_bits RWX_MODES = 0000777;       // RWX permission bits
+inline constexpr mask_bits R_BIT = 0000004;           // read protection bit
+inline constexpr mask_bits W_BIT = 0000002;           // write protection bit
+inline constexpr mask_bits X_BIT = 0000001;           // execute protection bit
+inline constexpr mask_bits I_NOT_ALLOC = 0000000;     // inode is free

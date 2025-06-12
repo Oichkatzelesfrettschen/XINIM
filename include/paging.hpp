@@ -27,8 +27,8 @@ enum PT_Flag : unsigned long {
     PT_USER = 0x004      // accessible from user mode
 };
 
-typedef u64_t phys_addr64;
-typedef u64_t virt_addr64;
+using phys_addr64 = u64_t;
+using virt_addr64 = u64_t;
 
 struct pt_entry {
     phys_addr64 addr;

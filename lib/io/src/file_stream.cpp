@@ -5,6 +5,7 @@
 #include <fcntl.h>
 #include <span>
 #include <unistd.h>
+#include <expected> // For std::unexpected
 
 namespace minix::io {
 
@@ -15,9 +16,9 @@ namespace minix::io {
 Result<size_t> FileStream::read(std::span<std::byte> buffer) {
     ssize_t ret = ::read(fd_, buffer.data(), buffer.size());
     if (ret < 0) {
-        return {std::nullopt, std::error_code(errno, std::generic_category())};
+        return std::unexpected(std::error_code(errno, std::generic_category()));
     }
-    return {static_cast<size_t>(ret), {}};
+    return static_cast<size_t>(ret);
 }
 
 /// Write the given span to the underlying file descriptor.
@@ -27,9 +28,9 @@ Result<size_t> FileStream::read(std::span<std::byte> buffer) {
 Result<size_t> FileStream::write(std::span<const std::byte> buffer) {
     ssize_t ret = ::write(fd_, buffer.data(), buffer.size());
     if (ret < 0) {
-        return {std::nullopt, std::error_code(errno, std::generic_category())};
+        return std::unexpected(std::error_code(errno, std::generic_category()));
     }
-    return {static_cast<size_t>(ret), {}};
+    return static_cast<size_t>(ret);
 }
 
 /// Close the underlying file descriptor if open.

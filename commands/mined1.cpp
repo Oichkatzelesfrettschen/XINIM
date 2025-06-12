@@ -1131,7 +1131,8 @@ panic(message) register char *message;
 
 #ifndef lint
 
-typedef unsigned vir_bytes;
+// Converted to C++ using alias
+using vir_bytes = unsigned int;
 
 #define POINTER_SIZE (sizeof(char *))
 #define cast(x) ((vir_bytes)(x))

@@ -5,6 +5,8 @@
 #include <cstdio>
 #include <mutex>
 #include <unordered_map>
+#include <expected> // For std::expected if not implicitly via stream.hpp
+#include <system_error> // For std::error_code, std::errc
 
 namespace minix::io::compat {
 
@@ -118,7 +120,12 @@ size_t fread_compat(void *ptr, size_t size, size_t nmemb, FILE *fp) {
         return 0;
     size_t bytes = size * nmemb;
     auto result = stream->read(std::span<std::byte>(static_cast<std::byte *>(ptr), bytes));
-    return result ? (*result.value / size) : 0;
+    if (result.has_value()) {
+        return result.value() / size;
+    } else {
+        errno = result.error().value(); // Set errno from error_code
+        return 0;
+    }
 }
 
 /// fwrite replacement using Stream::write.
@@ -135,7 +142,12 @@ size_t fwrite_compat(const void *ptr, size_t size, size_t nmemb, FILE *fp) {
     size_t bytes = size * nmemb;
     auto result =
         stream->write(std::span<const std::byte>(static_cast<const std::byte *>(ptr), bytes));
-    return result ? (*result.value / size) : 0;
+    if (result.has_value()) {
+        return result.value() / size;
+    } else {
+        errno = result.error().value(); // Set errno from error_code
+        return 0;
+    }
 }
 
 /// fprintf replacement using the Stream API.
@@ -154,10 +166,15 @@ int fprintf_compat(FILE *fp, const char *format, ...) {
     int n = vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
     if (n < 0)
-        return -1;
-    auto wr = stream->write(std::span<const std::byte>(reinterpret_cast<const std::byte *>(buffer),
+        return -1; // vsnprintf error
+    auto wr_result = stream->write(std::span<const std::byte>(reinterpret_cast<const std::byte *>(buffer),
                                                        static_cast<size_t>(n)));
-    return wr ? n : -1;
+    if (wr_result.has_value()) {
+        return n; // Return number of characters successfully formatted by vsnprintf
+    } else {
+        errno = wr_result.error().value(); // Set errno from error_code
+        return -1;
+    }
 }
 
 } // extern "C"
