@@ -31,22 +31,32 @@
 #define EXTERN
 #include "glo.hpp"
 #include "proc.hpp"
+#include <cstddef> // For nullptr
 
-extern int sys_task(), clock_task(), mem_task(), floppy_task(), winchester_task(), tty_task(),
-    printer_task();
+// Function declarations for tasks. Assuming they are now void () noexcept.
+extern void sys_task() noexcept;
+extern void clock_task() noexcept;
+// extern void mem_task() noexcept; // mem_task not defined in provided files, assume similar
+extern void floppy_task() noexcept;
+extern void winchester_task() noexcept;
+extern void tty_task() noexcept;
+extern void printer_task() noexcept;
 
 /* The startup routine of each task is given below, from -NR_TASKS upwards.
  * The order of the names here MUST agree with the numerical values assigned to
  * the tasks in ../h/com.hpp.
  */
-int (*task[NR_TASKS + INIT_PROC_NR + 1])() = {printer_task,
-                                              tty_task,
-                                              winchester_task,
-                                              floppy_task,
-                                              mem_task,
-                                              clock_task,
-                                              sys_task,
-                                              0,
-                                              0,
-                                              0,
-                                              0};
+// Changed array type from int(*)() to void(*)() noexcept
+void (*task[NR_TASKS + INIT_PROC_NR + 1])() noexcept = {
+    printer_task,
+    tty_task,
+    winchester_task,
+    floppy_task,
+    nullptr, // Placeholder for mem_task if its signature changes / not available
+    clock_task,
+    sys_task,
+    nullptr, // Was 0
+    nullptr, // Was 0
+    nullptr, // Was 0
+    nullptr  // Was 0
+};

@@ -22,7 +22,7 @@ using jmp_buf = std::jmp_buf; /* expose the standard buffer type */
  * Delegate to the standard versions.  These are inline so calls are
  * forwarded directly without additional overhead.
  */
-inline int setjmp(jmp_buf env) { return std::setjmp(env); }
-inline void longjmp(jmp_buf env, int val) { std::longjmp(env, val); }
+inline int setjmp(jmp_buf env) { return std::setjmp(env); } // std::setjmp is not noexcept
+[[noreturn]] inline void longjmp(jmp_buf env, int val) noexcept { std::longjmp(env, val); } // std::longjmp is [[noreturn]]
 
 #endif /* SETJMP_H */

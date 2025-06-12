@@ -41,7 +41,9 @@ struct dir_entry {
     unsigned long d_size;
 };
 
-typedef struct dir_entry DIRECTORY;
+// struct dir_entry is already a type name in C++.
+// Alias DIRECTORY to it for existing code compatibility.
+using DIRECTORY = dir_entry;
 
 #define NOT_USED 0x00
 #define ERASED 0xE5
@@ -55,7 +57,8 @@ typedef struct dir_entry DIRECTORY;
 #define FREE 0x000
 #define BAD 0xFF0
 
-typedef char BOOL;
+// Converted to C++ using alias
+using BOOL = char;
 
 #define TRUE 1
 #define FALSE 0

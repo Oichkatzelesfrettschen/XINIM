@@ -19,8 +19,12 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include <cstdint>    // For uint64_t etc.
+#include <cstddef>    // For std::size_t
+#include <inttypes.h> // For PRIx64, PRIuMAX etc.
+
 #ifdef __x86_64__
-void init_syscall_msrs(void);
+void init_syscall_msrs() noexcept; // Changed (void) to (), added noexcept
 #endif /* __x86_64__ */
 
 #define SAFETY 8       /* margin of safety for stack overflow (ints)*/
@@ -34,15 +38,15 @@ void init_syscall_msrs(void);
 /*===========================================================================*
  *                                   main                                    *
  *===========================================================================*/
-PUBLIC main() {
+int main() noexcept { // Changed from PUBLIC main(), added noexcept
     /* Start the ball rolling. */
 
     register struct proc *rp;
     register int t;
-    vir_clicks size;
-    phys_clicks base_click, mm_base, previous_base;
-    phys_bytes phys_b;
-    extern unsigned sizes[8]; /* table filled in by build */
+    std::size_t size;                    // vir_clicks -> std::size_t
+    uint64_t base_click, mm_base, previous_base; // phys_clicks -> uint64_t
+    uint64_t phys_b;                     // phys_bytes -> uint64_t (seems unused)
+    extern unsigned int sizes[8];        // table filled in by build (unsigned int)
     extern int color, vec_table[], get_chrome(), (*task[])();
     extern int s_call(), disk_int(), tty_int(), clock_int(), disk_int();
     extern int wini_int(), lpr_int(), surprise(), trp(), divide();
@@ -59,18 +63,24 @@ PUBLIC main() {
     current_cpu = 0; /* single CPU for now */
     paging_init();   /* set up initial page tables */
     idt_init();      /* install 64-bit IDT */
-    base_click = BASE >> CLICK_SHIFT;
-    size = sizes[0] + sizes[1];  /* kernel text + data size in clicks */
-    mm_base = base_click + size; /* place where MM starts (in clicks) */
+    base_click = static_cast<uint64_t>(BASE >> CLICK_SHIFT); // BASE is int
+    size = static_cast<std::size_t>(sizes[0]) + static_cast<std::size_t>(sizes[1]);  /* kernel text + data size in clicks */
+    mm_base = base_click + size; /* place where MM starts (in clicks) (uint64_t + size_t -> uint64_t) */
 
     for (rp = &proc[0]; rp <= &proc[NR_TASKS + LOW_USER]; rp++) {
         for (t = 0; t < NR_REGS; t++)
             rp->p_reg[t] = 0100 * t; /* debugging */
         t = rp - proc - NR_TASKS;    /* task number */
-        rp->p_sp = (rp < &proc[NR_TASKS] ? t_stack[NR_TASKS + t + 1].stk : INIT_SP);
+        // rp->p_sp is uint64_t. t_stack[...].stk is likely int[] or similar. INIT_SP is uint64_t* (nullptr).
+        if (rp < &proc[NR_TASKS]) {
+            rp->p_sp = reinterpret_cast<uint64_t>(t_stack[NR_TASKS + t + 1].stk);
+        } else {
+            rp->p_sp = reinterpret_cast<uint64_t>(INIT_SP); // INIT_SP is nullptr
+        }
         rp->p_splimit = rp->p_sp;
-        if (rp->p_splimit != INIT_SP)
-            rp->p_splimit -= (TASK_STACK_BYTES - SAFETY) / sizeof(int);
+        if (rp->p_splimit != reinterpret_cast<uint64_t>(INIT_SP))
+            // TASK_STACK_BYTES is std::size_t. SAFETY is int.
+            rp->p_splimit -= (static_cast<std::size_t>(TASK_STACK_BYTES) - static_cast<std::size_t>(SAFETY)) / sizeof(int);
         rp->p_pcpsw.pc = task[t + NR_TASKS];
         if (rp->p_pcpsw.pc != 0 || t >= 0)
             ready(rp);
@@ -83,31 +93,31 @@ PUBLIC main() {
         rp->p_cpu = 0;
 
 	/* Set up memory map for tasks and MM, FS, INIT. */
+	// p_map members: mem_len (vir_clicks -> std::size_t), mem_phys (phys_clicks -> uint64_t), mem_vir (vir_clicks -> std::size_t)
+	// VERY_BIG is int. base_click is uint64_t. sizes[] are unsigned int.
 	if (t < 0) {
 		/* I/O tasks. */
-		rp->p_map[T].mem_len  = VERY_BIG; 
+		rp->p_map[T].mem_len  = static_cast<std::size_t>(VERY_BIG);
 		rp->p_map[T].mem_phys = base_click;
-		rp->p_map[D].mem_len  = VERY_BIG; 
-		rp->p_map[D].mem_phys = base_click + sizes[0];
-		rp->p_map[S].mem_len  = VERY_BIG; 
-		rp->p_map[S].mem_phys = base_click + sizes[0] + sizes[1];
-		rp->p_map[S].mem_vir = sizes[0] + sizes[1];
+		rp->p_map[D].mem_len  = static_cast<std::size_t>(VERY_BIG);
+		rp->p_map[D].mem_phys = base_click + static_cast<uint64_t>(sizes[0]);
+		rp->p_map[S].mem_len  = static_cast<std::size_t>(VERY_BIG);
+		rp->p_map[S].mem_phys = base_click + static_cast<uint64_t>(sizes[0]) + static_cast<uint64_t>(sizes[1]);
+		rp->p_map[S].mem_vir = static_cast<std::size_t>(sizes[0]) + static_cast<std::size_t>(sizes[1]);
 	} else {
 		/* MM, FS, and INIT. */
-		previous_base = proc[NR_TASKS + t - 1].p_map[S].mem_phys;
-		rp->p_map[T].mem_len  = sizes[2*t + 2];
-		rp->p_map[T].mem_phys = (t == 0 ? mm_base : previous_base);
-		rp->p_map[D].mem_len  = sizes[2*t + 3];
-		rp->p_map[D].mem_phys = rp->p_map[T].mem_phys + sizes[2*t + 2];
-		rp->p_map[S].mem_vir  = sizes[2*t + 3];
-		rp->p_map[S].mem_phys = rp->p_map[D].mem_phys + sizes[2*t + 3];
+		previous_base = proc[NR_TASKS + t - 1].p_map[S].mem_phys; // uint64_t
+		rp->p_map[T].mem_len  = static_cast<std::size_t>(sizes[2*t + 2]);
+		rp->p_map[T].mem_phys = (t == 0 ? mm_base : previous_base); // uint64_t
+		rp->p_map[D].mem_len  = static_cast<std::size_t>(sizes[2*t + 3]);
+		rp->p_map[D].mem_phys = rp->p_map[T].mem_phys + static_cast<uint64_t>(sizes[2*t + 2]); // uint64_t
+		rp->p_map[S].mem_vir  = static_cast<std::size_t>(sizes[2*t + 3]);
+		rp->p_map[S].mem_phys = rp->p_map[D].mem_phys + static_cast<uint64_t>(sizes[2*t + 3]); // uint64_t
 	}
 
-
-  proc[NR_TASKS+(HARDWARE)].p_sp = (int *) k_stack;
-  proc[NR_TASKS+(HARDWARE)].p_sp += K_STACK_BYTES/2;
-  proc[NR_TASKS+(HARDWARE)].p_splimit = (int *) k_stack;
-  proc[NR_TASKS+(HARDWARE)].p_splimit += SAFETY/2;
+  // proc p_sp and p_splimit are uint64_t. k_stack is char[].
+  proc[NR_TASKS+(HARDWARE)].p_sp = reinterpret_cast<uint64_t>(k_stack + K_STACK_BYTES / 2);
+  proc[NR_TASKS+(HARDWARE)].p_splimit = reinterpret_cast<uint64_t>(k_stack + SAFETY / 2); // Original was +=, check logic
 
   for (rp = proc_addr(LOW_USER+1); rp < proc_addr(NR_PROCS); rp++)
 	rp->p_flags = P_SLOT_FREE;
@@ -137,12 +147,14 @@ PUBLIC main() {
 // Handles unexpected interrupts that trigger on vectors lower than 16. This
 // routine simply reports the event and the current program counter.
 //------------------------------------------------------------------------------
-void unexpected_int() {
+void unexpected_int() noexcept {
     // Inform that an unexpected interrupt occurred.
     printf("Unexpected trap: vector < 16\n");
 
     // Print the current PC and the size of text+data+bss for debugging.
-    printf("pc = 0x%x    text+data+bss = 0x%x\n", proc_ptr->p_pcpsw.pc,
+    // proc_ptr->p_pcpsw.pc is u64_t. proc_ptr->p_map[D].mem_len is std::size_t (vir_clicks).
+    printf("pc = 0x%" PRIx64 "    text+data+bss (clicks << 4) = 0x%zx\n",
+           proc_ptr->p_pcpsw.pc,
            proc_ptr->p_map[D].mem_len << 4);
 }
 
@@ -154,7 +166,7 @@ void unexpected_int() {
 // Handles traps for vectors greater than or equal to 16. These generally
 // indicate an unexpected fault within the kernel or user space.
 //------------------------------------------------------------------------------
-void trap() {
+void trap() noexcept {
     // Notify about the unexpected trap.
     printf("\nUnexpected trap: vector >= 16 ");
 
@@ -162,7 +174,9 @@ void trap() {
     printf("This may be due to accidentally including\n");
     printf(
         "a non-MINIX library routine that is trying to make a system call.\n");
-    printf("pc = 0x%x    text+data+bss = 0x%x\n", proc_ptr->p_pcpsw.pc,
+    // proc_ptr->p_pcpsw.pc is u64_t. proc_ptr->p_map[D].mem_len is std::size_t (vir_clicks).
+    printf("pc = 0x%" PRIx64 "    text+data+bss (clicks << 4) = 0x%zx\n",
+           proc_ptr->p_pcpsw.pc,
            proc_ptr->p_map[D].mem_len << 4);
 }
 
@@ -174,12 +188,14 @@ void trap() {
 // Called when a divide instruction causes an overflow trap (vector 0). This
 // routine reports the fault location to assist debugging.
 //------------------------------------------------------------------------------
-void div_trap() {
+void div_trap() noexcept {
     // Inform that a divide overflow occurred.
     printf("Trap to vector 0: divide overflow.  ");
 
     // Show the program counter and memory size for context.
-    printf("pc = 0x%x    text+data+bss = 0x%x\n", proc_ptr->p_pcpsw.pc,
+    // proc_ptr->p_pcpsw.pc is u64_t. proc_ptr->p_map[D].mem_len is std::size_t (vir_clicks).
+    printf("pc = 0x%" PRIx64 "    text+data+bss (clicks << 4) = 0x%zx\n",
+           proc_ptr->p_pcpsw.pc,
            proc_ptr->p_map[D].mem_len << 4);
 }
 
@@ -191,7 +207,7 @@ void div_trap() {
 // Handle unrecoverable kernel errors. This routine prints the provided message
 // and halts the system after flushing any pending output.
 //------------------------------------------------------------------------------
-void panic(const char *s, int n) {
+void panic(const char *s, int n) noexcept {
     // Display the panic message if one was supplied.
     if (*s != 0) {
         printf("\nKernel panic: %s", s);

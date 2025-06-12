@@ -10,7 +10,7 @@
  *                              init_syscall_msrs                            *
  *===========================================================================*/
 /* Configure system call Model Specific Registers. */
-void init_syscall_msrs(void) {
+void init_syscall_msrs() noexcept { // (void) -> (), noexcept
     asm volatile("mov $0xC0000080, %%ecx\n\t"
                  "rdmsr\n\t"
                  "or $1, %%eax\n\t"
@@ -35,8 +35,8 @@ void init_syscall_msrs(void) {
  *                              syscall_entry                                *
  *===========================================================================*/
 /* Entry point for user mode syscalls. */
-void syscall_entry(void) NAKED;
-void syscall_entry(void) {
+void syscall_entry() noexcept NAKED; // (void) -> (), noexcept
+void syscall_entry() noexcept {     // (void) -> (), noexcept
     __asm__ volatile("call save\n\t"
                      "mov %rdi, %rax\n\t"
                      "mov %rdx, %rdi\n\t"

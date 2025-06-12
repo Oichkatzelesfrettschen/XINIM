@@ -11,9 +11,10 @@
 #include "../h/callnr.hpp" // system call numbers
 #include "../h/const.hpp"  // system-wide constants
 #include "../h/error.hpp"  // error codes
-#include "../h/type.hpp"   // basic MINIX types
+#include "../h/type.hpp"   // basic MINIX types (includes xinim/core_types.hpp indirectly)
 #include "defs.hpp"        // project specific definitions
-#include <cstddef>         // for std::size_t
+#include <cstddef>         // for std::size_t, nullptr (though NIL_PTR is from h/const.hpp)
+// #include "xinim/core_types.hpp" // Explicitly if needed, but type.hpp should suffice
 
 extern message M;
 
@@ -25,20 +26,23 @@ inline constexpr int FS = 1; // file system index
 // Aliases kept for clarity in modern code
 inline constexpr int kMM = MM;
 inline constexpr int kFS = FS;
-extern int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, char *ptr2,
-                  char *ptr3);
-extern int callm3(int proc, int syscallnr, int int1, char *name);
-extern int callx(int proc, int syscallnr);
-extern int len(char *s);
-extern int send(int dst, message *m_ptr);
-extern int receive(int src, message *m_ptr);
-extern int sendrec(int srcdest, message *m_ptr);
-extern int errno;
-extern int begsig(void); /* interrupts all vector here */
+
+// System call interface (typically C linkage)
+extern "C" int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, char *ptr2,
+                  char *ptr3) noexcept;
+extern "C" int callm3(int proc, int syscallnr, int int1, const char *name) noexcept; // name -> const char*
+extern "C" int callx(int proc, int syscallnr) noexcept;
+extern "C" std::size_t len(const char *s) noexcept; // return int -> std::size_t, s -> const char*
+extern "C" int send(int dst, message *m_ptr) noexcept;
+extern "C" int receive(int src, message *m_ptr) noexcept;
+extern "C" int sendrec(int srcdest, message *m_ptr) noexcept;
+extern int errno; // Standard global
+extern "C" int begsig() noexcept; /* interrupts all vector here, (void) -> () */
 
 /* Memory allocation wrappers */
-void *safe_malloc(size_t size);
-void safe_free(void *ptr);
+// Assuming these are C-linkage if used across C/C++ boundaries, and noexcept if they abort on failure
+extern "C" void *safe_malloc(size_t size) noexcept;
+extern "C" void safe_free(void *ptr) noexcept;
 
 // RAII helper managing memory obtained through safe_malloc.
 // Automatically frees the memory when going out of scope.
