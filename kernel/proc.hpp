@@ -11,6 +11,7 @@
 #include "../h/type.hpp"      // For message, mem_map, real_time, xinim::pid_t, xinim::time_t
 #include "./type.hpp"         // For pc_psw, xinim::virt_addr_t, xinim::phys_addr_t (via core_types.hpp)
 // Assuming the above includes make xinim::core_types.hpp available.
+      // For pc_psw
 
 EXTERN struct proc {
     std::uint64_t p_reg[NR_REGS];   /* process' registers */

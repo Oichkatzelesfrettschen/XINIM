@@ -11,6 +11,7 @@
 EXTERN real_time realtime;       /* real time clock (real_time -> xinim::time_t) */
 EXTERN real_time lost_ticks;     /* incremented when clock int can't send mess, (real_time -> xinim::time_t) */
 
+
 /* Processes, signals, and messages. */
 EXTERN xinim::pid_t cur_proc;    /* current process - Formerly int */
 EXTERN xinim::pid_t prev_proc;   /* previous process - Formerly int */

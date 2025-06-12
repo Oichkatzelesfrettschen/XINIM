@@ -4,6 +4,8 @@
 /* General constants used by the kernel. */
 
 #include "../../include/xinim/core_types.hpp" // For std::uint64_t, std::size_t, etc.
+#include <cstdint> // For uint64_t
+#include <cstddef> // For std::size_t
 
 /* 64-bit configuration constants */
 /* Register order: rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11, r12, r13, r14, r15 */
@@ -16,6 +18,7 @@ inline constexpr int CS_REG = 0;
 inline constexpr int SS_REG = 0;
 inline constexpr std::size_t VECTOR_BYTES = 1024;
 inline constexpr std::uint64_t MEM_BYTES = 0x100000000ULL; // Using std::uint64_t
+
 inline constexpr int DIVIDE_VECTOR = 0;
 inline constexpr int CLOCK_VECTOR = 32;
 inline constexpr int KEYBOARD_VECTOR = 33;

@@ -2,9 +2,7 @@
 // Modernized for C++17
 
 #include "../include/defs.hpp" // Added for consistency and potential common types
-
 inline constexpr int NCALLS = 69; /* number of system calls allowed */
-
 inline constexpr int EXIT = 1;
 inline constexpr int FORK = 2;
 inline constexpr int READ = 3;

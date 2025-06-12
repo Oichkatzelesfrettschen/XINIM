@@ -13,6 +13,7 @@
 struct pc_psw {
     xinim::virt_addr_t pc;  /* program counter */
     std::uint64_t psw;      /* processor status word */
+
 };
 
 struct sig_info {

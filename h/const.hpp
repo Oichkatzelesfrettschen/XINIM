@@ -83,3 +83,4 @@ inline constexpr mask_bits I_NOT_ALLOC = 0000000;     // inode is free
 // For this pass, I will remove the NIL_PTR definition from h/const.hpp to rely on the one from xinim::core_types.hpp (via h/type.hpp).
 // Renamed BYTE to BYTE_MASK to avoid conflict with potential byte type.
 // Renamed MAX_PATH to MAX_PATH_LEN for clarity.
+
