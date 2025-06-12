@@ -3,6 +3,7 @@
 
 /* General constants used by the kernel. */
 
+#include "../../include/xinim/core_types.hpp" // For std::uint64_t, std::size_t, etc.
 #include <cstdint> // For uint64_t
 #include <cstddef> // For std::size_t
 
@@ -10,13 +11,14 @@
 /* Register order: rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11, r12, r13, r14, r15 */
 inline constexpr int NR_REGS = 15;
 inline constexpr int INIT_PSW = 0x0200;
-inline constexpr uint64_t* INIT_SP = nullptr;
+inline constexpr std::uint64_t* INIT_SP = nullptr; // Using std::uint64_t from core_types
 inline constexpr int ES_REG = 0;
 inline constexpr int DS_REG = 0;
 inline constexpr int CS_REG = 0;
 inline constexpr int SS_REG = 0;
 inline constexpr std::size_t VECTOR_BYTES = 1024;
-inline constexpr uint64_t MEM_BYTES = 0x100000000ULL;
+inline constexpr std::uint64_t MEM_BYTES = 0x100000000ULL; // Using std::uint64_t
+
 inline constexpr int DIVIDE_VECTOR = 0;
 inline constexpr int CLOCK_VECTOR = 32;
 inline constexpr int KEYBOARD_VECTOR = 33;
@@ -36,6 +38,7 @@ inline constexpr std::size_t K_STACK_BYTES = 256;    /* how many bytes for the k
 
 inline constexpr int RET_REG = 0; /* system call return codes go in this reg */
 inline constexpr int IDLE = -999; /* 'cur_proc' = IDLE means nobody is running */
+
 /* Scheduler configuration */
 #define SCHED_ROUND_ROBIN 0 /* set to 1 for simple round-robin */
 inline constexpr int NR_CPUS = 1;           /* number of CPUs (SMP placeholder) */

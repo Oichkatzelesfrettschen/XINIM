@@ -1,6 +1,8 @@
 #pragma once
 // Modernized for C++17
 
+#include "type.hpp" // Added include
+
 /* System call function codes used with sendrec(). */
 inline constexpr int SEND = 1;             /* function code for sending messages */
 inline constexpr int RECEIVE = 2;          /* function code for receiving messages */

@@ -7,12 +7,13 @@
  * trap or interrupt, as well as for causing interrupts for signals.
  */
 
-#include "../include/defs.hpp" // Changed to .hpp
-#include <cstdint>             // For uint64_t (if u64_t isn't directly std::uint64_t)
+#include "../include/defs.hpp" // Project-wide definitions
+#include "../../include/xinim/core_types.hpp" // For xinim::virt_addr_t and std::uint64_t
 
 struct pc_psw {
-    uint64_t pc;  /* program counter (u64_t -> uint64_t) */
-    uint64_t psw; /* processor status word (u64_t -> uint64_t) */
+    xinim::virt_addr_t pc;  /* program counter */
+    std::uint64_t psw;      /* processor status word */
+
 };
 
 struct sig_info {
