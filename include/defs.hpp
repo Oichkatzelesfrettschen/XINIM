@@ -12,15 +12,15 @@
 /* The compiler must provide builtin fixed width integer types. */
 #if defined(__clang__) || defined(__GNUC__)
 
-typedef __INT8_TYPE__ i8_t;      /* signed 8  bit integer */
-typedef __UINT8_TYPE__ u8_t;     /* unsigned 8  bit integer */
-typedef __INT16_TYPE__ i16_t;    /* signed 16 bit integer */
-typedef __UINT16_TYPE__ u16_t;   /* unsigned 16 bit integer */
-typedef __INT32_TYPE__ i32_t;    /* signed 32 bit integer */
-typedef __UINT32_TYPE__ u32_t;   /* unsigned 32 bit integer */
-typedef __INT64_TYPE__ i64_t;    /* signed 64 bit integer */
-typedef __UINT64_TYPE__ u64_t;   /* unsigned 64 bit integer */
-typedef __UINTPTR_TYPE__ uptr_t; /* unsigned pointer sized integer */
+using i8_t = __INT8_TYPE__;      /* signed 8  bit integer */
+using u8_t = __UINT8_TYPE__;     /* unsigned 8  bit integer */
+using i16_t = __INT16_TYPE__;    /* signed 16 bit integer */
+using u16_t = __UINT16_TYPE__;   /* unsigned 16 bit integer */
+using i32_t = __INT32_TYPE__;    /* signed 32 bit integer */
+using u32_t = __UINT32_TYPE__;   /* unsigned 32 bit integer */
+using i64_t = __INT64_TYPE__;    /* signed 64 bit integer */
+using u64_t = __UINT64_TYPE__;   /* unsigned 64 bit integer */
+using uptr_t = __UINTPTR_TYPE__; /* unsigned pointer sized integer */
 
 /* Attribute helpers usable in headers and source files. */
 #define PACKED __attribute__((packed)) /* structure packing */

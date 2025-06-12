@@ -66,18 +66,20 @@
 #define DIGIT 0x008 /* 0-9 */
 #define UPPER 0x010 /* A-Z */
 
-typedef enum { /* Boolean types */
-               FALSE = 0,
-               TRUE
-} BOOL;
+// Converted to C++ enum
+enum BOOL { /* Boolean types */
+            FALSE_ENUM = 0,
+            TRUE_ENUM
+};
 
-typedef struct {
+// Changed from anonymous struct typedef to named struct
+struct MERGE {
     int fd;         /* Fd of file */
     char *buffer;   /* Buffer for reads */
     int read_chars; /* Nr of chars actually read in buffer*/
     int cnt;        /* Nr of chars taken out of buffer */
     char *line;     /* Contains line currently used */
-} MERGE;
+};
 
 #define NIL_MERGE ((MERGE *)0)
 MERGE merge_f[OPEN_FILES]; /* Merge structs */
@@ -86,7 +88,8 @@ int buf_size;              /* Size of core available for each struct */
 #define FIELDS_LIMIT 10 /* 1 global + 9 user */
 #define GLOBAL 0
 
-typedef struct {
+// Changed from anonymous struct typedef to named struct
+struct FIELD {
     int beg_field, beg_pos; /* Begin field + offset */
     int end_field, end_pos; /* End field + offset. ERROR == EOLN */
     BOOL reverse;           /* TRUE if rev. flag set on this field*/
@@ -95,7 +98,7 @@ typedef struct {
     BOOL fold_case;
     BOOL ascii;
     BOOL numeric;
-} FIELD;
+};
 
 /* Field declarations. A total of FILEDS_LIMIT is allowed */
 FIELD fields[FIELDS_LIMIT];

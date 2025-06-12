@@ -57,7 +57,7 @@ enum class ReturnCode { Errors = -1, NoLine = -2, Fine = 0, NoInput = 1 };
  * To avoid #define XXX 0 #define !XXX 1 an enum type is used for all flags used
  * in mined.
  */
-typedef enum {
+enum FLAG {
     /* General flags */
     FALSE,
     TRUE,
@@ -79,7 +79,7 @@ typedef enum {
     DELETE,
     READ,
     WRITE
-} FLAG;
+};
 
 /*
  * The Line structure.  Each line entry contains a pointer to the next line,
@@ -93,7 +93,7 @@ struct Line {
     unsigned char shift_count;
 };
 
-typedef struct Line LINE;
+struct Line;
 
 /* Dummy line indicator */
 #define DUMMY 0x80
@@ -122,23 +122,23 @@ struct regex {
     char *end_ptr;
 };
 
-typedef struct regex REGEX;
+struct regex;
 
 /* NULL definitions */
 #define NIL_PTR ((char *)0)
-#define NIL_LINE ((LINE *)0)
-#define NIL_REG ((REGEX *)0)
+#define NIL_LINE ((struct Line *)0)
+#define NIL_REG ((struct regex *)0)
 #define NIL_INT ((int *)0)
 
 /*
  * Forward declarations
  */
 extern int nlines;               /* Number of lines in file */
-extern LINE *header;             /* Head of line list */
-extern LINE *tail;               /* Last line in line list */
-extern LINE *top_line;           /* First line of screen */
-extern LINE *bot_line;           /* Last line of screen */
-extern LINE *cur_line;           /* Current line in use */
+extern struct Line *header;             /* Head of line list */
+extern struct Line *tail;               /* Last line in line list */
+extern struct Line *top_line;           /* First line of screen */
+extern struct Line *bot_line;           /* Last line of screen */
+extern struct Line *cur_line;           /* Current line in use */
 extern char *cur_text;           /* Pointer to char on current line in use */
 extern int last_y;               /* Last y of screen. Usually SCREENMAX */
 extern char screen[SCREEN_SIZE]; /* Output buffer for "writes" and "reads" */
@@ -201,7 +201,7 @@ inline void putchar(int c) { std::putchar(c); }
 /*
  * Print line on terminal at offset 0 and clear tail of line
  */
-inline void line_print(LINE *line) { put_line(line, 0, TRUE); }
+inline void line_print(struct Line *line) { put_line(line, 0, TRUE); }
 
 /*
  * Move to coordinates and set textp. (Don't use address)
@@ -232,10 +232,10 @@ inline void line_print(LINE *line) { put_line(line, 0, TRUE); }
 #define get_shift(cnt) ((cnt) & DUMMY_MASK)
 
 /* Forward declarations */
-extern LINE *proceed(LINE *line, int count);
-extern LINE *install_line(char *buffer, int length);
-extern LINE *match(REGEX *program, char *string, FLAG method);
-extern LINE *line_insert(LINE *line, char *string, int len);
+extern struct Line *proceed(struct Line *line, int count);
+extern struct Line *install_line(char *buffer, int length);
+extern struct Line *match(struct regex *program, char *string, FLAG method);
+extern struct Line *line_insert(struct Line *line, char *string, int len);
 extern char *alloc(unsigned size);
 extern char *num_out(long number);
 extern char *basename(char *path);

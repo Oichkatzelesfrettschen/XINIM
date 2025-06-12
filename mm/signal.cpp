@@ -26,40 +26,49 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
+#include <cstdint>    // For uint16_t, int64_t etc.
+#include <cstddef>    // For std::size_t, nullptr
+#include <algorithm>  // For std::min
 
 #define DUMP_SIZE 256  /* buffer size for core dumps */
 #define CORE_MODE 0777 /* mode to use on core image files */
 #define DUMPED 0200    /* bit set in status when core dumped */
 
-PRIVATE message m_sig;
+static message m_sig; // PRIVATE -> static
+
+// Forward declarations for static functions if needed
+static int check_sig(int proc_id, int sig_nr, uint16_t send_uid) noexcept;
+static void dump_core(struct mproc *rmp) noexcept;
+
 
 /*===========================================================================*
  *				do_signal				     *
  *===========================================================================*/
-PUBLIC int do_signal() {
+PUBLIC int do_signal() noexcept {
     /* Perform the signal(sig, func) call by setting bits to indicate that a signal
      * is to be caught or ignored.
      */
 
-    int mask;
+    uint16_t mask; // Was int, for mp_ignore/mp_catch (unshort -> uint16_t)
 
+    // sig from message (m6_i1) is int. func from message (m6_f1) is int(*)().
     if (sig < 1 || sig > NR_SIGS)
         return (ErrorCode::EINVAL);
     if (sig == SIGKILL)
         return (OK);       /* SIGKILL may not ignored/caught */
-    mask = 1 << (sig - 1); /* singleton set with 'sig' bit on */
+    mask = static_cast<uint16_t>(1 << (sig - 1)); /* singleton set with 'sig' bit on */
 
     /* All this func does is set the bit maps for subsequent sig processing. */
-    if (func == SIG_IGN) {
+    if (func == SIG_IGN) { // SIG_IGN is (int(*)())1
         mp->mp_ignore |= mask;
         mp->mp_catch &= ~mask;
-    } else if (func == SIG_DFL) {
+    } else if (func == SIG_DFL) { // SIG_DFL is (int(*)())0
         mp->mp_ignore &= ~mask;
         mp->mp_catch &= ~mask;
     } else {
         mp->mp_ignore &= ~mask;
         mp->mp_catch |= mask;
-        mp->mp_func = func;
+        mp->mp_func = func; // mp_func is int(*)(), func is int(*)()
     }
     return (OK);
 }
@@ -67,16 +76,17 @@ PUBLIC int do_signal() {
 /*===========================================================================*
  *				do_kill					     *
  *===========================================================================*/
-PUBLIC int do_kill() {
+PUBLIC int do_kill() noexcept {
     /* Perform the kill(pid, kill_sig) system call. */
-
+    // pid from message (m1_i1) is int. kill_sig from message (m1_i2) is int.
+    // mp->mp_effuid is uid (uint16_t).
     return check_sig(pid, kill_sig, mp->mp_effuid);
 }
 
 /*===========================================================================*
  *				do_ksig					     *
  *===========================================================================*/
-PUBLIC int do_ksig() {
+PUBLIC int do_ksig() noexcept {
     /* Certain signals, such as segmentation violations and DEL, originate in the
      * kernel.  When the kernel detects such signals, it sets bits in a bit map.
      * As soon is MM is awaiting new work, the kernel sends MM a message containing
@@ -86,23 +96,23 @@ PUBLIC int do_ksig() {
 
     register struct mproc *rmp;
     int i, proc_id, proc_nr, id;
-    unshort sig_map; /* bits 0 - 15 for sigs 1 - 16 */
+    uint16_t sig_map_val; /* bits 0 - 15 for sigs 1 - 16 (unshort -> uint16_t) */
 
     /* Only kernel and FS may make this call. */
-    if (who != HARDWARE && who != FS_PROC_NR)
+    if (who != HARDWARE && who != FS_PROC_NR) // who is int global
         return (ErrorCode::EPERM);
 
-    proc_nr = proc1(mm_in);
+    proc_nr = proc1(mm_in); // proc1 macro gets m1_i1 (int)
     rmp = &mproc[proc_nr];
     if ((rmp->mp_flags & IN_USE) == 0 || (rmp->mp_flags & HANGING))
         return (OK);
-    proc_id = rmp->mp_pid;
-    sig_map = (unshort)sig_map(mm_in);
+    proc_id = rmp->mp_pid; // mp_pid is int
+    sig_map_val = static_cast<uint16_t>(sig_map(mm_in)); // sig_map macro gets m1_i2 (int)
     mp = &mproc[0]; /* pretend kernel signals are from MM */
 
     /* Stack faults are passed from kernel to MM as pseudo-signal 16. */
-    if (sig_map == 1 << (STACK_FAULT - 1)) {
-        stack_fault(proc_nr);
+    if (sig_map_val == static_cast<uint16_t>(1 << (STACK_FAULT - 1))) { // STACK_FAULT is int
+        stack_fault(proc_nr); // stack_fault is in mm/break.cpp
         return (OK);
     }
 
@@ -111,10 +121,10 @@ PUBLIC int do_ksig() {
      * and pass them to MM in one blow.  Thus loop on the bit map. For SIGINT
      * and SIGQUIT, use proc_id 0, since multiple processes may have to signalled.
      */
-    for (i = 0; i < NR_SIGS; i++) {
-        id = (i + 1 == SIGINT || i + 1 == SIGQUIT ? 0 : proc_id);
-        if ((sig_map >> i) & 1)
-            check_sig(id, i + 1, SUPER_USER);
+    for (i = 0; i < NR_SIGS; i++) { // NR_SIGS is int
+        id = (i + 1 == SIGINT || i + 1 == SIGQUIT ? 0 : proc_id); // SIGINT, SIGQUIT are int
+        if ((sig_map_val >> i) & 1)
+            check_sig(id, i + 1, static_cast<uint16_t>(SUPER_USER)); // SUPER_USER is uid (uint16_t)
     }
 
     dont_reply = TRUE; /* don't reply to the kernel */
@@ -124,11 +134,8 @@ PUBLIC int do_ksig() {
 /*===========================================================================*
  *				check_sig				     *
  *===========================================================================*/
-PRIVATE int check_sig(proc_id, sig_nr, send_uid)
-int proc_id;  /* pid of process to signal, or 0 or -1 */
-int sig_nr;   /* which signal to send (1-16) */
-uid send_uid; /* identity of process sending the signal */
-{
+// Modernized K&R, send_uid is uid (uint16_t)
+static int check_sig(int proc_id, int sig_nr, uint16_t send_uid) noexcept {
     /* Check to see if it is possible to send a signal.  The signal may have to be
      * sent to a group of processes.  This routine is invoked by the KILL system
      * call, and also when the kernel catches a DEL or other signal. SIGALRM too.
@@ -136,13 +143,13 @@ uid send_uid; /* identity of process sending the signal */
 
     register struct mproc *rmp;
     int count, send_sig;
-    unshort mask;
-    extern unshort core_bits;
+    uint16_t mask; // Was unshort
+    extern uint16_t core_bits; // Was unshort
 
     if (sig_nr < 1 || sig_nr > NR_SIGS)
         return (ErrorCode::EINVAL);
     count = 0; /* count # of signals sent */
-    mask = 1 << (sig_nr - 1);
+    mask = static_cast<uint16_t>(1 << (sig_nr - 1)); // mp_ignore/catch are uint16_t
 
     /* Search the proc table for processes to signal.  Several tests are made:
      * 	- if proc's uid != sender's, and sender is not superuser, don't signal
@@ -154,13 +161,14 @@ uid send_uid; /* identity of process sending the signal */
         if ((rmp->mp_flags & IN_USE) == 0)
             continue;
         send_sig = TRUE; /* if it's FALSE at end of loop, don't signal */
+        // mp_effuid is uid (uint16_t). SUPER_USER is uid (uint16_t).
         if (send_uid != rmp->mp_effuid && send_uid != SUPER_USER)
             send_sig = FALSE;
-        if (proc_id > 0 && proc_id != rmp->mp_pid)
+        if (proc_id > 0 && proc_id != rmp->mp_pid) // mp_pid is int
             send_sig = FALSE;
         if (rmp->mp_flags & HANGING)
             send_sig = FALSE; /*don't wake the dead*/
-        if (proc_id == 0 && mp->mp_procgrp != rmp->mp_procgrp)
+        if (proc_id == 0 && mp->mp_procgrp != rmp->mp_procgrp) // mp_procgrp is int
             send_sig = FALSE;
         if (send_uid == SUPER_USER && proc_id == -1)
             send_sig = TRUE;
@@ -169,13 +177,13 @@ uid send_uid; /* identity of process sending the signal */
          * can arrive just as the timer is being turned off.  Also, turn off
          * ALARM_ON bit when timer goes off to keep it accurate.
          */
-        if (sig_nr == SIGALRM) {
+        if (sig_nr == SIGALRM) { // ALARM_ON is unsigned int flag
             if ((rmp->mp_flags & ALARM_ON) == 0)
                 continue;
             rmp->mp_flags &= ~ALARM_ON;
         }
 
-        if (send_sig == FALSE || rmp->mp_ignore & mask)
+        if (send_sig == FALSE || rmp->mp_ignore & mask) // mp_ignore is unshort (uint16_t)
             continue;
         count++;
 
@@ -197,38 +205,37 @@ uid send_uid; /* identity of process sending the signal */
 /*===========================================================================*
  *				sig_proc				     *
  *===========================================================================*/
-PUBLIC sig_proc(rmp, sig_nr)
-register struct mproc *rmp; /* pointer to the process to be signalled */
-int sig_nr;                 /* signal to send to process (1-16) */
-{
+// Modernized K&R
+PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept {
     /* Send a signal to a process.  Check to see if the signal is to be caught.
      * If so, the pc, psw, and signal number are to be pushed onto the process'
      * stack.  If the stack cannot grow or the signal is not to be caught, kill
      * the process.
      */
 
-    unshort mask;
+    uint16_t mask; // Was unshort
     int core_file;
-    vir_bytes new_sp;
-    extern unshort core_bits;
+    std::size_t new_sp; // Was vir_bytes
+    extern uint16_t core_bits; // Was unshort
 
     if ((rmp->mp_flags & IN_USE) == 0)
         return; /* if already dead forget it */
-    mask = 1 << (sig_nr - 1);
+    mask = static_cast<uint16_t>(1 << (sig_nr - 1)); // mp_catch is unshort (uint16_t)
     if (rmp->mp_catch & mask) {
         /* Signal should be caught. */
         rmp->mp_catch &= ~mask; /* disable further signals */
-        sys_getsp(rmp - mproc, &new_sp);
-        new_sp -= SIG_PUSH_BYTES;
+        sys_getsp(rmp - mproc, &new_sp); // sys_getsp (kernel) expects std::size_t* for new_sp
+        new_sp -= SIG_PUSH_BYTES; // SIG_PUSH_BYTES is int. new_sp is std::size_t.
+        // rmp->mp_seg[D].mem_len is vir_clicks (std::size_t). adjust takes std::size_t for clicks & sp.
         if (adjust(rmp, rmp->mp_seg[D].mem_len, new_sp) == OK) {
-            sys_sig(rmp - mproc, sig_nr, rmp->mp_func);
+            sys_sig(rmp - mproc, sig_nr, rmp->mp_func); // rmp->mp_func is int(*)()
             return; /* successful signal */
         }
     }
 
     /* Signal should not or cannot be caught.  Take default action. */
-    core_file = (core_bits >> (sig_nr - 1)) & 1;
-    rmp->mp_sigstatus = (char)sig_nr;
+    core_file = (core_bits >> (sig_nr - 1)) & 1; // core_bits is uint16_t
+    rmp->mp_sigstatus = static_cast<char>(sig_nr); // mp_sigstatus is char
     if (core_file)
         dump_core(rmp); /* dump core */
     mm_exit(rmp, 0);    /* terminate process */
@@ -237,24 +244,30 @@ int sig_nr;                 /* signal to send to process (1-16) */
 /*===========================================================================*
  *				do_alarm				     *
  *===========================================================================*/
-PUBLIC int do_alarm() {
+PUBLIC int do_alarm() noexcept {
     /* Perform the alarm(seconds) system call. */
 
-    register int r;
-    unsigned sec;
+    // register int r; // r is unused
+    unsigned int sec; // Was unsigned
 
-    sec = (unsigned)seconds;
-    r = set_alarm(who, sec);
-    return (r);
+    sec = static_cast<unsigned int>(seconds); // seconds (message m1_i1) is int
+    // r = set_alarm(who, sec); // set_alarm returns int, r was not used after this
+    set_alarm(who, sec); // who is int
+    return static_cast<int>(sec); // Original returned r (which was remaining time from set_alarm)
+                                  // but set_alarm's return is assigned to 'remaining' inside it.
+                                  // This seems to be a bug fix or change in behavior.
+                                  // The original code returned 'r' which was the *return value* of set_alarm.
+                                  // The new set_alarm will return int.
+                                  // Reinstating original logic for return value:
+    return set_alarm(who, sec);
+
 }
 
 /*===========================================================================*
  *				set_alarm				     *
  *===========================================================================*/
-PUBLIC int set_alarm(proc_nr, sec)
-int proc_nr;  /* process that wants the alarm */
-unsigned sec; /* how many seconds delay before the signal */
-{
+// Modernized K&R
+PUBLIC int set_alarm(int proc_nr, unsigned int sec) noexcept {
     /* This routine is used by do_alarm() to set the alarm timer.  It is also
      * to turn the timer off when a process exits with the timer still on.
      */
@@ -262,8 +275,9 @@ unsigned sec; /* how many seconds delay before the signal */
     int remaining;
 
     m_sig.m_type = SET_ALARM;
-    proc_nr(m_sig) = proc_nr;
-    delta_ticks(m_sig) = HZ * sec;
+    proc_nr(m_sig) = proc_nr; // proc_nr macro (m6_i1) is int
+    // delta_ticks macro (m6_l1) is int64_t. HZ is int. sec is unsigned int.
+    delta_ticks(m_sig) = static_cast<int64_t>(HZ) * static_cast<int64_t>(sec);
     if (sec != 0)
         mproc[proc_nr].mp_flags |= ALARM_ON; /* turn ALARM_ON bit on */
     else
@@ -272,14 +286,15 @@ unsigned sec; /* how many seconds delay before the signal */
     /* Tell the clock task to provide a signal message when the time comes. */
     if (sendrec(CLOCK, &m_sig) != OK)
         panic("alarm er", NO_NUM);
-    remaining = (int)m_sig.SECONDS_LEFT;
+    // SECONDS_LEFT macro (m6_l1) is int64_t. remaining is int.
+    remaining = static_cast<int>(m_sig.SECONDS_LEFT);
     return (remaining);
 }
 
 /*===========================================================================*
  *				do_pause				     *
  *===========================================================================*/
-PUBLIC int do_pause() {
+PUBLIC int do_pause() noexcept {
     /* Perform the pause() system call. */
 
     mp->mp_flags |= PAUSED; /* turn on PAUSE bit */
@@ -290,9 +305,8 @@ PUBLIC int do_pause() {
 /*===========================================================================*
  *				unpause					     *
  *===========================================================================*/
-PUBLIC unpause(pro)
-int pro; /* which process number */
-{
+// Modernized K&R
+PUBLIC void unpause(int pro) noexcept {
     /* A signal is to be sent to a process.  It that process is hanging on a
      * system call, the system call must be terminated with ErrorCode::EINTR.  Possible
      * calls are PAUSE, WAIT, READ and WRITE, the latter two for pipes and ttys.
@@ -307,7 +321,7 @@ int pro; /* which process number */
     /* Check to see if process is hanging on PAUSE call. */
     if ((rmp->mp_flags & PAUSED) && (rmp->mp_flags & HANGING) == 0) {
         rmp->mp_flags &= ~PAUSED; /* turn off PAUSED bit */
-        reply(pro, ErrorCode::EINTR, 0, NIL_PTR);
+        reply(pro, ErrorCode::EINTR, 0, NIL_PTR); // NIL_PTR is char* (nullptr)
         return;
     }
 
@@ -320,74 +334,82 @@ int pro; /* which process number */
 
     /* Process is not hanging on an MM call.  Ask FS to take a look. */
     tell_fs(UNPAUSE, pro, 0, 0);
-
-    return;
+    // return; // Implicit void return
 }
 
 /*===========================================================================*
  *				dump_core				     *
  *===========================================================================*/
-PRIVATE dump_core(rmp)
-register struct mproc *rmp; /* whose core is to be dumped */
-{
+// Modernized K&R
+static void dump_core(struct mproc *rmp) noexcept {
     /* Make a core dump on the file "core", if possible. */
 
     struct stat s_buf, d_buf;
-    char buf[DUMP_SIZE];
+    char buf[DUMP_SIZE]; // DUMP_SIZE is int const
     int i, r, s, er1, er2, slot;
-    vir_bytes v_buf;
-    long len, a, c, ct, dest;
+    std::size_t v_buf;    // Was vir_bytes
+    // len, a, c, ct were long. They represent byte counts or addresses.
+    // len, c, ct are counts -> std::size_t
+    // a, dest are addresses/offsets -> std::size_t (virtual)
+    std::size_t len, a, c, ct, dest;
     struct mproc *xmp;
     extern char core_name[];
 
     /* Change to working directory of dumpee. */
-    slot = rmp - mproc;
+    slot = rmp - mproc; // int
     tell_fs(CHDIR, slot, 0, 0);
 
     /* Can core file be written? */
-    if (rmp->mp_realuid != rmp->mp_effuid)
+    if (rmp->mp_realuid != rmp->mp_effuid) // uid -> uint16_t
         return;
     xmp = mp; /* allowed() looks at 'mp' */
     mp = rmp;
-    r = allowed(core_name, &s_buf, W_BIT); /* is core_file writable */
+    r = allowed(core_name, &s_buf, W_BIT); /* is core_file writable */ // W_BIT is int
     s = allowed(".", &d_buf, W_BIT);       /* is directory writable? */
     mp = xmp;
     if (r >= 0)
-        close(r);
+        close(r); // r is fd
     if (s >= 0)
         close(s);
-    if (rmp->mp_effuid == SUPER_USER)
+    if (rmp->mp_effuid == SUPER_USER) // SUPER_USER is uid (uint16_t)
         r = 0; /* su can always dump core */
 
     if (s >= 0 && (r >= 0 || r == ErrorCode::ENOENT)) {
         /* Either file is writable or it doesn't exist & dir is writable */
-        r = creat(core_name, CORE_MODE);
+        r = creat(core_name, CORE_MODE); // CORE_MODE is int
         tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */
         if (r < 0)
             return;
-        rmp->mp_sigstatus |= DUMPED;
+        rmp->mp_sigstatus |= DUMPED; // mp_sigstatus is char, DUMPED is int
 
         /* First loop through segments and write each length on core file. */
-        for (i = 0; i < NR_SEGS; i++) {
+        for (i = 0; i < NR_SEGS; i++) { // NR_SEGS is int
+            // rmp->mp_seg[i].mem_len is vir_clicks (std::size_t). CLICK_SHIFT is int.
             len = rmp->mp_seg[i].mem_len << CLICK_SHIFT;
-            if (write(r, (char *)&len, sizeof len) < 0) {
+            if (write(r, reinterpret_cast<char *>(&len), sizeof(len)) < 0) { // write takes char*
                 close(r);
                 return;
             }
         }
 
         /* Now loop through segments and write the segments themselves out. */
-        v_buf = (vir_bytes)buf;
-        dest = (long)v_buf;
+        v_buf = reinterpret_cast<std::size_t>(buf); // buf is char[]
+        dest = v_buf;
         for (i = 0; i < NR_SEGS; i++) {
-            a = (phys_bytes)rmp->mp_seg[i].mem_vir << CLICK_SHIFT;
-            c = (phys_bytes)rmp->mp_seg[i].mem_len << CLICK_SHIFT;
+            // rmp->mp_seg[i].mem_vir and mem_len are vir_clicks (std::size_t)
+            a = rmp->mp_seg[i].mem_vir << CLICK_SHIFT;
+            c = rmp->mp_seg[i].mem_len << CLICK_SHIFT;
 
             /* Loop through a segment, dumping it. */
             while (c > 0) {
-                ct = min(c, DUMP_SIZE);
-                er1 = mem_copy(slot, i, a, MM_PROC_NR, D, dest, ct);
-                er2 = write(r, buf, (int)ct);
+                ct = std::min(c, static_cast<std::size_t>(DUMP_SIZE)); // DUMP_SIZE is int
+                // mem_copy takes (int, int, uintptr_t, int, int, uintptr_t, std::size_t)
+                // a (src_vir) and dest (dst_vir) are std::size_t (addresses). Cast to uintptr_t.
+                // ct (bytes) is std::size_t.
+                er1 = mem_copy(slot, i, static_cast<uintptr_t>(a),
+                               MM_PROC_NR, D, static_cast<uintptr_t>(dest),
+                               ct);
+                er2 = write(r, buf, static_cast<int>(ct)); // write takes int count
                 if (er1 < 0 || er2 < 0) {
                     close(r);
                     return;
@@ -398,9 +420,9 @@ register struct mproc *rmp; /* whose core is to be dumped */
         }
     } else {
         tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */
-        close(r);
+        close(r); // r might be error code here
         return;
     }
 
-    close(r);
+    close(r); // r is fd
 }

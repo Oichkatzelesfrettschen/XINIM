@@ -8,7 +8,8 @@
 #include <array>
 
 #define BLOCK_SIZE 8192
-typedef unsigned short unshort;
+// Converted to C++ using alias
+using unshort = unsigned short;
 
 char *file_1, *file_2;
 std::array<std::array<char, BLOCK_SIZE>, 2> buf{};

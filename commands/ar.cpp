@@ -38,7 +38,8 @@ union swabber {
 
 long swap();
 
-typedef struct {
+// Changed from anonymous struct typedef to named struct
+struct MEMBER {
     char m_name[14];
     short m_time_1;
     short m_time_2;
@@ -47,7 +48,7 @@ typedef struct {
     short m_mode;
     short m_size_1;
     short m_size_2;
-} MEMBER;
+};
 
 using BOOL = bool;
 constexpr bool FALSE = false;

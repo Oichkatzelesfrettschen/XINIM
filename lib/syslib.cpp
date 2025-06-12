@@ -7,7 +7,8 @@
 #include <signal.h>
 
 #ifndef sighandler_t
-typedef void (*sighandler_t)(int);
+// Converted to a C++ using alias
+using sighandler_t = void (*)(int);
 #endif
 
 extern int errno;

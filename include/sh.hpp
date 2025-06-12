@@ -27,7 +27,7 @@ constexpr bool WaitCore(int s) { return (s & 0200) != 0; }
 /*
  * library and system defintions
  */
-typedef int xint; /* base type of jmp_buf, for broken compilers */
+using xint = int; /* base type of jmp_buf, for broken compilers */
 
 /*
  * shell components
