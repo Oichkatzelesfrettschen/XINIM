@@ -10,14 +10,14 @@
 #include <cstdint>             // for fixed-width integer types
 #include "../../include/xinim/core_types.hpp" // New include for xinim types
 
-/* Utility functions -------------------------------------------------------*/
+// Utility functions -------------------------------------------------------*/
 /*!
- * \brief Return the larger of two values.
+ * rief Return the larger of two values.
  */
 template <typename T> constexpr T max(T a, T b) noexcept { return a > b ? a : b; }
 
 /*!
- * \brief Return the smaller of two values.
+ * rief Return the smaller of two values.
  */
 template <typename T> constexpr T min(T a, T b) noexcept { return a < b ? a : b; }
 
@@ -49,7 +49,7 @@ inline constexpr dev_nr kNoDev = static_cast<dev_nr>(~0);
 using links = uint8_t; /* number of links to an inode */
 inline constexpr links kMaxLinks = 0177;
 
-// MODERNIZED: using real_time = int64_t; /* real time in seconds since Jan 1, 1980 */
+// MODERNIZED: using real_time = int64_t;
 using real_time = xinim::time_t; // Maps to xinim::time_t (std::int64_t)
 
 using file_pos = int32_t;  /* position in, or length of, a file - Minix specific, smaller than off_t */
@@ -59,14 +59,12 @@ inline constexpr file_pos64 kMaxFilePos64 = I64_C(0x7fffffffffffffff);
 using uid = uint16_t; /* user id - Minix specific (xinim::uid_t is int32_t) */
 using gid = uint8_t;      /* group id - Minix specific (xinim::gid_t is int32_t) */
 
-// MODERNIZED: using vir_bytes = std::size_t;
-using vir_bytes = xinim::vir_bytes;
-// MODERNIZED: using vir_clicks = std::size_t;
-using vir_clicks = xinim::vir_clicks;
-// MODERNIZED: using phys_bytes = std::uint64_t; // Corrected from previous output to match std::uint64_t
-using phys_bytes = xinim::phys_bytes;
-// MODERNIZED: using phys_clicks = std::uint64_t; // Corrected from previous output
-using phys_clicks = xinim::phys_clicks;
+// Aliases to types defined in xinim::core_types.hpp
+using vir_bytes = xinim::vir_bytes_t;
+using phys_bytes = xinim::phys_bytes_t;
+using vir_clicks = xinim::virt_addr_t;  // Representing a count/size related to virtual memory units based on address size
+using phys_clicks = xinim::phys_addr_t; // Representing a count/size related to physical memory units based on address size
+
 using signed_clicks = int64_t;    /* same length as phys_clicks, but signed - Minix specific */
                                   // No direct xinim equivalent, related to Minix clicks.
 
@@ -184,8 +182,8 @@ struct message {
     constexpr const int &m6_i3() const { return m_u.m_m6.m6i3; }
     constexpr int64_t &m6_l1() { return m_u.m_m6.m6l1; }
     constexpr const int64_t &m6_l1() const { return m_u.m_m6.m6l1; }
-    constexpr int (*&m6_f1())() { return m_u.m_m6.m6f1; }
-    constexpr int (*const &m6_f1() const)() { return m_u.m_m6.m6f1; }
+    constexpr int (*&m6_f1())() { return m_u.m_m6.m6f1; } // Modern C-style: int(*)()
+    constexpr int (*const &m6_f1() const)() { return m_u.m_m6.m6f1; } // Modern C-style: int(*)()
 };
 
 inline constexpr std::size_t kMessSize = sizeof(message);

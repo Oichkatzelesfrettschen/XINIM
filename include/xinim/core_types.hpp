@@ -1,30 +1,61 @@
-#pragma once
-#include <cstdint>
-#include <cstddef>
+#ifndef XINIM_CORE_TYPES_HPP
+#define XINIM_CORE_TYPES_HPP
+
+#include <cstdint> // For fixed-width integer types
+#include <cstddef> // For std::size_t, std::ptrdiff_t
 
 namespace xinim {
-    // Memory and addressing types
-    using phys_bytes = std::uint64_t;  // Physical memory address
-    using vir_bytes = std::size_t;     // Virtual memory address
-    using phys_clicks = std::uint64_t; // Physical memory in clicks
-    using vir_clicks = std::size_t;    // Virtual memory in clicks
 
-    // Process and system types
-    using pid_t = std::int32_t;        // Process ID
-    using uid_t = std::int32_t;        // User ID
-    using gid_t = std::int32_t;        // Group ID
-    using dev_t = std::int32_t;        // Device number
-    using ino_t = std::uint64_t;       // Inode number
-    using mode_t = std::uint32_t;      // File mode
-    using nlink_t = std::uint32_t;    // Link count
-    using zone_t = std::uint32_t;      // Zone number
-    using bit_t = std::uint32_t;       // Bit number
-    using time_t = std::int64_t;       // Time value
+// Memory Address Types
+using phys_addr_t = std::uint64_t; // Physical memory address
+using virt_addr_t = std::uint64_t; // Virtual memory address
 
-    // Hardware-constrained types (DO NOT CHANGE SIZES)
-    namespace hw {
-        using dma_addr_t = std::uint32_t;  // DMA limited to 20 bits
-        using port_t = std::uint16_t;      // I/O port address
-        using irq_t = std::uint8_t;        // IRQ number
-    }
-}
+// Byte count types associated with physical/virtual address spaces
+using phys_bytes_t = phys_addr_t;
+using virt_bytes_t = virt_addr_t;
+
+// Process, User, and Group Identifiers
+using pid_t = std::int32_t;   // Process ID
+using uid_t = std::int32_t;   // User ID (Minix historically used uint16_t, modernizing to int32_t)
+using gid_t = std::int32_t;   // Group ID (Minix historically used uint16_t, modernizing to int32_t)
+
+// Filesystem-related Types
+using dev_t = std::uint32_t;  // Device number
+using ino_t = std::uint64_t;  // Inode number
+using mode_t = std::uint32_t; // File mode (permissions, type)
+using off_t = std::int64_t;   // File offset or size
+
+// Time-related Types
+using time_t = std::int64_t;  // Time in seconds (typically since epoch)
+
+// Size and Count Types
+using ssize_t = std::ptrdiff_t; // Signed size/count (can represent -1 for errors)
+// std::size_t is used directly for unsigned sizes.
+
+// Hardware-specific types
+namespace hw {
+    // I/O port address type, typically 16-bit on x86
+    using port_t = std::uint16_t;
+
+    // DMA address type. This is often physical but can have constraints
+    // (e.g., 24-bit for ISA, 32-bit for older PCI, 64-bit for modern systems).
+    // Using uintptr_t and recommending static_asserts in hardware-specific code.
+    // Alternatively, a fixed size like uint32_t or uint64_t might be chosen
+    // based on dominant hardware targets. For now, uintptr_t is flexible.
+    using dma_addr_t = std::uintptr_t;
+} // namespace hw
+
+// Common XINIM status/error code type (placeholder, might be replaced by std::error_code or similar)
+using status_t = int;
+constexpr status_t OK = 0;
+
+// Define common pointer types if needed, e.g.:
+// using void_ptr = void*;
+// using char_ptr = char*;
+
+// Define NIL_PTR for broader compatibility if still used, though nullptr is preferred
+#define NIL_PTR nullptr
+
+} // namespace xinim
+
+#endif // XINIM_CORE_TYPES_HPP
