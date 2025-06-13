@@ -1,5 +1,5 @@
 # Doxyfile for MINIX Filesystem Tools
-# Modern C++17 documentation configuration
+# Modern C++23 documentation configuration
 
 #---------------------------------------------------------------------------
 # Project related configuration options
@@ -7,7 +7,7 @@
 DOXYFILE_ENCODING      = UTF-8
 PROJECT_NAME           = "MINIX Filesystem Tools"
 PROJECT_NUMBER         = "2.0"
-PROJECT_BRIEF          = "Modern C++17 MINIX filesystem utilities with type safety and performance"
+PROJECT_BRIEF          = "Modern C++23 MINIX filesystem utilities with type safety and performance"
 PROJECT_LOGO           = 
 OUTPUT_DIRECTORY       = docs/doxygen
 CREATE_SUBDIRS         = YES
