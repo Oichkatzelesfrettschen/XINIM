@@ -82,7 +82,7 @@ PUBLIC int do_stime() {
     if (!super_user)
         return (ErrorCode::EPERM);
     clock_mess.m_type = SET_TIME;
-    clock_mess.NEW_TIME = (long)tp;
+    new_time(clock_mess) = static_cast<long>(tp);
     if ((k = sendrec(CLOCK, &clock_mess)) != OK)
         panic("do_stime error", k);
     return (OK);

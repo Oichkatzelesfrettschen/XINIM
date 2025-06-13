@@ -30,7 +30,7 @@ void sys_getsp(int proc, vir_bytes *newsp) {
     /* Ask the kernel what the sp is. */
 
     callm1(SYSTASK, SYS_GETSP, proc, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
-    *newsp = (vir_bytes)M.STACK_PTR;
+    *newsp = (vir_bytes)stack_ptr(M);
 }
 
 // Signal process 'proc' with signal 'sig'.

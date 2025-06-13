@@ -26,9 +26,9 @@
 #include "const.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>   // For uint64_t, uint16_t etc.
-#include <cstddef>   // For std::size_t, nullptr
 #include <algorithm> // For std::min if needed, though not apparent yet
+#include <cstddef>   // For std::size_t, nullptr
+#include <cstdint>   // For uint64_t, uint16_t etc.
 
 /* RAII helper ensuring critical sections use lock/unlock */
 class ScopedPortLock {
@@ -170,10 +170,10 @@ static int w_do_rdwt(message *m_ptr) noexcept { // Added noexcept
     int64_t sector; // Was long, for m_ptr->POSITION (int64_t)
 
     /* Decode the w_message parameters. */
-    device = m_ptr->DEVICE; // Message field DEVICE is int
+    device = device(*m_ptr);
     if (device < 0 || device >= NR_DEVICES)
         return (ErrorCode::EIO);
-    if (m_ptr->COUNT != BLOCK_SIZE)
+    if (count(*m_ptr) != BLOCK_SIZE)
         return (ErrorCode::EINVAL);
     wn = &wini[device];                    /* 'wn' points to entry for this drive */
     wn->wn_drive = device / DEV_PER_DRIVE; /* save drive number */
@@ -182,20 +182,21 @@ static int w_do_rdwt(message *m_ptr) noexcept { // Added noexcept
     wn->wn_opcode = m_ptr->m_type; /* DISK_READ or DISK_WRITE */
     // m_ptr->POSITION is int64_t (modernized message field for m2_l1)
     // BLOCK_SIZE is int.
-    if (m_ptr->POSITION % BLOCK_SIZE != 0)
+    if (position(*m_ptr) % BLOCK_SIZE != 0)
         return (ErrorCode::EINVAL);
-    sector = m_ptr->POSITION / SECTOR_SIZE; // SECTOR_SIZE is int
+    sector = position(*m_ptr) / SECTOR_SIZE; // SECTOR_SIZE is int
     // wn_size is uint64_t. Result of division will be small.
-    if ((sector + static_cast<int64_t>(BLOCK_SIZE / SECTOR_SIZE)) > static_cast<int64_t>(wn->wn_size))
+    if ((sector + static_cast<int64_t>(BLOCK_SIZE / SECTOR_SIZE)) >
+        static_cast<int64_t>(wn->wn_size))
         return (EOF);
     sector += static_cast<int64_t>(wn->wn_low); // wn_low is uint64_t
     // Result of arithmetic should fit in int for cylinder/sector/head.
     wn->wn_cylinder = static_cast<int>(sector / (wn->wn_heads * NR_SECTORS));
     wn->wn_sector = static_cast<int>(sector % NR_SECTORS);
     wn->wn_head = static_cast<int>((sector % (wn->wn_heads * NR_SECTORS)) / NR_SECTORS);
-    wn->wn_count = static_cast<std::size_t>(m_ptr->COUNT);     // COUNT (message field m2_i1) is int
-    wn->wn_address = reinterpret_cast<std::size_t>(m_ptr->ADDRESS); // ADDRESS (message field m2_p1) is char*
-    wn->wn_procnr = m_ptr->PROC_NR;    // PROC_NR (message field m2_i2) is int
+    wn->wn_count = static_cast<std::size_t>(count(*m_ptr));
+    wn->wn_address = reinterpret_cast<std::size_t>(address(*m_ptr));
+    wn->wn_procnr = proc_nr(*m_ptr);
 
     /* This loop allows a failed operation to be repeated. */
     while (errors <= MAX_ERRORS) {
@@ -223,7 +224,8 @@ static int w_do_rdwt(message *m_ptr) noexcept { // Added noexcept
  *				w_dma_setup				     *
  *===========================================================================*/
 /* Prepare the DMA chip for a transfer. */
-static void w_dma_setup(struct wini *wn) noexcept { // Modernized param, noexcept. Renamed wini to struct wini for clarity.
+static void w_dma_setup(struct wini *wn) noexcept { // Modernized param, noexcept. Renamed wini to
+                                                    // struct wini for clarity.
     /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
      * the DMA (Direct Memory Access) chip is loaded with the 20-bit memory address
      * to by read from or written to, the byte count minus 1, and a read or write
@@ -233,19 +235,20 @@ static void w_dma_setup(struct wini *wn) noexcept { // Modernized param, noexcep
      */
 
     int mode, low_addr, high_addr, top_addr, low_ct, high_ct, top_end;
-    std::size_t vir, ct;      // vir_bytes -> std::size_t
-    uint64_t user_phys;       // phys_bytes -> uint64_t
+    std::size_t vir, ct; // vir_bytes -> std::size_t
+    uint64_t user_phys;  // phys_bytes -> uint64_t
     // extern phys_bytes umap(); // umap returns uint64_t
 
     mode = (wn->wn_opcode == DISK_READ ? DMA_READ : DMA_WRITE);
     vir = wn->wn_address; // wn_address is std::size_t
-    ct = wn->wn_count;   // wn_count is std::size_t
+    ct = wn->wn_count;    // wn_count is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     user_phys = umap(proc_addr(wn->wn_procnr), D, vir, ct);
     // BYTE is int (0377). user_phys is uint64_t.
     low_addr = static_cast<int>(user_phys & BYTE);
     high_addr = static_cast<int>((user_phys >> 8) & BYTE);
-    top_addr = static_cast<int>((user_phys >> 16) & BYTE); // This implies physical addresses are <= 20 bits for DMA
+    top_addr = static_cast<int>((user_phys >> 16) &
+                                BYTE); // This implies physical addresses are <= 20 bits for DMA
     low_ct = static_cast<int>((ct - 1) & BYTE); // ct is std::size_t
     high_ct = static_cast<int>(((ct - 1) >> 8) & BYTE);
 
@@ -255,7 +258,8 @@ static void w_dma_setup(struct wini *wn) noexcept { // Modernized param, noexcep
      * Also check for bad buffer address.  These errors mean FS contains a bug.
      */
     if (user_phys == 0)
-        panic("FS gave winchester disk driver bad addr", static_cast<int>(vir)); // vir is std::size_t, panic takes int
+        panic("FS gave winchester disk driver bad addr",
+              static_cast<int>(vir)); // vir is std::size_t, panic takes int
     top_end = static_cast<int>(((user_phys + ct - 1) >> 16) & BYTE);
     if (top_end != top_addr)
         panic("Trying to DMA across 64K boundary", top_addr); // top_addr is int
@@ -594,14 +598,20 @@ static void init_params() noexcept { // Added noexcept
     // phys_copy takes (uint64_t, uint64_t, uint64_t)
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     // buf is unsigned char[].
-    phys_copy(address, umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf), static_cast<std::size_t>(64)), 64ULL);
+    phys_copy(address,
+              umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf),
+                   static_cast<std::size_t>(64)),
+              64ULL);
 
     /* Copy the parameters to the structures */
     copy_params((&buf[type_0 * 16]), &param0); // Renamed copy_param to copy_params
     copy_param((&buf[type_1 * 16]), &param1);
 
     /* Get the nummer of drives from the bios */
-    phys_copy(0x475ULL, umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf), static_cast<std::size_t>(1)), 1ULL);
+    phys_copy(0x475ULL,
+              umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf),
+                   static_cast<std::size_t>(1)),
+              1ULL);
     nr_drives = static_cast<int>(*buf);
 
     /* Set the parameters in the drive structure */
@@ -618,15 +628,16 @@ static void init_params() noexcept { // Added noexcept
         nr_drives = 0;
 
     /* Read the partition table for each drive and save them */
-    for (i = 0; i < nr_drives; i++) { // i is unsigned int
+    for (i = 0; i < nr_drives; i++) {             // i is unsigned int
         device(w_mess) = static_cast<int>(i * 5); // device is int msg field
-        position(w_mess) = 0LL; // position is int64_t msg field
-        count(w_mess) = BLOCK_SIZE; // count is int msg field, BLOCK_SIZE is int
+        position(w_mess) = 0LL;                   // position is int64_t msg field
+        count(w_mess) = BLOCK_SIZE;               // count is int msg field, BLOCK_SIZE is int
         address(w_mess) = reinterpret_cast<char *>(buf); // address is char* msg field
-        proc_nr(w_mess) = WINCHESTER; // proc_nr is int msg field
+        proc_nr(w_mess) = WINCHESTER;                    // proc_nr is int msg field
         w_mess.m_type = DISK_READ;
         if (w_do_rdwt(&w_mess) != BLOCK_SIZE) // w_do_rdwt is noexcept
-            panic("Can't read partition table of winchester ", static_cast<int>(i)); // panic is noexcept
+            panic("Can't read partition table of winchester ",
+                  static_cast<int>(i)); // panic is noexcept
         copy_prt(static_cast<int>(i * 5));
     }
 }
@@ -659,7 +670,7 @@ static void copy_prt(int drive) noexcept { // Added noexcept
     register int i, offset;
     struct wini *wn;
     uint64_t temp_val; // For reading long from buf before assigning to uint64_t
-    int64_t adjust64; // Was long, for arithmetic with wn_low/wn_size
+    int64_t adjust64;  // Was long, for arithmetic with wn_low/wn_size
 
     for (i = 0; i < 4; i++) {
         adjust64 = 0;
@@ -673,7 +684,6 @@ static void copy_prt(int drive) noexcept { // Added noexcept
         // A safer approach (though original code did direct cast):
         memcpy(&temp_val, &buf[offset], sizeof(long)); // Assuming long is what's in buf
         wn->wn_low = static_cast<uint64_t>(temp_val);
-
 
         if ((wn->wn_low % (BLOCK_SIZE / SECTOR_SIZE)) != 0) {
             adjust64 = static_cast<int64_t>(wn->wn_low);
@@ -689,18 +699,21 @@ static void copy_prt(int drive) noexcept { // Added noexcept
 
 /* Sort drive order */
 static void sort(struct wini *wn) noexcept { // Removed register, added noexcept
-    register int i, j; // Keep register for loop counters if desired, though modern compilers often ignore
+    register int i,
+        j; // Keep register for loop counters if desired, though modern compilers often ignore
 
     for (i = 0; i < 4; i++)
         for (j = 0; j < 3; j++)
             if ((wn[j].wn_low == 0) && (wn[j + 1].wn_low != 0))
                 swap(&wn[j], &wn[j + 1]);
-            else if (wn[j].wn_low > wn[j + 1].wn_low && wn[j + 1].wn_low != 0) // uint64_t comparison
+            else if (wn[j].wn_low > wn[j + 1].wn_low &&
+                     wn[j + 1].wn_low != 0) // uint64_t comparison
                 swap(&wn[j], &wn[j + 1]);
 }
 
 /* Swap two wini structures */
-static void swap(struct wini *first, struct wini *second) noexcept { // Removed register, added noexcept
+static void swap(struct wini *first,
+                 struct wini *second) noexcept { // Removed register, added noexcept
     register struct wini tmp;
 
     tmp = *first;
