@@ -70,11 +70,24 @@ To quickly check that the toolchain works you can compile one of the sample
 programs in the `test` directory.  For instance:
 
 ```sh
-make -C test f=test0
+make -C test f=t10a LIB=
 ```
 
-Successful compilation of these small programs indicates the compiler and
-assembler are functioning correctly.
+Passing `LIB=` avoids linking against the project library, letting the example
+compile even if the rest of the system has not been built yet.  Successful
+compilation confirms the compiler and assembler are functioning correctly.
+
+### Running the Example Programs
+
+Execute the newly built program directly from the `test/` directory:
+
+```sh
+./test/t10a
+echo $?
+```
+
+The `t10a.cpp` program simply returns `0`, so `echo $?` prints `0` when the
+toolchain is working properly.
 
 ## Historical DOS Build Scripts
 
