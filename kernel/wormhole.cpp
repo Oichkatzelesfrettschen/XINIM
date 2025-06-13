@@ -5,23 +5,15 @@
  * @brief Simplified fastpath implementation for unit tests.
  */
 #include <algorithm>
+#include <atomic> // For std::memory_order_relaxed (used in check)
 #include <cassert>
-#include <vector>      // For std::vector::erase (used in dequeue_receiver)
-#include <atomic>      // For std::memory_order_relaxed (used in check)
-#include <cstdint>     // For uint64_t
-#include <functional>  // For std::function or function pointers if Transformer were more complex
+#include <cstdint>    // For uint64_t
+#include <functional> // For std::function or function pointers if Transformer were more complex
+#include <vector>     // For std::vector::erase (used in dequeue_receiver)
 
 namespace fastpath {
 
 // Moved set_message_region and message_region_valid to the outer fastpath namespace
-/**
- * @brief Assign a zero-copy message region used for IPC.
- *
- * Compile-time checks ensure the region type supports zero-copy mappings.
- *
- * @param state  Fastpath state to modify.
- * @param region Message region meeting alignment requirements.
- */
 void set_message_region(State &state, const MessageRegion &region) noexcept {
     static_assert(MessageRegion::traits::is_zero_copy_capable,
                   "MessageRegion must support zero-copy");
@@ -29,13 +21,6 @@ void set_message_region(State &state, const MessageRegion &region) noexcept {
     state.msg_region = region;
 }
 
-/**
- * @brief Check that @p region can store @p msg_len registers.
- *
- * @param region Region to validate.
- * @param msg_len Number of message registers.
- * @return True when the region size and alignment are sufficient.
- */
 bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept {
     return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
 }
@@ -110,7 +95,7 @@ inline void update_thread_state(State &state) noexcept {
 /// Context switch to the receiver thread.
 inline void context_switch(State &state) noexcept { state.current_tid = state.receiver.tid; }
 
-} // namespace detail (consolidated)
+} // namespace detail
 
 // These static functions remain in the outer ::fastpath namespace
 // update statistics for a failed precondition
