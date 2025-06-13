@@ -35,8 +35,8 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>   // For int64_t
-#include <cstddef>   // For std::size_t, nullptr (though not directly used here for ptr)
+#include <cstddef> // For std::size_t, nullptr (though not directly used here for ptr)
+#include <cstdint> // For int64_t
 
 /* Constant definitions. */
 #define MILLISEC 100                      /* how often to call the scheduler (msec) */
@@ -49,8 +49,8 @@
 #define SQUARE_WAVE 0x36  /* mode for generating square wave */
 
 /* Clock task variables. */
-static int64_t boot_time;              // real_time -> int64_t
-static int64_t next_alarm;             // real_time -> int64_t
+static int64_t boot_time;                 // real_time -> int64_t
+static int64_t next_alarm;                // real_time -> int64_t
 PRIVATE int sched_ticks = SCHED_RATE;     /* counter: when 0, call scheduler */
 PRIVATE struct proc *prev_ptr;            /* last user process run by clock task */
 PRIVATE message mc;                       /* message buffer for both input and output */
@@ -120,17 +120,18 @@ static void do_setalarm(message *m_ptr) noexcept {
      */
 
     register struct proc *rp;
-    int proc_nr;          /* which process wants the alarm */
-    int64_t delta_ticks;  // Was long, for DELTA_TICKS (message field m2_l1 is int64_t)
-    int (*function)();    /* function to call (tasks only) */
+    int proc_nr;         /* which process wants the alarm */
+    int64_t delta_ticks; // Was long, for DELTA_TICKS (message field m2_l1 is int64_t)
+    int (*function)();   /* function to call (tasks only) */
 
     /* Extract the parameters from the message. */
-    proc_nr = m_ptr->CLOCK_PROC_NR;   /* process to interrupt later (message field is int) */
-    delta_ticks = m_ptr->DELTA_TICKS; /* how many ticks to wait (message field is int64_t) */
-    function = m_ptr->FUNC_TO_CALL;   /* function to call (tasks only) (message field is func ptr) */
+    proc_nr = clock_proc_nr(*m_ptr);   /* process to interrupt later */
+    delta_ticks = delta_ticks(*m_ptr); /* how many ticks to wait */
+    function = func_to_call(*m_ptr);   /* function to call (tasks only) */
     rp = proc_addr(proc_nr);
-    // mc is global message. SECONDS_LEFT (m2_l1) is int64_t. p_alarm, realtime are int64_t. HZ is int.
-    mc.SECONDS_LEFT = (rp->p_alarm == 0LL ? 0LL : (rp->p_alarm - realtime) / HZ);
+    // mc is global message. SECONDS_LEFT (m2_l1) is int64_t. p_alarm, realtime are int64_t. HZ is
+    // int.
+    seconds_left(mc) = (rp->p_alarm == 0LL ? 0LL : (rp->p_alarm - realtime) / HZ);
     rp->p_alarm = (delta_ticks == 0LL ? 0LL : realtime + delta_ticks); // p_alarm is int64_t
     if (proc_nr < 0) // Assuming tasks are negative proc_nr
         watch_dog[-proc_nr] = function;
@@ -150,9 +151,10 @@ static void do_setalarm(message *m_ptr) noexcept {
 static void do_get_time() noexcept { // Changed (void) to ()
     /* Get and return the current clock time in ticks. */
 
-    // mc is global message. NEW_TIME (m2_l1) is int64_t. boot_time, realtime are int64_t. HZ is int.
+    // mc is global message. NEW_TIME (m2_l1) is int64_t. boot_time, realtime are int64_t. HZ is
+    // int.
     mc.m_type = REAL_TIME;
-    mc.NEW_TIME = boot_time + realtime / HZ; /* current real time */
+    new_time(mc) = boot_time + realtime / HZ; /* current real time */
 }
 
 /*===========================================================================*
@@ -162,7 +164,7 @@ static void do_set_time(message *m_ptr) noexcept {
     /* Set the real time clock.  Only the superuser can use this call. */
 
     // boot_time, realtime are int64_t. m_ptr->NEW_TIME (m2_l1) is int64_t. HZ is int.
-    boot_time = m_ptr->NEW_TIME - realtime / HZ;
+    boot_time = new_time(*m_ptr) - realtime / HZ;
 }
 
 /*===========================================================================*
@@ -184,7 +186,8 @@ static void do_clocktick() noexcept { // Changed (void) to ()
 
     if (next_alarm <= realtime) { // Both int64_t
         /* An alarm may have gone off, but proc may have exited, so check. */
-        next_alarm = MAX_P_LONG; /* start computing next alarm (MAX_P_LONG is int32_t, next_alarm int64_t) */
+        next_alarm =
+            MAX_P_LONG; /* start computing next alarm (MAX_P_LONG is int32_t, next_alarm int64_t) */
         for (rp = &proc[0]; rp < &proc[NR_TASKS + NR_PROCS]; rp++) {
             if (rp->p_alarm != 0LL) { // p_alarm is real_time (int64_t)
                 /* See if this alarm time has been reached. */

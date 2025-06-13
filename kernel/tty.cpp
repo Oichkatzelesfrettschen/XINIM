@@ -54,9 +54,9 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>    // For uint64_t, uint16_t etc.
-#include <cstddef>    // For std::size_t, nullptr
-#include <algorithm>  // For std::min (used in rd_chars)
+#include <algorithm> // For std::min (used in rd_chars)
+#include <cstddef>   // For std::size_t, nullptr
+#include <cstdint>   // For uint64_t, uint16_t etc.
 // #include <inttypes.h> // For printf format specifiers if needed later
 
 #define NR_TTYS 1         /* how many terminals can system handle */
@@ -121,16 +121,16 @@ PRIVATE struct tty_struct {
     char tty_eof;   /* char used to stop output  (init CTRL-D) */
 
     /* Information about incomplete I/O requests is stored here. */
-    char tty_incaller;   /* process that made the call (usually FS) */
-    char tty_inproc;     /* process that wants to read from tty */
-    char *tty_in_vir;    /* virtual address where data is to go (char* is fine for address) */
-    std::size_t tty_inleft;      /* how many chars are still needed (was int) */
-    char tty_otcaller;   /* process that made the call (usually FS) */
-    char tty_outproc;    /* process that wants to write to tty */
-    char *tty_out_vir;   /* virtual address where data comes from (char* is fine for address) */
-    uint64_t tty_phys; /* physical address where data comes from (phys_bytes -> uint64_t) */
-    std::size_t tty_outleft;     /* # chars yet to be copied to tty_outqueue (was int) */
-    std::size_t tty_cum;         /* # chars copied to tty_outqueue so far (was int) */
+    char tty_incaller;       /* process that made the call (usually FS) */
+    char tty_inproc;         /* process that wants to read from tty */
+    char *tty_in_vir;        /* virtual address where data is to go (char* is fine for address) */
+    std::size_t tty_inleft;  /* how many chars are still needed (was int) */
+    char tty_otcaller;       /* process that made the call (usually FS) */
+    char tty_outproc;        /* process that wants to write to tty */
+    char *tty_out_vir;       /* virtual address where data comes from (char* is fine for address) */
+    uint64_t tty_phys;       /* physical address where data comes from (phys_bytes -> uint64_t) */
+    std::size_t tty_outleft; /* # chars yet to be copied to tty_outqueue (was int) */
+    std::size_t tty_cum;     /* # chars copied to tty_outqueue so far (was int) */
 
     /* Miscellaneous. */
     int tty_ioport; /* I/O port number for this terminal */
@@ -233,7 +233,8 @@ PUBLIC void tty_task() noexcept { // Added void return, noexcept
 /*===========================================================================*
  *				do_charint				     *
  *===========================================================================*/
-static void do_charint(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void
+do_charint(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A character has been typed.  If a character is typed and the tty task is
      * not able to service it immediately, the character is accumulated within
      * the tty driver.  Thus multiple chars may be accumulated.  A single message
@@ -244,16 +245,16 @@ static void do_charint(message *m_ptr) noexcept { // PRIVATE -> static, moderniz
     char *ptr, *copy_ptr, ch;
     struct tty_struct *tp;
 
-    lock(); // lock() is noexcept
-    ptr = reinterpret_cast<char*>(m_ptr->ADDRESS);    /* pointer to accumulated char array */
-    copy_ptr = tty_copy_buf; /* ptr to shadow array where chars copied */
+    lock();                                          // lock() is noexcept
+    ptr = reinterpret_cast<char *>(address(*m_ptr)); /* pointer to accumulated char array */
+    copy_ptr = tty_copy_buf;                         /* ptr to shadow array where chars copied */
     n = static_cast<int>(*ptr); /* how many chars have been accumulated (char to int) */
-    count = n;               /* save the character count */
-    n = n + n;               /* each char occupies 2 bytes */
-    ptr += 2;                /* skip count field at start of array */
+    count = n;                  /* save the character count */
+    n = n + n;                  /* each char occupies 2 bytes */
+    ptr += 2;                   /* skip count field at start of array */
     while (n-- > 0)
         *copy_ptr++ = *ptr++; /* copy the array to safety */
-    ptr = reinterpret_cast<char*>(m_ptr->ADDRESS);
+    ptr = reinterpret_cast<char *>(address(*m_ptr));
     *ptr = 0; /* accumulation count set to 0 */
     unlock(); /* re-enable interrupts - unlock() is noexcept */
 
@@ -283,7 +284,8 @@ static void do_charint(message *m_ptr) noexcept { // PRIVATE -> static, moderniz
 /*===========================================================================*
  *				in_char					     *
  *===========================================================================*/
-static void in_char(int line, char ch) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void in_char(int line,
+                    char ch) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A character has just been typed in.  Process, save, and echo it. */
 
     register struct tty_struct *tp;
@@ -467,7 +469,8 @@ static char make_break(char ch) noexcept { // PRIVATE -> static, modernized sign
 /*===========================================================================*
  *				echo					     *
  *===========================================================================*/
-static void echo(struct tty_struct *tp, char c) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void echo(struct tty_struct *tp,
+                 char c) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Echo a character on the terminal. */
 
     if ((tp->tty_mode & ECHO) == 0)
@@ -480,7 +483,8 @@ static void echo(struct tty_struct *tp, char c) noexcept { // PRIVATE -> static,
 /*===========================================================================*
  *				chuck					     *
  *===========================================================================*/
-static int chuck(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static int
+chuck(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Delete one character from the input queue.  Used for erase and kill. */
 
     char *prev;
@@ -502,13 +506,14 @@ static int chuck(struct tty_struct *tp) noexcept { // PRIVATE -> static, moderni
 /*===========================================================================*
  *				do_read					     *
  *===========================================================================*/
-static void do_read(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void do_read(struct tty_struct *tp,
+                    message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to read from a terminal. */
 
     int code, caller;
 
     if (tp->tty_inleft > 0) { /* if someone else is hanging, give up */
-        tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, ErrorCode::E_TRY_AGAIN, 0L, 0L);
+        tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), ErrorCode::E_TRY_AGAIN, 0L, 0L);
         return;
     }
 
@@ -516,9 +521,9 @@ static void do_read(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVATE
     // m_ptr->m_source, PROC_NR, COUNT are int. ADDRESS is char*.
     // tty_incaller, tty_inproc are char. tty_in_vir is char*. tty_inleft is std::size_t.
     tp->tty_incaller = static_cast<char>(m_ptr->m_source);
-    tp->tty_inproc = static_cast<char>(m_ptr->PROC_NR);
-    tp->tty_in_vir = m_ptr->ADDRESS;
-    tp->tty_inleft = static_cast<std::size_t>(m_ptr->COUNT);
+    tp->tty_inproc = static_cast<char>(proc_nr(*m_ptr));
+    tp->tty_in_vir = address(*m_ptr);
+    tp->tty_inleft = static_cast<std::size_t>(count(*m_ptr));
 
     /* Try to get chars.  This call either gets enough, or gets nothing. */
     code = rd_chars(tp);
@@ -530,7 +535,8 @@ static void do_read(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVATE
 /*===========================================================================*
  *				rd_chars				     *
  *===========================================================================*/
-static int rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static int
+rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to read from a terminal.  First check if enough data is
      * available. If so, pass it to the user.  If not, send FS a message telling
      * it to suspend the user.  When enough data arrives later, the tty driver
@@ -538,8 +544,8 @@ static int rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, mode
      */
 
     int cooked, ct, user_ct, buf_ct, enough, eot_seen;
-    std::size_t cum; // Was int, for cumulative count
-    std::size_t in_vir, left; // vir_bytes -> std::size_t
+    std::size_t cum;              // Was int, for cumulative count
+    std::size_t in_vir, left;     // vir_bytes -> std::size_t
     uint64_t user_phys, tty_phys; // phys_bytes -> uint64_t
     char ch, *tty_ptr;
     struct proc *rp;
@@ -548,14 +554,15 @@ static int rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, mode
     cooked = ((tp->tty_mode & (RAW | CBREAK)) ? 0 : 1); /* 1 iff COOKED mode */
     if (tp->tty_incount == 0 || (cooked && tp->tty_lfct == 0))
         return (SUSPEND);
-    rp = proc_addr(tp->tty_inproc); // tty_inproc is char
+    rp = proc_addr(tp->tty_inproc);                         // tty_inproc is char
     in_vir = reinterpret_cast<std::size_t>(tp->tty_in_vir); // tty_in_vir is char*
-    left = tp->tty_inleft; // tty_inleft is std::size_t
+    left = tp->tty_inleft;                                  // tty_inleft is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     if ((user_phys = umap(rp, D, in_vir, left)) == 0)
         return (ErrorCode::E_BAD_ADDR);
     // tty_buf is char[]. TTY_BUF_SIZE is int.
-    tty_phys = umap(proc_addr(TTY), D, reinterpret_cast<std::size_t>(tty_buf), static_cast<std::size_t>(TTY_BUF_SIZE));
+    tty_phys = umap(proc_addr(TTY), D, reinterpret_cast<std::size_t>(tty_buf),
+                    static_cast<std::size_t>(TTY_BUF_SIZE));
     cum = 0;
     enough = 0;
     eot_seen = 0;
@@ -563,7 +570,9 @@ static int rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, mode
     /* The outer loop iterates on buffers, one buffer load per iteration. */
     while (tp->tty_inleft > 0) { // tty_inleft is std::size_t
         // tty_inleft, tty_incount (int), TTY_BUF_SIZE (int)
-        buf_ct = static_cast<int>(std::min({tp->tty_inleft, static_cast<std::size_t>(tp->tty_incount), static_cast<std::size_t>(TTY_BUF_SIZE)}));
+        buf_ct =
+            static_cast<int>(std::min({tp->tty_inleft, static_cast<std::size_t>(tp->tty_incount),
+                                       static_cast<std::size_t>(TTY_BUF_SIZE)}));
         ct = 0;
         tty_ptr = tty_buf;
 
@@ -595,19 +604,20 @@ static int rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, mode
         user_phys += static_cast<uint64_t>(user_ct);
         cum += static_cast<std::size_t>(user_ct);
         tp->tty_inleft -= static_cast<std::size_t>(ct); // tty_inleft is std::size_t
-        tp->tty_incount -= ct; // tty_incount is int
+        tp->tty_incount -= ct;                          // tty_incount is int
         if (tp->tty_incount == 0 || enough)
             break;
     }
 
-    tp->tty_inleft = 0; // std::size_t
+    tp->tty_inleft = 0;           // std::size_t
     return static_cast<int>(cum); // Return int
 }
 
 /*===========================================================================*
  *				finish					     *
  *===========================================================================*/
-static void finish(struct tty_struct *tp, int code) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void finish(struct tty_struct *tp,
+                   int code) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A command has terminated (possibly due to DEL).  Tell caller. */
 
     int replyee, caller;
@@ -625,7 +635,8 @@ static void finish(struct tty_struct *tp, int code) noexcept { // PRIVATE -> sta
 /*===========================================================================*
  *				do_write				     *
  *===========================================================================*/
-static void do_write(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void do_write(struct tty_struct *tp,
+                     message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to write on a terminal. */
 
     std::size_t out_vir, out_left; // vir_bytes -> std::size_t
@@ -637,20 +648,21 @@ static void do_write(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVAT
     // tty_otcaller, tty_outproc are char. tty_out_vir is char*.
     // tty_outleft, tty_cum are std::size_t.
     tp->tty_otcaller = static_cast<char>(m_ptr->m_source);
-    tp->tty_outproc = static_cast<char>(m_ptr->PROC_NR);
-    tp->tty_out_vir = m_ptr->ADDRESS;
-    tp->tty_outleft = static_cast<std::size_t>(m_ptr->COUNT);
+    tp->tty_outproc = static_cast<char>(proc_nr(*m_ptr));
+    tp->tty_out_vir = address(*m_ptr);
+    tp->tty_outleft = static_cast<std::size_t>(count(*m_ptr));
     tp->tty_waiting = WAITING;
     tp->tty_cum = 0;
 
     /* Compute the physical address where the data is in user space. */
-    rp = proc_addr(tp->tty_outproc); // tty_outproc is char
+    rp = proc_addr(tp->tty_outproc);                          // tty_outproc is char
     out_vir = reinterpret_cast<std::size_t>(tp->tty_out_vir); // tty_out_vir is char*
-    out_left = tp->tty_outleft; // tty_outleft is std::size_t
+    out_left = tp->tty_outleft;                               // tty_outleft is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t. tp->tty_phys is uint64_t.
     if ((tp->tty_phys = umap(rp, D, out_vir, out_left)) == 0) {
         /* Buffer address provided by user is outside its address space. */
-        tp->tty_cum = static_cast<std::size_t>(ErrorCode::E_BAD_ADDR); // Store error as status in cum_io
+        tp->tty_cum =
+            static_cast<std::size_t>(ErrorCode::E_BAD_ADDR); // Store error as status in cum_io
         tp->tty_outleft = 0;
     }
 
@@ -661,7 +673,8 @@ static void do_write(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVAT
 /*===========================================================================*
  *				do_ioctl				     *
  *===========================================================================*/
-static void do_ioctl(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void do_ioctl(struct tty_struct *tp,
+                     message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Perform IOCTL on this terminal. */
 
     long flags, erki, erase, kill, intr, quit, xon, xoff, eof;
@@ -712,14 +725,16 @@ static void do_ioctl(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVAT
 
     /* Send the reply. */
     // flags, erki are long. tty_reply last three params are int, int64_t, int64_t
-    tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, r,
-              static_cast<int64_t>(flags), static_cast<int64_t>(erki));
+    tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), r, static_cast<int64_t>(flags),
+              static_cast<int64_t>(erki));
 }
 
 /*===========================================================================*
  *				do_cancel				     *
  *===========================================================================*/
-static void do_cancel(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void
+do_cancel(struct tty_struct *tp,
+          message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A signal has been sent to a process that is hanging trying to read or write.
      * The pending read or write must be finished off immediately.
      */
@@ -733,20 +748,21 @@ static void do_cancel(struct tty_struct *tp, message *m_ptr) noexcept { // PRIVA
     /* Kill off input and output. */
     tp->tty_inhead = tp->tty_inqueue; /* discard all input */
     tp->tty_intail = tp->tty_inqueue;
-    tp->tty_incount = 0; // int
-    tp->tty_lfct = 0;    // int
-    tp->tty_inleft = 0;  // std::size_t
-    tp->tty_outleft = 0; // std::size_t
+    tp->tty_incount = 0;           // int
+    tp->tty_lfct = 0;              // int
+    tp->tty_inleft = 0;            // std::size_t
+    tp->tty_outleft = 0;           // std::size_t
     tp->tty_waiting = NOT_WAITING; /* don't send reply */
     tp->tty_inhibited = RUNNING;
-    tty_reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, ErrorCode::EINTR, 0LL, 0LL);
+    tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), ErrorCode::EINTR, 0LL, 0LL);
 }
 
 /*===========================================================================*
  *				tty_reply				     *
  *===========================================================================*/
 // Modernized signature, PRIVATE -> static
-static void tty_reply(int code, int replyee, int proc_nr, int status, int64_t extra, int64_t other) noexcept {
+static void tty_reply(int code, int replyee, int proc_nr, int status, int64_t extra,
+                      int64_t other) noexcept {
     // code, replyee, proc_nr, status are int.
     // extra, other were long, now int64_t to match message struct modernized long fields
     /* Send a reply to a process that wanted to read or write data. */
@@ -885,7 +901,8 @@ PUBLIC keyboard() {
 /*===========================================================================*
  *				console					     *
  *===========================================================================*/
-static void console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void
+console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Copy as much data as possible to the output queue, then start I/O.  On
      * memory-mapped terminals, such as the IBM console, the I/O will also be
      * finished, and the counts updated.  Keep repeating until all I/O done.
@@ -905,18 +922,19 @@ static void console(struct tty_struct *tp) noexcept { // PRIVATE -> static, mode
     count_processed_bytes = 0;
 
     while (tp->tty_outleft > 0 && tp->tty_inhibited == RUNNING) { // tty_outleft is std::size_t
-        c = get_byte(segment, offset); /* fetch 1 byte from user space */
-        out_char(tp, c);               /* write 1 byte to terminal */
-        offset++;                      /* advance one character in user buffer */
-        tp->tty_outleft--;             /* decrement count */
+        c = get_byte(segment, offset);                            /* fetch 1 byte from user space */
+        out_char(tp, c);                                          /* write 1 byte to terminal */
+        offset++;          /* advance one character in user buffer */
+        tp->tty_outleft--; /* decrement count */
         count_processed_bytes++;
     }
     flush(tp); /* clear out the pending characters */
 
     /* Update terminal data structure. */
-    // count_processed_bytes = offset - offset1; /* # characters printed */ // This line is redundant due to loop counter
-    tp->tty_phys += count_processed_bytes;    /* advance physical data pointer (uint64_t) */
-    tp->tty_cum += count_processed_bytes;     /* number of characters printed (std::size_t) */
+    // count_processed_bytes = offset - offset1; /* # characters printed */ // This line is
+    // redundant due to loop counter
+    tp->tty_phys += count_processed_bytes; /* advance physical data pointer (uint64_t) */
+    tp->tty_cum += count_processed_bytes;  /* number of characters printed (std::size_t) */
 
     /* If all data has been copied to the terminal, send the reply. */
     if (tp->tty_outleft == 0)
@@ -926,7 +944,8 @@ static void console(struct tty_struct *tp) noexcept { // PRIVATE -> static, mode
 /*===========================================================================*
  *				out_char				     *
  *===========================================================================*/
-static void out_char(struct tty_struct *tp, char c) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void out_char(struct tty_struct *tp,
+                     char c) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Output a character on the console. Check for escape sequences, including
      *   ESC 32+x 32+y to move cursor to (x, y)
      *   ESC ~ 0       to clear from cursor to end of screen
@@ -1012,7 +1031,8 @@ static void out_char(struct tty_struct *tp, char c) noexcept { // PRIVATE -> sta
 /*===========================================================================*
  *				scroll_screen				     *
  *===========================================================================*/
-static void scroll_screen(struct tty_struct *tp, int dir) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void scroll_screen(struct tty_struct *tp,
+                          int dir) noexcept { // PRIVATE -> static, modernized signature, noexcept
     int amount, offset;
 
     amount = (dir == GO_FORWARD ? 2 * LINE_WIDTH : -2 * LINE_WIDTH);
@@ -1030,7 +1050,8 @@ static void scroll_screen(struct tty_struct *tp, int dir) noexcept { // PRIVATE 
 /*===========================================================================*
  *				flush					     *
  *===========================================================================*/
-static void flush(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void
+flush(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Have the characters in 'ramqueue' transferred to the screen. */
 
     if (tp->tty_rwords == 0)
@@ -1046,7 +1067,8 @@ static void flush(struct tty_struct *tp) noexcept { // PRIVATE -> static, modern
 /*===========================================================================*
  *				move_to					     *
  *===========================================================================*/
-static void move_to(struct tty_struct *tp, int x, int y) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void move_to(struct tty_struct *tp, int x,
+                    int y) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Move the cursor to (x, y). */
 
     flush(tp); /* flush any pending characters */
@@ -1061,7 +1083,8 @@ static void move_to(struct tty_struct *tp, int x, int y) noexcept { // PRIVATE -
 /*===========================================================================*
  *				escape					     *
  *===========================================================================*/
-static void escape(struct tty_struct *tp, char x, char y) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void escape(struct tty_struct *tp, char x,
+                   char y) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Handle an escape sequence. */
 
     int n, ct, vx;
@@ -1098,7 +1121,8 @@ static void escape(struct tty_struct *tp, char x, char y) noexcept { // PRIVATE 
 /*===========================================================================*
  *				set_6845				     *
  *===========================================================================*/
-static void set_6845(int reg, int val) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void set_6845(int reg,
+                     int val) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Set a register pair inside the 6845.
      * Registers 10-11 control the format of the cursor (how high it is, etc).
      * Registers 12-13 tell the 6845 where in video ram to start (in WORDS)

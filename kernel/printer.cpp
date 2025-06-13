@@ -29,8 +29,8 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>   // For uint64_t
-#include <cstddef>   // For std::size_t
+#include <cstddef> // For std::size_t
+#include <cstdint> // For uint64_t
 
 #define NORMAL_STATUS 0xDF  /* printer gives this status when idle */
 #define BUSY_STATUS 0x5F    /* printer gives this status when busy */
@@ -49,16 +49,16 @@
 #define DELAY_LOOP 1000     /* delay when printer is busy */
 #define MAX_REP 1000        /* controls max delay when busy */
 
-static int port_base;  /* I/O port for printer: 0x 378 or 0x3BC */
-static int caller;     /* process to tell when printing done (FS) */
-static int proc_nr;    /* user requesting the printing */
+static int port_base;          /* I/O port for printer: 0x 378 or 0x3BC */
+static int caller;             /* process to tell when printing done (FS) */
+static int proc_nr;            /* user requesting the printing */
 static std::size_t orig_count; /* original byte count (was int) */
-static int es;         /* (es, offset) point to next character to - segment part from phys addr */
-static int offset;     /* print, i.e., in the user's buffer - offset part from phys addr */
-PUBLIC std::size_t pcount;      /* number of bytes left to print (was int) */
-PUBLIC int pr_busy;     /* TRUE when printing, else FALSE */
-PUBLIC int cum_count;   /* cumulative # characters printed */
-PUBLIC int prev_ct;     /* value of cum_count 100 msec ago */
+static int es;     /* (es, offset) point to next character to - segment part from phys addr */
+static int offset; /* print, i.e., in the user's buffer - offset part from phys addr */
+PUBLIC std::size_t pcount; /* number of bytes left to print (was int) */
+PUBLIC int pr_busy;        /* TRUE when printing, else FALSE */
+PUBLIC int cum_count;      /* cumulative # characters printed */
+PUBLIC int prev_ct;        /* value of cum_count 100 msec ago */
 
 /*===========================================================================*
  *				printer_task				     *
@@ -104,14 +104,15 @@ static void do_write(message *m_ptr) noexcept { // PRIVATE -> static, modernized
     /* Reject command if printer is busy or count is not positive. */
     if (pr_busy)
         r = ErrorCode::EAGAIN;
-    if (m_ptr->COUNT <= 0) // COUNT from message is int
+    if (count(*m_ptr) <= 0)
         r = ErrorCode::EINVAL;
 
     /* Compute the physical address of the data buffer within user space. */
-    rp = proc_addr(m_ptr->PROC_NR); // PROC_NR from message is int
+    rp = proc_addr(proc_nr(*m_ptr));
     // umap expects (proc*, int, std::size_t, std::size_t) returns uint64_t
     // ADDRESS from message is char*, COUNT is int
-    phys = umap(rp, D, reinterpret_cast<std::size_t>(m_ptr->ADDRESS), static_cast<std::size_t>(m_ptr->COUNT));
+    phys = umap(rp, D, reinterpret_cast<std::size_t>(address(*m_ptr)),
+                static_cast<std::size_t>(count(*m_ptr)));
     if (phys == 0)
         r = ErrorCode::E_BAD_ADDR;
 
@@ -119,9 +120,9 @@ static void do_write(message *m_ptr) noexcept { // PRIVATE -> static, modernized
         /* Save information needed later. */
         lock(); // noexcept
         caller = m_ptr->m_source;
-        proc_nr = m_ptr->PROC_NR;
-        pcount = static_cast<std::size_t>(m_ptr->COUNT); // pcount is std::size_t
-        orig_count = static_cast<std::size_t>(m_ptr->COUNT); // orig_count is std::size_t
+        proc_nr = proc_nr(*m_ptr);
+        pcount = static_cast<std::size_t>(count(*m_ptr));
+        orig_count = static_cast<std::size_t>(count(*m_ptr));
         // phys is uint64_t. es, offset are int. CLICK_SHIFT, LOW_FOUR are int.
         es = static_cast<int>(phys >> CLICK_SHIFT);
         offset = static_cast<int>(phys & LOW_FOUR);
@@ -150,7 +151,7 @@ static void do_write(message *m_ptr) noexcept { // PRIVATE -> static, modernized
     /* Reply to FS, no matter what happened. */
     if (value == BUSY_STATUS)
         r = ErrorCode::EAGAIN;
-    reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, r);
+    reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), r);
 }
 
 /*===========================================================================*
@@ -161,11 +162,11 @@ static void do_done(message *m_ptr) noexcept { // PRIVATE -> static, modernized 
 
     int status;
 
-    status = (m_ptr->REP_STATUS == OK ? orig_count : ErrorCode::EIO);
+    status = (rep_status(*m_ptr) == OK ? orig_count : ErrorCode::EIO);
     if (proc_nr != CANCELED) {
         reply(REVIVE, caller, proc_nr, status);
         if (status == ErrorCode::EIO)
-            pr_error(m_ptr->REP_STATUS);
+            pr_error(rep_status(*m_ptr));
     }
     pr_busy = FALSE;
 }
@@ -185,7 +186,7 @@ message *m_ptr; /* pointer to the newly arrived message */
     pr_busy = FALSE;    /* mark printer as idle */
     pcount = 0;         /* causes printing to stop at next interrupt (pcount is std::size_t) */
     proc_nr = CANCELED; /* marks process as canceled */
-    reply(TASK_REPLY, m_ptr->m_source, m_ptr->PROC_NR, ErrorCode::EINTR);
+    reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), ErrorCode::EINTR);
 }
 
 /*===========================================================================*
@@ -230,7 +231,7 @@ static void print_init() noexcept { // PRIVATE -> static, modernized signature (
     pr_busy = FALSE;
     port_out(port_base + 2, INIT_PRINTER); // port_out is noexcept
     for (i = 0; i < DELAY_COUNT; i++)
-        ; /* delay loop */
+        ;                            /* delay loop */
     port_out(port_base + 2, SELECT); // port_out is noexcept
 }
 
@@ -246,7 +247,8 @@ PUBLIC void pr_char() noexcept { // Added void return, noexcept
 
     int value, ch, i;
     char c;
-    extern unsigned char get_byte(unsigned int seg, unsigned int off) noexcept; // Assuming modernized get_byte
+    extern unsigned char get_byte(unsigned int seg,
+                                  unsigned int off) noexcept; // Assuming modernized get_byte
 
     // pcount and orig_count are std::size_t
     if (pcount != orig_count)
@@ -254,19 +256,20 @@ PUBLIC void pr_char() noexcept { // Added void return, noexcept
     if (pr_busy == FALSE)
         return; /* spurious 8259A interrupt */
 
-    while (pcount > 0) { // pcount is std::size_t
+    while (pcount > 0) {                // pcount is std::size_t
         port_in(port_base + 1, &value); /* get printer status (port_in is noexcept) */
         if (value == NORMAL_STATUS) {
             /* Everything is all right.  Output another character. */
             // es, offset are int. get_byte expects unsigned.
-            c = static_cast<char>(get_byte(static_cast<unsigned int>(es), static_cast<unsigned int>(offset)));
-            ch = c & BYTE; // BYTE is int
-            port_out(port_base, ch); // port_out is noexcept
+            c = static_cast<char>(
+                get_byte(static_cast<unsigned int>(es), static_cast<unsigned int>(offset)));
+            ch = c & BYTE;                          // BYTE is int
+            port_out(port_base, ch);                // port_out is noexcept
             port_out(port_base + 2, ASSERT_STROBE); // port_out is noexcept
             port_out(port_base + 2, NEGATE_STROBE); // port_out is noexcept
-            offset++; // offset is int
-            pcount--; // pcount is std::size_t
-            cum_count++; /* count characters output (int) */
+            offset++;                               // offset is int
+            pcount--;                               // pcount is std::size_t
+            cum_count++;                            /* count characters output (int) */
             for (i = 0; i < DELAY_COUNT; i++)
                 ; /* delay loop */
         } else if (value == BUSY_STATUS) {

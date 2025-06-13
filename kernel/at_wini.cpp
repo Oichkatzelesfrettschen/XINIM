@@ -147,19 +147,19 @@ static int w_do_rdwt(message *m_ptr) {
     long sector;
 
     /* Decode the w_message parameters. */
-    device = m_ptr->DEVICE;
+    device = device(*m_ptr);
     if (device < 0 || device >= NR_DEVICES)
         return (ErrorCode::EIO);
-    if (m_ptr->COUNT != BLOCK_SIZE)
+    if (count(*m_ptr) != BLOCK_SIZE)
         return (ErrorCode::EINVAL);
     wn = &wini[device];                    /* 'wn' points to entry for this drive */
     wn->wn_drive = device / DEV_PER_DRIVE; /* save drive number */
     if (wn->wn_drive >= nr_drives)
         return (ErrorCode::EIO);
     wn->wn_opcode = m_ptr->m_type; /* DISK_READ or DISK_WRITE */
-    if (m_ptr->POSITION % BLOCK_SIZE != 0)
+    if (position(*m_ptr) % BLOCK_SIZE != 0)
         return (ErrorCode::EINVAL);
-    sector = m_ptr->POSITION / SECTOR_SIZE;
+    sector = position(*m_ptr) / SECTOR_SIZE;
     if ((sector + BLOCK_SIZE / SECTOR_SIZE) > wn->wn_size)
         return (EOF);
     sector += wn->wn_low;

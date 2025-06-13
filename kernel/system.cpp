@@ -62,17 +62,16 @@
 #include "../h/type.hpp" // Defines phys_bytes, vir_bytes etc.
 #include "const.hpp"
 #include "glo.hpp"
-#include <cstddef>   // For std::size_t, nullptr
-#include <cstdint>   // For uint64_t, uintptr_t
-#include "proc.hpp"  // Includes NIL_PROC definition
+#include "proc.hpp" // Includes NIL_PROC definition
 #include "type.hpp"
-
+#include <cstddef> // For std::size_t, nullptr
+#include <cstdint> // For uint64_t, uintptr_t
 
 #define COPY_UNIT 65534L /* max bytes to copy at once */
 
 // extern phys_bytes umap(); // umap is defined later in this file, now returns uint64_t
 
-PRIVATE message m; // Global message buffer, used by some functions here
+PRIVATE message m;                      // Global message buffer, used by some functions here
 PRIVATE char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
 
 /*===========================================================================*
@@ -137,9 +136,9 @@ static int do_fork(message *m_ptr) noexcept {
     int pid;                    /* process id of child */
     int bytes;                  /* counter for copying proc struct */
 
-    k1 = m_ptr->PROC1; /* extract parent slot number from msg */
-    k2 = m_ptr->PROC2; /* extract child slot number */
-    pid = m_ptr->PID;  /* extract child process id */
+    k1 = proc1(*m_ptr);  /* extract parent slot number from msg */
+    k2 = proc2(*m_ptr);  /* extract child slot number */
+    pid = ::pid(*m_ptr); /* extract child process id */
 
     if (k1 < 0 || k1 >= NR_PROCS || k2 < 0 || k2 >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
@@ -173,21 +172,21 @@ PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
     register struct proc *rp, *rsrc;
     uint64_t src_phys, dst_phys, pn; // phys_bytes -> uint64_t
     std::size_t vmm, vsys, vn;       // vir_bytes -> std::size_t
-    int caller;              /* whose space has the new map (usually MM) */
-    int k;                   /* process whose map is to be loaded */
-    int old_flags;           /* value of flags before modification */
-    struct mem_map *map_ptr; /* virtual address of map inside caller (MM) */
+    int caller;                      /* whose space has the new map (usually MM) */
+    int k;                           /* process whose map is to be loaded */
+    int old_flags;                   /* value of flags before modification */
+    struct mem_map *map_ptr;         /* virtual address of map inside caller (MM) */
 
     /* Extract message parameters and copy new memory map from MM. */
     caller = m_ptr->m_source;
-    k = m_ptr->PROC1;
-    map_ptr = reinterpret_cast<struct mem_map *>(m_ptr->MEM_PTR); // Use reinterpret_cast for pointer types
+    k = proc1(*m_ptr);
+    map_ptr = reinterpret_cast<struct mem_map *>(mem_ptr(*m_ptr));
     if (k < -NR_TASKS || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
-    rp = proc_addr(k);        /* ptr to entry of user getting new map */
-    rsrc = proc_addr(caller); /* ptr to MM's proc entry */
+    rp = proc_addr(k);                     /* ptr to entry of user getting new map */
+    rsrc = proc_addr(caller);              /* ptr to MM's proc entry */
     vn = NR_SEGS * sizeof(struct mem_map); // sizeof returns size_t, vn is size_t
-    pn = static_cast<uint64_t>(vn); // pn is uint64_t
+    pn = static_cast<uint64_t>(vn);        // pn is uint64_t
     vmm = reinterpret_cast<std::size_t>(map_ptr);
     vsys = reinterpret_cast<std::size_t>(rp->p_map); // rp->p_map is mem_map[]
     // umap now takes (..., std::size_t, std::size_t) and returns uint64_t
@@ -213,18 +212,18 @@ static int do_exec(message *m_ptr) noexcept {
     /* Handle sys_exec().  A process has done a successful EXEC. Patch it up. */
 
     register struct proc *rp;
-    int k;   /* which process */
+    int k;            /* which process */
     uintptr_t sp_val; /* new sp value from message (was char*, treat as address value) */
 
-    k = m_ptr->PROC1; /* 'k' tells which process did EXEC */
-    sp_val = reinterpret_cast<uintptr_t>(m_ptr->STACK_PTR); // STACK_PTR from message is char*
+    k = proc1(*m_ptr); /* 'k' tells which process did EXEC */
+    sp_val = reinterpret_cast<uintptr_t>(stack_ptr(*m_ptr));
     if (k < 0 || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
     rp->p_sp = static_cast<uint64_t>(sp_val); /* set the stack pointer (p_sp is uint64_t) */
-    rp->p_pcpsw.pc = nullptr; /* reset pc (function pointer to nullptr) */
-    rp->p_alarm = 0;          /* reset alarm timer (p_alarm is real_time -> int64_t) */
-    rp->p_flags &= ~RECEIVING;  /* MM does not reply to EXEC call */
+    rp->p_pcpsw.pc = nullptr;                 /* reset pc (function pointer to nullptr) */
+    rp->p_alarm = 0;           /* reset alarm timer (p_alarm is real_time -> int64_t) */
+    rp->p_flags &= ~RECEIVING; /* MM does not reply to EXEC call */
     if (rp->p_flags == 0)
         ready(rp);
     set_name(k, sp); /* save command string for F1 display */
@@ -243,8 +242,8 @@ static int do_xit(message *m_ptr) noexcept {
     int parent;  /* number of exiting proc's parent */
     int proc_nr; /* number of process doing the exit */
 
-    parent = m_ptr->PROC1;  /* slot number of parent process */
-    proc_nr = m_ptr->PROC2; /* slot number of exiting process */
+    parent = proc1(*m_ptr);  /* slot number of parent process */
+    proc_nr = proc2(*m_ptr); /* slot number of exiting process */
     if (parent < 0 || parent >= NR_PROCS || proc_nr < 0 || proc_nr >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(parent);
@@ -295,13 +294,12 @@ static int do_getsp(message *m_ptr) noexcept {
     register struct proc *rp;
     int k; /* whose stack pointer is wanted? */
 
-    k = m_ptr->PROC1;
+    k = proc1(*m_ptr);
     if (k < 0 || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
-    // m is the global message buffer. STACK_PTR macro maps to char* field.
-    // rp->p_sp is uint64_t. Cast to uintptr_t then to char* for message.
-    m.STACK_PTR = reinterpret_cast<char*>(static_cast<uintptr_t>(rp->p_sp));
+    // m is the global message buffer.
+    stack_ptr(m) = reinterpret_cast<char *>(static_cast<uintptr_t>(rp->p_sp));
     return (OK);
 }
 
@@ -315,17 +313,18 @@ static int do_times(message *m_ptr) noexcept {
     register struct proc *rp;
     int k;
 
-    k = m_ptr->PROC1; /* k tells whose times are wanted */
+    k = proc1(*m_ptr); /* k tells whose times are wanted */
     if (k < 0 || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
 
     /* Insert the four times needed by the TIMES system call in the message. */
-    // rp->user_time etc are real_time (int64_t). Message fields are long (modernized to int64_t in h/type.hpp message struct).
-    m_ptr->USER_TIME = rp->user_time;
-    m_ptr->SYSTEM_TIME = rp->sys_time;
-    m_ptr->CHILD_UTIME = rp->child_utime;
-    m_ptr->CHILD_STIME = rp->child_stime;
+    // rp->user_time etc are real_time (int64_t). Message fields are long (modernized to int64_t in
+    // h/type.hpp message struct).
+    user_time(*m_ptr) = rp->user_time;
+    system_time(*m_ptr) = rp->sys_time;
+    child_utime(*m_ptr) = rp->child_utime;
+    child_stime(*m_ptr) = rp->child_stime;
     return (OK);
 }
 
@@ -335,9 +334,9 @@ static int do_times(message *m_ptr) noexcept {
 // Modernized signature
 static int do_abort(message *m_ptr) noexcept {
     /* Handle sys_abort.  MINIX is unable to continue.  Terminate operation. */
-    (void)m_ptr; // m_ptr is unused
+    (void)m_ptr;       // m_ptr is unused
     panic("", NO_NUM); // panic is noexcept
-    return OK; // Should not be reached if panic aborts, but to satisfy return type
+    return OK;         // Should not be reached if panic aborts, but to satisfy return type
 }
 
 /*===========================================================================*
@@ -348,16 +347,16 @@ static int do_sig(message *m_ptr) noexcept {
     /* Handle sys_sig(). Signal a process.  The stack is known to be big enough. */
 
     register struct proc *rp;
-    uint64_t src_phys, dst_phys;    // phys_bytes -> uint64_t
+    uint64_t src_phys, dst_phys;            // phys_bytes -> uint64_t
     std::size_t vir_addr, sig_size, new_sp; // vir_bytes -> std::size_t
-    int proc_nr;          /* process number */
-    int sig;              /* signal number 1-16 */
-    int (*sig_handler)(); /* pointer to the signal handler */
+    int proc_nr;                            /* process number */
+    int sig;                                /* signal number 1-16 */
+    int (*sig_handler)();                   /* pointer to the signal handler */
 
     /* Extract parameters and prepare to build the words that get pushed. */
-    proc_nr = m_ptr->PR;       /* process being signalled */
-    sig = m_ptr->SIGNUM;       /* signal number, 1 to 16 */
-    sig_handler = m_ptr->FUNC; /* run time system addr for catching sigs */
+    proc_nr = pr(*m_ptr);       /* process being signalled */
+    sig = signum(*m_ptr);       /* signal number, 1 to 16 */
+    sig_handler = func(*m_ptr); /* run time system addr for catching sigs */
     if (proc_nr < LOW_USER || proc_nr >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(proc_nr);
@@ -380,10 +379,12 @@ static int do_sig(message *m_ptr) noexcept {
 
     /* Change process' sp and pc to reflect the interrupt. */
     rp->p_sp = static_cast<uint64_t>(new_sp); // new_sp is std::size_t, p_sp is uint64_t
-    rp->p_pcpsw.pc = sig_handler; // sig_handler is int(*)(), p_pcpsw.pc is u64_t (func ptr)
-                                  // This assignment needs reinterpret_cast if types differ.
-                                  // Assuming p_pcpsw.pc being u64_t means it stores function address as integer.
-    rp->p_pcpsw.pc = reinterpret_cast<decltype(rp->p_pcpsw.pc)>(reinterpret_cast<uintptr_t>(sig_handler));
+    rp->p_pcpsw.pc =
+        sig_handler; // sig_handler is int(*)(), p_pcpsw.pc is u64_t (func ptr)
+                     // This assignment needs reinterpret_cast if types differ.
+                     // Assuming p_pcpsw.pc being u64_t means it stores function address as integer.
+    rp->p_pcpsw.pc =
+        reinterpret_cast<decltype(rp->p_pcpsw.pc)>(reinterpret_cast<uintptr_t>(sig_handler));
     return (OK);
 }
 
@@ -395,30 +396,29 @@ static int do_copy(message *m_ptr) noexcept {
     /* Handle sys_copy().  Copy data for MM or FS. */
 
     int src_proc, dst_proc, src_space, dst_space;
-    std::size_t src_vir, dst_vir;     // vir_bytes -> std::size_t
+    std::size_t src_vir, dst_vir;       // vir_bytes -> std::size_t
     uint64_t src_phys, dst_phys, bytes; // phys_bytes -> uint64_t
 
     /* Dismember the command message. */
-    src_proc = m_ptr->SRC_PROC_NR;
-    dst_proc = m_ptr->DST_PROC_NR;
-    src_space = m_ptr->SRC_SPACE;
-    dst_space = m_ptr->DST_SPACE;
-    // SRC_BUFFER/DST_BUFFER are effectively char* via message macros
-    src_vir = reinterpret_cast<std::size_t>(m_ptr->SRC_BUFFER);
-    dst_vir = reinterpret_cast<std::size_t>(m_ptr->DST_BUFFER);
-    // COPY_BYTES is effectively int or long via message macros
-    bytes = static_cast<uint64_t>(m_ptr->COPY_BYTES);
+    src_proc = src_proc_nr(*m_ptr);
+    dst_proc = dst_proc_nr(*m_ptr);
+    src_space = src_space(*m_ptr);
+    dst_space = dst_space(*m_ptr);
+    src_vir = reinterpret_cast<std::size_t>(src_buffer(*m_ptr));
+    dst_vir = reinterpret_cast<std::size_t>(dst_buffer(*m_ptr));
+    bytes = static_cast<uint64_t>(copy_bytes(*m_ptr));
 
     /* Compute the source and destination addresses and do the copy. */
     if (src_proc == ABS)
-        src_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(m_ptr->SRC_BUFFER));
+        src_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(src_buffer(*m_ptr)));
     else
         // umap takes (..., std::size_t, std::size_t) returns uint64_t
-        // bytes (uint64_t) needs to be cast to std::size_t for umap's last param. This is a potential narrowing.
+        // bytes (uint64_t) needs to be cast to std::size_t for umap's last param. This is a
+        // potential narrowing.
         src_phys = umap(proc_addr(src_proc), src_space, src_vir, static_cast<std::size_t>(bytes));
 
     if (dst_proc == ABS)
-        dst_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(m_ptr->DST_BUFFER));
+        dst_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(dst_buffer(*m_ptr)));
     else
         dst_phys = umap(proc_addr(dst_proc), dst_space, dst_vir, static_cast<std::size_t>(bytes));
 
@@ -478,11 +478,11 @@ PUBLIC void inform(int proc_nr) noexcept {
         if (rp->p_pending != 0) {
             m.m_type = KSIG; // m is global message buffer
             m.PROC1 = rp - proc - NR_TASKS;
-            m.SIG_MAP = rp->p_pending;
+            sig_map(m) = rp->p_pending;
             sig_procs--;
             if (mini_send(HARDWARE, proc_nr, &m) != OK)
                 panic("can't inform MM", NO_NUM); // panic is noexcept
-            rp->p_pending = 0; /* the ball is now in MM's court */
+            rp->p_pending = 0;                    /* the ball is now in MM's court */
             return;
         }
 }

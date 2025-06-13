@@ -30,14 +30,14 @@
 #include "const.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>   // For uint64_t
-#include <cstddef>   // For std::size_t
+#include <cstddef> // For std::size_t
+#include <cstdint> // For uint64_t
 
 #define NR_RAMS 4 /* number of RAM-type devices */
 
-static message mess;                       /* message buffer */
-static uint64_t ram_origin[NR_RAMS];     /* origin of each RAM disk (phys_bytes -> uint64_t) */
-static uint64_t ram_limit[NR_RAMS];      /* limit of RAM disk per minor dev. (phys_bytes -> uint64_t) */
+static message mess;                 /* message buffer */
+static uint64_t ram_origin[NR_RAMS]; /* origin of each RAM disk (phys_bytes -> uint64_t) */
+static uint64_t ram_limit[NR_RAMS];  /* limit of RAM disk per minor dev. (phys_bytes -> uint64_t) */
 
 /*===========================================================================*
  *				mem_task				     *
@@ -47,13 +47,15 @@ PUBLIC void mem_task() noexcept { // Added void return, noexcept
 
     int r, caller, proc_nr;
     extern unsigned int sizes[8]; // Explicitly unsigned int
-    extern uint64_t get_base() noexcept; // Assuming get_base returns phys_clicks -> uint64_t and is noexcept
+    extern uint64_t
+    get_base() noexcept; // Assuming get_base returns phys_clicks -> uint64_t and is noexcept
 
     /* Initialize this task. */
     // get_base() returns uint64_t (phys_clicks). CLICK_SHIFT is int.
     ram_origin[KMEM_DEV] = get_base() << CLICK_SHIFT;
     // sizes[] are unsigned int. ram_limit is uint64_t[].
-    ram_limit[KMEM_DEV] = (static_cast<uint64_t>(sizes[0]) + static_cast<uint64_t>(sizes[1])) << CLICK_SHIFT;
+    ram_limit[KMEM_DEV] = (static_cast<uint64_t>(sizes[0]) + static_cast<uint64_t>(sizes[1]))
+                          << CLICK_SHIFT;
     ram_limit[MEM_DEV] = MEM_BYTES; // MEM_BYTES is uint64_t const
 
     /* Here is the main loop of the memory task.  It waits for a message, carries
@@ -99,34 +101,34 @@ static int do_mem(message *m_ptr) noexcept {
     /* Read or write /dev/null, /dev/mem, /dev/kmem, or /dev/ram. */
 
     int device;
-    std::size_t count; // Was int, for byte counts
+    std::size_t count;            // Was int, for byte counts
     uint64_t mem_phys, user_phys; // phys_bytes -> uint64_t
     struct proc *rp;
     // extern phys_clicks get_base(); // get_base is uint64_t
     // extern phys_bytes umap(); // umap returns uint64_t
 
     /* Get minor device number and check for /dev/null. */
-    device = m_ptr->DEVICE; // DEVICE from message is int
+    device = device(*m_ptr);
     if (device < 0 || device >= NR_RAMS)
         return (ErrorCode::ENXIO); /* bad minor device */
-    if (device == NULL_DEV) // NULL_DEV is int
-        return (m_ptr->m_type == DISK_READ ? EOF : static_cast<int>(m_ptr->COUNT)); // COUNT from message is int
+    if (device == NULL_DEV)        // NULL_DEV is int
+        return (m_ptr->m_type == DISK_READ ? EOF : static_cast<int>(count(*m_ptr)));
 
     /* Set up 'mem_phys' for /dev/mem, /dev/kmem, or /dev/ram. */
     // m_ptr->POSITION (m2_l1) is int64_t. ram_origin is uint64_t[].
-    if (m_ptr->POSITION < 0)
+    if (position(*m_ptr) < 0)
         return (ErrorCode::ENXIO);
-    mem_phys = ram_origin[device] + static_cast<uint64_t>(m_ptr->POSITION);
+    mem_phys = ram_origin[device] + static_cast<uint64_t>(position(*m_ptr));
     if (mem_phys >= ram_limit[device]) // ram_limit is uint64_t[]
         return (EOF);
 
-    count = static_cast<std::size_t>(count(*m_ptr)); // count macro gets m2_i1 (int)
+    count = static_cast<std::size_t>(count(*m_ptr));
     if (mem_phys + count > ram_limit[device]) { // count is std::size_t
         count = static_cast<std::size_t>(ram_limit[device] - mem_phys);
     }
 
     /* Determine address where data is to go or to come from. */
-    rp = proc_addr(proc_nr(*m_ptr)); // proc_nr macro gets m2_i2 (int)
+    rp = proc_addr(proc_nr(*m_ptr));
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     // address macro gets m2_p1 (char*)
     user_phys = umap(rp, D, reinterpret_cast<std::size_t>(address(*m_ptr)), count);
@@ -154,13 +156,13 @@ static int do_setup(message *m_ptr) noexcept {
 
     int device;
 
-    device = m_ptr->DEVICE; // DEVICE from message is int
+    device = device(*m_ptr);
     if (device < 0 || device >= NR_RAMS)
         return (ErrorCode::ENXIO); /* bad minor device */
     // ram_origin is uint64_t[]. POSITION (m2_l1) is int64_t.
-    ram_origin[device] = static_cast<uint64_t>(m_ptr->POSITION);
+    ram_origin[device] = static_cast<uint64_t>(position(*m_ptr));
     // ram_limit is uint64_t[]. COUNT (m2_i1) is int. BLOCK_SIZE is int.
-    ram_limit[device] = static_cast<uint64_t>(m_ptr->POSITION) +
-                        static_cast<uint64_t>(static_cast<int64_t>(m_ptr->COUNT) * BLOCK_SIZE);
+    ram_limit[device] = static_cast<uint64_t>(position(*m_ptr)) +
+                        static_cast<uint64_t>(static_cast<int64_t>(count(*m_ptr)) * BLOCK_SIZE);
     return (OK);
 }

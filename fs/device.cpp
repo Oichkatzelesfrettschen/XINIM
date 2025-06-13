@@ -186,7 +186,7 @@ message *mess_ptr; /* pointer to message for task */
 
     major_device = (fp->fs_tty >> MAJOR) & BYTE;
     task_nr = dmap[major_device].dmap_task; /* task for controlling tty */
-    mess_ptr->DEVICE = (fp->fs_tty >> MINOR) & BYTE;
+    device(*mess_ptr) = (fp->fs_tty >> MINOR) & BYTE;
     rw_dev(task_nr, mess_ptr);
 }
 

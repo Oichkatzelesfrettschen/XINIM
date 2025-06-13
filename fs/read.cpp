@@ -27,9 +27,9 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <cstdint>    // For uint16_t, int32_t, int64_t etc.
-#include <cstddef>    // For std::size_t
-#include <algorithm>  // For std::min
+#include <algorithm> // For std::min
+#include <cstddef>   // For std::size_t
+#include <cstdint>   // For uint16_t, int32_t, int64_t etc.
 
 #define FD_MASK 077 /* max file descriptor is 63 */
 
@@ -49,12 +49,12 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
 
     register struct inode *rip;
     register struct filp *f;
-    int32_t bytes_left; // file_pos -> int32_t
-    int64_t f_size;     // To match compat_get_size, was file_pos
+    int32_t bytes_left;      // file_pos -> int32_t
+    int64_t f_size;          // To match compat_get_size, was file_pos
     std::size_t off, cum_io; // Was unsigned
-    int32_t position;   // file_pos -> int32_t
+    int32_t position;        // file_pos -> int32_t
     int r;
-    std::size_t chunk;  // Was int, for bytes count
+    std::size_t chunk;             // Was int, for bytes count
     int virg, mode_word, usr, seg; // virg is bool-like
     struct filp *wf;
     extern struct super_block *get_super();
@@ -73,12 +73,13 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
 
     /* If the file descriptor is valid, get the inode, size and mode. */
     if (nbytes == 0)
-        return (0); /* so char special files need not check for 0*/
+        return (0);                      /* so char special files need not check for 0*/
     if (who != MM_PROC_NR && nbytes < 0) // nbytes is int from message
-        return (ErrorCode::EINVAL); /* only MM > 32K */
-    if ((f = get_filp(fd)) == nullptr) // NIL_FILP -> nullptr
+        return (ErrorCode::EINVAL);      /* only MM > 32K */
+    if ((f = get_filp(fd)) == nullptr)   // NIL_FILP -> nullptr
         return (err_code);
-    if (((f->filp_mode) & (rw_flag == READING ? R_BIT : W_BIT)) == 0) // filp_mode is mask_bits (uint16_t)
+    if (((f->filp_mode) & (rw_flag == READING ? R_BIT : W_BIT)) ==
+        0) // filp_mode is mask_bits (uint16_t)
         return (ErrorCode::EBADF);
     position = f->filp_pos; // filp_pos is file_pos (int32_t)
     if (position < 0)       // Compare with 0 directly
@@ -96,8 +97,10 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
     /* Check for character special files. */
     if (mode_word == I_CHAR_SPECIAL) { // I_CHAR_SPECIAL is int
         // dev_io expects dev_nr, long, int, int, char*
-        // rip->i_zone[0] is zone_nr (uint16_t). position is int32_t. nbytes is int. buffer is char*.
-        if ((r = dev_io(rw_flag, static_cast<uint16_t>(rip->i_zone[0]), static_cast<long>(position), nbytes, who, buffer)) >= 0) {
+        // rip->i_zone[0] is zone_nr (uint16_t). position is int32_t. nbytes is int. buffer is
+        // char*.
+        if ((r = dev_io(rw_flag, static_cast<uint16_t>(rip->i_zone[0]), static_cast<long>(position),
+                        nbytes, who, buffer)) >= 0) {
             cum_io = static_cast<std::size_t>(r);
             position += r; // position is int32_t
             r = OK;
@@ -114,7 +117,8 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
              * blocks prior to the EOF must read as zeros.
              */
             if (position > f_size) // f_size is int64_t, position is int32_t
-                clear_zone(rip, static_cast<int32_t>(f_size), 0); // clear_zone expects file_pos (int32_t)
+                clear_zone(rip, static_cast<int32_t>(f_size),
+                           0); // clear_zone expects file_pos (int32_t)
         }
 
         /* Pipes are a little different.  Check. */
@@ -124,15 +128,18 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
 
         /* Split the transfer into chunks that don't span two blocks. */
         while (nbytes != 0) {
-            off = static_cast<std::size_t>(position % BLOCK_SIZE); // position is int32_t, BLOCK_SIZE is int. off is std::size_t.
+            off = static_cast<std::size_t>(
+                position %
+                BLOCK_SIZE); // position is int32_t, BLOCK_SIZE is int. off is std::size_t.
             // nbytes is int, BLOCK_SIZE is int, off is std::size_t. chunk is std::size_t.
-            chunk = std::min(static_cast<std::size_t>(nbytes), static_cast<std::size_t>(BLOCK_SIZE) - off);
-            // Original logic: if (chunk < 0) chunk = BLOCK_SIZE - off; This implies chunk could be int.
-            // If nbytes is int, chunk should be int.
-            // chunk = std::min(nbytes, static_cast<int>(BLOCK_SIZE - off));
-            // if (chunk < 0) chunk = static_cast<int>(BLOCK_SIZE - off);
-            // For safety, let's keep chunk as std::size_t as it's a count of bytes.
-            // The negative check was likely for an old definition of min or types.
+            chunk = std::min(static_cast<std::size_t>(nbytes),
+                             static_cast<std::size_t>(BLOCK_SIZE) - off);
+            // Original logic: if (chunk < 0) chunk = BLOCK_SIZE - off; This implies chunk could be
+            // int. If nbytes is int, chunk should be int. chunk = std::min(nbytes,
+            // static_cast<int>(BLOCK_SIZE - off)); if (chunk < 0) chunk =
+            // static_cast<int>(BLOCK_SIZE - off); For safety, let's keep chunk as std::size_t as
+            // it's a count of bytes. The negative check was likely for an old definition of min or
+            // types.
 
             if (rw_flag == READING) {
                 // f_size is int64_t, position is int32_t. bytes_left is int32_t.
@@ -152,11 +159,12 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
                 break;
 
             /* Update counters and pointers. */
-            buffer += chunk;   /* user buffer address */
-            nbytes -= static_cast<int>(chunk);   /* bytes yet to be read (nbytes is int) */
-            cum_io += chunk;   /* bytes read so far (cum_io is std::size_t) */
-            position += static_cast<int32_t>(chunk); /* position within the file (position is int32_t) */
-            virg = FALSE;      /* tells pipe_check() that data has been copied */
+            buffer += chunk;                   /* user buffer address */
+            nbytes -= static_cast<int>(chunk); /* bytes yet to be read (nbytes is int) */
+            cum_io += chunk;                   /* bytes read so far (cum_io is std::size_t) */
+            position +=
+                static_cast<int32_t>(chunk); /* position within the file (position is int32_t) */
+            virg = FALSE;                    /* tells pipe_check() that data has been copied */
         }
     }
 
@@ -164,17 +172,18 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
     if (rw_flag == WRITING) {
         // position is int32_t, f_size is int64_t
         if (mode_word != I_CHAR_SPECIAL && mode_word != I_BLOCK_SPECIAL && position > f_size)
-            compat_set_size(rip, static_cast<int64_t>(position)); // compat_set_size takes file_pos64 (int64_t)
-        rip->i_modtime = clock_time(); // clock_time returns real_time (int64_t)
+            compat_set_size(
+                rip, static_cast<int64_t>(position)); // compat_set_size takes file_pos64 (int64_t)
+        rip->i_modtime = clock_time();                // clock_time returns real_time (int64_t)
         rip->i_dirt = DIRTY;
     } else {
         // position is int32_t, compat_get_size returns file_pos64 (int64_t)
         if (rip->i_pipe && static_cast<int64_t>(position) >= compat_get_size(rip)) {
             /* Reset pipe pointers. */
-            compat_set_size(rip, 0); /* no data left */
-            position = 0;            /* reset reader(s) */
+            compat_set_size(rip, 0);                     /* no data left */
+            position = 0;                                /* reset reader(s) */
             if ((wf = find_filp(rip, W_BIT)) != nullptr) // NIL_FILP -> nullptr
-                wf->filp_pos = 0; // filp_pos is file_pos (int32_t)
+                wf->filp_pos = 0;                        // filp_pos is file_pos (int32_t)
         }
     }
     f->filp_pos = position; // position is int32_t
@@ -189,7 +198,7 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
         rip->i_seek = NO_SEEK;
 
     if (rdwt_err != OK)
-        r = rdwt_err; /* check for disk error */
+        r = rdwt_err;    /* check for disk error */
     if (rdwt_err == EOF) // cum_io is std::size_t, r is int
         r = static_cast<int>(cum_io);
     return (r == OK ? static_cast<int>(cum_io) : r); // cum_io is std::size_t
@@ -206,10 +215,11 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
     register struct buf *bp;
     register int r;
     int dir, n, block_spec;
-    uint16_t b;     // block_nr -> uint16_t
-    uint16_t dev;   // dev_nr -> uint16_t
-    extern struct buf *get_block(), *new_block(); // Assuming new_block exists or is a typo for something else
-    extern uint16_t read_map(struct inode *rip, int32_t position); // Modernized read_map
+    uint16_t b;   // block_nr -> uint16_t
+    uint16_t dev; // dev_nr -> uint16_t
+    extern struct buf *get_block(),
+        *new_block(); // Assuming new_block exists or is a typo for something else
+    extern uint16_t read_map(struct inode * rip, int32_t position); // Modernized read_map
 
     block_spec = (rip->i_mode & I_TYPE) == I_BLOCK_SPECIAL; // i_mode is mask_bits (uint16_t)
     if (block_spec) {
@@ -218,13 +228,14 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
         dev = static_cast<uint16_t>(rip->i_zone[0]); // i_zone[0] is zone_nr (uint16_t)
     } else {
         b = read_map(rip, position); // read_map returns block_nr (uint16_t)
-        dev = rip->i_dev; // i_dev is dev_nr (uint16_t)
+        dev = rip->i_dev;            // i_dev is dev_nr (uint16_t)
     }
 
     if (!block_spec && b == kNoBlock) { // kNoBlock is block_nr (uint16_t)
         if (rw_flag == READING) {
             /* Reading from a nonexistent block.  Must read as all zeros. */
-            bp = get_block(kNoDev, kNoBlock, NORMAL); /* get a buffer */ // kNoDev is dev_nr (uint16_t)
+            bp = get_block(kNoDev, kNoBlock, NORMAL);
+            /* get a buffer */ // kNoDev is dev_nr (uint16_t)
             zero_block(bp);
         } else {
             /* Writing to a nonexistent block. Create and enter in inode. */
@@ -237,9 +248,11 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
          * the cache, acquire it, otherwise just acquire a free buffer.
          */
         // chunk is std::size_t, BLOCK_SIZE is int
-        n = (rw_flag == WRITING && chunk == static_cast<std::size_t>(BLOCK_SIZE) ? NO_READ : NORMAL);
+        n = (rw_flag == WRITING && chunk == static_cast<std::size_t>(BLOCK_SIZE) ? NO_READ
+                                                                                 : NORMAL);
         // position is int32_t, compat_get_size returns file_pos64 (int64_t), off is std::size_t
-        if (rw_flag == WRITING && off == 0 && static_cast<int64_t>(position) >= compat_get_size(rip))
+        if (rw_flag == WRITING && off == 0 &&
+            static_cast<int64_t>(position) >= compat_get_size(rip))
             n = NO_READ;
         bp = get_block(dev, b, n); // dev, b are uint16_t
     }
@@ -256,7 +269,8 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
     if (rw_flag == WRITING)
         bp->b_dirt = DIRTY;
     // off and chunk are std::size_t, BLOCK_SIZE is int
-    n = (off + chunk == static_cast<std::size_t>(BLOCK_SIZE) ? FULL_DATA_BLOCK : PARTIAL_DATA_BLOCK);
+    n = (off + chunk == static_cast<std::size_t>(BLOCK_SIZE) ? FULL_DATA_BLOCK
+                                                             : PARTIAL_DATA_BLOCK);
     put_block(bp, n);
     return (r);
 }
@@ -265,17 +279,18 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
  *				read_map				     *
  *===========================================================================*/
 // Modernized signature
-PUBLIC uint16_t read_map(struct inode *rip, int32_t position) { // block_nr -> uint16_t, file_pos -> int32_t
+PUBLIC uint16_t read_map(struct inode *rip,
+                         int32_t position) { // block_nr -> uint16_t, file_pos -> int32_t
     /* Given an inode and a position within the corresponding file, locate the
      * block (not zone) number in which that position is to be found and return
      * it.
      */
 
     register struct buf *bp;
-    uint16_t z;          // zone_nr -> uint16_t
-    uint16_t b;          // block_nr -> uint16_t
+    uint16_t z;                      // zone_nr -> uint16_t
+    uint16_t b;                      // block_nr -> uint16_t
     int32_t excess, zone, block_pos; // Were long, but derived from file_pos (int32_t)
-    int scale, boff; // scale_factor returns int. boff is offset in block.
+    int scale, boff;                 // scale_factor returns int. boff is offset in block.
     extern struct buf *get_block();
 
     scale = scale_factor(rip);          /* for block-zone conversion (returns int) */
@@ -286,7 +301,8 @@ PUBLIC uint16_t read_map(struct inode *rip, int32_t position) { // block_nr -> u
     /* Is 'position' to be found in the inode itself? */
     if (zone < NR_DZONE_NUM) { // NR_DZONE_NUM is int
         // rip->i_zone is zone_nr[] (uint16_t[]). zone is int32_t, but should be small index.
-        if ((z = rip->i_zone[static_cast<std::size_t>(zone)]) == kNoZone) // kNoZone is zone_nr (uint16_t)
+        if ((z = rip->i_zone[static_cast<std::size_t>(zone)]) ==
+            kNoZone)           // kNoZone is zone_nr (uint16_t)
             return (kNoBlock); // kNoBlock is block_nr (uint16_t)
         // z is uint16_t, scale is int, boff is int32_t. b is uint16_t.
         b = static_cast<uint16_t>((static_cast<uint32_t>(z) << scale) + boff);
@@ -306,11 +322,12 @@ PUBLIC uint16_t read_map(struct inode *rip, int32_t position) { // block_nr -> u
         excess -= static_cast<int32_t>(NR_INDIRECTS); /* single indir doesn't count */
         // z is uint16_t, b is uint16_t
         b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
-        bp = get_block(rip->i_dev, b, NORMAL); /* get double indirect block */ // rip->i_dev is dev_nr (uint16_t)
+        bp = get_block(rip->i_dev, b, NORMAL);
+        /* get double indirect block */ // rip->i_dev is dev_nr (uint16_t)
         // bp->b_ind is zone_nr[] (uint16_t[]). excess / NR_INDIRECTS is int32_t / size_t.
         z = bp->b_ind[static_cast<std::size_t>(excess / static_cast<int32_t>(NR_INDIRECTS))];
-        put_block(bp, INDIRECT_BLOCK);         /* release double ind block */
-        excess = excess % static_cast<int32_t>(NR_INDIRECTS);        /* index into single ind blk */
+        put_block(bp, INDIRECT_BLOCK);                        /* release double ind block */
+        excess = excess % static_cast<int32_t>(NR_INDIRECTS); /* index into single ind blk */
     }
 
     /* 'z' is zone number for single indirect block; 'excess' is index into it. */
@@ -318,9 +335,9 @@ PUBLIC uint16_t read_map(struct inode *rip, int32_t position) { // block_nr -> u
         return (kNoBlock);
     // z is uint16_t, b is uint16_t
     b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
-    bp = get_block(rip->i_dev, b, NORMAL); /* get single indirect block */
+    bp = get_block(rip->i_dev, b, NORMAL);           /* get single indirect block */
     z = bp->b_ind[static_cast<std::size_t>(excess)]; // excess is int32_t
-    put_block(bp, INDIRECT_BLOCK); /* release single indirect blk */
+    put_block(bp, INDIRECT_BLOCK);                   /* release single indirect blk */
     if (z == kNoZone)
         return (kNoBlock);
     // z is uint16_t, boff is int32_t. b is uint16_t.
@@ -341,22 +358,22 @@ PUBLIC int rw_user(int s, int u, std::size_t vir, std::size_t bytes, char *buff,
 
     if (direction == TO_USER) {
         /* Write from FS space to user space. */
-        umess.SRC_SPACE = D;
-        umess.SRC_PROC_NR = FS_PROC_NR;
+        src_space(umess) = D;
+        src_proc_nr(umess) = FS_PROC_NR;
         // SRC_BUFFER is a macro for message field (char* type, e.g. m1p1)
         // buff is char*
         src_buffer(umess) = buff;
-        umess.DST_SPACE = s;
-        umess.DST_PROC_NR = u;
+        dst_space(umess) = s;
+        dst_proc_nr(umess) = u;
         // DST_BUFFER is char*. vir is std::size_t (pointer value).
-        dst_buffer(umess) = reinterpret_cast<char*>(vir);
+        dst_buffer(umess) = reinterpret_cast<char *>(vir);
     } else {
         /* Read from user space to FS space. */
-        umess.SRC_SPACE = s;
-        umess.SRC_PROC_NR = u;
-        src_buffer(umess) = reinterpret_cast<char*>(vir);
-        umess.DST_SPACE = D;
-        umess.DST_PROC_NR = FS_PROC_NR;
+        src_space(umess) = s;
+        src_proc_nr(umess) = u;
+        src_buffer(umess) = reinterpret_cast<char *>(vir);
+        dst_space(umess) = D;
+        dst_proc_nr(umess) = FS_PROC_NR;
         dst_buffer(umess) = buff;
     }
 
@@ -378,11 +395,11 @@ PUBLIC void read_ahead() { // Modernized signature (was already using ())
     uint16_t b; // block_nr -> uint16_t
     extern struct buf *get_block();
 
-    rip = rdahed_inode;       /* pointer to inode to read ahead from */
-    rdahed_inode = nullptr;   /* turn off read ahead (NIL_INODE -> nullptr) */
+    rip = rdahed_inode;     /* pointer to inode to read ahead from */
+    rdahed_inode = nullptr; /* turn off read ahead (NIL_INODE -> nullptr) */
     // rdahedpos is file_pos (int32_t). read_map takes int32_t, returns block_nr (uint16_t).
     if ((b = read_map(rip, rdahedpos)) == kNoBlock) // kNoBlock is block_nr (uint16_t)
-        return; /* at EOF */
+        return;                                     /* at EOF */
     // rip->i_dev is dev_nr (uint16_t). b is uint16_t.
     bp = get_block(rip->i_dev, b, NORMAL);
     put_block(bp, PARTIAL_DATA_BLOCK);
