@@ -59,23 +59,26 @@
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../h/signal.h"
-#include "../h/type.hpp"
+#include "../h/type.hpp" // Defines phys_bytes, vir_bytes etc.
 #include "const.hpp"
 #include "glo.hpp"
-#include "proc.hpp"
+#include <cstddef>   // For std::size_t, nullptr
+#include <cstdint>   // For uint64_t, uintptr_t
+#include "proc.hpp"  // Includes NIL_PROC definition
 #include "type.hpp"
+
 
 #define COPY_UNIT 65534L /* max bytes to copy at once */
 
-extern phys_bytes umap();
+// extern phys_bytes umap(); // umap is defined later in this file, now returns uint64_t
 
-PRIVATE message m;
+PRIVATE message m; // Global message buffer, used by some functions here
 PRIVATE char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
 
 /*===========================================================================*
  *				sys_task				     *
  *===========================================================================*/
-PUBLIC sys_task() {
+PUBLIC void sys_task() noexcept { // Added void return, noexcept
     /* Main entry point of sys_task.  Get the message and dispatch on type. */
 
     register int r;
@@ -123,9 +126,8 @@ PUBLIC sys_task() {
 /*===========================================================================*
  *				do_fork					     *
  *===========================================================================*/
-PRIVATE int do_fork(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature
+static int do_fork(message *m_ptr) noexcept {
     /* Handle sys_fork().  'k1' has forked.  The child is 'k2'. */
 
     register struct proc *rpc;
@@ -164,14 +166,13 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_newmap				     *
  *===========================================================================*/
-PRIVATE int do_newmap(m_ptr)
-message *m_ptr; /* pointer to request message */
+PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
 {
     /* Handle sys_newmap().  Fetch the memory map from MM. */
 
     register struct proc *rp, *rsrc;
-    phys_bytes src_phys, dst_phys, pn;
-    vir_bytes vmm, vsys, vn;
+    uint64_t src_phys, dst_phys, pn; // phys_bytes -> uint64_t
+    std::size_t vmm, vsys, vn;       // vir_bytes -> std::size_t
     int caller;              /* whose space has the new map (usually MM) */
     int k;                   /* process whose map is to be loaded */
     int old_flags;           /* value of flags before modification */
@@ -180,19 +181,21 @@ message *m_ptr; /* pointer to request message */
     /* Extract message parameters and copy new memory map from MM. */
     caller = m_ptr->m_source;
     k = m_ptr->PROC1;
-    map_ptr = (struct mem_map *)m_ptr->MEM_PTR;
+    map_ptr = reinterpret_cast<struct mem_map *>(m_ptr->MEM_PTR); // Use reinterpret_cast for pointer types
     if (k < -NR_TASKS || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);        /* ptr to entry of user getting new map */
     rsrc = proc_addr(caller); /* ptr to MM's proc entry */
-    vn = NR_SEGS * sizeof(struct mem_map);
-    pn = vn;
-    vmm = (vir_bytes)map_ptr;    /* careful about sign extension */
-    vsys = (vir_bytes)rp->p_map; /* again, careful about sign extension */
+    vn = NR_SEGS * sizeof(struct mem_map); // sizeof returns size_t, vn is size_t
+    pn = static_cast<uint64_t>(vn); // pn is uint64_t
+    vmm = reinterpret_cast<std::size_t>(map_ptr);
+    vsys = reinterpret_cast<std::size_t>(rp->p_map); // rp->p_map is mem_map[]
+    // umap now takes (..., std::size_t, std::size_t) and returns uint64_t
     if ((src_phys = umap(rsrc, D, vmm, vn)) == 0)
         panic("bad call to sys_newmap (src)", NO_NUM);
     if ((dst_phys = umap(proc_addr(SYSTASK), D, vsys, vn)) == 0)
         panic("bad call to sys_newmap (dst)", NO_NUM);
+    // phys_copy now takes (uint64_t, uint64_t, uint64_t)
     phys_copy(src_phys, dst_phys, pn);
 
     old_flags = rp->p_flags; /* save the previous value of the flags */
@@ -205,24 +208,23 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_exec					     *
  *===========================================================================*/
-PRIVATE int do_exec(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature
+static int do_exec(message *m_ptr) noexcept {
     /* Handle sys_exec().  A process has done a successful EXEC. Patch it up. */
 
     register struct proc *rp;
     int k;   /* which process */
-    int *sp; /* new sp */
+    uintptr_t sp_val; /* new sp value from message (was char*, treat as address value) */
 
     k = m_ptr->PROC1; /* 'k' tells which process did EXEC */
-    sp = (int *)m_ptr->STACK_PTR;
+    sp_val = reinterpret_cast<uintptr_t>(m_ptr->STACK_PTR); // STACK_PTR from message is char*
     if (k < 0 || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
-    rp->p_sp = sp;                 /* set the stack pointer */
-    rp->p_pcpsw.pc = (int (*)())0; /* reset pc */
-    rp->p_alarm = 0;               /* reset alarm timer */
-    rp->p_flags &= ~RECEIVING;     /* MM does not reply to EXEC call */
+    rp->p_sp = static_cast<uint64_t>(sp_val); /* set the stack pointer (p_sp is uint64_t) */
+    rp->p_pcpsw.pc = nullptr; /* reset pc (function pointer to nullptr) */
+    rp->p_alarm = 0;          /* reset alarm timer (p_alarm is real_time -> int64_t) */
+    rp->p_flags &= ~RECEIVING;  /* MM does not reply to EXEC call */
     if (rp->p_flags == 0)
         ready(rp);
     set_name(k, sp); /* save command string for F1 display */
@@ -232,9 +234,8 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_xit					     *
  *===========================================================================*/
-PRIVATE int do_xit(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature
+static int do_xit(message *m_ptr) noexcept {
     /* Handle sys_xit().  A process has exited. */
 
     register struct proc *rp, *rc;
@@ -261,7 +262,7 @@ message *m_ptr; /* pointer to request message */
     if (rc->p_flags & SENDING) {
         /* Check all proc slots to see if the exiting process is queued. */
         for (rp = &proc[0]; rp < &proc[NR_TASKS + NR_PROCS]; rp++) {
-            if (rp->p_callerq == NIL_PROC)
+            if (rp->p_callerq == nullptr) // NIL_PROC -> nullptr
                 continue;
             if (rp->p_callerq == rc) {
                 /* Exiting process is on front of this queue. */
@@ -270,7 +271,7 @@ message *m_ptr; /* pointer to request message */
             } else {
                 /* See if exiting process is in middle of queue. */
                 np = rp->p_callerq;
-                while ((xp = np->p_sendlink) != NIL_PROC)
+                while ((xp = np->p_sendlink) != nullptr) // NIL_PROC -> nullptr
                     if (xp == rc) {
                         np->p_sendlink = xp->p_sendlink;
                         break;
@@ -287,9 +288,8 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_getsp				     *
  *===========================================================================*/
-PRIVATE int do_getsp(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature
+static int do_getsp(message *m_ptr) noexcept {
     /* Handle sys_getsp().  MM wants to know what sp is. */
 
     register struct proc *rp;
@@ -299,16 +299,17 @@ message *m_ptr; /* pointer to request message */
     if (k < 0 || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
-    m.STACK_PTR = (char *)rp->p_sp; /* return sp here */
+    // m is the global message buffer. STACK_PTR macro maps to char* field.
+    // rp->p_sp is uint64_t. Cast to uintptr_t then to char* for message.
+    m.STACK_PTR = reinterpret_cast<char*>(static_cast<uintptr_t>(rp->p_sp));
     return (OK);
 }
 
 /*===========================================================================*
  *				do_times				     *
  *===========================================================================*/
-PRIVATE int do_times(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature
+static int do_times(message *m_ptr) noexcept {
     /* Handle sys_times().  Retrieve the accounting information. */
 
     register struct proc *rp;
@@ -320,6 +321,7 @@ message *m_ptr; /* pointer to request message */
     rp = proc_addr(k);
 
     /* Insert the four times needed by the TIMES system call in the message. */
+    // rp->user_time etc are real_time (int64_t). Message fields are long (modernized to int64_t in h/type.hpp message struct).
     m_ptr->USER_TIME = rp->user_time;
     m_ptr->SYSTEM_TIME = rp->sys_time;
     m_ptr->CHILD_UTIME = rp->child_utime;
@@ -330,25 +332,24 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				do_abort				     *
  *===========================================================================*/
-PRIVATE int do_abort(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature
+static int do_abort(message *m_ptr) noexcept {
     /* Handle sys_abort.  MINIX is unable to continue.  Terminate operation. */
-
-    panic("", NO_NUM);
+    (void)m_ptr; // m_ptr is unused
+    panic("", NO_NUM); // panic is noexcept
+    return OK; // Should not be reached if panic aborts, but to satisfy return type
 }
 
 /*===========================================================================*
  *				do_sig					     *
  *===========================================================================*/
-PRIVATE int do_sig(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature (already partially modernized for types)
+static int do_sig(message *m_ptr) noexcept {
     /* Handle sys_sig(). Signal a process.  The stack is known to be big enough. */
 
     register struct proc *rp;
-    phys_bytes src_phys, dst_phys;
-    vir_bytes vir_addr, sig_size, new_sp;
+    uint64_t src_phys, dst_phys;    // phys_bytes -> uint64_t
+    std::size_t vir_addr, sig_size, new_sp; // vir_bytes -> std::size_t
     int proc_nr;          /* process number */
     int sig;              /* signal number 1-16 */
     int (*sig_handler)(); /* pointer to the signal handler */
@@ -360,61 +361,70 @@ message *m_ptr; /* pointer to request message */
     if (proc_nr < LOW_USER || proc_nr >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(proc_nr);
-    vir_addr = (vir_bytes)sig_stuff; /* info to be pushed is in 'sig_stuff' */
-    new_sp = (vir_bytes)rp->p_sp;
+    vir_addr = reinterpret_cast<std::size_t>(sig_stuff); // sig_stuff is char[]
+    new_sp = static_cast<std::size_t>(rp->p_sp); // rp->p_sp is uint64_t, new_sp is std::size_t
 
     /* Actually build the block of words to push onto the stack. */
     build_sig(sig_stuff, rp, sig); /* build up the info to be pushed */
 
     /* Prepare to do the push, and do it. */
-    sig_size = SIG_PUSH_BYTES;
+    sig_size = SIG_PUSH_BYTES; // SIG_PUSH_BYTES is int const, sig_size is std::size_t
     new_sp -= sig_size;
+    // umap takes (..., std::size_t, std::size_t) returns uint64_t
     src_phys = umap(proc_addr(SYSTASK), D, vir_addr, sig_size);
     dst_phys = umap(rp, S, new_sp, sig_size);
     if (dst_phys == 0)
-        panic("do_sig can't signal; SP bad", NO_NUM);
-    phys_copy(src_phys, dst_phys, (phys_bytes)sig_size); /* push pc, psw */
+        panic("do_sig can't signal; SP bad", NO_NUM); // panic is noexcept
+    // phys_copy takes (uint64_t, uint64_t, uint64_t)
+    phys_copy(src_phys, dst_phys, static_cast<uint64_t>(sig_size)); /* push pc, psw */
 
     /* Change process' sp and pc to reflect the interrupt. */
-    rp->p_sp = (int *)new_sp;
-    rp->p_pcpsw.pc = sig_handler;
+    rp->p_sp = static_cast<uint64_t>(new_sp); // new_sp is std::size_t, p_sp is uint64_t
+    rp->p_pcpsw.pc = sig_handler; // sig_handler is int(*)(), p_pcpsw.pc is u64_t (func ptr)
+                                  // This assignment needs reinterpret_cast if types differ.
+                                  // Assuming p_pcpsw.pc being u64_t means it stores function address as integer.
+    rp->p_pcpsw.pc = reinterpret_cast<decltype(rp->p_pcpsw.pc)>(reinterpret_cast<uintptr_t>(sig_handler));
     return (OK);
 }
 
 /*===========================================================================*
  *				do_copy					     *
  *===========================================================================*/
-PRIVATE int do_copy(m_ptr)
-message *m_ptr; /* pointer to request message */
-{
+// Modernized signature (already partially modernized for types)
+static int do_copy(message *m_ptr) noexcept {
     /* Handle sys_copy().  Copy data for MM or FS. */
 
     int src_proc, dst_proc, src_space, dst_space;
-    vir_bytes src_vir, dst_vir;
-    phys_bytes src_phys, dst_phys, bytes;
+    std::size_t src_vir, dst_vir;     // vir_bytes -> std::size_t
+    uint64_t src_phys, dst_phys, bytes; // phys_bytes -> uint64_t
 
     /* Dismember the command message. */
     src_proc = m_ptr->SRC_PROC_NR;
     dst_proc = m_ptr->DST_PROC_NR;
     src_space = m_ptr->SRC_SPACE;
     dst_space = m_ptr->DST_SPACE;
-    src_vir = (vir_bytes)m_ptr->SRC_BUFFER;
-    dst_vir = (vir_bytes)m_ptr->DST_BUFFER;
-    bytes = (phys_bytes)m_ptr->COPY_BYTES;
+    // SRC_BUFFER/DST_BUFFER are effectively char* via message macros
+    src_vir = reinterpret_cast<std::size_t>(m_ptr->SRC_BUFFER);
+    dst_vir = reinterpret_cast<std::size_t>(m_ptr->DST_BUFFER);
+    // COPY_BYTES is effectively int or long via message macros
+    bytes = static_cast<uint64_t>(m_ptr->COPY_BYTES);
 
     /* Compute the source and destination addresses and do the copy. */
     if (src_proc == ABS)
-        src_phys = (phys_bytes)m_ptr->SRC_BUFFER;
+        src_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(m_ptr->SRC_BUFFER));
     else
-        src_phys = umap(proc_addr(src_proc), src_space, src_vir, (vir_bytes)bytes);
+        // umap takes (..., std::size_t, std::size_t) returns uint64_t
+        // bytes (uint64_t) needs to be cast to std::size_t for umap's last param. This is a potential narrowing.
+        src_phys = umap(proc_addr(src_proc), src_space, src_vir, static_cast<std::size_t>(bytes));
 
     if (dst_proc == ABS)
-        dst_phys = (phys_bytes)m_ptr->DST_BUFFER;
+        dst_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(m_ptr->DST_BUFFER));
     else
-        dst_phys = umap(proc_addr(dst_proc), dst_space, dst_vir, (vir_bytes)bytes);
+        dst_phys = umap(proc_addr(dst_proc), dst_space, dst_vir, static_cast<std::size_t>(bytes));
 
     if (src_phys == 0 || dst_phys == 0)
         return (ErrorCode::EFAULT);
+    // phys_copy takes (uint64_t, uint64_t, uint64_t)
     phys_copy(src_phys, dst_phys, bytes);
     return (OK);
 }
@@ -422,10 +432,8 @@ message *m_ptr; /* pointer to request message */
 /*===========================================================================*
  *				cause_sig				     *
  *===========================================================================*/
-PUBLIC cause_sig(proc_nr, sig_nr)
-int proc_nr; /* process to be signalled */
-int sig_nr;  /* signal to be sent in range 1 - 16 */
-{
+// Modernized signature
+PUBLIC void cause_sig(int proc_nr, int sig_nr) noexcept {
     /* A task wants to send a signal to a process.   Examples of such tasks are:
      *   TTY wanting to cause SIGINT upon getting a DEL
      *   CLOCK wanting to cause SIGALRM when timer expires
@@ -449,9 +457,8 @@ int sig_nr;  /* signal to be sent in range 1 - 16 */
 /*===========================================================================*
  *				inform					     *
  *===========================================================================*/
-PUBLIC inform(proc_nr)
-int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
-{
+// Modernized signature
+PUBLIC void inform(int proc_nr) noexcept {
     /* When a signal is detected by the kernel (e.g., DEL), or generated by a task
      * (e.g. clock task for SIGALRM), cause_sig() is called to set a bit in the
      * p_pending field of the process to signal.  Then inform() is called to see
@@ -469,12 +476,12 @@ int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
     /* MM is waiting for new input.  Find a process with pending signals. */
     for (rp = proc_addr(0); rp < proc_addr(NR_PROCS); rp++)
         if (rp->p_pending != 0) {
-            m.m_type = KSIG;
+            m.m_type = KSIG; // m is global message buffer
             m.PROC1 = rp - proc - NR_TASKS;
             m.SIG_MAP = rp->p_pending;
             sig_procs--;
             if (mini_send(HARDWARE, proc_nr, &m) != OK)
-                panic("can't inform MM", NO_NUM);
+                panic("can't inform MM", NO_NUM); // panic is noexcept
             rp->p_pending = 0; /* the ball is now in MM's court */
             return;
         }
@@ -483,16 +490,18 @@ int proc_nr; /* MM_PROC_NR or FS_PROC_NR */
 /*===========================================================================*
  *				umap					     *
  *===========================================================================*/
-PUBLIC phys_bytes umap(rp, seg, vir_addr, bytes)
-register struct proc *rp; /* unused with paging */
-int seg;                  /* ignored */
-vir_bytes vir_addr;       /* virtual address */
-vir_bytes bytes;          /* number of bytes */
-{
+// Signature already modernized in a previous step, adding noexcept
+PUBLIC uint64_t umap(struct proc *rp, int seg, std::size_t vir_addr, std::size_t bytes) noexcept {
+    // rp is struct proc*
+    // seg is int
+    // vir_addr is std::size_t (vir_bytes)
+    // bytes is std::size_t (vir_bytes)
+    // returns uint64_t (phys_bytes)
     /* Flat memory model: return virtual address as physical address. */
-    if (bytes <= 0)
-        return (phys_bytes)0;
+    if (bytes == 0) // bytes is unsigned std::size_t, so <= 0 becomes == 0
+        return 0;   // Return uint64_t
     (void)rp;
     (void)seg;
-    return (phys_bytes)vir_addr;
+    // Cast virtual address (std::size_t) to physical address (uint64_t)
+    return static_cast<uint64_t>(vir_addr);
 }

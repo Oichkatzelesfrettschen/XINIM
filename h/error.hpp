@@ -3,6 +3,7 @@
 #define H_ERROR_HPP
 
 // Modernized for C++17
+#include "../include/defs.hpp" // Added for consistency and potential common types
 
 /* Error codes.  They are negative since a few system calls, such as READ, can
  * either return a positive number indicating success, or an error code.
@@ -12,7 +13,7 @@
 constexpr int NERROR = 34;
 
 // Success value used throughout the system
-constexpr int OK = 0;
+constexpr int OK = 0; // Consistent with xinim::OK
 
 // Scoped enumeration of error codes.  All values are negative so that system
 // calls can return either a positive result or an error code.

@@ -57,10 +57,17 @@ enum class ReturnCode { Errors = -1, NoLine = -2, Fine = 0, NoInput = 1 };
  * To avoid #define XXX 0 #define !XXX 1 an enum type is used for all flags used
  * in mined.
  */
-typedef enum {
+// Converted to a C++ enum. Original typedef:
+// typedef enum {
+//     /* General flags */
+//     FALSE,
+//     TRUE,
+// ...
+// } FLAG;
+enum FLAG {
     /* General flags */
-    FALSE,
-    TRUE,
+    FALSE_ENUM = 0, // Renamed to avoid conflict with potential macros/keywords
+    TRUE_ENUM = 1,  // Renamed to avoid conflict with potential macros/keywords
     NOT_VALID,
     VALID,
     OFF,
@@ -79,7 +86,7 @@ typedef enum {
     DELETE,
     READ,
     WRITE
-} FLAG;
+};
 
 /*
  * The Line structure.  Each line entry contains a pointer to the next line,
@@ -93,7 +100,7 @@ struct Line {
     unsigned char shift_count;
 };
 
-typedef struct Line LINE;
+// typedef struct Line LINE; // In C++, `struct Line` is already a type name.
 
 /* Dummy line indicator */
 #define DUMMY 0x80
@@ -122,7 +129,7 @@ struct regex {
     char *end_ptr;
 };
 
-typedef struct regex REGEX;
+// typedef struct regex REGEX; // In C++, `struct regex` is already a type name.
 
 /* NULL definitions */
 #define NIL_PTR ((char *)0)

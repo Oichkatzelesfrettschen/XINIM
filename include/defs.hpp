@@ -7,32 +7,26 @@
 #ifndef DEFS_H
 #define DEFS_H
 
-/* Custom fixed-width type definitions replacing <stdint.h>. */
+#pragma once
 
-/* The compiler must provide builtin fixed width integer types. */
-#if defined(__clang__) || defined(__GNUC__)
-
-typedef __INT8_TYPE__ i8_t;      /* signed 8  bit integer */
-typedef __UINT8_TYPE__ u8_t;     /* unsigned 8  bit integer */
-typedef __INT16_TYPE__ i16_t;    /* signed 16 bit integer */
-typedef __UINT16_TYPE__ u16_t;   /* unsigned 16 bit integer */
-typedef __INT32_TYPE__ i32_t;    /* signed 32 bit integer */
-typedef __UINT32_TYPE__ u32_t;   /* unsigned 32 bit integer */
-typedef __INT64_TYPE__ i64_t;    /* signed 64 bit integer */
-typedef __UINT64_TYPE__ u64_t;   /* unsigned 64 bit integer */
-typedef __UINTPTR_TYPE__ uptr_t; /* unsigned pointer sized integer */
+#include "../xinim/core_types.hpp" // Provides standard fixed-width integers and other core types.
 
 /* Attribute helpers usable in headers and source files. */
+// These are GCC/Clang specific. For broader portability, consider alternatives
+// or ensure they are only used in contexts where these compilers are assumed.
 #define PACKED __attribute__((packed)) /* structure packing */
 #define NAKED __attribute__((naked))   /* naked function */
 
 /* Macros for defining 64-bit constants without littering the code with
- * long long suffixes. */
+ * long long suffixes. Standard C++ ULL/LL suffixes on literals are preferred
+ * in new code, but these can remain for existing code compatibility. */
 #define U64_C(val) val##ULL
 #define I64_C(val) val##LL
 
-#else
-#error "Unsupported compiler"
-#endif
+// Common project-specific constants or further utility macros could go here if any.
+// For example, EXTERN if it's defined as `extern` could be here,
+// or TRUE/FALSE if not using `bool` directly everywhere.
+// However, the original defs.hpp provided did not have these.
+// `xinim::OK` and `nullptr` are available from core_types.hpp.
 
 #endif /* DEFS_H */

@@ -16,7 +16,7 @@ Result<size_t> MemoryStream::read(std::byte *buffer, size_t length) {
         std::memcpy(buffer, buffer_.data() + pos_, to_read);
         pos_ += to_read;
     }
-    return {to_read, {}};
+    return to_read;
 }
 
 /// Write to the internal buffer starting at the current seek position.
@@ -31,7 +31,7 @@ Result<size_t> MemoryStream::write(const std::byte *buffer, size_t length) {
     }
     std::memcpy(buffer_.data() + pos_, buffer, length);
     pos_ += length;
-    return {length, {}};
+    return length;
 }
 
 /// Set the current seek position within the buffer.

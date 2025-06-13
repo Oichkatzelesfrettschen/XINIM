@@ -16,9 +16,11 @@
 #include "../h/callnr.hpp"
 #include "../h/const.hpp"
 #include "../h/error.hpp"
-#include "../h/type.hpp"
+#include "../h/type.hpp" // Defines phys_clicks, vir_clicks, CLICK_SHIFT etc.
 #include "const.hpp"
 #include "glo.hpp"
+#include <cstddef>   // For std::size_t
+#include <cstdint>   // For uint64_t
 #include "mproc.hpp"
 #include "param.hpp"
 
@@ -38,10 +40,10 @@ PUBLIC int do_fork() {
     register struct mproc *rmc; /* pointer to child */
     int i, child_nr, t;
     char *sptr, *dptr;
-    long prog_bytes;
-    phys_clicks prog_clicks, child_base;
-    long parent_abs, child_abs;
-    extern phys_clicks alloc_mem();
+    uint64_t prog_bytes;                // Was long, should be phys_bytes equivalent
+    uint64_t prog_clicks, child_base;   // phys_clicks -> uint64_t
+    uint64_t parent_abs, child_abs;     // Was long, should be phys_bytes equivalent
+    // extern phys_clicks alloc_mem(); // alloc_mem now returns uint64_t
 
     /* If tables might fill up during FORK, don't even start since recovery half
      * way through is such a nuisance.
@@ -54,16 +56,23 @@ PUBLIC int do_fork() {
         return (ErrorCode::EAGAIN);
 
     /* Determine how much memory to allocate. */
+    // mp_seg[X].mem_len are vir_clicks (std::size_t). Sum is std::size_t.
+    // Cast to phys_clicks (uint64_t) is appropriate for physical allocation size.
     prog_clicks =
-        (phys_clicks)rmp->mp_seg[T].mem_len + rmp->mp_seg[D].mem_len + rmp->mp_seg[S].mem_len;
-    prog_bytes = (long)prog_clicks << CLICK_SHIFT;
-    if ((child_base = alloc_mem(prog_clicks)) == NO_MEM)
+        static_cast<uint64_t>(rmp->mp_seg[T].mem_len + rmp->mp_seg[D].mem_len + rmp->mp_seg[S].mem_len);
+    prog_bytes = prog_clicks << CLICK_SHIFT; // prog_clicks is uint64_t
+    if ((child_base = alloc_mem(prog_clicks)) == NO_MEM) // alloc_mem takes uint64_t
         return (ErrorCode::EAGAIN);
 
     /* Create a copy of the parent's core image for the child. */
-    child_abs = (long)child_base << CLICK_SHIFT;
-    parent_abs = (long)rmp->mp_seg[T].mem_phys << CLICK_SHIFT;
-    i = mem_copy(ABS, 0, parent_abs, ABS, 0, child_abs, prog_bytes);
+    child_abs = child_base << CLICK_SHIFT; // child_base is uint64_t
+    parent_abs = rmp->mp_seg[T].mem_phys << CLICK_SHIFT; // mem_phys is uint64_t
+    // New mem_copy signature: (int, int, uintptr_t, int, int, uintptr_t, std::size_t)
+    // parent_abs, child_abs, prog_bytes are uint64_t.
+    // Assuming physical addresses fit in uintptr_t and counts in std::size_t.
+    i = mem_copy(ABS, 0, static_cast<uintptr_t>(parent_abs),
+                 ABS, 0, static_cast<uintptr_t>(child_abs),
+                 static_cast<std::size_t>(prog_bytes));
     if (i < 0)
         panic("do_fork can't copy", i);
 
@@ -82,8 +91,11 @@ PUBLIC int do_fork() {
         *dptr++ = *sptr++; /* copy from parent slot to child's */
 
     rmc->mp_parent = who; /* record child's parent */
-    rmc->mp_seg[T].mem_phys = child_base;
-    rmc->mp_seg[D].mem_phys = child_base + rmc->mp_seg[T].mem_len;
+    rmc->mp_seg[T].mem_phys = child_base; // child_base is uint64_t
+    // mem_len is std::size_t (vir_clicks), child_base is uint64_t (phys_clicks).
+    // mem_phys is uint64_t (phys_clicks)
+    rmc->mp_seg[D].mem_phys = child_base + static_cast<uint64_t>(rmc->mp_seg[T].mem_len);
+    // All mp_seg[X].mem_phys are phys_clicks (uint64_t)
     rmc->mp_seg[S].mem_phys =
         rmc->mp_seg[D].mem_phys + (rmp->mp_seg[S].mem_phys - rmp->mp_seg[D].mem_phys);
     rmc->mp_exitstatus = 0;
@@ -209,8 +221,8 @@ register struct mproc *child; /* tells which process is exiting */
 
     register struct mproc *parent, *rp;
     int init_waiting, child_nr;
-    unsigned int r;
-    phys_clicks s;
+    unsigned int r; // For status, not a target type for this change
+    uint64_t s;     // phys_clicks -> uint64_t
 
     child_nr = child - mproc;
     parent = &mproc[child->mp_parent];
@@ -221,9 +233,13 @@ register struct mproc *child; /* tells which process is exiting */
     reply(child->mp_parent, child->mp_pid, r, NIL_PTR);
 
     /* Release the memory occupied by the child. */
-    s = (phys_clicks)child->mp_seg[S].mem_vir + child->mp_seg[S].mem_len;
+    // child->mp_seg[X].mem_vir and mem_len are vir_clicks (std::size_t)
+    // s is uint64_t (phys_clicks)
+    s = static_cast<uint64_t>(child->mp_seg[S].mem_vir + child->mp_seg[S].mem_len);
     if (child->mp_flags & SEPARATE)
-        s += child->mp_seg[T].mem_len;
+        s += static_cast<uint64_t>(child->mp_seg[T].mem_len);
+    // child->mp_seg[T].mem_phys is phys_clicks (uint64_t)
+    // free_mem takes (uint64_t, uint64_t)
     free_mem(child->mp_seg[T].mem_phys, s); /* free the memory */
 
     /* Update flags. */

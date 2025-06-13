@@ -1,6 +1,7 @@
 
 #define CLICK_SIZE 16
-typedef unsigned short vir_bytes;
+// Converted to C++ using alias
+using vir_bytes = unsigned short;
 extern bcopy();
 
 #define ALIGN(x, a) (((x) + (a - 1)) & ~(a - 1))

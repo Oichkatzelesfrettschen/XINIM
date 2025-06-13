@@ -19,6 +19,8 @@
 
 #include <cerrno>     // errno
 #include <cstdio>     // printf
+#include <cstddef>    // For std::size_t
+#include <cstdint>    // For uintptr_t
 #include <filesystem> // std::filesystem utilities
 #include <memory>     // std::unique_ptr
 
@@ -29,8 +31,11 @@ namespace {
 struct FileDescriptor {
     int fd{-1};
     explicit FileDescriptor(int f) : fd(f) {}
-    ~FileDescriptor() {
+    ~FileDescriptor() noexcept { // Added noexcept
         if (fd >= 0) {
+            // In a destructor, we should generally not let exceptions escape.
+            // close() can set errno but doesn't throw C++ exceptions.
+            // If it could throw, we'd need a try-catch.
             close(fd);
         }
     }
@@ -62,7 +67,7 @@ struct FileDescriptor {
  *===========================================================================*/
 // Determine if the given file is accessible using the specified mask.
 // Returns a file descriptor on success or a negative errno value on failure.
-PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
+PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept {
     // Use RAII to ensure the descriptor is closed when leaving the scope.
     int raw_fd = open(name_buf, 0);
     if (raw_fd < 0) {
@@ -100,31 +105,36 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) {
 /*===========================================================================*
  *				mem_copy				     *
  *===========================================================================*/
-PUBLIC int mem_copy(int src_proc, int src_seg, long src_vir, int dst_proc, int dst_seg,
-                    long dst_vir, long bytes) {
+PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, int dst_seg,
+                    uintptr_t dst_vir, std::size_t bytes) noexcept {
     /* Transfer a block of data.  The source and destination can each either be a
      * process (including MM) or absolute memory, indicate by setting 'src_proc'
      * or 'dst_proc' to ABS.
      */
 
-    if (bytes == 0L)
+    if (bytes == 0) // Changed 0L to 0
         return (OK);
     src_space(copy_mess) = static_cast<char>(src_seg);
     src_proc_nr(copy_mess) = src_proc;
-    src_buffer(copy_mess) = src_vir;
+    // src_buffer is a macro for a message field of type char* (e.g., m1p1)
+    src_buffer(copy_mess) = reinterpret_cast<char*>(src_vir);
 
     dst_space(copy_mess) = static_cast<char>(dst_seg);
     dst_proc_nr(copy_mess) = dst_proc;
-    dst_buffer(copy_mess) = dst_vir;
+    // dst_buffer is a macro for a message field of type char*
+    dst_buffer(copy_mess) = reinterpret_cast<char*>(dst_vir);
 
-    copy_bytes(copy_mess) = bytes;
+    // copy_bytes is a macro for a message field of type int (e.g., m1i2)
+    // This is a potential narrowing conversion if bytes > INT_MAX.
+    // This reflects the existing constraint of the message system.
+    copy_bytes(copy_mess) = static_cast<int>(bytes);
     sys_copy(&copy_mess);
     return (copy_mess.m_type);
 }
 /*===========================================================================*
  *				no_sys					     *
  *===========================================================================*/
-PUBLIC int no_sys() {
+PUBLIC int no_sys() noexcept {
     /* A system call number not implemented by MM has been requested. */
 
     return (ErrorCode::EINVAL);
@@ -133,7 +143,7 @@ PUBLIC int no_sys() {
 /*===========================================================================*
  *				panic					     *
  *===========================================================================*/
-PUBLIC void panic(const char *format, int num) {
+PUBLIC void panic(const char *format, int num) noexcept {
     /* Something awful has happened.  Panics are caused when an internal
      * inconsistency is detected, e.g., a programm_ing error or illegal value of a
      * defined constant.

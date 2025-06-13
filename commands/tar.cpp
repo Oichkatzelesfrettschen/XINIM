@@ -23,7 +23,8 @@ struct direct {
     char d_name[14];
 };
 
-typedef char BOOL;
+// Converted to C++ using alias
+using BOOL = char;
 #define TRUE 1
 #define FALSE 0
 
@@ -31,7 +32,8 @@ typedef char BOOL;
 #define NAME_SIZE 100
 #define BLOCK_BOUNDARY 20
 
-typedef union {
+// Changed from anonymous union typedef to named union
+union HEADER {
     char hdr_block[HEADER_SIZE];
     struct m {
         char m_name[NAME_SIZE];
@@ -44,7 +46,7 @@ typedef union {
         char m_linked;
         char m_link[NAME_SIZE];
     } member;
-} HEADER;
+};
 
 HEADER header;
 

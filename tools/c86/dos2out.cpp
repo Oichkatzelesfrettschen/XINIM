@@ -42,15 +42,16 @@ For more information see MS-DOS programmers reference manual
 #define IS_EXE	     0x5A4D		/* valid linker signature; note that
 					   in a dump it shows as 4D 5A */
 
-
-typedef struct d_reloctab {		/* DOS relocation table entry */
+// Removed redundant typedef; C++ `struct name {}` is enough.
+struct d_reloctab {		/* DOS relocation table entry */
 	unsigned int	r_offset;	/* offset to symbol in load-module */
 	unsigned int	r_segment;	/* segment relative to zero;
 					   real segment must now be added */
 };
 
 /* dos formatted part of the header */
-typedef struct d_fmt_hdr {
+// Removed redundant typedef; C++ `struct name {}` is enough.
+struct d_fmt_hdr {
 	unsigned int 	ldsign;		/* linker signature, 5A4Dh */
 	unsigned int	last_page_size; /* size of last page */
 	unsigned int	nr_of_pages;	/* a page is 512 b */
@@ -75,8 +76,8 @@ typedef struct d_fmt_hdr {
 #define A_HDR_LEN	 32		/* short form of header */
 #define DOS	     0xFFFF		/* version for a.out is -1 */
 
-
-typedef struct a_out_hdr {
+// Removed redundant typedef; C++ `struct name {}` is enough.
+struct a_out_hdr {
 	unsigned char	a_magic[2];	/* magic number */
 	unsigned char	a_flags;	/* flags for sep I&D etc */
 	unsigned char   a_cpu;		/* cpu-type */

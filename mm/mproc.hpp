@@ -8,6 +8,10 @@
  * of corresponding slots referring to the same process in all three.
  */
 
+#include "../h/type.hpp" // For uid, gid, unshort, mem_map
+#include <cstdint>       // For explicit use of uint16_t, uint8_t if not via type.hpp
+#include <cstddef>       // For std::size_t if not via type.hpp
+
 EXTERN struct mproc {
     struct mem_map mp_seg[NR_SEGS]; /* points to text, data, stack */
     char mp_exitstatus;             /* storage for status when process exits */
@@ -31,9 +35,9 @@ EXTERN struct mproc {
 } mproc[NR_PROCS];
 
 /* Flag values */
-#define IN_USE 001   /* set when 'mproc' slot in use */
-#define WAITING 002  /* set by WAIT system call */
-#define HANGING 004  /* set by EXIT system call */
-#define PAUSED 010   /* set by PAUSE system call */
-#define ALARM_ON 020 /* set when SIGALRM timer started */
-#define SEPARATE 040 /* set if file is separate I & D space */
+inline constexpr unsigned int IN_USE = 001;   /* set when 'mproc' slot in use */
+inline constexpr unsigned int WAITING = 002;  /* set by WAIT system call */
+inline constexpr unsigned int HANGING = 004;  /* set by EXIT system call */
+inline constexpr unsigned int PAUSED = 010;   /* set by PAUSE system call */
+inline constexpr unsigned int ALARM_ON = 020; /* set when SIGALRM timer started */
+inline constexpr unsigned int SEPARATE = 040; /* set if file is separate I & D space */

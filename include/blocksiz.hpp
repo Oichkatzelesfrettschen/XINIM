@@ -4,4 +4,8 @@
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
 
-inline constexpr int BLOCK_SIZE = 1024; // File system data block size
+#pragma once
+
+#include "defs.hpp" // For std::size_t (via xinim/core_types.hpp)
+
+inline constexpr std::size_t BLOCK_SIZE = 1024; // File system data block size
