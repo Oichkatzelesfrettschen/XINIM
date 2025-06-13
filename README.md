@@ -1,22 +1,22 @@
 # XINIM Operating System
 
-Modern C++17 reimplementation of the classic MINIX 1 operating system. The
+Modern C++23 reimplementation of the classic MINIX 1 operating system. The
 project combines kernel, memory management, userland utilities, and disk tools
 into a cohesive educational system.
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
-![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)
+![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Documentation](https://img.shields.io/badge/docs-doxygen-blue.svg)
 
-Modern C++17 implementation of the entire MINIX 1 codebase with enhanced type
+Modern C++23 implementation of the entire MINIX 1 codebase with enhanced type
 safety, improved portability, and comprehensive error handling. The repository
 includes the kernel, memory manager, file system, standard commands, system
 libraries, and auxiliary build tools.
 
 ## Overview
 
-This project provides a complete reimplementation of MINIX 1 written in C++17.
+This project provides a complete reimplementation of MINIX 1 written in C++23.
 The codebase emphasizes:
 
 - **Type Safety**: Strong typing and RAII patterns throughout
@@ -46,7 +46,7 @@ The codebase emphasizes:
 
 ### Key Improvements Over Original
 
-- **Modern C++17**: Leverages latest language features for safety and performance
+- **Modern C++23**: Leverages latest language features for safety and performance
 - **Memory Safe**: RAII resource management eliminates memory leaks
 - **Cross-Platform**: Works on Linux, macOS, BSD, and Windows
 - **Enhanced Caching**: Smart sector caching with write-through for performance
@@ -62,7 +62,7 @@ users.
 
 ### Prerequisites
 
-- **Compiler**: GCC 7+ or Clang 5+ with C++17 support
+- **Compiler**: GCC 13+ or Clang 16+ with C++23 support (MSVC 19.36+ supported)
 - **Build System**: Make (GNU Make recommended)
 - **Optional**: Doxygen for documentation, Valgrind for debugging
 
@@ -101,7 +101,9 @@ Use **Make** for quick manual compilation of the filesystem tools or when you
 only need to build a single component.
 
 Use **CMake** to build the entire system, enable optional drivers, or perform
-out-of-tree and cross-compilation builds. A typical CMake workflow is:
+out-of-tree and cross-compilation builds.
+
+The CMake configuration defaults to the C++23 standard. Ensure GCC 13+ or Clang 16+ (or MSVC 19.36+) is available for successful compilation. A typical CMake workflow is:
 
 ```bash
 cmake -B build
@@ -219,7 +221,7 @@ graph TD
 - **Strong Typing**: Type-safe operations with minimal runtime overhead
 - **Exception Safety**: Structured error handling with full context
 - **Template Programming**: Generic algorithms with compile-time optimization
-- **Modern C++**: Leverages C++17 features for cleaner, safer code
+- **Modern C++**: Leverages C++23 features for cleaner, safer code
 
 ## File Organization
 
@@ -243,7 +245,7 @@ XINIM/
 
 The project follows modern C++ best practices:
 
-- **C++17 Standard**: Uses latest language features appropriately
+- **C++23 Standard**: Uses latest language features appropriately
 - **Google Style Guide**: Consistent formatting and naming conventions
 - **RAII Everywhere**: Automatic resource management
 - **const Correctness**: Immutability where appropriate
@@ -278,9 +280,10 @@ make gdb
 Generate comprehensive API documentation:
 
 ```bash
-make docs
-open docs/html/index.html
+doxygen Doxyfile
+sphinx-build -b html docs/sphinx docs/sphinx/html
 ```
+Doxygen outputs XML in `docs/doxygen/xml` which Sphinx consumes via the Breathe extension. The resulting HTML appears in `docs/sphinx/html`.
 
 The documentation includes:
 - **API Reference**: Complete class and function documentation
@@ -315,9 +318,9 @@ Typical performance improvements over original implementation:
 
 ### Compiler Support
 
-- **GCC**: 7.0+ (tested with 9.4, 10.3, 11.2)
-- **Clang**: 5.0+ (tested with 10.0, 12.0, 13.0)
-- **MSVC**: 2017+ (Visual Studio 15.7+)
+- **GCC**: 13.0+ (tested with 13.1)
+- **Clang**: 16.0+ (tested with 16.0)
+- **MSVC**: 19.36+ (Visual Studio 2022)
 
 ## License
 
