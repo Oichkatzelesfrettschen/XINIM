@@ -1,4 +1,9 @@
 #include "errno.hpp"
+
+/**
+ * @file test5.cpp
+ * @brief Stress tests for signal delivery and timers.
+ */
 #include "signal.hpp"
 extern int errno;
 int errct;
@@ -7,6 +12,9 @@ int func1(), func10(), func8(), funcalrm(), func11();
 int childsigs, parsigs, alarms;
 int zero[1024];
 
+/**
+ * @brief Entry point exercising signal stress tests.
+ */
 main() {
     int i;
 

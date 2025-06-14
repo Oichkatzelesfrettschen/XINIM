@@ -1,45 +1,47 @@
 #include "signal.hpp"
+
+/**
+ * @file test7.cpp
+ * @brief Exercises pipe signaling edge cases.
+ */
 extern int errno;
 int testnr;
 int errct;
 
 int zilch[5000];
 
-main()
-{
-  int i;
+/**
+ * @brief Entry point stressing pipe signaling.
+ */
+main() {
+    int i;
 
-  printf("Test  7 ");
-  for (i = 0; i < 150; i++) {
-	test70();
-  }
-  if (errct == 0)
-	printf("ok\n");
-  else
-	printf("%d errors\n", errct);
+    printf("Test  7 ");
+    for (i = 0; i < 150; i++) {
+        test70();
+    }
+    if (errct == 0)
+        printf("ok\n");
+    else
+        printf("%d errors\n", errct);
 }
 
+test70() {
+    int i, err, pid;
 
-
-test70()
-{
-  int i, err, pid;
-
-  signal(SIGQUIT, SIG_IGN);
-  err = 0;
-  for (i=0; i<5000; i++) if (zilch[i] != 0) err++;
-  if (err > 0) e(1);
-  kill(getpid(), SIGQUIT);
+    signal(SIGQUIT, SIG_IGN);
+    err = 0;
+    for (i = 0; i < 5000; i++)
+        if (zilch[i] != 0)
+            err++;
+    if (err > 0)
+        e(1);
+    kill(getpid(), SIGQUIT);
 }
 
-
-
-
-
-e(n)
-int n;
+e(n) int n;
 {
-  printf("Subtest %d,  error %d  errno=%d  ", testnr, n, errno);
-  perror("");
-  errct++;
+    printf("Subtest %d,  error %d  errno=%d  ", testnr, n, errno);
+    perror("");
+    errct++;
 }
