@@ -7,6 +7,7 @@
 #include <cstdint>              // For uint64_t
 #include <xinim/core_types.hpp> // For std::uint64_t, std::size_t, etc.
 
+
 /* 64-bit configuration constants */
 /* Register order: rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11, r12, r13, r14, r15 */
 inline constexpr int NR_REGS = 15;

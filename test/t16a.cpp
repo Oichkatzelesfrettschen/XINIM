@@ -3,7 +3,15 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-// Compare two C strings. Return true if they differ.
+/**
+ * @file t16a.cpp
+ * @brief Validates argument passing and basic system calls.
+ */
+
+/**
+ * @brief Compare two C strings.
+ * @return true if they differ, false otherwise.
+ */
 static bool diff(const char *s1, const char *s2) {
     while (true) {
         if (*s1 == '\0' && *s2 == '\0')
@@ -15,10 +23,16 @@ static bool diff(const char *s1, const char *s2) {
     }
 }
 
-// Print an error number for debugging.
+/**
+ * @brief Print an error number for debugging.
+ */
 static void e(int n) { std::printf("Error %d\n", n); }
 
-// Check argument passing and simple syscalls.
+/**
+ * @brief Entry point performing argument checks and simple syscalls.
+ *
+ * Returns 100 on success.
+ */
 int main(int argc, char *argv[], char *envp[]) {
     char aa[4];
 

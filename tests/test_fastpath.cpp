@@ -1,3 +1,4 @@
+#include "../kernel/schedule.hpp"
 #include "../kernel/wormhole.hpp"
 #include <cassert>
 
@@ -5,7 +6,11 @@ using namespace fastpath;
 
 // Simple sanity test of the fastpath partial function with zero-copy buffer.
 int main() {
+    using sched::scheduler;
     State s{};
+    scheduler.enqueue(1);
+    scheduler.enqueue(2);
+    scheduler.preempt();
     alignas(64) uint64_t buffer[8]{};
     set_message_region(s, MessageRegion(reinterpret_cast<std::uintptr_t>(buffer), sizeof(buffer)));
     s.sender.tid = 1;
@@ -37,7 +42,7 @@ int main() {
     s.cap.object = 1;
     s.cap.badge = 123;
 
-    s.current_tid = s.sender.tid;
+    s.current_tid = scheduler.current();
 
     FastpathStats stats; // collect fastpath metrics
     bool ok = execute_fastpath(s, &stats);
@@ -49,6 +54,7 @@ int main() {
     assert(s.sender.status == ThreadStatus::Blocked);
     assert(s.receiver.badge == s.cap.badge);
     assert(s.sender.reply_to == s.receiver.tid);
+    assert(scheduler.current() == s.receiver.tid);
     assert(s.current_tid == s.receiver.tid);
     return 0;
 }

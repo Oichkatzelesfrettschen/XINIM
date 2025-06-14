@@ -1,4 +1,8 @@
 /* Test setjmp with register variables.		Author: Ceriel Jacobs */
+/**
+ * @file test9.cpp
+ * @brief Validates setjmp/longjmp behavior with register variables.
+ */
 
 #include "setjmp.hpp"
 #include "signal.hpp"
@@ -8,6 +12,9 @@ int whichtest;
 int nerrors;
 char *tmpa;
 
+/**
+ * @brief Entry point validating setjmp and longjmp.
+ */
 main() {
     jmp_buf envm;
     register int i;
@@ -266,7 +273,9 @@ dolev() {
     longjmp(env, 3);
 }
 
-catch() { longjmp(env, 4); }
+catch () {
+    longjmp(env, 4);
+}
 
 hard() {
     register char *p;

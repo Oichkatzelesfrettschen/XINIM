@@ -1,7 +1,14 @@
 #include <cstdio>
 #include <cstdlib>
 
-// Compare two strings. Return true if they differ.
+/**
+ * @file t16b.cpp
+ * @brief Confirms argument parsing works as expected.
+ */
+
+/**
+ * @brief Compare two strings. Return true if they differ.
+ */
 static bool diff(const char *s1, const char *s2) {
     while (true) {
         if (*s1 == '\0' && *s2 == '\0')
@@ -13,10 +20,16 @@ static bool diff(const char *s1, const char *s2) {
     }
 }
 
-// Report an error value.
+/**
+ * @brief Report an error value.
+ */
 static void e(int n) { std::printf("Error %d\n", n); }
 
-// Ensure argument parsing functions properly.
+/**
+ * @brief Entry point ensuring argument parsing functions properly.
+ *
+ * Returns 75 on success.
+ */
 int main(int argc, char *argv[]) {
     if (diff(argv[0], "t4b"))
         e(31);

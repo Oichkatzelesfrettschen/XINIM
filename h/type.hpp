@@ -10,6 +10,7 @@
 #include <cstdint>              // for fixed-width integer types
 #include <xinim/core_types.hpp> // New include for xinim types
 
+
 // Utility functions -------------------------------------------------------*/
 /*!
  * rief Return the larger of two values.

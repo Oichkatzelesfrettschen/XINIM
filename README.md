@@ -269,7 +269,8 @@ make gdb
 
 ### Contributing
 
-1. **Code Style**: Run `make format` before committing
+1. **Code Style**: Run `make format` before committing or enable the
+   `tools/pre-commit-clang-format.sh` hook for automatic formatting
 2. **Testing**: Ensure `make check` passes
 3. **Documentation**: Update documentation for new features
 4. **Performance**: Profile critical code paths

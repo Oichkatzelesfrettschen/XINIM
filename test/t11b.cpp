@@ -1,7 +1,14 @@
 #include <cstdio>
 #include <cstdlib>
 
-// Compare two strings and report if they differ.
+/**
+ * @file t11b.cpp
+ * @brief Validates command line argument parsing.
+ */
+
+/**
+ * @brief Compare two strings and report if they differ.
+ */
 static bool diff(const char *s1, const char *s2) {
     while (true) {
         if (*s1 == '\0' && *s2 == '\0')
@@ -13,10 +20,16 @@ static bool diff(const char *s1, const char *s2) {
     }
 }
 
-// Display an error value for debugging.
+/**
+ * @brief Display an error value for debugging.
+ */
 static void e(int n) { std::printf("Error %d\n", n); }
 
-// Validate that command line arguments were passed correctly.
+/**
+ * @brief Program entry validating command line arguments.
+ *
+ * Returns 75 on success.
+ */
 int main(int argc, char *argv[]) {
     if (diff(argv[0], "t11b"))
         e(31);

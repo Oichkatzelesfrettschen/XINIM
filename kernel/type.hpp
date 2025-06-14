@@ -10,6 +10,7 @@
 #include "../include/defs.hpp"  // Project-wide definitions
 #include <xinim/core_types.hpp> // For xinim::virt_addr_t and std::uint64_t
 
+
 struct pc_psw {
     xinim::virt_addr_t pc; /* program counter */
     std::uint64_t psw;     /* processor status word */
