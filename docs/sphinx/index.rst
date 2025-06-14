@@ -6,3 +6,5 @@ XINIM Documentation
    :caption: Contents:
 
    api
+   lattice_ipc
+   pq_crypto
