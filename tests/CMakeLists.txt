@@ -80,3 +80,6 @@ target_include_directories(minix_test_memory_stream PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
 add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
+
+# Add cryptography unit tests
+add_subdirectory(crypto)
