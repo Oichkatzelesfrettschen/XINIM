@@ -5,10 +5,10 @@
 #define TYPE_H
 
 /* Pull in the fixed-width integer typedefs. */
-#include "../include/defs.hpp" // project-wide integer definitions
-#include <cstddef>             // for std::size_t
-#include <cstdint>             // for fixed-width integer types
-#include "../../include/xinim/core_types.hpp" // New include for xinim types
+#include "../include/defs.hpp"             // project-wide integer definitions
+#include "../include/xinim/core_types.hpp" // New include for xinim types
+#include <cstddef>                         // for std::size_t
+#include <cstdint>                         // for fixed-width integer types
 
 // Utility functions -------------------------------------------------------*/
 /*!
@@ -25,16 +25,16 @@ template <typename T> constexpr T min(T a, T b) noexcept { return a < b ? a : b;
 // Minix specific types that don't directly map or are more granular than xinim::core_types
 // will remain for now. Types that have a direct xinim equivalent will be commented
 // out or aliased to the xinim type.
-using unshort = uint16_t;         /* must be 16-bit unsigned */
-using block_nr = uint16_t;               /* block number */
+using unshort = uint16_t;               /* must be 16-bit unsigned */
+using block_nr = uint16_t;              /* block number */
 inline constexpr block_nr kNoBlock = 0; /* absence of a block number */
 inline constexpr block_nr kMaxBlockNr = 0177777;
 
-using inode_nr = uint16_t;                        /* inode number */
+using inode_nr = uint16_t;                       /* inode number */
 inline constexpr inode_nr kNoEntry = 0;          /* absence of a dir entry */
 inline constexpr inode_nr kMaxInodeNr = 0177777; /* highest inode number */
 
-using zone_nr = uint16_t;              /* zone number */
+using zone_nr = uint16_t;             /* zone number */
 inline constexpr zone_nr kNoZone = 0; /* absence of a zone number */
 inline constexpr zone_nr kHighestZone = 0177777;
 
@@ -52,21 +52,25 @@ inline constexpr links kMaxLinks = 0177;
 // MODERNIZED: using real_time = int64_t;
 using real_time = xinim::time_t; // Maps to xinim::time_t (std::int64_t)
 
-using file_pos = int32_t;  /* position in, or length of, a file - Minix specific, smaller than off_t */
+using file_pos =
+    int32_t; /* position in, or length of, a file - Minix specific, smaller than off_t */
 inline constexpr file_pos kMaxFilePos = 017777777777;
-using file_pos64 = i64_t; /* 64-bit file positions - Minix specific, similar to xinim::off_t if that were defined */
+using file_pos64 = i64_t; /* 64-bit file positions - Minix specific, similar to xinim::off_t if that
+                             were defined */
 inline constexpr file_pos64 kMaxFilePos64 = I64_C(0x7fffffffffffffff);
 using uid = uint16_t; /* user id - Minix specific (xinim::uid_t is int32_t) */
-using gid = uint8_t;      /* group id - Minix specific (xinim::gid_t is int32_t) */
+using gid = uint8_t;  /* group id - Minix specific (xinim::gid_t is int32_t) */
 
 // Aliases to types defined in xinim::core_types.hpp
-using vir_bytes = xinim::vir_bytes_t;
+using vir_bytes = xinim::virt_bytes_t;
 using phys_bytes = xinim::phys_bytes_t;
-using vir_clicks = xinim::virt_addr_t;  // Representing a count/size related to virtual memory units based on address size
-using phys_clicks = xinim::phys_addr_t; // Representing a count/size related to physical memory units based on address size
+using vir_clicks = xinim::virt_addr_t;  // Representing a count/size related to virtual memory units
+                                        // based on address size
+using phys_clicks = xinim::phys_addr_t; // Representing a count/size related to physical memory
+                                        // units based on address size
 
-using signed_clicks = int64_t;    /* same length as phys_clicks, but signed - Minix specific */
-                                  // No direct xinim equivalent, related to Minix clicks.
+using signed_clicks = int64_t; /* same length as phys_clicks, but signed - Minix specific */
+                               // No direct xinim equivalent, related to Minix clicks.
 
 /* Types relating to messages. */
 inline constexpr int M1 = 1;         /* style of message with three ints and three pointers */
@@ -182,7 +186,7 @@ struct message {
     constexpr const int &m6_i3() const { return m_u.m_m6.m6i3; }
     constexpr int64_t &m6_l1() { return m_u.m_m6.m6l1; }
     constexpr const int64_t &m6_l1() const { return m_u.m_m6.m6l1; }
-    constexpr int (*&m6_f1())() { return m_u.m_m6.m6f1; } // Modern C-style: int(*)()
+    constexpr int (*&m6_f1())() { return m_u.m_m6.m6f1; }             // Modern C-style: int(*)()
     constexpr int (*const &m6_f1() const)() { return m_u.m_m6.m6f1; } // Modern C-style: int(*)()
 };
 
