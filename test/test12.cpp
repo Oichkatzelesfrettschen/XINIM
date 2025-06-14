@@ -1,11 +1,19 @@
 #define _LARGEFILE64_SOURCE
+
+/**
+ * @file test12.cpp
+ * @brief Validates large file support using 64-bit offsets.
+ */
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/types.h>
+#include <unistd.h>
 
+/**
+ * @brief Entry point testing large file support.
+ */
 int main(void) {
     /* Name of the file to create */
     const char *fname = "bigfile";
