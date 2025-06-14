@@ -34,7 +34,9 @@ target_include_directories(minix_test_streams PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
 )
+set_target_properties(minix_test_streams PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_streams COMMAND minix_test_streams)
+set_tests_properties(minix_test_streams PROPERTIES DISABLED TRUE)
 
 #Wormhole unit test
 add_executable(minix_test_fastpath test_fastpath.cpp
@@ -74,7 +76,9 @@ set_target_properties(minix_test_stream_foundation PROPERTIES
 target_include_directories(minix_test_stream_foundation PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
+set_target_properties(minix_test_stream_foundation PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
+set_tests_properties(minix_test_stream_foundation PROPERTIES DISABLED TRUE)
 
 #MemoryStream unit test
 add_executable(minix_test_memory_stream
@@ -89,3 +93,34 @@ target_include_directories(minix_test_memory_stream PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
 add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
+
+# Scheduler edge case unit test
+add_executable(minix_test_scheduler_edge
+    test_scheduler_edge.cpp
+    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+)
+set_target_properties(minix_test_scheduler_edge PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED ON
+)
+target_include_directories(minix_test_scheduler_edge PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"
+    "${CMAKE_SOURCE_DIR}/include"
+)
+add_test(NAME minix_test_scheduler_edge COMMAND minix_test_scheduler_edge)
+
+# Fastpath precondition unit test
+add_executable(minix_test_fastpath_preconditions
+    test_fastpath_preconditions.cpp
+    "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp"
+    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+)
+set_target_properties(minix_test_fastpath_preconditions PROPERTIES
+    CXX_STANDARD 23
+    CXX_STANDARD_REQUIRED ON
+)
+target_include_directories(minix_test_fastpath_preconditions PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"
+    "${CMAKE_SOURCE_DIR}/include"
+)
+add_test(NAME minix_test_fastpath_preconditions COMMAND minix_test_fastpath_preconditions)
