@@ -6,7 +6,7 @@
 
 /* Pull in the fixed-width integer typedefs. */
 #include "../include/defs.hpp"             // project-wide integer definitions
-#include "../include/xinim/core_types.hpp" // Use project include path
+#include "../include/xinim/core_types.hpp" // New include for xinim types
 #include <cstddef>                         // for std::size_t
 #include <cstdint>                         // for fixed-width integer types
 
@@ -62,7 +62,7 @@ using uid = uint16_t; /* user id - Minix specific (xinim::uid_t is int32_t) */
 using gid = uint8_t;  /* group id - Minix specific (xinim::gid_t is int32_t) */
 
 // Aliases to types defined in xinim::core_types.hpp
-using vir_bytes = xinim::vir_bytes_t;
+using vir_bytes = xinim::virt_bytes_t;
 using phys_bytes = xinim::phys_bytes_t;
 using vir_clicks = xinim::virt_addr_t;  // Representing a count/size related to virtual memory units
                                         // based on address size

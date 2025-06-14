@@ -2,31 +2,32 @@
 
 #include <cerrno>
 #include <cstring>
-#include <fcntl.h>
-#include <span>
-#include <unistd.h>
 #include <expected> // For std::unexpected
+#include <fcntl.h>
+#include <unistd.h>
 
 namespace minix::io {
 
-/// Read from the underlying file descriptor into the supplied span.
+/// Read from the underlying file descriptor into the supplied buffer.
 ///
-/// \param buffer Destination span for file data.
+/// \param buffer Destination for file data.
+/// \param length Maximum number of bytes to read.
 /// \return       Number of bytes read or an error code.
-Result<size_t> FileStream::read(std::span<std::byte> buffer) {
-    ssize_t ret = ::read(fd_, buffer.data(), buffer.size());
+Result<size_t> FileStream::read(std::byte *buffer, size_t length) {
+    ssize_t ret = ::read(fd_, buffer, length);
     if (ret < 0) {
         return std::unexpected(std::error_code(errno, std::generic_category()));
     }
     return static_cast<size_t>(ret);
 }
 
-/// Write the given span to the underlying file descriptor.
+/// Write the given data to the underlying file descriptor.
 ///
 /// \param buffer Data to write.
+/// \param length Number of bytes to write.
 /// \return       Number of bytes written or an error code.
-Result<size_t> FileStream::write(std::span<const std::byte> buffer) {
-    ssize_t ret = ::write(fd_, buffer.data(), buffer.size());
+Result<size_t> FileStream::write(const std::byte *buffer, size_t length) {
+    ssize_t ret = ::write(fd_, buffer, length);
     if (ret < 0) {
         return std::unexpected(std::error_code(errno, std::generic_category()));
     }

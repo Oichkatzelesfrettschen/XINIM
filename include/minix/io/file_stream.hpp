@@ -20,10 +20,10 @@ class FileStream : public Stream {
     explicit FileStream(int fd, bool write) : fd_(fd), writable_(write) {}
     ~FileStream() override = default;
 
-    /// Read data from the file descriptor.
-    Result<size_t> read(std::span<std::byte> buffer) override;
-    /// Write data to the file descriptor.
-    Result<size_t> write(std::span<const std::byte> buffer) override;
+    /// Read data from the file descriptor into @p buffer.
+    Result<size_t> read(std::byte *buffer, size_t length) override;
+    /// Write data from @p buffer to the file descriptor.
+    Result<size_t> write(const std::byte *buffer, size_t length) override;
     /// Close the file descriptor if owned.
     std::error_code close() override;
     /// Access the underlying descriptor.
