@@ -1,9 +1,5 @@
 XINIM Documentation
 ===================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-   api
-   precommit
+C++23: Primary Language
+C23: Emergency "Fallback" Language
