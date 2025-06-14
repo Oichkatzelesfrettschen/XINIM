@@ -6,7 +6,7 @@ into a cohesive educational system.
 
 ![Build Status](https://img.shields.io/badge/build-passing-brightgreen)
 ![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)
-![License](https://img.shields.io/badge/license-MIT-blue.svg)
+![License](https://img.shields.io/badge/license-BSD%203--Clause-blue.svg)
 ![Documentation](https://img.shields.io/badge/docs-doxygen-blue.svg)
 
 Modern C++23 implementation of the entire MINIX 1 codebase with enhanced type
