@@ -16,6 +16,6 @@ The documentation is divided into several sections:
 
    lattice_ipc
    pq_crypto
+   scheduler
    precommit
    api
-
