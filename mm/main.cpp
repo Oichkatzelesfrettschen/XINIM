@@ -22,20 +22,27 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
-#include <cstdint>    // For uint64_t, int64_t
-#include <cstddef>    // For std::size_t, uintptr_t
-#include <cstdio>     // For printf (used in do_brk2)
+#include <cstddef> // For std::size_t, uintptr_t
+#include <cstdint> // For uint64_t, int64_t
+#include <cstdio>  // For printf (used in do_brk2)
 // #include <inttypes.h> // Not strictly needed if only %d is used for int
 
-#define ENOUGH static_cast<uint64_t>(4096) /* any # > max(FS size, INIT size) (phys_clicks -> uint64_t) */
-#define CLICK_TO_K (1024L / CLICK_SIZE)   /* convert clicks to K (CLICK_SIZE is int) */
+#define ENOUGH                                                                                     \
+    static_cast<uint64_t>(4096) /* any # > max(FS size, INIT size) (phys_clicks -> uint64_t) */
+#define CLICK_TO_K (1024L / CLICK_SIZE) /* convert clicks to K (CLICK_SIZE is int) */
 
-static uint64_t tot_mem; // PRIVATE phys_clicks -> static uint64_t
+static uint64_t tot_mem;    // PRIVATE phys_clicks -> static uint64_t
 extern int (*call_vec[])(); // Assuming call_vec functions still return int
 
 /*===========================================================================*
  *				main					     *
  *===========================================================================*/
+/**
+ * @brief Entry point for the memory manager.
+ *
+ * Initializes internal tables and enters the main request loop.
+ * The function does not return during normal execution.
+ */
 int main() noexcept { // Added noexcept (was already int main())
     /* Main routine of the memory manager. */
 
@@ -72,6 +79,12 @@ int main() noexcept { // Added noexcept (was already int main())
 /*===========================================================================*
  *				get_work				     *
  *===========================================================================*/
+/**
+ * @brief Retrieve the next request from any process.
+ *
+ * Blocks until a message is received and sets global bookkeeping
+ * variables describing the call.
+ */
 static void get_work() noexcept { // PRIVATE -> static, void return, noexcept
     /* Wait for the next message and extract useful information from it. */
 
@@ -86,6 +99,14 @@ static void get_work() noexcept { // PRIVATE -> static, void return, noexcept
 /*===========================================================================*
  *				reply					     *
  *===========================================================================*/
+/**
+ * @brief Send a reply message to a process.
+ *
+ * @param proc_nr Target process number.
+ * @param result Primary result code.
+ * @param res2 Secondary result code.
+ * @param respt Optional pointer result.
+ */
 // Modernized K&R, added void return, noexcept
 PUBLIC void reply(int proc_nr, int result, int res2, char *respt) noexcept {
     /* Send a reply to a user process. */
@@ -106,6 +127,12 @@ PUBLIC void reply(int proc_nr, int result, int res2, char *respt) noexcept {
 /*===========================================================================*
  *				mm_init					     *
  *===========================================================================*/
+/**
+ * @brief Initialize memory manager bookkeeping.
+ *
+ * Queries total memory from the kernel and sets up paging and virtual
+ * memory before processes begin executing.
+ */
 static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
     /* Initialize the memory manager. */
 
@@ -136,6 +163,13 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
 /*===========================================================================*
  *				do_brk2	   				     *
  *===========================================================================*/
+/**
+ * @brief Process the BRK2 pseudo call from the file system.
+ *
+ * Updates internal memory statistics based on INIT and RAM disk information.
+ *
+ * @return OK on success or an error code otherwise.
+ */
 PUBLIC int do_brk2() noexcept { // Added int return type (was implicit), noexcept
     /* This "call" is made once by FS during system initialization and then never
      * again by anyone.  It contains the origin and size of INIT, and the combined
@@ -149,7 +183,7 @@ PUBLIC int do_brk2() noexcept { // Added int return type (was implicit), noexcep
     int mem1, mem2, mem3; // For printf output in K
     register struct mproc *rmp;
     uint64_t init_org, init_clicks, ram_base, ram_clicks, tot_clicks; // phys_clicks -> uint64_t
-    uint64_t init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
+    uint64_t init_text_clicks, init_data_clicks;                      // phys_clicks -> uint64_t
 
     if (who != FS_PROC_NR)
         return (ErrorCode::EPERM); /* only FS make do BRK2 */
@@ -204,6 +238,13 @@ PUBLIC int do_brk2() noexcept { // Added int return type (was implicit), noexcep
  *				set_map	   				     *
  *===========================================================================*/
 // Modernized K&R, added noexcept
+/**
+ * @brief Configure the memory map for a process.
+ *
+ * @param proc_nr Process table index.
+ * @param base    Starting physical click.
+ * @param clicks  Number of clicks to allocate.
+ */
 static void set_map(int proc_nr, uint64_t base, uint64_t clicks) noexcept {
     // proc_nr is int. base, clicks are phys_clicks (uint64_t).
     /* Set up the memory map as part of the system initialization. */
@@ -212,7 +253,8 @@ static void set_map(int proc_nr, uint64_t base, uint64_t clicks) noexcept {
     std::size_t vclicks; // vir_clicks -> std::size_t
 
     rmp = &mproc[proc_nr];
-    vclicks = static_cast<std::size_t>(clicks); // Convert phys_clicks (uint64_t) to vir_clicks (std::size_t)
+    vclicks = static_cast<std::size_t>(
+        clicks); // Convert phys_clicks (uint64_t) to vir_clicks (std::size_t)
 
     // p_map members: mem_vir (std::size_t), mem_len (std::size_t), mem_phys (uint64_t)
     rmp->mp_seg[T].mem_vir = 0;
@@ -223,6 +265,7 @@ static void set_map(int proc_nr, uint64_t base, uint64_t clicks) noexcept {
     rmp->mp_seg[D].mem_phys = base;
     rmp->mp_seg[S].mem_vir = vclicks;
     rmp->mp_seg[S].mem_len = 0; // Stack length initially 0, grows down
-    rmp->mp_seg[S].mem_phys = base + vclicks; // base is uint64_t, vclicks is std::size_t (promotes to uint64_t)
+    rmp->mp_seg[S].mem_phys =
+        base + vclicks; // base is uint64_t, vclicks is std::size_t (promotes to uint64_t)
     sys_newmap(proc_nr, rmp->mp_seg);
 }

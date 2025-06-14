@@ -22,13 +22,19 @@
 #include "const.hpp"
 #include "glo.hpp"
 #include "type.hpp"
-#include <cstdint>   // For uint64_t
-#include <cstddef>   // For std::size_t, nullptr
+#include <cstddef> // For std::size_t, nullptr
+#include <cstdint> // For uint64_t
 
 /*===========================================================================*
  *				interrupt				     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Handle a hardware interrupt by delivering a message to the target task.
+ *
+ * @param task   Task number to notify.
+ * @param m_ptr  Message payload for the task.
+ */
 PUBLIC void interrupt(int task, message *m_ptr) {
     /* An interrupt has occurred.  Schedule the task that handles it. */
 
@@ -68,9 +74,11 @@ PUBLIC void interrupt(int task, message *m_ptr) {
 
     /* If a task has just been readied and a user is running, run the task. */
 #if SCHED_ROUND_ROBIN
-    if (rdy_head[current_cpu][TASK_Q] != nullptr && (cur_proc >= 0 || cur_proc == IDLE)) // NIL_PROC -> nullptr
+    if (rdy_head[current_cpu][TASK_Q] != nullptr &&
+        (cur_proc >= 0 || cur_proc == IDLE)) // NIL_PROC -> nullptr
 #else
-    if (rdy_head[current_cpu][PRI_TASK] != nullptr && (cur_proc >= 0 || cur_proc == IDLE)) // NIL_PROC -> nullptr
+    if (rdy_head[current_cpu][PRI_TASK] != nullptr &&
+        (cur_proc >= 0 || cur_proc == IDLE)) // NIL_PROC -> nullptr
 #endif
         pick_proc();
     pick_proc(); // Called twice intentionally? Or a typo? Assuming intentional for now.
@@ -80,6 +88,17 @@ PUBLIC void interrupt(int task, message *m_ptr) {
  *				sys_call				     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Dispatcher for process messaging system calls.
+ *
+ * Validates parameters and routes the request to the appropriate send or
+ * receive handler.
+ *
+ * @param function Mask describing SEND/RECEIVE.
+ * @param caller   Caller process number.
+ * @param src_dest Source or destination depending on operation.
+ * @param m_ptr    Pointer to the caller's message.
+ */
 PUBLIC void sys_call(int function, int caller, int src_dest, message *m_ptr) {
     /* The only system calls that exist in MINIX are sending and receiving
      * messages.  These are done by trapping to the kernel with an INT instruction.
@@ -120,6 +139,17 @@ PUBLIC void sys_call(int function, int caller, int src_dest, message *m_ptr) {
  *				mini_send				     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Send a message from one process to another.
+ *
+ * If the destination is waiting it is unblocked, otherwise the caller is
+ * queued.
+ *
+ * @param caller Sending process number.
+ * @param dest   Destination process number.
+ * @param m_ptr  Message to send.
+ * @return OK or an error code.
+ */
 PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
     /* Send a message from 'caller' to 'dest'.  If 'dest' is blocked waiting for
      * this message, copy the message to it and unblock 'dest'.  If 'dest' is not
@@ -127,9 +157,9 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
      */
 
     register struct proc *caller_ptr, *dest_ptr, *next_ptr;
-    std::size_t vb;        // vir_bytes -> std::size_t
-    std::size_t vlo, vhi;  // vir_clicks -> std::size_t
-    std::size_t len;       // vir_clicks -> std::size_t
+    std::size_t vb;       // vir_bytes -> std::size_t
+    std::size_t vlo, vhi; // vir_clicks -> std::size_t
+    std::size_t len;      // vir_clicks -> std::size_t
 
     /* User processes are only allowed to send to FS and MM.  Check for this. */
     if (caller >= LOW_USER && (dest != FS_PROC_NR && dest != MM_PROC_NR))
@@ -140,10 +170,11 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
         return (ErrorCode::E_BAD_DEST); /* dead dest */
 
     /* Check for messages wrapping around top of memory or outside data seg. */
-    len = caller_ptr->p_map[D].mem_len; // mem_len is vir_clicks (std::size_t)
+    len = caller_ptr->p_map[D].mem_len;        // mem_len is vir_clicks (std::size_t)
     vb = reinterpret_cast<std::size_t>(m_ptr); // m_ptr is message*
     vlo = vb >> CLICK_SHIFT;                   /* vir click for bottom of message */
-    vhi = (vb + MESS_SIZE - 1) >> CLICK_SHIFT; /* vir click for top of message. MESS_SIZE is sizeof(message) */
+    vhi = (vb + MESS_SIZE - 1) >>
+          CLICK_SHIFT; /* vir click for top of message. MESS_SIZE is sizeof(message) */
     // p_map[D].mem_vir is vir_clicks (std::size_t)
     if (vhi < vlo || vhi - caller_ptr->p_map[D].mem_vir >= len)
         return (ErrorCode::E_BAD_ADDR);
@@ -166,14 +197,14 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
         unready(caller_ptr);
 
         /* Process is now blocked.  Put in on the destination's queue. */
-    if ((next_ptr = dest_ptr->p_callerq) == nullptr) { // NIL_PROC -> nullptr
+        if ((next_ptr = dest_ptr->p_callerq) == nullptr) { // NIL_PROC -> nullptr
             dest_ptr->p_callerq = caller_ptr;
         } else {
-        while (next_ptr->p_sendlink != nullptr) // NIL_PROC -> nullptr
+            while (next_ptr->p_sendlink != nullptr) // NIL_PROC -> nullptr
                 next_ptr = next_ptr->p_sendlink;
             next_ptr->p_sendlink = caller_ptr;
         }
-    caller_ptr->p_sendlink = nullptr; // NIL_PROC -> nullptr
+        caller_ptr->p_sendlink = nullptr; // NIL_PROC -> nullptr
     }
     return (OK);
 }
@@ -182,6 +213,17 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
  *				mini_rec				     *
  *===========================================================================*/
 // Modernized signature, PRIVATE -> static
+/**
+ * @brief Receive a message for a process.
+ *
+ * If a suitable message is already queued it is copied and the sender
+ * unblocked, otherwise the caller is blocked.
+ *
+ * @param caller Process waiting for a message.
+ * @param src    Acceptable source or ANY.
+ * @param m_ptr  Buffer to place the message.
+ * @return OK when successful.
+ */
 static int mini_rec(int caller, int src, message *m_ptr) {
     /* A process or task wants to get a message.  If one is already queued,
      * acquire it and deblock the sender.  If no message from the desired source
@@ -234,6 +276,11 @@ static int mini_rec(int caller, int src, message *m_ptr) {
 /*===========================================================================*
  *				pick_proc				     *
  *===========================================================================*/
+/**
+ * @brief Choose the next process to run.
+ *
+ * Updates global scheduling pointers and picks from the ready queues.
+ */
 PUBLIC pick_proc() {
     /* Decide who to run now. */
 
@@ -280,6 +327,13 @@ PUBLIC pick_proc() {
  *				ready					     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Enqueue a runnable process.
+ *
+ * Inserts the process at the end of the appropriate ready queue.
+ *
+ * @param rp Process to enqueue.
+ */
 PUBLIC void ready(struct proc *rp) {
     /* Add 'rp' to the end of one of the queues of runnable processes. Three
      * queues are maintained:
@@ -306,18 +360,25 @@ PUBLIC void ready(struct proc *rp) {
 
     /* See if the relevant queue is empty. */
     if (rdy_head[cpu][q] == nullptr) // NIL_PROC -> nullptr
-        r_rdy_head[cpu][q] = rp; /* add to empty queue */
+        r_rdy_head[cpu][q] = rp;     /* add to empty queue */
     else
         rdy_tail[cpu][q]->p_nextready = rp; /* add to tail of nonempty queue */
     rdy_tail[cpu][q] = rp;                  /* new entry has no successor */
-    rp->p_nextready = nullptr; // NIL_PROC -> nullptr
-    restore(); /* restore interrupts to previous state */
+    rp->p_nextready = nullptr;              // NIL_PROC -> nullptr
+    restore();                              /* restore interrupts to previous state */
 }
 
 /*===========================================================================*
  *				unready					     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Remove a process from the ready queues.
+ *
+ * Used when a process blocks or is killed.
+ *
+ * @param rp Process to remove.
+ */
 PUBLIC void unready(struct proc *rp) {
     /* A process has blocked. */
 
@@ -360,6 +421,11 @@ PUBLIC void unready(struct proc *rp) {
 /*===========================================================================*
  *				sched					     *
  *===========================================================================*/
+/**
+ * @brief Reschedule a process after it has exhausted its time slice.
+ *
+ * Performs a round-robin rotation within the current priority queue.
+ */
 PUBLIC void sched() { // Modernized signature
     /* The current process has run too long.  If another low priority (user)
      * process is runnable, put the current process on the end of the user queue,
@@ -369,7 +435,7 @@ PUBLIC void sched() { // Modernized signature
     lock(); /* disable interrupts */
 #if SCHED_ROUND_ROBIN
     if (rdy_head[USER_Q] == nullptr) { // NIL_PROC -> nullptr
-        restore(); /* restore interrupts to previous state */
+        restore();                     /* restore interrupts to previous state */
         return;
     }
 
@@ -381,7 +447,8 @@ PUBLIC void sched() { // Modernized signature
 #else
     int q = proc_ptr->p_priority;
     int cpu = proc_ptr->p_cpu;
-    if (rdy_head[cpu][q] == nullptr || rdy_head[cpu][q]->p_nextready == nullptr) { // NIL_PROC -> nullptr
+    if (rdy_head[cpu][q] == nullptr ||
+        rdy_head[cpu][q]->p_nextready == nullptr) { // NIL_PROC -> nullptr
         restore();
         return;
     }
