@@ -6,3 +6,4 @@ XINIM Documentation
    :caption: Contents:
 
    api
+   precommit
