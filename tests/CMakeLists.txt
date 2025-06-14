@@ -38,11 +38,20 @@ add_test(NAME minix_test_streams COMMAND minix_test_streams)
 
 #Wormhole unit test
 add_executable(minix_test_fastpath test_fastpath.cpp
-    "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp")
+    "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp"
+    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp")
 target_include_directories(minix_test_fastpath PUBLIC
     "${CMAKE_SOURCE_DIR}/kernel"  # For fastpath headers
 )
 add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
+
+# Scheduler unit test
+add_executable(minix_test_scheduler test_scheduler.cpp
+    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp")
+target_include_directories(minix_test_scheduler PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"
+    "${CMAKE_SOURCE_DIR}/include")
+add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
 
 #Semantic region unit test
 add_executable(minix_test_semantic_region test_semantic_region.cpp)
