@@ -19,11 +19,11 @@
 #include "../h/type.hpp" // Defines target types like phys_bytes, vir_bytes, vir_clicks
 #include "const.hpp"
 #include "glo.hpp"
-#include <cstddef>   // For std::size_t
-#include <cstdint>   // For uint64_t, int64_t
-#include <algorithm> // For std::min (if min is not a macro)
 #include "mproc.hpp"
 #include "param.hpp"
+#include <algorithm> // For std::min (if min is not a macro)
+#include <cstddef>   // For std::size_t
+#include <cstdint>   // For uint64_t, int64_t
 
 #define MAGIC 0x04000301L /* magic number with 2 bits masked off */
 #define SEP 0x00200000L   /* value for separate I & D */
@@ -35,6 +35,14 @@
 /*===========================================================================*
  *				do_exec					     *
  *===========================================================================*/
+/**
+ * @brief Execute a new program image in the current process.
+ *
+ * Copies arguments from user space, loads the binary and updates
+ * process credentials.
+ *
+ * @return OK on success or an error code.
+ */
 PUBLIC int do_exec() {
     /* Perform the exece(name, argv, envp) call.  The user library builds a
      * complete stack image, including pointers, args, environ, etc.  The stack
@@ -49,7 +57,8 @@ PUBLIC int do_exec() {
         char zb[ZEROBUF_SIZE];   /* used to zero bss */
     } u;
     char *new_sp;
-    std::size_t src, dst, text_bytes, data_bytes, bss_bytes, stk_bytes, vsp; // vir_bytes -> std::size_t
+    std::size_t src, dst, text_bytes, data_bytes, bss_bytes, stk_bytes,
+        vsp;            // vir_bytes -> std::size_t
     uint64_t tot_bytes; /* total space for program, including gap (phys_bytes -> uint64_t) */
     std::size_t sc;     // vir_clicks -> std::size_t
     struct stat s_buf;
@@ -58,17 +67,16 @@ PUBLIC int do_exec() {
     rmp = mp;
     stk_bytes = static_cast<std::size_t>(stack_bytes); // stack_bytes is int from param.hpp
     if (stk_bytes > MAX_ISTACK_BYTES)
-        return (ErrorCode::ENOMEM); /* stack too big */
+        return (ErrorCode::ENOMEM);           /* stack too big */
     if (exec_len <= 0 || exec_len > MAX_PATH) // exec_len is int from param.hpp
         return (ErrorCode::EINVAL);
 
     /* Get the exec file name and see if the file is executable. */
-    src = reinterpret_cast<std::size_t>(exec_name); // exec_name is char*
+    src = reinterpret_cast<std::size_t>(exec_name);  // exec_name is char*
     dst = reinterpret_cast<std::size_t>(u.name_buf); // u.name_buf is char[]
     // New mem_copy sig: (int, int, uintptr_t, int, int, uintptr_t, std::size_t)
     // src, dst are std::size_t holding pointer values, cast to uintptr_t. exec_len is int.
-    r = mem_copy(who, D, static_cast<uintptr_t>(src),
-                 MM_PROC_NR, D, static_cast<uintptr_t>(dst),
+    r = mem_copy(who, D, static_cast<uintptr_t>(src), MM_PROC_NR, D, static_cast<uintptr_t>(dst),
                  static_cast<std::size_t>(exec_len));
     if (r != OK)
         return (r);                          /* file name not in user data segment */
@@ -90,8 +98,7 @@ PUBLIC int do_exec() {
     src = reinterpret_cast<std::size_t>(stack_ptr); // stack_ptr is char* from param.hpp
     dst = reinterpret_cast<std::size_t>(mbuf);      // mbuf is char[]
     // src, dst are std::size_t (pointer values) -> uintptr_t. stk_bytes is std::size_t.
-    r = mem_copy(who, D, static_cast<uintptr_t>(src),
-                 MM_PROC_NR, D, static_cast<uintptr_t>(dst),
+    r = mem_copy(who, D, static_cast<uintptr_t>(src), MM_PROC_NR, D, static_cast<uintptr_t>(dst),
                  stk_bytes);
     if (r != OK) {
         close(fd); /* can't fetch stack (e.g. bad virtual addr) */
@@ -111,8 +118,7 @@ PUBLIC int do_exec() {
     patch_ptr(mbuf, vsp);
     src = reinterpret_cast<std::size_t>(mbuf);
     // src, vsp, stk_bytes are std::size_t. src, vsp are pointer values -> uintptr_t.
-    r = mem_copy(MM_PROC_NR, D, static_cast<uintptr_t>(src),
-                 who, D, static_cast<uintptr_t>(vsp),
+    r = mem_copy(MM_PROC_NR, D, static_cast<uintptr_t>(src), who, D, static_cast<uintptr_t>(vsp),
                  stk_bytes);
     if (r != OK)
         panic("do_exec stack copy err", NO_NUM);
@@ -144,7 +150,22 @@ PUBLIC int do_exec() {
 /*===========================================================================*
  *				read_header				     *
  *===========================================================================*/
-PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *data_bytes, std::size_t *bss_bytes, uint64_t *tot_bytes, std::size_t sc)
+/**
+ * @brief Read the executable header.
+ *
+ * Parses the text, data, bss and total sizes from the binary.
+ *
+ * @param fd         File descriptor of the executable.
+ * @param ft         Output flag for separate I&D.
+ * @param text_bytes Size of the text segment.
+ * @param data_bytes Size of the data segment.
+ * @param bss_bytes  Size of the bss segment.
+ * @param tot_bytes  Total bytes required.
+ * @param sc         Initial stack clicks.
+ * @return OK or error code from size_ok().
+ */
+PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *data_bytes,
+                        std::size_t *bss_bytes, uint64_t *tot_bytes, std::size_t sc)
 // fd, ft are int
 // text_bytes, data_bytes, bss_bytes are std::size_t* (vir_bytes*)
 // tot_bytes is uint64_t* (phys_bytes*)
@@ -153,8 +174,8 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
     /* Read the header and extract the text, data, bss and total sizes from it. */
 
     int m, ct;
-    std::size_t tc, dc, s_vir, dvir; // vir_clicks -> std::size_t
-    uint64_t totc;                  // phys_clicks -> uint64_t
+    std::size_t tc, dc, s_vir, dvir;   // vir_clicks -> std::size_t
+    uint64_t totc;                     // phys_clicks -> uint64_t
     long buf[HDR_SIZE / sizeof(long)]; // HDR_SIZE is from mm/const.hpp (std::size_t)
 
     /* Read the header and check the magic number.  The standard MINIX header
@@ -190,7 +211,7 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
 
     /* Get bss and total sizes. */
     *bss_bytes = static_cast<std::size_t>(buf[BSSB]); /* bss size in bytes */
-    *tot_bytes = static_cast<uint64_t>(buf[TOTB]);   /* total bytes to allocate for program */
+    *tot_bytes = static_cast<uint64_t>(buf[TOTB]);    /* total bytes to allocate for program */
     if (*tot_bytes == 0)
         return (ErrorCode::ENOEXEC);
 
@@ -199,13 +220,15 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
     dc = (*data_bytes + *bss_bytes + static_cast<std::size_t>(CLICK_SHIFT) - 1) >> CLICK_SHIFT;
     // *tot_bytes is uint64_t, CLICK_SIZE is int.
     totc = (*tot_bytes + static_cast<uint64_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
-    if (dc >= totc) // dc is size_t, totc is uint64_t. This comparison may need a cast for safety if totc can be very large.
-                    // Assuming dc (virtual clicks) will not exceed totc (physical clicks scaled) in a valid scenario.
-        return (ErrorCode::ENOEXEC); /* stack must be at least 1 click */
+    if (dc >= totc) // dc is size_t, totc is uint64_t. This comparison may need a cast for safety if
+                    // totc can be very large. Assuming dc (virtual clicks) will not exceed totc
+                    // (physical clicks scaled) in a valid scenario.
+        return (ErrorCode::ENOEXEC);   /* stack must be at least 1 click */
     dvir = (*ft == SEPARATE ? 0 : tc); // tc is size_t, dvir is size_t
     // s_vir (size_t) = dvir (size_t) + (totc (uint64_t) - sc (size_t))
-    // This calculation needs care. If totc is much larger than sc and their difference doesn't fit size_t (if size_t is 32-bit).
-    // Assuming virtual address space (size_t) is sufficient for these calculations.
+    // This calculation needs care. If totc is much larger than sc and their difference doesn't fit
+    // size_t (if size_t is 32-bit). Assuming virtual address space (size_t) is sufficient for these
+    // calculations.
     s_vir = dvir + static_cast<std::size_t>(totc - sc);
     m = size_ok(*ft, tc, dc, sc, dvir, s_vir);
     ct = static_cast<int>(buf[1] & BYTE); /* header length */
@@ -217,7 +240,22 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
 /*===========================================================================*
  *				new_mem					     *
  *===========================================================================*/
-PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t bss_bytes, std::size_t stk_bytes, uint64_t tot_bytes, char bf[ZEROBUF_SIZE], int zs)
+/**
+ * @brief Allocate a new memory map for the process.
+ *
+ * Replaces the old mapping and zeroes bss, gap and stack.
+ *
+ * @param text_bytes Size of text segment.
+ * @param data_bytes Size of data segment.
+ * @param bss_bytes  Size of bss segment.
+ * @param stk_bytes  Size of stack.
+ * @param tot_bytes  Total bytes required.
+ * @param bf         Temporary zero buffer.
+ * @param zs         Size of the zero buffer.
+ * @return OK on success or an error code.
+ */
+PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t bss_bytes,
+                    std::size_t stk_bytes, uint64_t tot_bytes, char bf[ZEROBUF_SIZE], int zs)
 // text_bytes, data_bytes, bss_bytes, stk_bytes are std::size_t (vir_bytes)
 // tot_bytes is uint64_t (phys_bytes)
 // bf, zs are char[], int
@@ -228,12 +266,12 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
 
     register struct mproc *rmp;
     char *rzp;
-    std::size_t vzb; // vir_bytes -> std::size_t
+    std::size_t vzb;                                    // vir_bytes -> std::size_t
     std::size_t text_clicks, data_clicks, stack_clicks; // vir_clicks -> std::size_t
-    int64_t gap_clicks; // Potentially signed
-    uint64_t tot_clicks; // phys_clicks based -> uint64_t
-    uint64_t new_base, old_clicks; // phys_clicks -> uint64_t
-    uint64_t bytes, base, count, bss_offset; // phys_bytes -> uint64_t
+    int64_t gap_clicks;                                 // Potentially signed
+    uint64_t tot_clicks;                                // phys_clicks based -> uint64_t
+    uint64_t new_base, old_clicks;                      // phys_clicks -> uint64_t
+    uint64_t bytes, base, count, bss_offset;            // phys_bytes -> uint64_t
     // extern phys_clicks alloc_mem(); // alloc_mem now returns uint64_t
     // extern phys_clicks max_hole();  // max_hole now returns uint64_t
 
@@ -243,13 +281,15 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
      */
 
     text_clicks = (text_bytes + static_cast<std::size_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
-    data_clicks = (data_bytes + bss_bytes + static_cast<std::size_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
+    data_clicks =
+        (data_bytes + bss_bytes + static_cast<std::size_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
     stack_clicks = (stk_bytes + static_cast<std::size_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
     tot_clicks = (tot_bytes + static_cast<uint64_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
 
-    // Gap calculation: tot_clicks is physical, data/stack clicks are virtual (but scaled like physical).
-    // This calculation assumes they are directly comparable after scaling.
-    gap_clicks = static_cast<int64_t>(tot_clicks) - static_cast<int64_t>(data_clicks) - static_cast<int64_t>(stack_clicks);
+    // Gap calculation: tot_clicks is physical, data/stack clicks are virtual (but scaled like
+    // physical). This calculation assumes they are directly comparable after scaling.
+    gap_clicks = static_cast<int64_t>(tot_clicks) - static_cast<int64_t>(data_clicks) -
+                 static_cast<int64_t>(stack_clicks);
     if (gap_clicks < 0)
         return (ErrorCode::ENOMEM);
 
@@ -287,14 +327,17 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
     rmp->mp_seg[S].mem_vir = rmp->mp_seg[D].mem_vir + data_clicks + gap_clicks;
     rmp->mp_seg[S].mem_len = stack_clicks;
     // All these are size_t or uint64_t, ensure consistent types for arithmetic before assignment
-    rmp->mp_seg[S].mem_phys = rmp->mp_seg[D].mem_phys + static_cast<uint64_t>(data_clicks) + static_cast<uint64_t>(gap_clicks);
+    rmp->mp_seg[S].mem_phys = rmp->mp_seg[D].mem_phys + static_cast<uint64_t>(data_clicks) +
+                              static_cast<uint64_t>(gap_clicks);
     sys_newmap(who, rmp->mp_seg); /* report new map to the kernel */
 
     /* Zero the bss, gap, and stack segment. Start just above text.  */
     for (rzp = &bf[0]; rzp < &bf[zs]; rzp++)
         *rzp = 0; /* clear buffer */
     // data_clicks, stack_clicks are std::size_t, gap_clicks is int64_t
-    bytes = static_cast<uint64_t>(static_cast<int64_t>(data_clicks) + gap_clicks + static_cast<int64_t>(stack_clicks)) << CLICK_SHIFT;
+    bytes = static_cast<uint64_t>(static_cast<int64_t>(data_clicks) + gap_clicks +
+                                  static_cast<int64_t>(stack_clicks))
+            << CLICK_SHIFT;
     vzb = reinterpret_cast<std::size_t>(bf);
     // rmp->mp_seg[T].mem_phys is uint64_t (phys_clicks)
     // rmp->mp_seg[T].mem_len is std::size_t (vir_clicks)
@@ -310,9 +353,8 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
         // vzb (std::size_t, pointer value) -> uintptr_t
         // base (uint64_t, physical address) -> uintptr_t (assuming it fits)
         // count (uint64_t, byte count) -> std::size_t (assuming it fits)
-        if (mem_copy(MM_PROC_NR, D, static_cast<uintptr_t>(vzb),
-                     ABS, 0, static_cast<uintptr_t>(base),
-                     static_cast<std::size_t>(count)) != OK)
+        if (mem_copy(MM_PROC_NR, D, static_cast<uintptr_t>(vzb), ABS, 0,
+                     static_cast<uintptr_t>(base), static_cast<std::size_t>(count)) != OK)
             panic("new_mem can't zero", NO_NUM);
         base += count;
         bytes -= count;
@@ -323,6 +365,15 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
 /*===========================================================================*
  *				patch_ptr				     *
  *===========================================================================*/
+/**
+ * @brief Relocate pointers on the stack image.
+ *
+ * Converts relative argument and environment pointers to absolute
+ * addresses based on the new stack base.
+ *
+ * @param stack Stack image buffer.
+ * @param base  Base address of the stack in user space.
+ */
 PRIVATE void patch_ptr(char stack[MAX_ISTACK_BYTES], std::size_t base)
 // base is std::size_t (vir_bytes)
 {
@@ -355,6 +406,13 @@ PRIVATE void patch_ptr(char stack[MAX_ISTACK_BYTES], std::size_t base)
 /*===========================================================================*
  *				load_seg				     *
  *===========================================================================*/
+/**
+ * @brief Load a segment from the executable into memory.
+ *
+ * @param fd        File descriptor of the executable.
+ * @param seg       Segment index (T or D).
+ * @param seg_bytes Number of bytes to read.
+ */
 PRIVATE void load_seg(int fd, int seg, std::size_t seg_bytes)
 // fd, seg are int
 // seg_bytes is std::size_t (vir_bytes)
@@ -373,12 +431,11 @@ PRIVATE void load_seg(int fd, int seg, std::size_t seg_bytes)
     // char *ubuf_ptr; // Not strictly needed as type, but for clarity.
     std::size_t bytes_to_read;
 
-
     if (seg_bytes == 0)
-        return; /* text size for combined I & D is 0 */
+        return;                            /* text size for combined I & D is 0 */
     new_fd = (who << 8) | (seg << 6) | fd; // who is int
     // mp->mp_seg[seg].mem_vir is vir_clicks (std::size_t)
-    char* ubuf_ptr = reinterpret_cast<char *>(mp->mp_seg[seg].mem_vir << CLICK_SHIFT);
+    char *ubuf_ptr = reinterpret_cast<char *>(mp->mp_seg[seg].mem_vir << CLICK_SHIFT);
     bytes_to_read = seg_bytes; // seg_bytes is std::size_t
     // read() system call 3rd arg is size_t.
     read(new_fd, ubuf_ptr, bytes_to_read);
