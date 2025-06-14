@@ -1,16 +1,23 @@
 // clang-format off
-#include <cstdio>
 #include "../include/stdio.hpp"
 // clang-format on
 
-// Read elements from a stream into the provided buffer.
+/**
+ * @brief Read elements from a stream into the provided buffer.
+ *
+ * @param ptr   Destination buffer.
+ * @param size  Size of each element.
+ * @param count Number of elements to read.
+ * @param file  Source stream.
+ * @return Number of elements successfully read.
+ */
 size_t fread(void *ptr, size_t size, size_t count, FILE *file) {
     auto *bytes = static_cast<char *>(ptr);
     size_t total = size * count;
     size_t read_bytes = 0;
     while (read_bytes < total) {
         int c = getc(file);
-        if (c == EOF)
+        if (c == STDIO_EOF)
             break;
         bytes[read_bytes++] = static_cast<char>(c);
     }

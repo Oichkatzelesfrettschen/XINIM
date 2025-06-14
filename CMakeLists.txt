@@ -73,6 +73,8 @@ if(BUILD_SYSTEM)
   add_subdirectory(tools)
 endif()
 
+add_subdirectory(crypto)
+
 # Enable unit testing and add the tests directory
 enable_testing()
 add_subdirectory(tests)

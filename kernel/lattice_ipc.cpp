@@ -1,9 +1,79 @@
+/*
+ * @file lattice_ipc.cpp
+ * @brief Reference-counted message buffer and lattice IPC logic.
+ */
+
 #include "lattice_ipc.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
+
+#include <cstddef>
+#include <memory>
+#include <span>
+#include <vector>
 #include <algorithm>
 
 namespace lattice {
+
+/**
+ * @class MessageBuffer
+ * @brief Shared container for IPC message bytes.
+ *
+ * The buffer uses reference counting so multiple threads can access the same
+ * underlying storage without copying. Lifetime is automatically managed via
+ * std::shared_ptr.
+ */
+class MessageBuffer {
+  public:
+    using Byte = std::byte; ///< Convenience alias for byte type
+
+    /// Construct an empty MessageBuffer.
+    MessageBuffer() = default;
+
+    /**
+     * @brief Construct buffer of given @p size in bytes.
+     * @param size Number of bytes to allocate.
+     */
+    explicit MessageBuffer(std::size_t size)
+      : data_{std::make_shared<std::vector<Byte>>(size)} {}
+
+    /**
+     * @brief Obtain mutable view of the stored bytes.
+     * @return Span covering the buffer contents.
+     */
+    [[nodiscard]] std::span<Byte> span() noexcept {
+        return data_
+            ? std::span<Byte>{data_->data(), data_->size()}
+            : std::span<Byte>{};
+    }
+
+    /**
+     * @brief Obtain const view of the stored bytes.
+     * @return Span over immutable bytes.
+     */
+    [[nodiscard]] std::span<const Byte> span() const noexcept {
+        return data_
+            ? std::span<const Byte>{data_->data(), data_->size()}
+            : std::span<const Byte>{};
+    }
+
+    /// Number of bytes in the buffer.
+    [[nodiscard]] std::size_t size() const noexcept {
+        return data_ ? data_->size() : 0U;
+    }
+
+    /// Access underlying shared pointer for advanced sharing.
+    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept {
+        return data_;
+    }
+
+  private:
+    std::shared_ptr<std::vector<Byte>> data_{}; ///< Shared data container
+};
+
+//------------------------------------------------------------------------------
+//  IPC / Graph implementation
+//------------------------------------------------------------------------------
 
 Graph g_graph{};
 
@@ -12,13 +82,14 @@ Graph g_graph{};
  */
 Channel &Graph::connect(int s, int d) {
     auto &vec = edges[s];
-    auto it = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
+    auto it = std::find_if(vec.begin(), vec.end(),
+                           [d](const Channel &c){ return c.dst == d; });
     if (it != vec.end()) {
         return *it;
     }
     pqcrypto::KeyPair a = pqcrypto::generate_keypair();
     pqcrypto::KeyPair b = pqcrypto::generate_keypair();
-    Channel ch{.src = s, .dst = d};
+    Channel ch{ .src = s, .dst = d };
     ch.secret = pqcrypto::establish_secret(a, b);
     vec.push_back(ch);
     return vec.back();
@@ -33,11 +104,9 @@ Channel *Graph::find(int s, int d) noexcept {
         return nullptr;
     }
     auto &vec = it->second;
-    auto vit = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
-    if (vit == vec.end()) {
-        return nullptr;
-    }
-    return &*vit;
+    auto vit = std::find_if(vec.begin(), vec.end(),
+                            [d](const Channel &c){ return c.dst == d; });
+    return (vit != vec.end()) ? &*vit : nullptr;
 }
 
 /**
@@ -45,7 +114,7 @@ Channel *Graph::find(int s, int d) noexcept {
  */
 bool Graph::is_listening(int pid) const noexcept {
     auto it = listening.find(pid);
-    return it != listening.end() && it->second;
+    return (it != listening.end()) && it->second;
 }
 
 /**
@@ -59,7 +128,9 @@ int lattice_connect(int src, int dst) {
 /**
  * @brief Register a process as listening for a message.
  */
-void lattice_listen(int pid) { g_graph.set_listening(pid, true); }
+void lattice_listen(int pid) {
+    g_graph.set_listening(pid, true);
+}
 
 /**
  * @brief Helper to switch execution to another process.
@@ -98,9 +169,10 @@ int lattice_recv(int pid, message *msg) {
         return OK;
     }
     for (auto &[src, vec] : g_graph.edges) {
-        auto vit = std::find_if(vec.begin(), vec.end(), [pid](const Channel &c) {
-            return c.dst == pid && !c.queue.empty();
-        });
+        auto vit = std::find_if(vec.begin(), vec.end(),
+                                [pid](const Channel &c){
+                                    return c.dst == pid && !c.queue.empty();
+                                });
         if (vit != vec.end()) {
             *msg = vit->queue.front();
             vit->queue.erase(vit->queue.begin());

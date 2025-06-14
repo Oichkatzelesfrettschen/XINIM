@@ -1,13 +1,22 @@
 #include "../include/sgtty.hpp"
+#include "../include/stdio.hpp"
+#include <unistd.h>
+
+extern "C" int ioctl(int fd, int request, ...);
 
 static char pwdbuf[9];
 
-// Read a password from the terminal without echoing input
+/**
+ * @brief Read a password from the terminal without echoing input.
+ *
+ * @param prompt Prompt string displayed before reading.
+ * @return Pointer to an internal static buffer containing the password.
+ */
 char *getpass(const char *prompt) {
     int i = 0;
     struct sgttyb tty;
 
-    prints(prompt);
+    fputs(prompt, stdout);
     ioctl(0, TIOCGETP, &tty);
     tty.sg_flags = 06020;
     ioctl(0, TIOCSETP, &tty);
@@ -17,6 +26,6 @@ char *getpass(const char *prompt) {
     pwdbuf[i - 1] = '\0';
     tty.sg_flags = 06030;
     ioctl(0, TIOCSETP, &tty);
-    prints("\n");
+    fputs("\n", stdout);
     return pwdbuf;
 }

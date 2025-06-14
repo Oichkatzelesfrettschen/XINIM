@@ -1,6 +1,6 @@
 #pragma once
-#include <unistd.h> // For read, write, ssize_t
 #include <cstddef>  // For std::size_t, nullptr
+#include <unistd.h> // For read, write, ssize_t
 // #include "../../xinim/core_types.hpp" // Not directly using xinim types here
 
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
@@ -8,7 +8,6 @@
   original MINIX simplicity on modern 32-bit and 64-bit
   ARM and x86/x86_64 hardware using C++17.
 >>>*/
-
 
 inline constexpr std::size_t BUFSIZ = 1024;
 inline constexpr int NFILES = 20;
@@ -48,6 +47,7 @@ extern struct _io_buf {
 
 // Flush the buffer associated with the given stream.
 extern "C" int fflush(FILE *stream);
+extern "C" int fputs(const char *s, FILE *stream);
 
 #define getchar() getc(stdin)
 
@@ -118,11 +118,12 @@ inline int putc(int ch, FILE *iop) {
         char c_val = static_cast<char>(ch);
         n = ::write(iop->_fd, &c_val, static_cast<size_t>(1));
         // iop->_count = 1; // This was original logic, seems incorrect for unbuffered putc.
-                         // _count usually refers to buffered chars.
+        // _count usually refers to buffered chars.
         didwrite = true;
     } else {
         *iop->_ptr++ = static_cast<char>(ch);
-        if (++iop->_count >= static_cast<int>(BUFSIZ) && !testflag(iop, STRINGS)) { // BUFSIZ is std::size_t
+        if (++iop->_count >= static_cast<int>(BUFSIZ) &&
+            !testflag(iop, STRINGS)) { // BUFSIZ is std::size_t
             n = ::write(iop->_fd, iop->_buf, static_cast<size_t>(iop->_count));
             iop->_ptr = iop->_buf;
             didwrite = true;
@@ -132,7 +133,7 @@ inline int putc(int ch, FILE *iop) {
         if (n <= 0 || iop->_count != static_cast<int>(n)) { // n is ssize_t, iop->_count is int
             if (n < 0)
                 iop->_flags |= ERR;
-            else // This case (n > 0 but n != iop->_count) is a short write.
+            else                     // This case (n > 0 but n != iop->_count) is a short write.
                 iop->_flags |= _EOF; // Original code set _EOF for short write too.
             return STDIO_EOF;
         }

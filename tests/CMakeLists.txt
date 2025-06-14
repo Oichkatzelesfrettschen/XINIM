@@ -1,33 +1,31 @@
-#Unit tests for Minix library routines and basic system calls
+# Unit tests for Minix library routines and basic system calls
 
-#Library routine tests compile selected sources directly
+# Library routine tests compile selected sources directly
 add_executable(minix_test_lib
     test_lib.cpp
-    "${CMAKE_SOURCE_DIR}/lib/strlen.cpp"  # Use CMAKE_SOURCE_DIR for clarity
+    "${CMAKE_SOURCE_DIR}/lib/strlen.cpp"
     "${CMAKE_SOURCE_DIR}/lib/strcmp.cpp"
     "${CMAKE_SOURCE_DIR}/lib/rand.cpp"
 )
 
-#Ensure lib_test can find necessary headers from the C library's public interface
+# Ensure lib_test can find necessary headers from the C library's public interface
 target_include_directories(minix_test_lib PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
 )
-
 target_compile_options(minix_test_lib PRIVATE -std=c++23 -fno-builtin)
-
 add_test(NAME minix_test_lib COMMAND minix_test_lib)
 
-#System call tests rely on the host C library only(or direct syscalls)
+# System call tests rely on the host C library only (or direct syscalls)
 add_executable(minix_test_syscall test_syscall.cpp)
 target_include_directories(minix_test_syscall PUBLIC
-    "${CMAKE_SOURCE_DIR}/include" # May need some type definitions
+    "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
 )
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
-#Fastpath unit test
-#Add Stream architecture tests
+# Fastpath unit test
+# Add Stream architecture tests
 add_executable(minix_test_streams test_streams.cpp)
 target_link_libraries(minix_test_streams PRIVATE minix_libc)
 target_include_directories(minix_test_streams PUBLIC
@@ -38,31 +36,34 @@ set_target_properties(minix_test_streams PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_streams COMMAND minix_test_streams)
 set_tests_properties(minix_test_streams PROPERTIES DISABLED TRUE)
 
-#Wormhole unit test
+# Wormhole unit test
 add_executable(minix_test_fastpath test_fastpath.cpp
     "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp"
-    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp")
+    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+)
 target_include_directories(minix_test_fastpath PUBLIC
-    "${CMAKE_SOURCE_DIR}/kernel"  # For fastpath headers
+    "${CMAKE_SOURCE_DIR}/kernel"
 )
 add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
 
 # Scheduler unit test
 add_executable(minix_test_scheduler test_scheduler.cpp
-    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp")
+    "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+)
 target_include_directories(minix_test_scheduler PUBLIC
     "${CMAKE_SOURCE_DIR}/kernel"
-    "${CMAKE_SOURCE_DIR}/include")
+    "${CMAKE_SOURCE_DIR}/include"
+)
 add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
 
-#Semantic region unit test
+# Semantic region unit test
 add_executable(minix_test_semantic_region test_semantic_region.cpp)
 target_include_directories(minix_test_semantic_region PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
 add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 
-#Stream foundation verification test
+# Stream foundation verification test
 add_executable(minix_test_stream_foundation
     test_stream_foundation.cpp
     "${CMAKE_SOURCE_DIR}/lib/io/src/file_stream.cpp"
@@ -72,15 +73,15 @@ add_executable(minix_test_stream_foundation
 set_target_properties(minix_test_stream_foundation PROPERTIES
     CXX_STANDARD 23
     CXX_STANDARD_REQUIRED ON
+    EXCLUDE_FROM_ALL TRUE
 )
 target_include_directories(minix_test_stream_foundation PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
-set_target_properties(minix_test_stream_foundation PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
 set_tests_properties(minix_test_stream_foundation PROPERTIES DISABLED TRUE)
 
-#MemoryStream unit test
+# MemoryStream unit test
 add_executable(minix_test_memory_stream
     test_memory_stream.cpp
     "${CMAKE_SOURCE_DIR}/lib/io/src/memory_stream.cpp"
@@ -124,3 +125,6 @@ target_include_directories(minix_test_fastpath_preconditions PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
 )
 add_test(NAME minix_test_fastpath_preconditions COMMAND minix_test_fastpath_preconditions)
+
+# Cryptography unit tests
+add_subdirectory(crypto)
