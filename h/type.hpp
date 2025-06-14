@@ -5,10 +5,11 @@
 #define TYPE_H
 
 /* Pull in the fixed-width integer typedefs. */
-#include "../include/defs.hpp"             // project-wide integer definitions
-#include "../include/xinim/core_types.hpp" // New include for xinim types
-#include <cstddef>                         // for std::size_t
-#include <cstdint>                         // for fixed-width integer types
+#include "../include/defs.hpp"  // project-wide integer definitions
+#include <cstddef>              // for std::size_t
+#include <cstdint>              // for fixed-width integer types
+#include <xinim/core_types.hpp> // New include for xinim types
+
 
 // Utility functions -------------------------------------------------------*/
 /*!

@@ -2,8 +2,11 @@
 #include "../include/stdio.hpp"
 #include <unistd.h>
 
-/*
- * Close a stream and release its resources.
+/**
+ * @brief Close a stream and release its resources.
+ *
+ * @param fp Pointer to the FILE structure to close.
+ * @return 0 on success or EOF on failure.
  */
 int fclose(FILE *fp) {
     int i; /* index within _io_table */
@@ -15,7 +18,7 @@ int fclose(FILE *fp) {
         }
     }
     if (i >= NFILES)
-        return EOF;
+        return STDIO_EOF;
     fflush(fp);
     close(fp->_fd);
     if (testflag(fp, IOMYBUF) && fp->_buf)
