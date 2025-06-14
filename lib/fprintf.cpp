@@ -1,11 +1,18 @@
 // clang-format off
 #include <cstdarg>  // va_list handling
-#include <cstdio>   // vsnprintf
 #include <vector>   // dynamic buffer
 #include "../include/stdio.hpp" // internal FILE definition
+
+extern "C" int vsnprintf(char *, std::size_t, const char *, va_list);
 // clang-format on
 
-// Write formatted data to the given file stream.
+/**
+ * @brief Write formatted data to the given file stream.
+ *
+ * @param file Target stream.
+ * @param fmt  Format string.
+ * @return Number of characters printed or -1 on error.
+ */
 int fprintf(FILE *file, const char *fmt, ...) {
     // Capture the variable arguments.
     va_list args;
@@ -37,7 +44,12 @@ int fprintf(FILE *file, const char *fmt, ...) {
     return count;
 }
 
-// Print formatted output to the standard output stream.
+/**
+ * @brief Print formatted output to the standard output stream.
+ *
+ * @param fmt Format string.
+ * @return Number of characters printed or -1 on error.
+ */
 int printf(const char *fmt, ...) {
     va_list args;
     va_start(args, fmt);

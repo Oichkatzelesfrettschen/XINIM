@@ -1,8 +1,10 @@
 #include "../include/lib.hpp" // C++17 header
 
-/*
- * Entry point for signal trampolines.
- * Merely returns so the caller can resume execution.
+/**
+ * @brief Entry point for signal trampolines.
+ *
+ * This function merely returns so the caller can resume execution.
+ *
+ * @return Always zero.
  */
-// Entry point for signal trampolines. Merely returns so the caller can resume.
-int begsig() { return 0; }
+int begsig() noexcept { return 0; }

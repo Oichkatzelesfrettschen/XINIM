@@ -3,15 +3,15 @@
 
 /* General constants used by the kernel. */
 
-#include "../../include/xinim/core_types.hpp" // For std::uint64_t, std::size_t, etc.
-#include <cstdint> // For uint64_t
-#include <cstddef> // For std::size_t
+#include <cstddef>              // For std::size_t
+#include <cstdint>              // For uint64_t
+#include <xinim/core_types.hpp> // For std::uint64_t, std::size_t, etc.
 
 /* 64-bit configuration constants */
 /* Register order: rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11, r12, r13, r14, r15 */
 inline constexpr int NR_REGS = 15;
 inline constexpr int INIT_PSW = 0x0200;
-inline constexpr std::uint64_t* INIT_SP = nullptr; // Using std::uint64_t from core_types
+inline constexpr std::uint64_t *INIT_SP = nullptr; // Using std::uint64_t from core_types
 inline constexpr int ES_REG = 0;
 inline constexpr int DS_REG = 0;
 inline constexpr int CS_REG = 0;
@@ -40,8 +40,8 @@ inline constexpr int RET_REG = 0; /* system call return codes go in this reg */
 inline constexpr int IDLE = -999; /* 'cur_proc' = IDLE means nobody is running */
 
 /* Scheduler configuration */
-#define SCHED_ROUND_ROBIN 0 /* set to 1 for simple round-robin */
-inline constexpr int NR_CPUS = 1;           /* number of CPUs (SMP placeholder) */
+#define SCHED_ROUND_ROBIN 0       /* set to 1 for simple round-robin */
+inline constexpr int NR_CPUS = 1; /* number of CPUs (SMP placeholder) */
 
 #if SCHED_ROUND_ROBIN
 inline constexpr int NQ = 3;       /* # of scheduling queues */

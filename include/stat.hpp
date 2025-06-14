@@ -9,7 +9,7 @@
 // Shared stat structure used by user space. The layout is provided by the
 // common header to keep it consistent with the kernel version.
 #include "shared/stat_struct.hpp" // This now includes xinim::core_types.hpp
-#include "../xinim/core_types.hpp" // Ensure xinim::mode_t is directly available
+#include <xinim/core_types.hpp>   // Ensure xinim::mode_t is directly available
 
 /* Some common definitions. */
 // Converted to inline constexpr xinim::mode_t for type safety

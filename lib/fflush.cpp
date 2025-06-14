@@ -1,6 +1,11 @@
 #include "../include/stdio.hpp"
 
-// Flush the buffer associated with the given stream.
+/**
+ * @brief Flush the buffer associated with the given stream.
+ *
+ * @param iop Stream to flush.
+ * @return Bytes written or ::STDIO_EOF on error.
+ */
 int __fflush(FILE *iop) {
     int count;
 
@@ -19,8 +24,13 @@ int __fflush(FILE *iop) {
     }
 
     iop->_flags |= ERR;
-    return EOF;
+    return STDIO_EOF;
 }
 
-// Public interface wrapper.
+/**
+ * @brief Public interface wrapper for ::__fflush.
+ *
+ * @param stream Stream to flush.
+ * @return Bytes written or ::STDIO_EOF on error.
+ */
 int fflush(FILE *stream) { return __fflush(stream); }
