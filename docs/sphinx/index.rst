@@ -1,10 +1,5 @@
 XINIM Documentation
 ===================
 
-.. toctree::
-   :maxdepth: 2
-   :caption: Contents:
-
-   api
-   lattice_ipc
-   pq_crypto
+C++23: Primary Language
+C23: Emergency "Fallback" Language

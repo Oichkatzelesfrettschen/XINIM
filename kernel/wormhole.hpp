@@ -121,7 +121,7 @@ struct FastpathStats {
  * @param stats Optional statistics collector.
  * @return @c true when all preconditions pass and the fastpath completed.
  */
-bool execute_fastpath(State &s, FastpathStats *stats = nullptr);
+bool execute_fastpath(State &s, FastpathStats *stats = nullptr) noexcept;
 
 /**
  * @brief Configure a zero-copy message region for the fastpath.
@@ -132,7 +132,7 @@ bool execute_fastpath(State &s, FastpathStats *stats = nullptr);
  * @param s      Fastpath state to modify.
  * @param region Zero-copy message region.
  */
-void set_message_region(State &s, const MessageRegion &region);
+void set_message_region(State &s, const MessageRegion &region) noexcept;
 
 /**
  * @brief Validate that a message region can hold @p msg_len registers.
@@ -141,21 +141,21 @@ void set_message_region(State &s, const MessageRegion &region);
  * @param msg_len Number of message registers required.
  * @return @c true if the region is large and aligned enough.
  */
-bool message_region_valid(const MessageRegion &region, size_t msg_len);
+bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept;
 
 namespace detail {
 /// Remove the receiver from the endpoint queue.
-void dequeue_receiver(State &s);
+void dequeue_receiver(State &s) noexcept;
 /// Transfer the sender's badge to the receiver.
-void transfer_badge(State &s);
+void transfer_badge(State &s) noexcept;
 /// Link the sender to the receiver for replies.
-void establish_reply(State &s);
+void establish_reply(State &s) noexcept;
 /// Copy message registers using the configured message region.
-void copy_mrs(State &s);
+void copy_mrs(State &s) noexcept;
 /// Update thread states after IPC.
-void update_thread_state(State &s);
+void update_thread_state(State &s) noexcept;
 /// Switch execution to the receiver.
-void context_switch(State &s);
+void context_switch(State &s) noexcept;
 } // namespace detail
 
 } // namespace fastpath

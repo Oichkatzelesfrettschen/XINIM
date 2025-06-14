@@ -1,4 +1,5 @@
 #include "wormhole.hpp"
+#include "schedule.hpp"
 
 /**
  * @file wormhole.cpp
@@ -57,29 +58,17 @@ inline void establish_reply(State &state) noexcept { state.sender.reply_to = sta
 
 /// Copy message registers from sender to receiver.
 inline void copy_mrs(State &state) noexcept {
-    for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
-        state.receiver.mrs[i] = state.sender.mrs[i];
+    if (message_region_valid(state.msg_region, state.msg_len)) {
+        auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
+        for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
+            buffer[i] = state.sender.mrs[i];
+            state.receiver.mrs[i] = buffer[i];
+        }
+    } else {
+        for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
+            state.receiver.mrs[i] = state.sender.mrs[i];
+        }
     }
-
-    // The following block was floating code. It seems to be an alternative or
-    // additional part of message copying, possibly using a zero-copy region.
-    // It cannot compile as-is because 'state' is not defined in this scope
-    // if this were a standalone block.
-    // Commenting out for now as its exact placement/function is unclear without more context.
-    /*
-    // --\tau_state-- update scheduling state after IPC
-    // Ensure the provided message region is large and aligned enough.
-    assert(message_region_valid(state.msg_region, state.msg_len));
-
-    // Use zero_copy_map to access the region without additional copies.
-    auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
-
-    // Copy from sender to the shared region then into the receiver registers.
-    for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
-        buffer[i] = state.sender.mrs[i];
-        state.receiver.mrs[i] = buffer[i];
-    }
-    */
 }
 
 // } // End of the original inner "namespace detail"
@@ -92,8 +81,15 @@ inline void update_thread_state(State &state) noexcept {
     state.sender.status = ThreadStatus::Blocked;
 }
 
-/// Context switch to the receiver thread.
-inline void context_switch(State &state) noexcept { state.current_tid = state.receiver.tid; }
+/**
+ * @brief Context switch to the receiver thread using the global scheduler.
+ *
+ * @param state Fastpath state being updated.
+ */
+inline void context_switch(State &state) noexcept {
+    sched::scheduler.yield_to(state.receiver.tid);
+    state.current_tid = sched::scheduler.current();
+}
 
 } // namespace detail
 
