@@ -8,6 +8,7 @@
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 
+#include "../include/xinim/core_types.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
 #include "proc.hpp"
@@ -115,7 +116,7 @@ Graph g_graph; ///< Global IPC graph instance
 /**
  * @brief Create or retrieve a channel between two processes.
  */
-Channel &Graph::connect(pid_t src, pid_t dst, net::node_t node_id) {
+Channel &Graph::connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
     auto key = std::make_tuple(src, dst, node_id);
     auto it = edges_.find(key);
     if (it != edges_.end()) {
@@ -139,7 +140,7 @@ Channel &Graph::connect(pid_t src, pid_t dst, net::node_t node_id) {
 /**
  * @brief Lookup a channel optionally searching all nodes.
  */
-Channel *Graph::find(pid_t src, pid_t dst, net::node_t node_id) noexcept {
+Channel *Graph::find(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) noexcept {
     if (node_id != ANY_NODE) {
         auto key = std::make_tuple(src, dst, node_id);
         auto it = edges_.find(key);
@@ -156,7 +157,7 @@ Channel *Graph::find(pid_t src, pid_t dst, net::node_t node_id) noexcept {
 /**
  * @brief Test whether a process is waiting for a message.
  */
-bool Graph::is_listening(pid_t pid) const noexcept {
+bool Graph::is_listening(xinim::pid_t pid) const noexcept {
     auto it = listening_.find(pid);
     return (it != listening_.end()) && it->second;
 }
@@ -164,18 +165,18 @@ bool Graph::is_listening(pid_t pid) const noexcept {
 /**
  * @brief Set or clear the listening flag for a process.
  */
-void Graph::set_listening(pid_t pid, bool flag) noexcept { listening_[pid] = flag; }
+void Graph::set_listening(xinim::pid_t pid, bool flag) noexcept { listening_[pid] = flag; }
 
 /*==============================================================================
  *                              IPC API Wrappers
  *============================================================================*/
 
-int lattice_connect(pid_t src, pid_t dst, net::node_t node_id) {
+int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
     g_graph.connect(src, dst, node_id);
     return OK;
 }
 
-void lattice_listen(pid_t pid) { g_graph.set_listening(pid, true); }
+void lattice_listen(xinim::pid_t pid) { g_graph.set_listening(pid, true); }
 
 /**
  * @brief Yield execution context to another process.
@@ -191,7 +192,7 @@ static void yield_to(pid_t pid) {
 /**
  * @brief Send a message, creating a channel if necessary.
  */
-int lattice_send(pid_t src, pid_t dst, const message &msg) {
+int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
     // Ensure channel exists (local or remote)
     Channel *ch = g_graph.find(src, dst, ANY_NODE);
     if (!ch) {
@@ -228,7 +229,7 @@ int lattice_send(pid_t src, pid_t dst, const message &msg) {
 /**
  * @brief Receive a pending message for @p pid.
  */
-int lattice_recv(pid_t pid, message *out) {
+int lattice_recv(xinim::pid_t pid, message *out) {
     // 1) Check inbox (direct handoff)
     auto ib = g_graph.inbox_.find(pid);
     if (ib != g_graph.inbox_.end()) {
