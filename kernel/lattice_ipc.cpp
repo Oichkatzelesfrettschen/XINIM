@@ -16,6 +16,25 @@
 #include <span>
 #include <vector>
 
+namespace {
+
+/**
+ * @brief XOR based symmetric cipher used for message payloads.
+ *
+ * The routine applies a repeating XOR mask derived from the provided
+ * secret. Encryption and decryption are identical operations.
+ *
+ * @param buf  Buffer to transform in place.
+ * @param key  Channel secret used as XOR mask.
+ */
+void xor_cipher(std::span<std::byte> buf, std::span<const std::uint8_t, 32> key) noexcept {
+    for (std::size_t i = 0; i < buf.size(); ++i) {
+        buf[i] ^= std::byte{key[i % key.size()]};
+    }
+}
+
+} // namespace
+
 namespace lattice {
 
 /**
@@ -165,7 +184,10 @@ int lattice_send(int src, int dst, const message &msg) {
         g_graph.set_listening(dst, false);
         yield_to(dst);
     } else {
-        ch->queue.push_back(msg);
+        message enc = msg;
+        std::span<std::byte> buf{reinterpret_cast<std::byte *>(&enc), sizeof(message)};
+        xor_cipher(buf, ch->secret);
+        ch->queue.push_back(enc);
     }
     return OK;
 }
@@ -189,6 +211,8 @@ int lattice_recv(int pid, message *msg) {
         });
         if (vit != vec.end()) {
             *msg = vit->queue.front();
+            std::span<std::byte> buf{reinterpret_cast<std::byte *>(msg), sizeof(message)};
+            xor_cipher(buf, vit->secret);
             vit->queue.erase(vit->queue.begin());
             return OK;
         }
