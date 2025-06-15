@@ -18,10 +18,10 @@ using ::message;
  * @brief Channel connecting two processes.
  */
 struct Channel {
-    int src;                             //!< Source process id
-    int dst;                             //!< Destination process id
-    int node{0};                         //!< Destination node identifier
-    std::vector<message> queue;          //!< Pending messages
+    int src; //!< Source process id
+    int dst; //!< Destination process id
+    int node{0};
+    std::vector<message> queue;          //!< Pending messages encrypted with @c secret
     std::array<std::uint8_t, 32> secret; //!< Shared secret derived by PQ crypto
 };
 
@@ -76,7 +76,8 @@ void lattice_listen(int pid);
  *
  * If the destination is listening the message is delivered and the
  * scheduler yields directly to the receiver via ::sched::Scheduler::yield_to.
- * Otherwise the message is queued on the channel.
+ * Otherwise the message is XOR encrypted with the channel secret and
+ * queued on the channel.
  *
  * @see sched::Scheduler::yield_to
  *
@@ -90,8 +91,9 @@ int lattice_send(int src, int dst, const message &msg);
 /**
  * @brief Receive a message for a process.
  *
- * If no message is pending the process is marked as listening and
- * ::E_NO_MESSAGE is returned.
+ * Queued messages are decrypted using the channel secret before being
+ * delivered. If no message is pending the process is marked as
+ * listening and ::E_NO_MESSAGE is returned.
  *
  * @param pid Process identifier.
  * @param msg Buffer to store the received message.
