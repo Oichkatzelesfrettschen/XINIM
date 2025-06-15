@@ -11,8 +11,8 @@
 
 namespace lattice {
 
-/** Forward declaration of message structure. */
-struct message;
+/** Import the global ::message type into the lattice namespace. */
+using ::message;
 
 /**
  * @brief Channel connecting two processes.

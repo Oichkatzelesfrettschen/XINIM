@@ -4,6 +4,8 @@
  */
 
 #include "lattice_ipc.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
 #include "proc.hpp"
@@ -25,7 +27,7 @@ namespace lattice {
  * std::shared_ptr.
  */
 class MessageBuffer {
-public:
+  public:
     using Byte = std::byte; ///< Convenience alias for byte type
 
     /// Construct an empty MessageBuffer.
@@ -35,17 +37,14 @@ public:
      * @brief Construct buffer of given @p size in bytes.
      * @param size Number of bytes to allocate.
      */
-    explicit MessageBuffer(std::size_t size)
-      : data_{std::make_shared<std::vector<Byte>>(size)} {}
+    explicit MessageBuffer(std::size_t size) : data_{std::make_shared<std::vector<Byte>>(size)} {}
 
     /**
      * @brief Obtain mutable view of the stored bytes.
      * @return Span covering the buffer contents.
      */
     [[nodiscard]] std::span<Byte> span() noexcept {
-        return data_
-            ? std::span<Byte>{data_->data(), data_->size()}
-            : std::span<Byte>{};
+        return data_ ? std::span<Byte>{data_->data(), data_->size()} : std::span<Byte>{};
     }
 
     /**
@@ -53,22 +52,17 @@ public:
      * @return Span over immutable bytes.
      */
     [[nodiscard]] std::span<const Byte> span() const noexcept {
-        return data_
-            ? std::span<const Byte>{data_->data(), data_->size()}
-            : std::span<const Byte>{};
+        return data_ ? std::span<const Byte>{data_->data(), data_->size()}
+                     : std::span<const Byte>{};
     }
 
     /// Number of bytes in the buffer.
-    [[nodiscard]] std::size_t size() const noexcept {
-        return data_ ? data_->size() : 0U;
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return data_ ? data_->size() : 0U; }
 
     /// Access underlying shared pointer for advanced sharing.
-    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept {
-        return data_;
-    }
+    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept { return data_; }
 
-private:
+  private:
     std::shared_ptr<std::vector<Byte>> data_{}; ///< Shared data container
 };
 
@@ -88,12 +82,8 @@ Graph g_graph{};
 Channel &Graph::connect(int s, int d, int node) {
     auto &vec = edges[s];
     // Look for an existing channel matching both dst and node
-    auto it = std::find_if(
-        vec.begin(), vec.end(),
-        [d, node](const Channel &c) {
-            return c.dst == d && c.node == node;
-        }
-    );
+    auto it = std::find_if(vec.begin(), vec.end(),
+                           [d, node](const Channel &c) { return c.dst == d && c.node == node; });
     if (it != vec.end()) {
         return *it;
     }
@@ -119,12 +109,7 @@ Channel *Graph::find(int s, int d) noexcept {
         return nullptr;
     }
     auto &vec = it->second;
-    auto vit = std::find_if(
-        vec.begin(), vec.end(),
-        [d](const Channel &c) {
-            return c.dst == d;
-        }
-    );
+    auto vit = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
     return (vit != vec.end()) ? &*vit : nullptr;
 }
 
@@ -147,9 +132,7 @@ int lattice_connect(int src, int dst, int node) {
 /**
  * @brief Register a process as listening for a message.
  */
-void lattice_listen(int pid) {
-    g_graph.set_listening(pid, true);
-}
+void lattice_listen(int pid) { g_graph.set_listening(pid, true); }
 
 /**
  * @brief Helper to switch execution to another process.
@@ -170,10 +153,8 @@ int lattice_send(int src, int dst, const message &msg) {
 
     // If the remote end is on another node, send over the network
     if (ch->node != net::local_node()) {
-        std::span<const std::byte> bytes{
-            reinterpret_cast<const std::byte *>(&msg),
-            sizeof(message)
-        };
+        std::span<const std::byte> bytes{reinterpret_cast<const std::byte *>(&msg),
+                                         sizeof(message)};
         net::send(ch->node, bytes);
         return OK;
     }
@@ -203,12 +184,9 @@ int lattice_recv(int pid, message *msg) {
 
     // Then scan all edges for a queued message
     for (auto &[src, vec] : g_graph.edges) {
-        auto vit = std::find_if(
-            vec.begin(), vec.end(),
-            [pid](const Channel &c) {
-                return c.dst == pid && !c.queue.empty();
-            }
-        );
+        auto vit = std::find_if(vec.begin(), vec.end(), [pid](const Channel &c) {
+            return c.dst == pid && !c.queue.empty();
+        });
         if (vit != vec.end()) {
             *msg = vit->queue.front();
             vit->queue.erase(vit->queue.begin());
