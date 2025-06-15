@@ -1,5 +1,6 @@
 #pragma once
 
+#include "kyber_impl/api.h"
 #include <array>
 #include <cstdint>
 #include <span>
@@ -10,16 +11,17 @@ namespace pqcrypto {
  * @brief Key pair for lattice-based cryptography.
  */
 struct KeyPair {
-    std::array<std::uint8_t, 32> public_key; ///< Public portion
-    std::array<std::uint8_t, 32> secret_key; ///< Secret portion
+    std::array<std::uint8_t, pqcrystals_kyber512_PUBLICKEYBYTES> public_key; ///< Kyber public key
+    std::array<std::uint8_t, pqcrystals_kyber512_SECRETKEYBYTES> secret_key; ///< Kyber private key
 };
 
 /**
  * @brief Generate a new lattice-based key pair.
  *
- * This is a placeholder demonstrating the PQ interface.
+ * The generated keys use the Kyber512 parameter set and are compatible
+ * with the establish and compute routines provided by this header.
  *
- * @return Newly created key pair.
+ * @return Newly created key pair containing Kyber public and private data.
  */
 [[nodiscard]] KeyPair generate_keypair();
 
@@ -27,11 +29,11 @@ struct KeyPair {
  * @brief Derive a shared secret using key exchange.
  *
  * @param public_key Remote party public key.
- * @param secret_key Local secret key.
- * @return Derived shared secret bytes.
+ * @param secret_key Local private key.
+ * @return Derived 32-byte shared secret.
  */
-[[nodiscard]] std::array<std::uint8_t, 32>
-compute_shared_secret(std::span<const std::uint8_t, 32> public_key,
-                      std::span<const std::uint8_t, 32> secret_key);
+[[nodiscard]] std::array<std::uint8_t, pqcrystals_kyber512_BYTES>
+compute_shared_secret(std::span<const std::uint8_t, pqcrystals_kyber512_PUBLICKEYBYTES> public_key,
+                      std::span<const std::uint8_t, pqcrystals_kyber512_SECRETKEYBYTES> secret_key);
 
 } // namespace pqcrypto
