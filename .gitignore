@@ -20,6 +20,6 @@ cmake_install.cppmake
 *.tmp
 *.d
 __pycache__/
-
+docs/doxygen/
 /\.cache/
 *.DS_Store
