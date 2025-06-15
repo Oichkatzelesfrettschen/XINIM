@@ -45,8 +45,8 @@ int main() {
     // PQ crypto negotiation
     auto a = pqcrypto::generate_keypair();
     auto b = pqcrypto::generate_keypair();
-    auto s1 = pqcrypto::establish_secret(a, b);
-    auto s2 = pqcrypto::establish_secret(b, a);
+    auto s1 = pqcrypto::compute_shared_secret(a, b);
+    auto s2 = pqcrypto::compute_shared_secret(b, a);
     for (std::size_t i = 0; i < s1.size(); ++i) {
         assert(s1[i] == s2[i]);
     }

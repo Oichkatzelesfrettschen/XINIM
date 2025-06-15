@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../include/pwd.h"
+#include "../include/pwd.hpp"
 
 /* Local buffers and state */
 static char _pw_file[] = "/etc/passwd";

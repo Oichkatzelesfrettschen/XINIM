@@ -1,12 +1,14 @@
 #include "minix/io/stdio_compat.hpp"
+#include "../../../include/stdio.hpp"
 #include "minix/io/file_stream.hpp"
 #include "minix/io/standard_streams.hpp"
 #include <cstdarg>
 #include <cstdio>
-#include <mutex>
-#include <unordered_map>
 #include <expected> // For std::expected if not implicitly via stream.hpp
+#include <mutex>
+#include <span>
 #include <system_error> // For std::error_code, std::errc
+#include <unordered_map>
 
 namespace minix::io::compat {
 
@@ -29,11 +31,11 @@ void register_file_stream(FILE *file, Stream *stream) {
 /// \param file The FILE* to look up.
 /// \return     Pointer to the corresponding Stream or nullptr.
 Stream *get_stream(FILE *file) {
-    if (file == stdin)
+    if (file == ::stdin)
         return &minix::io::stdin();
-    if (file == stdout)
+    if (file == ::stdout)
         return &minix::io::stdout();
-    if (file == stderr)
+    if (file == ::stderr)
         return &minix::io::stderr();
     std::lock_guard<std::mutex> lock(map_mutex);
     auto it = file_to_stream_map.find(file);
@@ -95,16 +97,16 @@ FILE *fopen_compat(const char *path, const char *mode) {
 int fclose_compat(FILE *fp) {
     auto *stream = get_stream(fp);
     if (!stream)
-        return EOF;
+        return STDIO_EOF;
     auto err = stream->close();
     {
         std::lock_guard<std::mutex> lock(map_mutex);
         file_to_stream_map.erase(fp);
     }
-    if (fp != stdin && fp != stdout && fp != stderr) {
+    if (fp != ::stdin && fp != ::stdout && fp != ::stderr) {
         delete fp;
     }
-    return err ? EOF : 0;
+    return err ? STDIO_EOF : 0;
 }
 
 /// fread replacement using Stream::read.
@@ -167,8 +169,8 @@ int fprintf_compat(FILE *fp, const char *format, ...) {
     va_end(args);
     if (n < 0)
         return -1; // vsnprintf error
-    auto wr_result = stream->write(std::span<const std::byte>(reinterpret_cast<const std::byte *>(buffer),
-                                                       static_cast<size_t>(n)));
+    auto wr_result = stream->write(std::span<const std::byte>(
+        reinterpret_cast<const std::byte *>(buffer), static_cast<size_t>(n)));
     if (wr_result.has_value()) {
         return n; // Return number of characters successfully formatted by vsnprintf
     } else {
