@@ -1,7 +1,7 @@
 /* Minimal startup for the kernel image. */
 #include <stddef.h>
 
-extern void main(void);
+extern "C" int main(void);
 extern void exit(int status);
 extern void *stackpt;
 extern char endbss;
@@ -21,10 +21,10 @@ char *brksize = &endbss;
 long sp_limit = 0;
 
 void start(void) {
-  /* Load the stack pointer from _stackpt and enter main. */
-  __asm__ volatile("movq _stackpt(%%rip), %%rsp" ::: "rsp");
-  main();
-  for (;;) {
-    /* Halt if main ever returns. */
-  }
+    /* Load the stack pointer from _stackpt and enter main. */
+    __asm__ volatile("movq _stackpt(%%rip), %%rsp" ::: "rsp");
+    main();
+    for (;;) {
+        /* Halt if main ever returns. */
+    }
 }

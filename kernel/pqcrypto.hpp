@@ -38,6 +38,6 @@ struct KeyPair {
  * @return Derived 32-byte shared secret.
  */
 [[nodiscard]] std::array<std::uint8_t, pqcrystals_kyber512_BYTES>
-establish_secret(const KeyPair &local, const KeyPair &peer) noexcept;
+compute_shared_secret(const KeyPair &local, const KeyPair &peer) noexcept;
 
 } // namespace pqcrypto

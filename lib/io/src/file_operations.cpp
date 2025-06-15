@@ -5,6 +5,7 @@
 #include <array>
 #include <cstring>
 #include <fcntl.h>
+#include <optional>
 #include <unistd.h>
 
 namespace minix::io {
@@ -18,7 +19,7 @@ namespace minix::io {
 Result<StreamPtr> open_stream(std::string_view path, OpenMode mode, Permissions perms) {
     std::array<char, 256> buf{};
     if (path.size() >= buf.size()) {
-        return {std::nullopt, std::make_error_code(std::errc::file_too_large)};
+        return std::unexpected(std::make_error_code(std::errc::file_too_large));
     }
     std::memcpy(buf.data(), path.data(), path.size());
     int flags = 0;
@@ -40,11 +41,11 @@ Result<StreamPtr> open_stream(std::string_view path, OpenMode mode, Permissions 
 
     int fd = ::open(buf.data(), flags, perms.mode);
     if (fd < 0) {
-        return {std::nullopt, std::error_code(errno, std::generic_category())};
+        return std::unexpected(std::error_code(errno, std::generic_category()));
     }
     bool write_ok = static_cast<unsigned>(mode) & static_cast<unsigned>(OpenMode::write);
     StreamPtr ptr = std::make_unique<FileStream>(fd, write_ok);
-    return {std::move(ptr), {}};
+    return Result<StreamPtr>(std::move(ptr));
 }
 
 /// Convenience wrapper around open_stream that always creates/truncates the
