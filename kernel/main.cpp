@@ -1,15 +1,10 @@
-/* This file contains the main program of MINIX.  The routine main()
- * initializes the system and starts the ball rolling by setting up the proc
- * table, interrupt vectors, and scheduling each task to run to initialize
- * itself.
+/**
+ * @file main.cpp
+ * @brief Kernel initialization and trap handlers.
  *
- * The entries into this file are:
- *   main:		MINIX main program
- *   unexpected_int:	called when an interrupt to an unused vector < 16 occurs
- *   trap:		called when an unexpected trap to a vector >= 16 occurs
- *   panic:		abort MINIX due to a fatal error
+ * This module boots the XINIM kernel, sets up interrupts and process tables
+ * and provides basic trap handling including a panic routine for fatal errors.
  */
-
 #include "../h/callnr.hpp"
 #include "../h/com.hpp"
 #include "../h/const.hpp"
@@ -19,13 +14,13 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>    // For uint64_t etc.
 #include <cstddef>    // For std::size_t
+#include <cstdint>    // For uint64_t etc.
 #include <inttypes.h> // For PRIx64, PRIuMAX etc.
 
 #ifdef __x86_64__
 void init_syscall_msrs() noexcept; // Changed (void) to (), added noexcept
-#endif /* __x86_64__ */
+#endif                             /* __x86_64__ */
 
 #define SAFETY 8       /* margin of safety for stack overflow (ints)*/
 #define VERY_BIG 39328 /* must be bigger than kernel size (clicks) */
@@ -35,18 +30,21 @@ void init_syscall_msrs() noexcept; // Changed (void) to (), added noexcept
 #define CPU_TY2 0x000E /* BIOS offset that tells CPU type */
 #define PC_AT 0xFC     /* IBM code for PC-AT (in BIOS at 0xFFFFE) */
 
-/*===========================================================================*
- *                                   main                                    *
- *===========================================================================*/
+/**
+ * @brief Kernel entry point.
+ *
+ * Initializes page tables, interrupts, and process structures before starting
+ * the first task.
+ */
 int main() noexcept { // Changed from PUBLIC main(), added noexcept
     /* Start the ball rolling. */
 
     register struct proc *rp;
     register int t;
-    std::size_t size;                    // vir_clicks -> std::size_t
+    std::size_t size;                            // vir_clicks -> std::size_t
     uint64_t base_click, mm_base, previous_base; // phys_clicks -> uint64_t
-    uint64_t phys_b;                     // phys_bytes -> uint64_t (seems unused)
-    extern unsigned int sizes[8];        // table filled in by build (unsigned int)
+    uint64_t phys_b;                             // phys_bytes -> uint64_t (seems unused)
+    extern unsigned int sizes[8];                // table filled in by build (unsigned int)
     extern int color, vec_table[], get_chrome(), (*task[])();
     extern int s_call(), disk_int(), tty_int(), clock_int(), disk_int();
     extern int wini_int(), lpr_int(), surprise(), trp(), divide();
@@ -59,19 +57,22 @@ int main() noexcept { // Changed from PUBLIC main(), added noexcept
      * the words at 0x000A, 0x000C, and 0x000E free.
      */
 
-    lock();          /* we can't handle interrupts yet */
-    current_cpu = 0; /* single CPU for now */
-    paging_init();   /* set up initial page tables */
-    idt_init();      /* install 64-bit IDT */
+    lock();                                                  /* we can't handle interrupts yet */
+    current_cpu = 0;                                         /* single CPU for now */
+    paging_init();                                           /* set up initial page tables */
+    idt_init();                                              /* install 64-bit IDT */
     base_click = static_cast<uint64_t>(BASE >> CLICK_SHIFT); // BASE is int
-    size = static_cast<std::size_t>(sizes[0]) + static_cast<std::size_t>(sizes[1]);  /* kernel text + data size in clicks */
-    mm_base = base_click + size; /* place where MM starts (in clicks) (uint64_t + size_t -> uint64_t) */
+    size = static_cast<std::size_t>(sizes[0]) +
+           static_cast<std::size_t>(sizes[1]); /* kernel text + data size in clicks */
+    mm_base =
+        base_click + size; /* place where MM starts (in clicks) (uint64_t + size_t -> uint64_t) */
 
     for (rp = &proc[0]; rp <= &proc[NR_TASKS + LOW_USER]; rp++) {
         for (t = 0; t < NR_REGS; t++)
             rp->p_reg[t] = 0100 * t; /* debugging */
         t = rp - proc - NR_TASKS;    /* task number */
-        // rp->p_sp is uint64_t. t_stack[...].stk is likely int[] or similar. INIT_SP is uint64_t* (nullptr).
+        // rp->p_sp is uint64_t. t_stack[...].stk is likely int[] or similar. INIT_SP is uint64_t*
+        // (nullptr).
         if (rp < &proc[NR_TASKS]) {
             rp->p_sp = reinterpret_cast<uint64_t>(t_stack[NR_TASKS + t + 1].stk);
         } else {
@@ -80,7 +81,9 @@ int main() noexcept { // Changed from PUBLIC main(), added noexcept
         rp->p_splimit = rp->p_sp;
         if (rp->p_splimit != reinterpret_cast<uint64_t>(INIT_SP))
             // TASK_STACK_BYTES is std::size_t. SAFETY is int.
-            rp->p_splimit -= (static_cast<std::size_t>(TASK_STACK_BYTES) - static_cast<std::size_t>(SAFETY)) / sizeof(int);
+            rp->p_splimit -=
+                (static_cast<std::size_t>(TASK_STACK_BYTES) - static_cast<std::size_t>(SAFETY)) /
+                sizeof(int);
         rp->p_pcpsw.pc = task[t + NR_TASKS];
         if (rp->p_pcpsw.pc != 0 || t >= 0)
             ready(rp);
@@ -140,13 +143,11 @@ int main() noexcept { // Changed from PUBLIC main(), added noexcept
 }
 
 
-/*===========================================================================*
- *                                   unexpected_int                          * 
- *===========================================================================*/
-//------------------------------------------------------------------------------
-// Handles unexpected interrupts that trigger on vectors lower than 16. This
-// routine simply reports the event and the current program counter.
-//------------------------------------------------------------------------------
+/**
+ * @brief Handle interrupts to unused vectors (<16).
+ *
+ * Prints diagnostic information for debugging and continues execution.
+ */
 void unexpected_int() noexcept {
     // Inform that an unexpected interrupt occurred.
     printf("Unexpected trap: vector < 16\n");
@@ -159,13 +160,11 @@ void unexpected_int() noexcept {
 }
 
 
-/*===========================================================================*
- *                                   trap                                    * 
- *===========================================================================*/
-//------------------------------------------------------------------------------
-// Handles traps for vectors greater than or equal to 16. These generally
-// indicate an unexpected fault within the kernel or user space.
-//------------------------------------------------------------------------------
+/**
+ * @brief Handle unexpected traps (>=16).
+ *
+ * Provides debugging output when the kernel encounters an unexpected trap.
+ */
 void trap() noexcept {
     // Notify about the unexpected trap.
     printf("\nUnexpected trap: vector >= 16 ");
@@ -181,13 +180,11 @@ void trap() noexcept {
 }
 
 
-/*===========================================================================*
- *                                   div_trap                                * 
- *===========================================================================*/
-//------------------------------------------------------------------------------
-// Called when a divide instruction causes an overflow trap (vector 0). This
-// routine reports the fault location to assist debugging.
-//------------------------------------------------------------------------------
+/**
+ * @brief Handle divide overflow trap (vector 0).
+ *
+ * Reports the fault location to aid debugging.
+ */
 void div_trap() noexcept {
     // Inform that a divide overflow occurred.
     printf("Trap to vector 0: divide overflow.  ");
@@ -200,13 +197,12 @@ void div_trap() noexcept {
 }
 
 
-/*===========================================================================*
- *                                   panic                                   * 
- *===========================================================================*/
-//------------------------------------------------------------------------------
-// Handle unrecoverable kernel errors. This routine prints the provided message
-// and halts the system after flushing any pending output.
-//------------------------------------------------------------------------------
+/**
+ * @brief Halt the system after printing a panic message.
+ *
+ * @param s Description of the fault.
+ * @param n Optional integer argument associated with the panic.
+ */
 void panic(const char *s, int n) noexcept {
     // Display the panic message if one was supplied.
     if (*s != 0) {
