@@ -1,9 +1,9 @@
 # MINIX Filesystem Tools Makefile
-# Modern C++17 build configuration with comprehensive options
+# Modern C++23 build configuration with comprehensive options
 
 # Compiler and tools configuration
 CXX := g++
-CXXFLAGS := -std=c++17 -Wall -Wextra -Wpedantic -Werror
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -Werror
 CPPFLAGS := -I. -MMD -MP
 LDFLAGS := 
 LIBS := 
@@ -100,7 +100,7 @@ check: $(BINDIR)/fsck
 .PHONY: lint
 lint:
 	@echo "Running static analysis"
-	@cppcheck --enable=all --std=c++17 --suppress=missingIncludeSystem $(SRCDIR)/*.cpp $(SRCDIR)/*.hpp
+	@cppcheck --enable=all --std=c++23 --suppress=missingIncludeSystem $(SRCDIR)/*.cpp $(SRCDIR)/*.hpp
 
 .PHONY: format
 format:

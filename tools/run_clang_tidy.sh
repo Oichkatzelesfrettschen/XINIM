@@ -1,5 +1,5 @@
 #!/bin/bash
-# Run clang-tidy across the repository with C++17 compliance.
+# Run clang-tidy across the repository with C++23 compliance.
 # This script generates compile_commands if needed and then
 # executes clang-tidy with automatic fixes. Comment lines are
 # left untouched since clang-tidy is invoked with FormatStyle=none.
@@ -43,7 +43,7 @@ find . -name '*.cpp' -not -path "./$BUILD_DIR/*" | while read -r file; do
         echo "--- SKIPPING known crashing file: $file ---"
     else
         echo "--- Processing file: $file ---"
-        if clang-tidy -p "$BUILD_DIR" -fix -format-style=none -extra-arg=-std=c++17 "$file"; then
+        if clang-tidy -p "$BUILD_DIR" -fix -format-style=none -extra-arg=-std=c++23 "$file"; then
             echo "Successfully processed (or no changes needed for) $file"
         else
             echo "Error or warnings reported for $file by clang-tidy. Exit code: $?. Fixes might not have been applied if errors were severe."
