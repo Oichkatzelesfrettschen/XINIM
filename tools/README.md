@@ -1,10 +1,10 @@
 # MINIX Boot Image Builder
 
-A modern C++17 implementation of the MINIX boot image builder tool. This utility combines bootblock, kernel, and system process executables into a single bootable disk image.
+A modern C++23 implementation of the MINIX boot image builder tool. This utility combines bootblock, kernel, and system process executables into a single bootable disk image.
 
 ## Features
 
-- **Modern C++17 Design**: Uses modern C++ idioms, RAII, and strong typing
+- **Modern C++23 Design**: Uses modern C++ idioms, RAII, and strong typing
 - **Type Safety**: Strong types prevent parameter confusion and improve compile-time safety
 - **Exception Safety**: Comprehensive error handling with descriptive messages
 - **Memory Safety**: Automatic resource management with RAII patterns
@@ -15,7 +15,7 @@ A modern C++17 implementation of the MINIX boot image builder tool. This utility
 
 ### Requirements
 
-- Clang++ with C++17 support
+- Clang++ or GCC with C++23 support
 - Make
 - clang-format (optional, for code formatting)
 - clang-tidy (optional, for linting)
@@ -137,7 +137,7 @@ MINIX uses 16-byte "clicks" for memory management:
 
 ### Code Style
 
-The project follows modern C++17 best practices:
+The project follows modern C++23 best practices:
 
 - RAII for resource management
 - `constexpr` for compile-time constants
