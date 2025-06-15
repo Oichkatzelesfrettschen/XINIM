@@ -183,14 +183,17 @@ add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 add_executable(minix_test_lattice
   test_lattice.cpp
   ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
   ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
   ${CMAKE_SOURCE_DIR}/kernel/table.cpp
+  task_stubs.cpp
 )
 target_include_directories(minix_test_lattice PUBLIC
   ${CMAKE_SOURCE_DIR}/kernel
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/h
 )
+target_link_libraries(minix_test_lattice PRIVATE pqcrypto)
 add_test(NAME minix_test_lattice COMMAND minix_test_lattice)
 
 # -----------------------------------------------------------------------------
@@ -199,8 +202,10 @@ add_test(NAME minix_test_lattice COMMAND minix_test_lattice)
 add_executable(minix_test_lattice_ipc
   test_lattice_ipc.cpp
   ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
   ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
   ${CMAKE_SOURCE_DIR}/kernel/table.cpp
+  task_stubs.cpp
 )
 target_include_directories(minix_test_lattice_ipc PUBLIC
   ${CMAKE_SOURCE_DIR}/kernel
@@ -210,6 +215,7 @@ target_include_directories(minix_test_lattice_ipc PUBLIC
 )
 target_link_libraries(minix_test_lattice_ipc PRIVATE pqcrypto)
 target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
+target_link_libraries(minix_test_lattice_ipc PRIVATE pqcrypto)
 add_test(NAME minix_test_lattice_ipc COMMAND minix_test_lattice_ipc)
 
 # -----------------------------------------------------------------------------

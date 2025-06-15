@@ -7,20 +7,23 @@
  * It contains the process' registers, memory map, accounting, and message
  * send/receive information.
  */
-#include "../include/defs.hpp" // Changed to .hpp
-#include "../h/type.hpp"      // For message, mem_map, real_time, xinim::pid_t, xinim::time_t
-#include "./type.hpp"         // For pc_psw, xinim::virt_addr_t, xinim::phys_addr_t (via core_types.hpp)
-// Assuming the above includes make xinim::core_types.hpp available.
-      // For pc_psw
+#include "../h/const.hpp"      // Process table sizing constants
+#include "../h/type.hpp"       // Message, mem_map, real_time, xinim types
+#include "../include/defs.hpp" // Project-wide integer definitions
+#include "./type.hpp"          // pc_psw definition
+#include "const.hpp"           // Scheduling constants and printf macro
+#ifdef printf
+#undef printf
+#endif
 
 EXTERN struct proc {
-    std::uint64_t p_reg[NR_REGS];   /* process' registers */
-    xinim::virt_addr_t p_sp;        /* stack pointer - Formerly u64_t */
-    struct pc_psw p_pcpsw;          /* pc and psw as pushed by interrupt */
-    int p_flags;                    /* P_SLOT_FREE, SENDING, RECEIVING, etc. */
-    struct mem_map p_map[NR_SEGS];  /* memory map */
-    xinim::virt_addr_t p_splimit;   /* lowest legal stack value - Formerly u64_t */
-    xinim::pid_t p_pid;             /* process id passed in from MM - Formerly int */
+    std::uint64_t p_reg[NR_REGS];  /* process' registers */
+    xinim::virt_addr_t p_sp;       /* stack pointer - Formerly u64_t */
+    struct pc_psw p_pcpsw;         /* pc and psw as pushed by interrupt */
+    int p_flags;                   /* P_SLOT_FREE, SENDING, RECEIVING, etc. */
+    struct mem_map p_map[NR_SEGS]; /* memory map */
+    xinim::virt_addr_t p_splimit;  /* lowest legal stack value - Formerly u64_t */
+    xinim::pid_t p_pid;            /* process id passed in from MM - Formerly int */
 
     real_time user_time;   /* user time in ticks (real_time -> xinim::time_t) */
     real_time sys_time;    /* sys time in ticks (real_time -> xinim::time_t) */
@@ -47,7 +50,7 @@ inline constexpr unsigned int SENDING = 004;     /* set when process blocked try
 inline constexpr unsigned int RECEIVING = 010;   /* set when process blocked trying to recv */
 
 #define proc_addr(n) &proc[NR_TASKS + n] // Macro for pointer arithmetic, can be kept
-inline constexpr struct proc* NIL_PROC = nullptr;
+inline constexpr struct proc *NIL_PROC = nullptr;
 
 EXTERN struct proc *proc_ptr;                        /* &proc[cur_proc] */
 EXTERN struct proc *bill_ptr;                        /* ptr to process to bill for clock ticks */

@@ -6,6 +6,7 @@
 
 #include "pqcrypto.hpp"
 #include "proc.hpp"
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -20,7 +21,8 @@ using ::message;
 struct Channel {
     int src; //!< Source process id
     int dst; //!< Destination process id
-    int node{0};
+    /** Identifier of the remote node or 0 for local. */
+    int node_id{0};
     std::vector<message> queue;          //!< Pending messages encrypted with @c secret
     std::array<std::uint8_t, 32> secret; //!< Shared secret derived by PQ crypto
 };
@@ -31,20 +33,22 @@ struct Channel {
 class Graph {
   public:
     /**
-     * @brief Add an edge between @p s and @p d on @p node creating a channel if
-     *        absent.
+     * @brief Add an edge between @p s and @p d on @p node_id creating a channel
+     *        if absent.
      */
-    Channel &connect(int s, int d, int node = 0);
-    /** Find an existing channel or return nullptr. */
-    Channel *find(int s, int d) noexcept;
+    Channel &connect(int s, int d, int node_id = 0);
+    /** Find an existing channel on @p node_id or return nullptr. */
+    Channel *find(int s, int d, int node_id = 0) noexcept;
+    /** Find a channel ignoring node identifier. */
+    Channel *find_any(int s, int d) noexcept;
     /** Mark @p pid as waiting for a message. */
     void set_listening(int pid, bool flag) noexcept { listening[pid] = flag; }
     /** Check if @p pid is currently waiting for a message. */
     [[nodiscard]] bool is_listening(int pid) const noexcept;
 
-    std::unordered_map<int, std::vector<Channel>> edges; //!< adjacency list
-    std::unordered_map<int, bool> listening;             //!< listen state per pid
-    std::unordered_map<int, message> inbox;              //!< ready messages
+    std::map<std::tuple<int, int, int>, Channel> edges; //!< channel storage keyed by (src,dst,node)
+    std::unordered_map<int, bool> listening;            //!< listen state per pid
+    std::unordered_map<int, message> inbox;             //!< ready messages
 };
 
 extern Graph g_graph; //!< Global DAG instance
@@ -57,9 +61,10 @@ extern Graph g_graph; //!< Global DAG instance
  *
  * @param src Source process identifier.
  * @param dst Destination process identifier.
+ * @param node_id Identifier of the remote node, 0 meaning local.
  * @return Always returns ::OK for now.
  */
-int lattice_connect(int src, int dst, int node = 0);
+int lattice_connect(int src, int dst, int node_id = 0);
 
 /**
  * @brief Mark a process as waiting for an incoming message.
@@ -76,8 +81,9 @@ void lattice_listen(int pid);
  *
  * If the destination is listening the message is delivered and the
  * scheduler yields directly to the receiver via ::sched::Scheduler::yield_to.
- * Otherwise the message is XOR encrypted with the channel secret and
- * queued on the channel.
+ * When @p dst resides on another node the payload is forwarded to the
+ * network layer. Otherwise the message is XOR encrypted with the channel
+ * secret and queued on the channel.
  *
  * @see sched::Scheduler::yield_to
  *
@@ -93,7 +99,8 @@ int lattice_send(int src, int dst, const message &msg);
  *
  * Queued messages are decrypted using the channel secret before being
  * delivered. If no message is pending the process is marked as
- * listening and ::E_NO_MESSAGE is returned.
+ * listening and ::E_NO_MESSAGE is returned. Remote messages are retrieved
+ * from the inbox populated by the network layer.
  *
  * @param pid Process identifier.
  * @param msg Buffer to store the received message.
