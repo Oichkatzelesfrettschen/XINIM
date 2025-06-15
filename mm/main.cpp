@@ -18,6 +18,7 @@
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../include/vm.h"
+#include "alloc.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
@@ -138,8 +139,6 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
 
     // Assuming modernized signatures for these extern functions from other modules
     extern uint64_t get_tot_mem() noexcept;
-    extern uint64_t alloc_mem(uint64_t clicks) noexcept;
-    extern void mem_init(uint64_t clicks) noexcept;
     extern void mm_paging_init() noexcept;
     extern void vm_init() noexcept;
 
