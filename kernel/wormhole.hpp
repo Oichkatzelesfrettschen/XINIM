@@ -114,14 +114,14 @@ struct FastpathStats {
 /**
  * @brief Execute the fastpath transformations if preconditions are met.
  *
- * Applies each transformation step to @p s and updates @p stats when
+ * Applies each transformation step to @p state and updates @p stats when
  * provided.
  *
- * @param s     Mutable fastpath state.
+ * @param state Mutable fastpath state.
  * @param stats Optional statistics collector.
  * @return @c true when all preconditions pass and the fastpath completed.
  */
-bool execute_fastpath(State &s, FastpathStats *stats = nullptr) noexcept;
+bool execute_fastpath(State &state, FastpathStats *stats = nullptr) noexcept;
 
 /**
  * @brief Configure a zero-copy message region for the fastpath.
@@ -129,10 +129,10 @@ bool execute_fastpath(State &s, FastpathStats *stats = nullptr) noexcept;
  * The region must satisfy the alignment requirements defined by
  * MessageRegion.
  *
- * @param s      Fastpath state to modify.
+ * @param state  Fastpath state to modify.
  * @param region Zero-copy message region.
  */
-void set_message_region(State &s, const MessageRegion &region) noexcept;
+void set_message_region(State &state, const MessageRegion &region) noexcept;
 
 /**
  * @brief Validate that a message region can hold @p msg_len registers.
@@ -145,17 +145,17 @@ bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept;
 
 namespace detail {
 /// Remove the receiver from the endpoint queue.
-void dequeue_receiver(State &s) noexcept;
+void dequeue_receiver(State &state) noexcept;
 /// Transfer the sender's badge to the receiver.
-void transfer_badge(State &s) noexcept;
+void transfer_badge(State &state) noexcept;
 /// Link the sender to the receiver for replies.
-void establish_reply(State &s) noexcept;
+void establish_reply(State &state) noexcept;
 /// Copy message registers using the configured message region.
-void copy_mrs(State &s) noexcept;
+void copy_mrs(State &state) noexcept;
 /// Update thread states after IPC.
-void update_thread_state(State &s) noexcept;
+void update_thread_state(State &state) noexcept;
 /// Switch execution to the receiver.
-void context_switch(State &s) noexcept;
+void context_switch(State &state) noexcept;
 } // namespace detail
 
 } // namespace fastpath
