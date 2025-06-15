@@ -34,6 +34,15 @@ class Scheduler {
      */
     void yield_to(xinim::pid_t target);
 
+    /**
+     * @brief Notify the scheduler that a service crashed.
+     *
+     * The scheduler delegates restart handling to the global service manager.
+     *
+     * @param pid Identifier of the crashed service.
+     */
+    void crash(xinim::pid_t pid);
+
     /// Currently running thread identifier.
     [[nodiscard]] xinim::pid_t current() const noexcept { return current_; }
 
