@@ -1,10 +1,9 @@
-/* This file contains some useful utility routines used by MM.
+/**
+ * @file
+ * @brief Utility routines used by the memory manager.
  *
- * The entries into the file are:
- *   allowed:	see if an access is permitted
- *   mem_copy:	copy data from somewhere in memory to somewhere else
- *   no_sys:	this routine is called for invalid system call numbers
- *   panic:	MM has run aground of a fatal error and cannot continue
+ * Provides helper functions for permission checks, memory copying and
+ * fatal error handling.
  */
 
 #include "../h/callnr.hpp"
@@ -18,9 +17,9 @@
 #include "mproc.hpp"
 
 #include <cerrno>     // errno
-#include <cstdio>     // printf
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uintptr_t
+#include <cstdio>     // printf
 #include <filesystem> // std::filesystem utilities
 #include <memory>     // std::unique_ptr
 
@@ -62,13 +61,15 @@ struct FileDescriptor {
 };
 } // namespace
 
-/*===========================================================================*
- *				allowed					     *
- *===========================================================================*/
-// Determine if the given file is accessible using the specified mask.
-// Returns a file descriptor on success or a negative errno value on failure.
+/**
+ * @brief Check if the current user may access a file.
+ *
+ * @param name_buf Path to inspect.
+ * @param s_buf Stat structure for resulting data.
+ * @param mask Permission bits to verify.
+ * @return File descriptor on success or negative errno.
+ */
 PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept {
-    // Use RAII to ensure the descriptor is closed when leaving the scope.
     int raw_fd = open(name_buf, 0);
     if (raw_fd < 0) {
         return -errno; // propagate errno to caller
@@ -102,9 +103,12 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept 
     return (ErrorCode::EACCES);         /* permission denied */
 }
 
-/*===========================================================================*
- *				mem_copy				     *
- *===========================================================================*/
+/**
+ * @brief Copy a memory region between processes.
+ *
+ * Source and destination can be absolute memory or process space.
+ * @return OK on success or error code.
+ */
 PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, int dst_seg,
                     uintptr_t dst_vir, std::size_t bytes) noexcept {
     /* Transfer a block of data.  The source and destination can each either be a
@@ -117,12 +121,12 @@ PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, 
     src_space(copy_mess) = static_cast<char>(src_seg);
     src_proc_nr(copy_mess) = src_proc;
     // src_buffer is a macro for a message field of type char* (e.g., m1p1)
-    src_buffer(copy_mess) = reinterpret_cast<char*>(src_vir);
+    src_buffer(copy_mess) = reinterpret_cast<char *>(src_vir);
 
     dst_space(copy_mess) = static_cast<char>(dst_seg);
     dst_proc_nr(copy_mess) = dst_proc;
     // dst_buffer is a macro for a message field of type char*
-    dst_buffer(copy_mess) = reinterpret_cast<char*>(dst_vir);
+    dst_buffer(copy_mess) = reinterpret_cast<char *>(dst_vir);
 
     // copy_bytes is a macro for a message field of type int (e.g., m1i2)
     // This is a potential narrowing conversion if bytes > INT_MAX.
@@ -131,18 +135,22 @@ PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, 
     sys_copy(&copy_mess);
     return (copy_mess.m_type);
 }
-/*===========================================================================*
- *				no_sys					     *
- *===========================================================================*/
+/**
+ * @brief Stub for unimplemented system calls.
+ *
+ * Always returns ::ErrorCode::EINVAL.
+ */
 PUBLIC int no_sys() noexcept {
     /* A system call number not implemented by MM has been requested. */
 
     return (ErrorCode::EINVAL);
 }
 
-/*===========================================================================*
- *				panic					     *
- *===========================================================================*/
+/**
+ * @brief Fatal error handler for the memory manager.
+ *
+ * Prints a message and aborts the system.
+ */
 PUBLIC void panic(const char *format, int num) noexcept {
     /* Something awful has happened.  Panics are caused when an internal
      * inconsistency is detected, e.g., a programm_ing error or illegal value of a

@@ -192,6 +192,17 @@ PUBLIC void mem_init(uint64_t clicks) noexcept { // phys_clicks -> uint64_t
         it->h_next = next != std::end(hole) ? &(*next) : nullptr;
     }
 
+    // Chain free slots using modern iteration. The first hole represents the
+    // available memory region; remaining slots are placed on the free list.
+    auto first = std::begin(hole);
+    auto last = std::end(hole);
+    for (auto it = std::next(first, 1); it != last; ++it) {
+        auto next = std::next(it);
+        it->h_next = (next != last) ? &(*next) : nullptr;
+    }
+
+    hole[0].h_next = nullptr; /* only 1 big hole initially */
+
     hole_head = &hole[0];
     free_slots = &hole[1];
     hole[0].h_base = 0;

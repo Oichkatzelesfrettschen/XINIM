@@ -15,11 +15,9 @@ from pathlib import Path
 # Project metadata displayed in the documentation.
 project = "XINIM"  # Name of the project
 # Developers credited in the documentation. This edition is curated by
-# The 2025 XINIM team with deep gratitude and thanks to Andrew Tannenbaum
+# The 2025 XINIM team with deep gratitude and thanks to Andrew Tanenbaum
 # for the foundational concepts that shape XINIM's architecture.
-author = (
-    "The 2025 XINIM team with deep gratitude and thanks to Andrew Tannenbaum"
-)
+author = "The 2025 XINIM team with deep gratitude and thanks to Andrew Tanenbaum"
 version = "0.1"  # Short version string
 release = "0.1.0"  # Full version string including patch level
 
