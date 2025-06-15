@@ -22,3 +22,19 @@ transfer and update scheduling state.
 
 .. doxygenfunction:: fastpath::execute_fastpath
    :project: XINIM
+
+Fastpath Integration
+--------------------
+
+The wormhole IPC interface is declared in :file:`kernel/wormhole.hpp`. It
+defines the *State* data structure along with helper utilities that prepare the
+zero-copy message region.  :file:`kernel/wormhole.cpp` implements the
+transformation steps that move messages, manage endpoint queues and invoke the
+scheduler.
+
+When threads exchange messages successfully, control transfers to the receiver
+through the global scheduler.  The integration point is documented in
+``fastpath::execute_fastpath`` which yields to the destination thread.
+
+.. doxygenfunction:: fastpath::execute_fastpath
+   :project: XINIM
