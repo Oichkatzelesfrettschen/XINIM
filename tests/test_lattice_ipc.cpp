@@ -1,6 +1,6 @@
 /**
  * @file test_lattice_ipc.cpp
- * @brief Unit test exercising lattice IPC send/receive behavior.
+ * @brief Verify lattice IPC message delivery and PQ encryption.
  */
 
 #include "../h/const.hpp"
@@ -8,59 +8,105 @@
 #include "../h/type.hpp"
 #include "../kernel/const.hpp"
 #include "../kernel/lattice_ipc.hpp"
-#include "../kernel/net_driver.hpp"
+#include "../kernel/kyber.hpp"
+
 #include <cassert>
+#include <algorithm>
+#include <cstddef>
+#include <span>
+#include <string_view>
+#include <vector>
+
+using namespace lattice;
 
 /**
- * @brief Entry point for the lattice IPC unit test.
+ * @brief Convert a textual message to a byte vector.
  *
- * The test establishes a channel between two synthetic processes and checks
- * queued delivery, immediate delivery when listening, and the error code when
- * no message is available.
- *
- * @return 0 on success, non-zero otherwise.
+ * @param text Input string view.
+ * @return Vector containing the bytes of @p text.
  */
-int main() {
-    using namespace lattice;
+static std::vector<std::byte> to_bytes(std::string_view text) {
+    std::vector<std::byte> result(text.size());
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        result[i] = std::byte{static_cast<unsigned char>(text[i])};
+    }
+    return result;
+}
 
-    // Reset global graph to a clean state.
+/**
+ * @brief Check equality of two byte spans.
+ *
+ * @param a First span.
+ * @param b Second span.
+ * @return True when both spans hold identical byte sequences.
+ */
+static bool bytes_equal(std::span<const std::byte> a,
+                        std::span<const std::byte> b) noexcept {
+    return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin());
+}
+
+int main() {
+    // Reset global state for a clean test
     g_graph = Graph{};
 
-    constexpr int SRC_PID = 11;
-    constexpr int DST_PID = 22;
+    constexpr pid_t SRC = 40;
+    constexpr pid_t DST = 41;
 
-    // Establish the channel between the processes.
-    assert(lattice_connect(SRC_PID, DST_PID) == OK);
-    Channel *ch = g_graph.find(SRC_PID, DST_PID, net::local_node());
+    // ——— Phase 1: Establish channel and test queued delivery ———
+    assert(lattice_connect(SRC, DST) == OK);
+    Channel* ch = g_graph.find(SRC, DST);
     assert(ch != nullptr);
 
-    message msg{};
-    msg.m_type = 7;
+    const std::string_view text = "lattice secret";
+    const auto plaintext = to_bytes(text);
 
-    // Destination not listening: message should be queued.
-    assert(lattice_send(SRC_PID, DST_PID, msg) == OK);
+    // Generate Kyber keypair and encrypt
+    const auto kp = pq::kyber::keypair();
+    auto cipher = pq::kyber::encrypt(plaintext, kp.public_key);
+
+    message send{};
+    send.m_type  = 1;
+    send.m1_i1() = static_cast<int>(cipher.size());
+    send.m1_p1() = reinterpret_cast<char*>(cipher.data());
+
+    // Enqueue message
+    assert(lattice_send(SRC, DST, send) == OK);
     assert(!ch->queue.empty());
 
-    message out{};
-    // Retrieve the queued message.
-    assert(lattice_recv(DST_PID, &out) == OK);
-    assert(out.m_type == 7);
+    // Dequeue and decrypt
+    message recv{};
+    assert(lattice_recv(DST, &recv) == OK);
+    std::span<const std::byte> rx{
+        reinterpret_cast<const std::byte*>(recv.m1_p1()),
+        static_cast<std::size_t>(recv.m1_i1())
+    };
+    auto plain = pq::kyber::decrypt(rx, kp.private_key);
+    assert(bytes_equal(plain, plaintext));
     assert(ch->queue.empty());
 
-    // Mark receiver as listening and send again.
-    lattice_listen(DST_PID);
-    msg.m_type = 9;
-    assert(lattice_send(SRC_PID, DST_PID, msg) == OK);
-    assert(g_graph.inbox.find(DST_PID) != g_graph.inbox.end());
+    // ——— Phase 2: Test immediate handoff via listen() ———
+    lattice_listen(DST);
 
-    message out2{};
-    assert(lattice_recv(DST_PID, &out2) == OK);
-    assert(out2.m_type == 9);
+    auto cipher2 = pq::kyber::encrypt(plaintext, kp.public_key);
+    send.m1_i1() = static_cast<int>(cipher2.size());
+    send.m1_p1() = reinterpret_cast<char*>(cipher2.data());
 
-    // No message should yield E_NO_MESSAGE and keep listening state.
-    message dummy{};
-    int res = lattice_recv(DST_PID, &dummy);
-    assert(res == static_cast<int>(ErrorCode::E_NO_MESSAGE));
+    assert(lattice_send(SRC, DST, send) == OK);
+    assert(!g_graph.inbox[DST].empty());
+
+    message recv2{};
+    assert(lattice_recv(DST, &recv2) == OK);
+    std::span<const std::byte> rx2{
+        reinterpret_cast<const std::byte*>(recv2.m1_p1()),
+        static_cast<std::size_t>(recv2.m1_i1())
+    };
+    auto plain2 = pq::kyber::decrypt(rx2, kp.private_key);
+    assert(bytes_equal(plain2, plaintext));
+
+    // ——— Phase 3: Ensure no further messages are available ———
+    message none{};
+    int res = lattice_recv(DST, &none);
+    assert(res == static_cast<int>(E_NO_MESSAGE));
 
     return 0;
 }
