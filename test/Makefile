@@ -8,7 +8,7 @@ CC ?= clang
 CXX ?= clang++
 # Base compiler flags; users may extend these when invoking make
 CFLAGS ?= -O
-CXXFLAGS ?= -std=c++17 -O
+CXXFLAGS ?= -std=c++23 -O
 # Always search the shared include directory
 CFLAGS += -I$(INC)
 CXXFLAGS += -I$(INC)
