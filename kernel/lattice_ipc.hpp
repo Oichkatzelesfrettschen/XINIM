@@ -71,8 +71,10 @@ void lattice_listen(int pid);
  * @brief Send a message over an established channel.
  *
  * If the destination is listening the message is delivered and the
- * scheduler yields directly to the receiver.
+ * scheduler yields directly to the receiver via ::sched::Scheduler::yield_to.
  * Otherwise the message is queued on the channel.
+ *
+ * @see sched::Scheduler::yield_to
  *
  * @param src Sending process identifier.
  * @param dst Receiving process identifier.
