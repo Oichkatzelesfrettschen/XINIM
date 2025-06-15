@@ -1,11 +1,11 @@
-# Doxyfile for MINIX Filesystem Tools
+# Doxyfile for XINIM
 # Modern C++23 documentation configuration
 
 #---------------------------------------------------------------------------
 # Project related configuration options
 #---------------------------------------------------------------------------
 DOXYFILE_ENCODING      = UTF-8
-PROJECT_NAME           = "MINIX Filesystem Tools"
+PROJECT_NAME           = "XINIM"
 PROJECT_NUMBER         = "2.0"
 PROJECT_BRIEF          = "Modern C++23 MINIX filesystem utilities with type safety and performance"
 PROJECT_LOGO           = 
