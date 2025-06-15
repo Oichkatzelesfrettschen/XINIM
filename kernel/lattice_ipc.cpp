@@ -98,38 +98,42 @@ Graph g_graph{};
  * pairs. The shared secret is negotiated using pqcrypto::compute_shared_secret
  * before the channel is inserted into the adjacency list.
  */
-Channel &Graph::connect(int s, int d, int node) {
-    auto &vec = edges[s];
-    // Look for an existing channel matching both dst and node
-    auto it = std::find_if(vec.begin(), vec.end(),
-                           [d, node](const Channel &c) { return c.dst == d && c.node == node; });
-    if (it != vec.end()) {
-        return *it;
+Channel &Graph::connect(int s, int d, int node_id) {
+    auto key = std::make_tuple(s, d, node_id);
+    auto it = edges.find(key);
+    if (it != edges.end()) {
+        return it->second;
     }
 
-    // Generate keypairs for both endpoints
     pqcrypto::KeyPair src_kp = pqcrypto::generate_keypair();
     pqcrypto::KeyPair dst_kp = pqcrypto::generate_keypair();
 
-    // Initialize the new channel
-    Channel ch{.src = s, .dst = d, .node = node};
+    Channel ch{.src = s, .dst = d, .node_id = node_id};
     ch.secret = pqcrypto::compute_shared_secret(src_kp, dst_kp);
 
-    vec.push_back(ch);
-    return vec.back();
+    edges.emplace(key, ch);
+    return edges.find(key)->second;
 }
 
 /**
  * @brief Locate an existing channel.
  */
-Channel *Graph::find(int s, int d) noexcept {
-    auto it = edges.find(s);
-    if (it == edges.end()) {
-        return nullptr;
+Channel *Graph::find(int s, int d, int node_id) noexcept {
+    auto key = std::make_tuple(s, d, node_id);
+    auto it = edges.find(key);
+    return it == edges.end() ? nullptr : &it->second;
+}
+
+/**
+ * @brief Locate a channel ignoring node identifier.
+ */
+Channel *Graph::find_any(int s, int d) noexcept {
+    for (auto &[key, ch] : edges) {
+        if (std::get<0>(key) == s && std::get<1>(key) == d) {
+            return &ch;
+        }
     }
-    auto &vec = it->second;
-    auto vit = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
-    return (vit != vec.end()) ? &*vit : nullptr;
+    return nullptr;
 }
 
 /**
@@ -143,8 +147,8 @@ bool Graph::is_listening(int pid) const noexcept {
 /**
  * @brief Wrapper around Graph::connect for external consumers.
  */
-int lattice_connect(int src, int dst, int node) {
-    g_graph.connect(src, dst, node);
+int lattice_connect(int src, int dst, int node_id) {
+    g_graph.connect(src, dst, node_id);
     return OK;
 }
 
@@ -165,16 +169,16 @@ static void yield_to(int pid) {
  * @brief Send a message across a channel.
  */
 int lattice_send(int src, int dst, const message &msg) {
-    Channel *ch = g_graph.find(src, dst);
+    Channel *ch = g_graph.find_any(src, dst);
     if (ch == nullptr) {
         ch = &g_graph.connect(src, dst, net::local_node());
     }
 
     // If the remote end is on another node, send over the network
-    if (ch->node != net::local_node()) {
+    if (ch->node_id != net::local_node()) {
         std::span<const std::byte> bytes{reinterpret_cast<const std::byte *>(&msg),
                                          sizeof(message)};
-        net::send(ch->node, bytes);
+        net::send(ch->node_id, bytes);
         return OK;
     }
 
@@ -205,15 +209,12 @@ int lattice_recv(int pid, message *msg) {
     }
 
     // Then scan all edges for a queued message
-    for (auto &[src, vec] : g_graph.edges) {
-        auto vit = std::find_if(vec.begin(), vec.end(), [pid](const Channel &c) {
-            return c.dst == pid && !c.queue.empty();
-        });
-        if (vit != vec.end()) {
-            *msg = vit->queue.front();
+    for (auto &[key, ch] : g_graph.edges) {
+        if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() && !ch.queue.empty()) {
+            *msg = ch.queue.front();
             std::span<std::byte> buf{reinterpret_cast<std::byte *>(msg), sizeof(message)};
-            xor_cipher(buf, vit->secret);
-            vit->queue.erase(vit->queue.begin());
+            xor_cipher(buf, ch.secret);
+            ch.queue.erase(ch.queue.begin());
             return OK;
         }
     }
