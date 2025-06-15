@@ -189,3 +189,15 @@ add_test(NAME minix_test_scheduler_deadlock COMMAND minix_test_scheduler_deadloc
 #Cryptography unit tests
                                                                                                     add_subdirectory(
                                                                                                         crypto)
+
+# Lattice IPC unit test
+add_executable(minix_test_lattice test_lattice.cpp
+               "${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp"
+               "${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp"
+               "${CMAKE_SOURCE_DIR}/kernel/table.cpp")
+set_target_properties(minix_test_lattice PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
+target_include_directories(minix_test_lattice PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/h")
+add_test(NAME minix_test_lattice COMMAND minix_test_lattice)
