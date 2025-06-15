@@ -5,33 +5,32 @@
 
 #include "pqcrypto.hpp"
 
+#include "kyber_impl/api.h"
 #include <array>
 #include <cstdint>
-#include <ranges>
 #include <span>
 
 namespace pqcrypto {
 
 /**
- * @brief Compute a shared secret using a naive XOR key exchange.
+ * @brief Compute a shared secret using the Kyber512 KEM.
  *
- * This routine XORs the given public key with the provided secret key to
- * produce a 32-byte shared secret. The logic mirrors the kernel's
- * pqcrypto::establish_secret used during lattice IPC setup but lives in the
- * standalone crypto library.
+ * The routine performs a standard key encapsulation using the remote
+ * party's public key and then decapsulates with the caller's private key
+ * to derive the resulting session secret.
  *
  * @param public_key Remote party's public key span.
- * @param secret_key Local secret key span.
+ * @param secret_key Local private key span.
  * @return Derived shared secret.
  */
-[[nodiscard]] std::array<std::uint8_t, 32>
-compute_shared_secret(std::span<const std::uint8_t, 32> public_key,
-                      std::span<const std::uint8_t, 32> secret_key) {
-    std::array<std::uint8_t, 32> secret{};
-    std::ranges::for_each(std::views::iota(std::size_t{0}, secret.size()), [&](std::size_t i) {
-        secret[i] = static_cast<std::uint8_t>(public_key[i] ^ secret_key[i]);
-    });
-    return secret;
+[[nodiscard]] std::array<std::uint8_t, pqcrystals_kyber512_BYTES> compute_shared_secret(
+    std::span<const std::uint8_t, pqcrystals_kyber512_PUBLICKEYBYTES> public_key,
+    std::span<const std::uint8_t, pqcrystals_kyber512_SECRETKEYBYTES> secret_key) {
+    std::array<std::uint8_t, pqcrystals_kyber512_BYTES> shared{};
+    std::array<std::uint8_t, pqcrystals_kyber512_CIPHERTEXTBYTES> ct{};
+    pqcrystals_kyber512_ref_enc(ct.data(), shared.data(), public_key.data());
+    pqcrystals_kyber512_ref_dec(shared.data(), ct.data(), secret_key.data());
+    return shared;
 }
 
 } // namespace pqcrypto
