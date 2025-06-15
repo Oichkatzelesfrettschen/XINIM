@@ -16,12 +16,7 @@ Post - Quantum Cryptography == == == == == == == == == == == ==
         .
         .doxygenfunction::pqcrypto::generate_keypair : project : XINIM
 
-        .
-        .doxygenfunction::pqcrypto::compute_shared_secret : project : XINIM
-
-        ..doxygenfunction::pqcrypto::establish_secret : project : XINIM
+        ..doxygenfunction::pqcrypto::compute_shared_secret : project : XINIM
 
 ``pqcrypto::compute_shared_secret`` derives a 32 -
-        byte session secret using the Kyber512 encapsulation routine
-            .The helper mirrors the kernel side
-``pqcrypto::establish_secret`` used during lattice IPC setup.
+        byte session secret using the Kyber512 encapsulation routine used during lattice IPC setup.

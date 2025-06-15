@@ -32,8 +32,8 @@ KeyPair generate_keypair() noexcept {
  * @param peer  Remote key pair providing the public component.
  * @return Derived shared secret.
  */
-std::array<std::uint8_t, pqcrystals_kyber512_BYTES> establish_secret(const KeyPair &local,
-                                                                     const KeyPair &peer) noexcept {
+std::array<std::uint8_t, pqcrystals_kyber512_BYTES>
+compute_shared_secret(const KeyPair &local, const KeyPair &peer) noexcept {
     (void)local;
     std::array<std::uint8_t, pqcrystals_kyber512_BYTES> secret{};
     std::array<std::uint8_t, pqcrystals_kyber512_CIPHERTEXTBYTES> ct{};
