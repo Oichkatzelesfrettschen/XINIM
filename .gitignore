@@ -20,6 +20,17 @@ cmake_install.cppmake
 *.tmp
 *.d
 __pycache__/
+
+# Ignore user cache directories and OS metadata
+/.cache/
+*.DS_Store
+
+# Ignore editor backup files
+*.idx
+*~
+*.swp
+*.bak
 docs/doxygen/
 /\.cache/
 *.DS_Store
+
