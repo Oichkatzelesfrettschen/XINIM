@@ -17,6 +17,7 @@
 #include "../h/error.hpp"
 #include "../h/stat.h"
 #include "../h/type.hpp" // Defines target types like phys_bytes, vir_bytes, vir_clicks
+#include "alloc.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
