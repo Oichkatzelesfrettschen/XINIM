@@ -1,8 +1,11 @@
 #pragma once
 #include "../include/xinim/core_types.hpp"
+#include "wait_graph.hpp"
 #include <algorithm>
 #include <deque>
 #include <optional>
+#include <unordered_map>
+#include <unordered_set>
 
 namespace sched {
 
@@ -34,9 +37,48 @@ class Scheduler {
     /// Currently running thread identifier.
     [[nodiscard]] xinim::pid_t current() const noexcept { return current_; }
 
+    /**
+     * @brief Block @p src until @p dst unblocks.
+     *
+     * The method records the dependency in the wait-for graph and fails if
+     * doing so would create a cycle.
+     *
+     * @param src Blocking thread identifier.
+     * @param dst Thread being waited on.
+     * @return @c true if blocking succeeded.
+     */
+    [[nodiscard]] bool block_on(xinim::pid_t src, xinim::pid_t dst);
+
+    /**
+     * @brief Unblock the given thread.
+     *
+     * Any wait-for edges originating from @p pid are removed and the thread
+     * becomes runnable again.
+     *
+     * @param pid Identifier to unblock.
+     */
+    void unblock(xinim::pid_t pid);
+
+    /**
+     * @brief Check whether a thread is currently blocked.
+     *
+     * @param pid Identifier to query.
+     * @return @c true if the thread is blocked.
+     */
+    [[nodiscard]] bool is_blocked(xinim::pid_t pid) const noexcept;
+
+    /**
+     * @brief Access the internal wait-for graph for inspection.
+     */
+    [[nodiscard]] const lattice::WaitForGraph &graph() const noexcept { return graph_; }
+
   private:
-    std::deque<xinim::pid_t> ready_{}; ///< ready queue
-    xinim::pid_t current_{-1};         ///< id of running thread
+    std::deque<xinim::pid_t> ready_{};             ///< ready queue
+    xinim::pid_t current_{-1};                     ///< id of running thread
+    std::unordered_set<xinim::pid_t> blocked_{};   ///< set of blocked threads
+    std::unordered_map<xinim::pid_t, xinim::pid_t> ///< blocking edges
+        waiting_{};
+    lattice::WaitForGraph graph_{}; ///< wait-for graph for deadlock detection
 };
 
 /// Global scheduler instance used by tests.
