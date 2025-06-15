@@ -4,6 +4,8 @@
  */
 
 #include "lattice_ipc.hpp"
+#include "../h/const.hpp"
+#include "../h/error.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
 #include "proc.hpp"

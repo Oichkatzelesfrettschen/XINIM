@@ -194,6 +194,23 @@ target_include_directories(minix_test_lattice PUBLIC
 add_test(NAME minix_test_lattice COMMAND minix_test_lattice)
 
 # -----------------------------------------------------------------------------
+# minix_test_lattice_ipc
+# -----------------------------------------------------------------------------
+add_executable(minix_test_lattice_ipc
+  test_lattice_ipc.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/table.cpp
+)
+target_include_directories(minix_test_lattice_ipc PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+  ${CMAKE_SOURCE_DIR}/include
+  ${CMAKE_SOURCE_DIR}/h
+)
+target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
+add_test(NAME minix_test_lattice_ipc COMMAND minix_test_lattice_ipc)
+
+# -----------------------------------------------------------------------------
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)
