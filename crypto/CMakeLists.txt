@@ -11,7 +11,7 @@ set(KYBER_IMPL_SOURCES
     kyber_impl/symmetric-shake.c
     kyber_impl/verify.c)
 
-add_library(pqcrypto STATIC kyber.cpp ${KYBER_IMPL_SOURCES})
+add_library(pqcrypto STATIC kyber.cpp pqcrypto_shared.cpp ${KYBER_IMPL_SOURCES})
 
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
