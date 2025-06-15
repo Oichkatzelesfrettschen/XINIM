@@ -12,6 +12,11 @@
 
 namespace lattice {
 
+/**
+ * @brief Special node identifier meaning "search all nodes".
+ */
+inline constexpr int ANY_NODE = -1;
+
 /** Import the global ::message type into the lattice namespace. */
 using ::message;
 
@@ -37,18 +42,21 @@ class Graph {
      *        if absent.
      */
     Channel &connect(int s, int d, int node_id = 0);
-    /** Find an existing channel on @p node_id or return nullptr. */
-    Channel *find(int s, int d, int node_id = 0) noexcept;
-    /** Find a channel ignoring node identifier. */
-    Channel *find_any(int s, int d) noexcept;
+    /** Find an existing channel or search all nodes when @p node_id equals ::ANY_NODE. */
+    Channel *find(int s, int d, int node_id = ANY_NODE) noexcept;
+    [[deprecated("Use find() with ANY_NODE")]]
+    Channel *find_any(int s, int d) noexcept {
+        return find(s, d, ANY_NODE);
+    }
     /** Mark @p pid as waiting for a message. */
-    void set_listening(int pid, bool flag) noexcept { listening[pid] = flag; }
+    void set_listening(int pid, bool flag) noexcept;
     /** Check if @p pid is currently waiting for a message. */
     [[nodiscard]] bool is_listening(int pid) const noexcept;
 
-    std::map<std::tuple<int, int, int>, Channel> edges; //!< channel storage keyed by (src,dst,node)
-    std::unordered_map<int, bool> listening;            //!< listen state per pid
-    std::unordered_map<int, message> inbox;             //!< ready messages
+    std::map<std::tuple<int, int, int>, Channel>
+        edges_;                               //!< channel storage keyed by (src,dst,node)
+    std::unordered_map<int, bool> listening_; //!< listen state per pid
+    std::unordered_map<int, message> inbox_;  //!< ready messages
 };
 
 extern Graph g_graph; //!< Global DAG instance

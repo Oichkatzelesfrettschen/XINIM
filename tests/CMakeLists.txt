@@ -7,6 +7,24 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
 
+function(add_lattice_test target source)
+  add_executable(${target}
+    ${source}
+    ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/table.cpp
+    task_stubs.cpp)
+  target_include_directories(${target} PUBLIC
+    ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/h
+    ${ARGN})
+  target_compile_definitions(${target} PRIVATE EXTERN=extern)
+  target_link_libraries(${target} PRIVATE pqcrypto)
+  add_test(NAME ${target} COMMAND ${target})
+endfunction()
+
 # -----------------------------------------------------------------------------
 # minix_test_lib
 # -----------------------------------------------------------------------------
@@ -180,43 +198,13 @@ add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 # -----------------------------------------------------------------------------
 # minix_test_lattice
 # -----------------------------------------------------------------------------
-add_executable(minix_test_lattice
-  test_lattice.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/table.cpp
-  task_stubs.cpp
-)
-target_include_directories(minix_test_lattice PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/h
-)
-target_link_libraries(minix_test_lattice PRIVATE pqcrypto)
-add_test(NAME minix_test_lattice COMMAND minix_test_lattice)
+add_lattice_test(minix_test_lattice test_lattice.cpp)
 
 # -----------------------------------------------------------------------------
 # minix_test_lattice_ipc
 # -----------------------------------------------------------------------------
-add_executable(minix_test_lattice_ipc
-  test_lattice_ipc.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/table.cpp
-  task_stubs.cpp
-)
-target_include_directories(minix_test_lattice_ipc PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/h
-  ${CMAKE_SOURCE_DIR}/crypto
-)
-target_link_libraries(minix_test_lattice_ipc PRIVATE pqcrypto)
+add_lattice_test(minix_test_lattice_ipc test_lattice_ipc.cpp ${CMAKE_SOURCE_DIR}/crypto)
 target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
-target_link_libraries(minix_test_lattice_ipc PRIVATE pqcrypto)
-add_test(NAME minix_test_lattice_ipc COMMAND minix_test_lattice_ipc)
 
 # -----------------------------------------------------------------------------
 # Crypto subdirectory

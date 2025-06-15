@@ -38,7 +38,7 @@ int main() {
     lattice_listen(2);
     msg.m_type = 99;
     assert(lattice_send(1, 2, msg) == OK);
-    assert(g_graph.inbox.find(2) != g_graph.inbox.end());
+    assert(g_graph.inbox_.find(2) != g_graph.inbox_.end());
     message out2{};
     assert(lattice_recv(2, &out2) == OK);
     assert(out2.m_type == 99);

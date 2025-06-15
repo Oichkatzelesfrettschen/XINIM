@@ -23,7 +23,6 @@ sudo apt-get install -y --no-install-recommends \
     llvm-dev \
     libclang-dev \
     libclang-cpp-dev \
-    libpolly-dev \
     cppcheck \
     valgrind \
     lcov \
@@ -32,7 +31,6 @@ sudo apt-get install -y --no-install-recommends \
     rustc \
     cargo \
     rustfmt \
-    cargo-clippy \
     g++ \
     afl++ \
     ninja-build \
@@ -42,6 +40,8 @@ sudo apt-get install -y --no-install-recommends \
     python3-breathe \
     python3-sphinx-rtd-theme \
     python3-pip \
+    libsodium-dev \
+    libsodium23 \
     qemu-system-x86 \
     qemu-utils \
     qemu-user \
@@ -53,14 +53,11 @@ if ! command -v ack >/dev/null 2>&1; then
     # Install the ACK compiler suite along with development headers
     sudo apt-get install -y --no-install-recommends \
         ack \
-        ack-dev \
-        ack-clang \
         ack-grep
 fi
 
 # Install optional ack helpers for Python and Node
-sudo pip3 install ack
-sudo npm install -g ack
+# ack helpers are optional; skip if pip or npm are restricted
 
 # Attempt to install libfuzzer development package if available.
 sudo apt-get install -y --no-install-recommends libfuzzer-dev || true
