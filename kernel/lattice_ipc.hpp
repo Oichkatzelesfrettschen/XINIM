@@ -4,6 +4,8 @@
  * @brief Directed acyclic graph based IPC primitives.
  */
 
+#include "../include/xinim/core_types.hpp"
+#include "net_driver.hpp"
 #include "pqcrypto.hpp"
 #include "proc.hpp"
 #include <map>
@@ -15,7 +17,7 @@ namespace lattice {
 /**
  * @brief Special node identifier meaning "search all nodes".
  */
-inline constexpr int ANY_NODE = -1;
+inline constexpr net::node_t ANY_NODE = -1;
 
 /** Import the global ::message type into the lattice namespace. */
 using ::message;
@@ -24,10 +26,12 @@ using ::message;
  * @brief Channel connecting two processes.
  */
 struct Channel {
-    int src; //!< Source process id
-    int dst; //!< Destination process id
-    /** Identifier of the remote node or 0 for local. */
-    int node_id{0};
+    xinim::pid_t src; //!< Source process identifier
+    xinim::pid_t dst; //!< Destination process identifier
+    /**
+     * @brief Identifier of the remote node or 0 for local delivery.
+     */
+    net::node_t node_id{0};
     std::vector<message> queue;          //!< Pending messages encrypted with @c secret
     std::array<std::uint8_t, 32> secret; //!< Shared secret derived by PQ crypto
 };
@@ -41,22 +45,22 @@ class Graph {
      * @brief Add an edge between @p s and @p d on @p node_id creating a channel
      *        if absent.
      */
-    Channel &connect(int s, int d, int node_id = 0);
+    Channel &connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id = 0);
     /** Find an existing channel or search all nodes when @p node_id equals ::ANY_NODE. */
-    Channel *find(int s, int d, int node_id = ANY_NODE) noexcept;
+    Channel *find(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id = ANY_NODE) noexcept;
     [[deprecated("Use find() with ANY_NODE")]]
-    Channel *find_any(int s, int d) noexcept {
-        return find(s, d, ANY_NODE);
+    Channel *find_any(xinim::pid_t src, xinim::pid_t dst) noexcept {
+        return find(src, dst, ANY_NODE);
     }
     /** Mark @p pid as waiting for a message. */
-    void set_listening(int pid, bool flag) noexcept;
+    void set_listening(xinim::pid_t pid, bool flag) noexcept;
     /** Check if @p pid is currently waiting for a message. */
-    [[nodiscard]] bool is_listening(int pid) const noexcept;
+    [[nodiscard]] bool is_listening(xinim::pid_t pid) const noexcept;
 
-    std::map<std::tuple<int, int, int>, Channel>
-        edges_;                               //!< channel storage keyed by (src,dst,node)
-    std::unordered_map<int, bool> listening_; //!< listen state per pid
-    std::unordered_map<int, message> inbox_;  //!< ready messages
+    std::map<std::tuple<xinim::pid_t, xinim::pid_t, net::node_t>, Channel>
+        edges_;                                        //!< channel storage keyed by (src,dst,node)
+    std::unordered_map<xinim::pid_t, bool> listening_; //!< listen state per pid
+    std::unordered_map<xinim::pid_t, message> inbox_;  //!< ready messages
 };
 
 extern Graph g_graph; //!< Global DAG instance
@@ -72,7 +76,7 @@ extern Graph g_graph; //!< Global DAG instance
  * @param node_id Identifier of the remote node, 0 meaning local.
  * @return Always returns ::OK for now.
  */
-int lattice_connect(int src, int dst, int node_id = 0);
+int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id = 0);
 
 /**
  * @brief Mark a process as waiting for an incoming message.
@@ -82,7 +86,7 @@ int lattice_connect(int src, int dst, int node_id = 0);
  *
  * @param pid Process identifier.
  */
-void lattice_listen(int pid);
+void lattice_listen(xinim::pid_t pid);
 
 /**
  * @brief Send a message over an established channel.
@@ -100,7 +104,7 @@ void lattice_listen(int pid);
  * @param msg Message to send.
  * @return ::OK on success.
  */
-int lattice_send(int src, int dst, const message &msg);
+int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg);
 
 /**
  * @brief Receive a message for a process.
@@ -114,6 +118,6 @@ int lattice_send(int src, int dst, const message &msg);
  * @param msg Buffer to store the received message.
  * @return ::OK on success or ::E_NO_MESSAGE when no message is available.
  */
-int lattice_recv(int pid, message *msg);
+int lattice_recv(xinim::pid_t pid, message *msg);
 
 } // namespace lattice
