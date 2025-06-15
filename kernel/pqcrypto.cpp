@@ -55,12 +55,23 @@ std::array<std::uint8_t, pqcrystals_kyber512_BYTES> establish_secret(const KeyPa
 
 /**
  * @brief Derive a shared secret given two key pairs.
+ *
+ * The helper validates the provided key sizes before forwarding to the
+ * span-based implementation. On size mismatch an empty array is returned.
  */
 std::array<std::uint8_t, pqcrystals_kyber512_BYTES>
 compute_shared_secret(const KeyPair &local, const KeyPair &peer) noexcept {
-    std::span<const std::uint8_t, pqcrystals_kyber512_PUBLICKEYBYTES> pk{peer.public_key};
-    std::span<const std::uint8_t, pqcrystals_kyber512_SECRETKEYBYTES> sk{local.private_key};
-    return pqcrypto::compute_shared_secret(pk, sk);
+    std::span<const std::uint8_t> pk{peer.public_key};
+    std::span<const std::uint8_t> sk{local.private_key};
+
+    if (pk.size() != pqcrystals_kyber512_PUBLICKEYBYTES ||
+        sk.size() != pqcrystals_kyber512_SECRETKEYBYTES) {
+        return {};
+    }
+
+    std::span<const std::uint8_t, pqcrystals_kyber512_PUBLICKEYBYTES> pk_fixed{peer.public_key};
+    std::span<const std::uint8_t, pqcrystals_kyber512_SECRETKEYBYTES> sk_fixed{local.private_key};
+    return pqcrypto::compute_shared_secret(pk_fixed, sk_fixed);
 }
 
 } // namespace pqcrypto

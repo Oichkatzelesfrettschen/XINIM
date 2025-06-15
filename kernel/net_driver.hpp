@@ -10,6 +10,9 @@
 
 namespace net {
 
+/** \brief Integer type representing a network node identifier. */
+using node_t = int;
+
 /**
  * @brief Obtain the identifier for the local node.
  *

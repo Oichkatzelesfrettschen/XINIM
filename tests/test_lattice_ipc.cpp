@@ -1,4 +1,3 @@
-```cpp
 /**
  * @file test_lattice_ipc.cpp
  * @brief Unit test for lattice IPC primitives with Kyber-based PQ encryption.
@@ -11,19 +10,19 @@
  * Verified June 15, 2025.
  */
 
-#include <cassert>
 #include <algorithm>
+#include <cassert>
 #include <cstddef>
 #include <span>
 #include <string_view>
 #include <vector>
 
+#include "../crypto/kyber.hpp"
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../h/type.hpp"
 #include "../kernel/const.hpp"
 #include "../kernel/lattice_ipc.hpp"
-#include "../kernel/kyber.hpp"
 
 using namespace lattice;
 
@@ -42,8 +41,7 @@ static std::vector<std::byte> to_bytes(std::string_view text) {
 /**
  * @brief Compare two byte spans for equality.
  */
-static bool bytes_equal(std::span<const std::byte> a,
-                        std::span<const std::byte> b) noexcept {
+static bool bytes_equal(std::span<const std::byte> a, std::span<const std::byte> b) noexcept {
     return a.size() == b.size() && std::equal(a.begin(), a.end(), b.begin());
 }
 
@@ -61,13 +59,13 @@ int main() {
     assert(ch != nullptr && "Channel must exist after connect()");
 
     auto plaintext = to_bytes(PAYLOAD);
-    auto kp        = pq::kyber::keypair();
-    auto cipher    = pq::kyber::encrypt(plaintext, kp.public_key);
+    auto kp = pq::kyber::keypair();
+    auto cipher = pq::kyber::encrypt(plaintext, kp.public_key);
 
     message send_msg{};
-    send_msg.m_type  = 1;
+    send_msg.m_type = 1;
     send_msg.m1_i1() = static_cast<int>(cipher.size());
-    send_msg.m1_p1() = reinterpret_cast<char*>(cipher.data());
+    send_msg.m1_p1() = reinterpret_cast<char *>(cipher.data());
 
     // Enqueue and verify
     assert(lattice_send(SRC, DST, send_msg) == OK);
@@ -76,10 +74,8 @@ int main() {
     // Dequeue, decrypt, and compare
     message recv_msg{};
     assert(lattice_recv(DST, &recv_msg) == OK);
-    std::span<const std::byte> recv_bytes{
-        reinterpret_cast<const std::byte*>(recv_msg.m1_p1()),
-        static_cast<std::size_t>(recv_msg.m1_i1())
-    };
+    std::span<const std::byte> recv_bytes{reinterpret_cast<const std::byte *>(recv_msg.m1_p1()),
+                                          static_cast<std::size_t>(recv_msg.m1_i1())};
     auto decrypted1 = pq::kyber::decrypt(recv_bytes, kp.private_key);
     assert(bytes_equal(decrypted1, plaintext));
     assert(ch->queue.empty() && "Queue should be empty after recv");
@@ -89,17 +85,16 @@ int main() {
 
     auto cipher2 = pq::kyber::encrypt(plaintext, kp.public_key);
     send_msg.m1_i1() = static_cast<int>(cipher2.size());
-    send_msg.m1_p1() = reinterpret_cast<char*>(cipher2.data());
+    send_msg.m1_p1() = reinterpret_cast<char *>(cipher2.data());
 
     assert(lattice_send(SRC, DST, send_msg) == OK);
-    assert(!g_graph.inbox[DST].empty() && "Inbox should contain direct message");
+    assert(g_graph.inbox_.find(DST) != g_graph.inbox_.end() &&
+           "Inbox should contain direct message");
 
     message recv2{};
     assert(lattice_recv(DST, &recv2) == OK);
-    std::span<const std::byte> recv_bytes2{
-        reinterpret_cast<const std::byte*>(recv2.m1_p1()),
-        static_cast<std::size_t>(recv2.m1_i1())
-    };
+    std::span<const std::byte> recv_bytes2{reinterpret_cast<const std::byte *>(recv2.m1_p1()),
+                                           static_cast<std::size_t>(recv2.m1_i1())};
     auto decrypted2 = pq::kyber::decrypt(recv_bytes2, kp.private_key);
     assert(bytes_equal(decrypted2, plaintext));
 
@@ -110,4 +105,3 @@ int main() {
 
     return 0;
 }
-```

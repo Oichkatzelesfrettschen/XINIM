@@ -23,6 +23,21 @@ transfer and update scheduling state.
 .. doxygenfunction:: fastpath::execute_fastpath
    :project: XINIM
 
+Graph API
+---------
+
+Channels are stored in a directed acyclic graph accessible through
+:cpp:class:`lattice::Graph`. The helper constant
+:cpp:var:`lattice::ANY_NODE` selects a wildcard search across all nodes when
+looking up connections.
+
+.. doxygenclass:: lattice::Graph
+   :project: XINIM
+   :members:
+
+.. doxygenvariable:: lattice::ANY_NODE
+   :project: XINIM
+
 Fastpath Integration
 --------------------
 
