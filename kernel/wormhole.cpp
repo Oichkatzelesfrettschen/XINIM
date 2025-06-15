@@ -16,13 +16,12 @@ namespace fastpath {
 
 // Moved set_message_region and message_region_valid to the outer fastpath namespace
 /**
- * @brief Set the region used for message transfer.
+ * @brief Store a zero-copy message region.
  *
- * The region must meet the alignment requirements of the underlying
- * MessageRegion type and is stored in @p state for zero-copy messaging.
+ * The region must meet MessageRegion alignment requirements.
  *
- * @param state Fastpath state to modify.
- * @param region Memory region describing the message buffer.
+ * @param state  Fastpath state to modify.
+ * @param region Message buffer region.
  */
 void set_message_region(State &state, const MessageRegion &region) noexcept {
     static_assert(MessageRegion::traits::is_zero_copy_capable,
@@ -32,11 +31,11 @@ void set_message_region(State &state, const MessageRegion &region) noexcept {
 }
 
 /**
- * @brief Determine whether a message region can hold a given number of words.
+ * @brief Check if a region can hold @p msg_len message words.
  *
  * @param region Memory region to validate.
  * @param msg_len Number of message words required.
- * @return True if the region is suitably sized and aligned.
+ * @return @c true when the region is large and aligned enough.
  */
 bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept {
     return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
@@ -55,7 +54,9 @@ namespace detail {
 // namespace detail { // This was the beginning of the second, nested detail. Consolidating.
 
 /**
- * @brief Remove the receiver from the endpoint queue and update endpoint state.
+ * @brief Remove the receiver from the endpoint queue.
+ *
+ * Marks the endpoint idle when the queue becomes empty.
  *
  * @param state Fastpath state holding endpoint data.
  */
@@ -69,21 +70,21 @@ inline void dequeue_receiver(State &state) noexcept {
 /**
  * @brief Deliver the sender's badge to the receiver.
  *
- * @param state Fastpath state referencing sender and receiver.
+ * @param state Fastpath state referencing both threads.
  */
 inline void transfer_badge(State &state) noexcept { state.receiver.badge = state.cap.badge; }
 
 /**
- * @brief Establish reply linkage from sender to receiver.
+ * @brief Link the sender to the receiver for replies.
  *
- * @param state Fastpath state referencing sender and receiver.
+ * @param state Fastpath state referencing both threads.
  */
 inline void establish_reply(State &state) noexcept { state.sender.reply_to = state.receiver.tid; }
 
 /**
  * @brief Copy message registers from sender to receiver.
  *
- * @param state Fastpath state containing message buffers.
+ * @param state Fastpath state containing the message buffers.
  */
 inline void copy_mrs(State &state) noexcept {
     const auto len = std::min(state.msg_len, state.sender.mrs.size());
@@ -100,11 +101,11 @@ inline void copy_mrs(State &state) noexcept {
 
 // These functions are now part of the consolidated "namespace detail"
 /**
- * @brief Update scheduling state after IPC.
+ * @brief Update thread states after IPC.
  *
- * The receiver becomes runnable while the sender blocks waiting for a reply.
+ * The receiver runs while the sender blocks waiting for a reply.
  *
- * @param state Fastpath state referencing threads.
+ * @param state Fastpath state referencing both threads.
  */
 inline void update_thread_state(State &state) noexcept {
     state.receiver.status = ThreadStatus::Running;
@@ -112,7 +113,7 @@ inline void update_thread_state(State &state) noexcept {
 }
 
 /**
- * @brief Context switch to the receiver thread using the global scheduler.
+ * @brief Switch execution to the receiver thread.
  *
  * @param state Fastpath state being updated.
  */
@@ -130,7 +131,7 @@ inline void context_switch(State &state) noexcept {
  * @brief Determine whether the given rights include send permission.
  *
  * @param rights Capability rights to inspect.
- * @return True if send is permitted.
+ * @return @c true if send is permitted.
  */
 static bool has_send_right(const CapRights &rights) noexcept { return rights.write; }
 
@@ -141,7 +142,7 @@ static bool has_send_right(const CapRights &rights) noexcept { return rights.wri
  * @param condition Expression result to evaluate.
  * @param idx Index of the failing precondition.
  * @param stats Optional statistics structure to update.
- * @return True if @p condition is true.
+ * @return @c true when the condition holds.
  */
 static bool check(bool condition, Precondition idx, FastpathStats *stats) noexcept {
     if (condition) {
@@ -161,7 +162,7 @@ static bool check(bool condition, Precondition idx, FastpathStats *stats) noexce
  *
  * @param s State to validate.
  * @param stats Optional statistics structure for failure accounting.
- * @return True if every precondition holds.
+ * @return @c true if every precondition holds.
  */
 static bool preconditions(const State &s, FastpathStats *stats) noexcept {
     return check(s.extra_caps == 0, Precondition::P1, stats) &&
@@ -181,11 +182,11 @@ static bool preconditions(const State &s, FastpathStats *stats) noexcept {
 using Transformer = void (*)(State &);
 
 /**
- * @brief Apply all transformation steps when fastpath preconditions hold.
+ * @brief Apply all transformation steps when preconditions hold.
  *
  * @param state Fastpath state describing sender and receiver.
  * @param stats Optional statistics structure to update.
- * @return True if the fastpath completed successfully.
+ * @return @c true if the fastpath completed successfully.
  */
 bool execute_fastpath(State &state, FastpathStats *stats) noexcept {
     if (!preconditions(state, stats)) {

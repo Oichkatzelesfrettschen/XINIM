@@ -7,13 +7,13 @@ namespace sched {
 Scheduler scheduler{};
 
 /**
- * @brief Preempt the current thread and schedule the next ready thread.
+ * @brief Select the next runnable thread.
  *
- * The currently running thread is enqueued if still runnable and the next
- * thread in the ready queue becomes current.
+ * Requeues the current thread when it remains runnable and switches to the
+ * front of the ready queue.
  *
- * @return PID of the thread now running or std::nullopt when no threads are
- *         ready.
+ * @return Identifier of the thread now running or @c std::nullopt when the
+ *         queue is empty.
  */
 std::optional<xinim::pid_t> Scheduler::preempt() {
     if (ready_.empty()) {
@@ -31,12 +31,12 @@ std::optional<xinim::pid_t> Scheduler::preempt() {
 }
 
 /**
- * @brief Yield execution directly to a specific thread if it is runnable.
+ * @brief Yield execution to @p target when it is runnable.
  *
- * The current thread is enqueued and the specified @p target becomes current
- * when present in the ready queue.
+ * The current thread is queued and control transfers to the selected thread if
+ * it is present in the ready list.
  *
- * @param target Thread identifier to switch to.
+ * @param target Identifier of the thread to run next.
  */
 void Scheduler::yield_to(xinim::pid_t target) {
     if (!std::erase(ready_, target)) {
@@ -49,14 +49,14 @@ void Scheduler::yield_to(xinim::pid_t target) {
 }
 
 /**
- * @brief Block @p src until @p dst becomes runnable.
+ * @brief Block @p src until @p dst is runnable.
  *
- * Records the dependency in the wait-for graph and removes @p src from the
- * ready queue. A cycle in the graph prevents blocking.
+ * The wait-for graph is updated and @p src removed from the ready queue. The
+ * operation fails if adding the edge creates a cycle.
  *
- * @param src Blocking thread identifier.
- * @param dst Thread being waited on.
- * @return True if blocking succeeds without introducing a cycle.
+ * @param src Identifier of the blocking thread.
+ * @param dst Thread being awaited.
+ * @return @c true on success.
  */
 bool Scheduler::block_on(xinim::pid_t src, xinim::pid_t dst) {
     if (graph_.add_edge(src, dst)) {
@@ -75,12 +75,11 @@ bool Scheduler::block_on(xinim::pid_t src, xinim::pid_t dst) {
 }
 
 /**
- * @brief Unblock the given thread and make it runnable again.
+ * @brief Unblock @p pid and return it to the ready queue.
  *
- * Removes wait-for edges originating from @p pid and requeues the thread if it
- * was previously blocked.
+ * Any wait-for edges from the thread are removed before it is requeued.
  *
- * @param pid Identifier to unblock.
+ * @param pid Thread identifier to unblock.
  */
 void Scheduler::unblock(xinim::pid_t pid) {
     if (auto it = waiting_.find(pid); it != waiting_.end()) {
@@ -94,17 +93,17 @@ void Scheduler::unblock(xinim::pid_t pid) {
 }
 
 /**
- * @brief Query whether a thread is currently blocked.
+ * @brief Check if a thread is blocked.
  *
- * @param pid Identifier to test.
- * @return True if the thread is blocked.
+ * @param pid Thread identifier to query.
+ * @return @c true when the thread is blocked.
  */
 bool Scheduler::is_blocked(xinim::pid_t pid) const noexcept { return blocked_.contains(pid); }
 
 /**
- * @brief Delegate crash handling for @p pid to the service manager.
+ * @brief Notify the service manager that a service crashed.
  *
- * @param pid Identifier of the crashed service.
+ * @param pid Identifier of the failing service.
  */
 void Scheduler::crash(xinim::pid_t pid) { svc::service_manager.handle_crash(pid); }
 
