@@ -15,6 +15,11 @@
 namespace fastpath {
 
 // Moved set_message_region and message_region_valid to the outer fastpath namespace
+/// Set the region used for message transfer.
+///
+/// @param state Fastpath state to modify.
+/// @param region Memory region describing the message buffer.
+/// @return void
 void set_message_region(State &state, const MessageRegion &region) noexcept {
     static_assert(MessageRegion::traits::is_zero_copy_capable,
                   "MessageRegion must support zero-copy");
@@ -22,6 +27,11 @@ void set_message_region(State &state, const MessageRegion &region) noexcept {
     state.msg_region = region;
 }
 
+/// Determine whether a message region can hold a given number of words.
+///
+/// @param region Memory region to validate.
+/// @param msg_len Number of message words required.
+/// @return True if the region is suitably sized and aligned.
 bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept {
     return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
 }
@@ -39,35 +49,40 @@ namespace detail {
 // namespace detail { // This was the beginning of the second, nested detail. Consolidating.
 
 /// Remove the receiver from the endpoint queue and update endpoint state.
+///
+/// @param state Fastpath state holding endpoint data.
+/// @return void
 inline void dequeue_receiver(State &state) noexcept {
-    auto it =
-        std::find(state.endpoint.queue.begin(), state.endpoint.queue.end(), state.receiver.tid);
-    if (it != state.endpoint.queue.end()) {
-        state.endpoint.queue.erase(it);
-    }
+    std::erase(state.endpoint.queue, state.receiver.tid);
     if (state.endpoint.queue.empty()) {
         state.endpoint.state = EndpointState::Idle;
     }
 }
 
 /// Deliver the sender's badge to the receiver.
+///
+/// @param state Fastpath state referencing sender and receiver.
+/// @return void
 inline void transfer_badge(State &state) noexcept { state.receiver.badge = state.cap.badge; }
 
 /// Establish reply linkage from sender to receiver.
+///
+/// @param state Fastpath state referencing sender and receiver.
+/// @return void
 inline void establish_reply(State &state) noexcept { state.sender.reply_to = state.receiver.tid; }
 
 /// Copy message registers from sender to receiver.
+///
+/// @param state Fastpath state containing message buffers.
+/// @return void
 inline void copy_mrs(State &state) noexcept {
+    const auto len = std::min(state.msg_len, state.sender.mrs.size());
     if (message_region_valid(state.msg_region, state.msg_len)) {
         auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
-        for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
-            buffer[i] = state.sender.mrs[i];
-            state.receiver.mrs[i] = buffer[i];
-        }
+        std::ranges::copy_n(state.sender.mrs.begin(), len, buffer);
+        std::ranges::copy_n(buffer, len, state.receiver.mrs.begin());
     } else {
-        for (size_t i = 0; i < state.msg_len && i < state.sender.mrs.size(); ++i) {
-            state.receiver.mrs[i] = state.sender.mrs[i];
-        }
+        std::ranges::copy_n(state.sender.mrs.begin(), len, state.receiver.mrs.begin());
     }
 }
 
@@ -76,16 +91,18 @@ inline void copy_mrs(State &state) noexcept {
 // These functions are now part of the consolidated "namespace detail"
 /// Update scheduling state after IPC.
 /// The receiver becomes runnable while the sender blocks waiting for a reply.
+///
+/// @param state Fastpath state referencing threads.
+/// @return void
 inline void update_thread_state(State &state) noexcept {
     state.receiver.status = ThreadStatus::Running;
     state.sender.status = ThreadStatus::Blocked;
 }
 
-/**
- * @brief Context switch to the receiver thread using the global scheduler.
- *
- * @param state Fastpath state being updated.
- */
+/// Context switch to the receiver thread using the global scheduler.
+///
+/// @param state Fastpath state being updated.
+/// @return void
 inline void context_switch(State &state) noexcept {
     sched::scheduler.yield_to(state.receiver.tid);
     state.current_tid = sched::scheduler.current();
@@ -96,9 +113,19 @@ inline void context_switch(State &state) noexcept {
 // These static functions remain in the outer ::fastpath namespace
 // update statistics for a failed precondition
 // Helper to determine if a capability conveys send rights.
+/// Determine whether the given rights include send permission.
+///
+/// @param rights Capability rights to inspect.
+/// @return True if send is permitted.
 static bool has_send_right(const CapRights &rights) noexcept { return rights.write; }
 
 // Helper for updating statistics when a precondition check fails.
+/// Record a failed precondition when @p condition is false.
+///
+/// @param condition Expression result to evaluate.
+/// @param idx Index of the failing precondition.
+/// @param stats Optional statistics structure to update.
+/// @return True if @p condition is true.
 static bool check(bool condition, Precondition idx, FastpathStats *stats) noexcept {
     if (condition) {
         return true;
@@ -112,6 +139,11 @@ static bool check(bool condition, Precondition idx, FastpathStats *stats) noexce
 }
 
 // Evaluate all preconditions for a fastpath execution attempt.
+/// Verify that the current state satisfies all fastpath requirements.
+///
+/// @param s State to validate.
+/// @param stats Optional statistics structure for failure accounting.
+/// @return True if every precondition holds.
 static bool preconditions(const State &s, FastpathStats *stats) noexcept {
     return check(s.extra_caps == 0, Precondition::P1, stats) &&
            check(s.msg_len <= s.sender.mrs.size(), Precondition::P2, stats) &&
@@ -130,18 +162,20 @@ static bool preconditions(const State &s, FastpathStats *stats) noexcept {
 using Transformer = void (*)(State &);
 
 /// Apply all transformation steps when fastpath preconditions hold.
+///
+/// @param state Fastpath state describing sender and receiver.
+/// @param stats Optional statistics structure to update.
+/// @return True if the fastpath completed successfully.
 bool execute_fastpath(State &state, FastpathStats *stats) noexcept {
     if (!preconditions(state, stats)) {
         return false;
     }
 
-    constexpr Transformer steps[] = {detail::dequeue_receiver,    detail::transfer_badge,
-                                     detail::establish_reply,     detail::copy_mrs,
-                                     detail::update_thread_state, detail::context_switch};
+    constexpr std::array<Transformer, 6> steps{detail::dequeue_receiver,    detail::transfer_badge,
+                                               detail::establish_reply,     detail::copy_mrs,
+                                               detail::update_thread_state, detail::context_switch};
 
-    for (Transformer step : steps) {
-        step(state);
-    }
+    std::ranges::for_each(steps, [&state](Transformer step) { step(state); });
 
     if (stats != nullptr) {
         stats->success_count.fetch_add(1, std::memory_order_relaxed);
