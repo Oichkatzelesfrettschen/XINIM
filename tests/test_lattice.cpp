@@ -6,6 +6,7 @@
 #include "../h/error.hpp"
 #include "../h/type.hpp"
 #include "../kernel/lattice_ipc.hpp"
+#include "../kernel/net_driver.hpp"
 #include "../kernel/pqcrypto.hpp"
 #include <cassert>
 
@@ -21,11 +22,11 @@ int main() {
     msg.m_type = 42;
 
     assert(lattice_connect(1, 2) == OK);
-    assert(g_graph.find(1, 2) != nullptr);
+    assert(g_graph.find(1, 2, net::local_node()) != nullptr);
 
     // Destination not listening -> message enqueued
     assert(lattice_send(1, 2, msg) == OK);
-    auto *ch = g_graph.find(1, 2);
+    auto *ch = g_graph.find(1, 2, net::local_node());
     assert(ch && ch->queue.size() == 1);
 
     message out{};

@@ -8,6 +8,7 @@
 #include "../h/type.hpp"
 #include "../kernel/const.hpp"
 #include "../kernel/lattice_ipc.hpp"
+#include "../kernel/net_driver.hpp"
 #include <cassert>
 
 /**
@@ -30,7 +31,7 @@ int main() {
 
     // Establish the channel between the processes.
     assert(lattice_connect(SRC_PID, DST_PID) == OK);
-    Channel *ch = g_graph.find(SRC_PID, DST_PID);
+    Channel *ch = g_graph.find(SRC_PID, DST_PID, net::local_node());
     assert(ch != nullptr);
 
     message msg{};
