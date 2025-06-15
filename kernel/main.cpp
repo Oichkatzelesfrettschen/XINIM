@@ -38,8 +38,8 @@ void init_syscall_msrs() noexcept; // Changed (void) to (), added noexcept
 int main() noexcept { // Changed from PUBLIC main(), added noexcept
     /* Start the ball rolling. */
 
-    register struct proc *rp;
-    register int t;
+    struct proc *rp;
+    int t;
     std::size_t size;                            // vir_clicks -> std::size_t
     uint64_t base_click, mm_base, previous_base; // phys_clicks -> uint64_t
     uint64_t phys_b;                             // phys_bytes -> uint64_t (seems unused)
