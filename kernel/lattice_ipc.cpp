@@ -7,11 +7,11 @@
 #include "glo.hpp"
 #include "proc.hpp"
 
+#include <algorithm>
 #include <cstddef>
 #include <memory>
 #include <span>
 #include <vector>
-#include <algorithm>
 
 namespace lattice {
 
@@ -34,17 +34,14 @@ class MessageBuffer {
      * @brief Construct buffer of given @p size in bytes.
      * @param size Number of bytes to allocate.
      */
-    explicit MessageBuffer(std::size_t size)
-      : data_{std::make_shared<std::vector<Byte>>(size)} {}
+    explicit MessageBuffer(std::size_t size) : data_{std::make_shared<std::vector<Byte>>(size)} {}
 
     /**
      * @brief Obtain mutable view of the stored bytes.
      * @return Span covering the buffer contents.
      */
     [[nodiscard]] std::span<Byte> span() noexcept {
-        return data_
-            ? std::span<Byte>{data_->data(), data_->size()}
-            : std::span<Byte>{};
+        return data_ ? std::span<Byte>{data_->data(), data_->size()} : std::span<Byte>{};
     }
 
     /**
@@ -52,20 +49,15 @@ class MessageBuffer {
      * @return Span over immutable bytes.
      */
     [[nodiscard]] std::span<const Byte> span() const noexcept {
-        return data_
-            ? std::span<const Byte>{data_->data(), data_->size()}
-            : std::span<const Byte>{};
+        return data_ ? std::span<const Byte>{data_->data(), data_->size()}
+                     : std::span<const Byte>{};
     }
 
     /// Number of bytes in the buffer.
-    [[nodiscard]] std::size_t size() const noexcept {
-        return data_ ? data_->size() : 0U;
-    }
+    [[nodiscard]] std::size_t size() const noexcept { return data_ ? data_->size() : 0U; }
 
     /// Access underlying shared pointer for advanced sharing.
-    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept {
-        return data_;
-    }
+    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept { return data_; }
 
   private:
     std::shared_ptr<std::vector<Byte>> data_{}; ///< Shared data container
@@ -79,18 +71,22 @@ Graph g_graph{};
 
 /**
  * @brief Create or retrieve a channel between two processes.
+ *
+ * When a new channel is created both endpoints generate Kyber key
+ * pairs. The shared secret is negotiated using pqcrypto::establish_secret
+ * before the channel is inserted into the adjacency list.
  */
 Channel &Graph::connect(int s, int d) {
     auto &vec = edges[s];
-    auto it = std::find_if(vec.begin(), vec.end(),
-                           [d](const Channel &c){ return c.dst == d; });
+    auto it = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
     if (it != vec.end()) {
         return *it;
     }
-    pqcrypto::KeyPair a = pqcrypto::generate_keypair();
-    pqcrypto::KeyPair b = pqcrypto::generate_keypair();
-    Channel ch{ .src = s, .dst = d };
-    ch.secret = pqcrypto::establish_secret(a, b);
+    pqcrypto::KeyPair src_kp = pqcrypto::generate_keypair();
+    pqcrypto::KeyPair dst_kp = pqcrypto::generate_keypair();
+
+    Channel ch{.src = s, .dst = d};
+    ch.secret = pqcrypto::establish_secret(src_kp, dst_kp);
     vec.push_back(ch);
     return vec.back();
 }
@@ -104,8 +100,7 @@ Channel *Graph::find(int s, int d) noexcept {
         return nullptr;
     }
     auto &vec = it->second;
-    auto vit = std::find_if(vec.begin(), vec.end(),
-                            [d](const Channel &c){ return c.dst == d; });
+    auto vit = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
     return (vit != vec.end()) ? &*vit : nullptr;
 }
 
@@ -128,9 +123,7 @@ int lattice_connect(int src, int dst) {
 /**
  * @brief Register a process as listening for a message.
  */
-void lattice_listen(int pid) {
-    g_graph.set_listening(pid, true);
-}
+void lattice_listen(int pid) { g_graph.set_listening(pid, true); }
 
 /**
  * @brief Helper to switch execution to another process.
@@ -169,10 +162,9 @@ int lattice_recv(int pid, message *msg) {
         return OK;
     }
     for (auto &[src, vec] : g_graph.edges) {
-        auto vit = std::find_if(vec.begin(), vec.end(),
-                                [pid](const Channel &c){
-                                    return c.dst == pid && !c.queue.empty();
-                                });
+        auto vit = std::find_if(vec.begin(), vec.end(), [pid](const Channel &c) {
+            return c.dst == pid && !c.queue.empty();
+        });
         if (vit != vec.end()) {
             *msg = vit->queue.front();
             vit->queue.erase(vit->queue.begin());

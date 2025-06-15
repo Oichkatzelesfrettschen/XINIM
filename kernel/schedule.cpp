@@ -1,4 +1,5 @@
 #include "schedule.hpp"
+#include "service.hpp"
 
 namespace sched {
 
@@ -63,5 +64,7 @@ void Scheduler::unblock(xinim::pid_t pid) {
 }
 
 bool Scheduler::is_blocked(xinim::pid_t pid) const noexcept { return blocked_.contains(pid); }
+
+void Scheduler::crash(xinim::pid_t pid) { svc::service_manager.handle_crash(pid); }
 
 } // namespace sched

@@ -1,28 +1,44 @@
 #include "pqcrypto.hpp"
-#include <random>
+
+/**
+ * @file pqcrypto.cpp
+ * @brief Kyber-based primitives for kernel key exchange.
+ */
+
+#include "../crypto/kyber_impl/api.h"
+#include <array>
 
 namespace pqcrypto {
 
+/**
+ * @brief Generate a Kyber key pair for kernel use.
+ *
+ * @return Newly created key pair.
+ */
 KeyPair generate_keypair() noexcept {
-    std::random_device rd;
-    std::mt19937 gen(rd());
-    std::uniform_int_distribution<std::uint16_t> dist(0, 255);
-
     KeyPair kp{};
-    for (auto &b : kp.public_key) {
-        b = static_cast<std::uint8_t>(dist(gen));
-    }
-    for (auto &b : kp.private_key) {
-        b = static_cast<std::uint8_t>(dist(gen));
-    }
+    pqcrystals_kyber512_ref_keypair(kp.public_key.data(), kp.private_key.data());
     return kp;
 }
 
-std::array<std::uint8_t, 32> establish_secret(const KeyPair &local, const KeyPair &peer) noexcept {
-    std::array<std::uint8_t, 32> secret{};
-    for (std::size_t i = 0; i < secret.size(); ++i) {
-        secret[i] = static_cast<std::uint8_t>(local.private_key[i] ^ peer.public_key[i]);
-    }
+/**
+ * @brief Establish a shared secret via Kyber encapsulation.
+ *
+ * The routine encapsulates to @p peer using its public key and decapsulates
+ * with the peer's private key to yield a symmetric secret. The @p local key
+ * pair is reserved for future protocol extensions and is currently unused.
+ *
+ * @param local Local key pair (unused).
+ * @param peer  Remote key pair providing the public component.
+ * @return Derived shared secret.
+ */
+std::array<std::uint8_t, pqcrystals_kyber512_BYTES> establish_secret(const KeyPair &local,
+                                                                     const KeyPair &peer) noexcept {
+    (void)local;
+    std::array<std::uint8_t, pqcrystals_kyber512_BYTES> secret{};
+    std::array<std::uint8_t, pqcrystals_kyber512_CIPHERTEXTBYTES> ct{};
+    pqcrystals_kyber512_ref_enc(ct.data(), secret.data(), peer.public_key.data());
+    pqcrystals_kyber512_ref_dec(secret.data(), ct.data(), peer.private_key.data());
     return secret;
 }
 
