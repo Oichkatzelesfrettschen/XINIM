@@ -30,3 +30,7 @@ __pycache__/
 *~
 *.swp
 *.bak
+docs/doxygen/
+/\.cache/
+*.DS_Store
+

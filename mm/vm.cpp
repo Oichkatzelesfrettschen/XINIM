@@ -20,6 +20,11 @@ PRIVATE unsigned long rng_state = 1;
 /* Generate a pseudo random number.
  * no parameters.
  */
+/**
+ * @brief Generate a pseudo random number used for address randomisation.
+ *
+ * @return Next pseudo random value.
+ */
 PRIVATE unsigned long next_rand(void) {
     rng_state = rng_state * 1103515245 + 12345;
     return rng_state;
@@ -30,6 +35,9 @@ PRIVATE unsigned long next_rand(void) {
  *===========================================================================*/
 /* Initialise the virtual memory subsystem.
  * no parameters.
+ */
+/**
+ * @brief Initialise the virtual memory subsystem.
  */
 PUBLIC void vm_init(void) {
     int i;
@@ -45,6 +53,14 @@ PUBLIC void vm_init(void) {
 /* Allocate virtual address space with ASLR.
  * bytes: size in bytes to allocate.
  * flags: protection flags (unused).
+ */
+/**
+ * @brief Allocate a region of virtual memory with simple ASLR.
+ *
+ * @param bytes Number of bytes to allocate.
+ * @param flags Protection flags (currently unused).
+ *
+ * @return Base address of the allocated region.
  */
 PUBLIC void *vm_alloc(u64_t bytes, VmFlags flags) {
     virt_addr64 base;
@@ -64,6 +80,12 @@ PUBLIC void *vm_alloc(u64_t bytes, VmFlags flags) {
  * proc: process index causing the fault.
  * addr: faulting virtual address.
  */
+/**
+ * @brief Record a page fault within a process.
+ *
+ * @param proc Index of the faulting process.
+ * @param addr Faulting virtual address.
+ */
 PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
     /* This routine would allocate a page frame and map it.  Here it is
      * recorded only for bookkeeping.
@@ -80,9 +102,13 @@ PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
 /*===========================================================================*
  *                              vm_fork                                      *
  *===========================================================================*/
-/* Duplicate parent's memory bookkeeping for a child process.
- * parent: index of the parent process.
- * child: index of the child process.
+/**
+ * @brief Duplicate a parent's virtual memory bookkeeping for a child.
+ *
+ * @param parent Index of the parent process.
+ * @param child  Index of the child process.
+ *
+ * @return ::OK on success.
  */
 PUBLIC int vm_fork(int parent, int child) {
     vm_proc_table[child] = vm_proc_table[parent];
@@ -92,11 +118,15 @@ PUBLIC int vm_fork(int parent, int child) {
 /*===========================================================================*
  *                              vm_mmap                                      *
  *===========================================================================*/
-/* Map a region of memory into a process.
- * proc:   process index to map into.
- * addr:   desired base address or NULL.
- * length: length of mapping in bytes.
- * flags:  mapping flags.
+/**
+ * @brief Map a region of memory into a process.
+ *
+ * @param proc   Process index to map into.
+ * @param addr   Desired base address or nullptr for automatic placement.
+ * @param length Length of the mapping in bytes.
+ * @param flags  Mapping flags.
+ *
+ * @return Base address of the mapped region.
  */
 PUBLIC void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) {
     struct vm_proc *p = &vm_proc_table[proc];

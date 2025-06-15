@@ -34,23 +34,24 @@ add_executable(minix_test_lib test_lib.cpp "${CMAKE_SOURCE_DIR}/lib/strlen.cpp"
                                                                      DISABLED TRUE)
 
 #Wormhole unit test
-                    add_executable(minix_test_fastpath test_fastpath.cpp
+add_executable(minix_test_fastpath test_fastpath.cpp
                                    "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp"
-                                   "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp")
+                                   "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+                                   "${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp")
                         target_include_directories(
                             minix_test_fastpath PUBLIC
                             "${CMAKE_SOURCE_DIR}/kernel") add_test(NAME minix_test_fastpath COMMAND
                                                                        minix_test_fastpath)
 
 #Scheduler unit test
-                            add_executable(minix_test_scheduler test_scheduler.cpp "${CMAKE_SOURCE_"
-                                                                                   "DIR}/kernel/"
-                                                                                   "schedule.cpp") target_include_directories(
-                                minix_test_scheduler PUBLIC
-                                "${CMAKE_SOURCE_DIR}/kernel"
-                                "${CMAKE_SOURCE_DIR}/include") add_test(NAME minix_test_scheduler
-                                                                            COMMAND
-                                                                                minix_test_scheduler)
+add_executable(minix_test_scheduler test_scheduler.cpp
+               "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+               "${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp")
+target_include_directories(
+    minix_test_scheduler PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"
+    "${CMAKE_SOURCE_DIR}/include")
+add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
 
 #Semantic region unit test
                                 add_executable(minix_test_semantic_region test_semantic_region.cpp) target_include_directories(
@@ -93,10 +94,10 @@ add_executable(minix_test_lib test_lib.cpp "${CMAKE_SOURCE_DIR}/lib/strlen.cpp"
                                                                                                         minix_test_memory_stream COMMAND minix_test_memory_stream)
 
 #Scheduler edge case unit test
-                                                            add_executable(minix_test_scheduler_edge
-                                                                               test_scheduler_edge.cpp
-                                                                           "${CMAKE_SOURCE_DIR}/"
-                                                                           "kernel/schedule.cpp")
+add_executable(minix_test_scheduler_edge
+               test_scheduler_edge.cpp
+               "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+               "${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp")
                                                                 set_target_properties(
                                                                     minix_test_scheduler_edge
                                                                         PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED
@@ -126,24 +127,27 @@ add_executable(minix_test_lib test_lib.cpp "${CMAKE_SOURCE_DIR}/lib/strlen.cpp"
                                                                                     "kernel"
                                                                                     "${CMAKE_"
                                                                                     "SOURCE_DIR}/"
-                                                                                    "include") add_test(NAME minix_test_wait_graph COMMAND minix_test_wait_graph)
+            "include") add_test(NAME minix_test_wait_graph COMMAND minix_test_wait_graph)
+
+#Scheduler deadlock detection unit test
+add_executable(minix_test_scheduler_deadlock test_scheduler_deadlock.cpp
+               "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+               "${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp")
+set_target_properties(
+    minix_test_scheduler_deadlock PROPERTIES
+    CXX_STANDARD 23 CXX_STANDARD_REQUIRED ON)
+target_include_directories(
+    minix_test_scheduler_deadlock PUBLIC
+    "${CMAKE_SOURCE_DIR}/kernel"
+    "${CMAKE_SOURCE_DIR}/include")
+add_test(NAME minix_test_scheduler_deadlock COMMAND minix_test_scheduler_deadlock)
 
 #Fastpath precondition unit test
-                                                                                    add_executable(
-                                                                                        minix_test_fastpath_preconditions test_fastpath_preconditions
-                                                                                            .cpp
-                                                                                        "${CMAKE_"
-                                                                                        "SOURCE_"
-                                                                                        "DIR}/"
-                                                                                        "kernel/"
-                                                                                        "wormhole."
-                                                                                        "cpp"
-                                                                                        "${CMAKE_"
-                                                                                        "SOURCE_"
-                                                                                        "DIR}/"
-                                                                                        "kernel/"
-                                                                                        "schedule."
-                                                                                        "cpp")
+    add_executable(
+        minix_test_fastpath_preconditions test_fastpath_preconditions.cpp
+        "${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp"
+        "${CMAKE_SOURCE_DIR}/kernel/schedule.cpp"
+        "${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp")
                                                                                         set_target_properties(
                                                                                             minix_test_fastpath_preconditions
                                                                                                 PROPERTIES CXX_STANDARD 23 CXX_STANDARD_REQUIRED
