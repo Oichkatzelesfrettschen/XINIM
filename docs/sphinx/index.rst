@@ -19,4 +19,5 @@ The documentation is divided into several sections:
    scheduler
    service
    precommit
+   libsodium_tests
    api

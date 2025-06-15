@@ -8,7 +8,8 @@ endif()
 set(KERNEL_SRC
     clock.cpp dmp.cpp floppy.cpp main.cpp memory.cpp printer.cpp proc.cpp system.cpp
     table.cpp tty.cpp idt64.cpp mpx64.cpp klib64.cpp klib88.cpp mpx88.cpp paging.cpp
-    wormhole.cpp lattice_ipc.cpp wait_graph.cpp pqcrypto.cpp syscall.cpp service.cpp ${WINI_SRC})
+    wormhole.cpp lattice_ipc.cpp net_driver.cpp wait_graph.cpp pqcrypto.cpp syscall.cpp ${WINI_SRC})
+
 
 #Note : klib88.cpp and mpx88.cpp were added as they appear to be kernel related sources.
 #wini.cpp is a generic name, might be a common file or superseded by at_wini / xt_wini.

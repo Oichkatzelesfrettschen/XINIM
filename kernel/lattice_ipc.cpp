@@ -5,6 +5,7 @@
 
 #include "lattice_ipc.hpp"
 #include "glo.hpp"
+#include "net_driver.hpp"
 #include "proc.hpp"
 
 #include <algorithm>
@@ -24,7 +25,7 @@ namespace lattice {
  * std::shared_ptr.
  */
 class MessageBuffer {
-  public:
+public:
     using Byte = std::byte; ///< Convenience alias for byte type
 
     /// Construct an empty MessageBuffer.
@@ -34,14 +35,17 @@ class MessageBuffer {
      * @brief Construct buffer of given @p size in bytes.
      * @param size Number of bytes to allocate.
      */
-    explicit MessageBuffer(std::size_t size) : data_{std::make_shared<std::vector<Byte>>(size)} {}
+    explicit MessageBuffer(std::size_t size)
+      : data_{std::make_shared<std::vector<Byte>>(size)} {}
 
     /**
      * @brief Obtain mutable view of the stored bytes.
      * @return Span covering the buffer contents.
      */
     [[nodiscard]] std::span<Byte> span() noexcept {
-        return data_ ? std::span<Byte>{data_->data(), data_->size()} : std::span<Byte>{};
+        return data_
+            ? std::span<Byte>{data_->data(), data_->size()}
+            : std::span<Byte>{};
     }
 
     /**
@@ -49,17 +53,22 @@ class MessageBuffer {
      * @return Span over immutable bytes.
      */
     [[nodiscard]] std::span<const Byte> span() const noexcept {
-        return data_ ? std::span<const Byte>{data_->data(), data_->size()}
-                     : std::span<const Byte>{};
+        return data_
+            ? std::span<const Byte>{data_->data(), data_->size()}
+            : std::span<const Byte>{};
     }
 
     /// Number of bytes in the buffer.
-    [[nodiscard]] std::size_t size() const noexcept { return data_ ? data_->size() : 0U; }
+    [[nodiscard]] std::size_t size() const noexcept {
+        return data_ ? data_->size() : 0U;
+    }
 
     /// Access underlying shared pointer for advanced sharing.
-    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept { return data_; }
+    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept {
+        return data_;
+    }
 
-  private:
+private:
     std::shared_ptr<std::vector<Byte>> data_{}; ///< Shared data container
 };
 
@@ -76,17 +85,27 @@ Graph g_graph{};
  * pairs. The shared secret is negotiated using pqcrypto::establish_secret
  * before the channel is inserted into the adjacency list.
  */
-Channel &Graph::connect(int s, int d) {
+Channel &Graph::connect(int s, int d, int node) {
     auto &vec = edges[s];
-    auto it = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
+    // Look for an existing channel matching both dst and node
+    auto it = std::find_if(
+        vec.begin(), vec.end(),
+        [d, node](const Channel &c) {
+            return c.dst == d && c.node == node;
+        }
+    );
     if (it != vec.end()) {
         return *it;
     }
+
+    // Generate keypairs for both endpoints
     pqcrypto::KeyPair src_kp = pqcrypto::generate_keypair();
     pqcrypto::KeyPair dst_kp = pqcrypto::generate_keypair();
 
-    Channel ch{.src = s, .dst = d};
+    // Initialize the new channel
+    Channel ch{.src = s, .dst = d, .node = node};
     ch.secret = pqcrypto::establish_secret(src_kp, dst_kp);
+
     vec.push_back(ch);
     return vec.back();
 }
@@ -100,7 +119,12 @@ Channel *Graph::find(int s, int d) noexcept {
         return nullptr;
     }
     auto &vec = it->second;
-    auto vit = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
+    auto vit = std::find_if(
+        vec.begin(), vec.end(),
+        [d](const Channel &c) {
+            return c.dst == d;
+        }
+    );
     return (vit != vec.end()) ? &*vit : nullptr;
 }
 
@@ -115,15 +139,17 @@ bool Graph::is_listening(int pid) const noexcept {
 /**
  * @brief Wrapper around Graph::connect for external consumers.
  */
-int lattice_connect(int src, int dst) {
-    g_graph.connect(src, dst);
+int lattice_connect(int src, int dst, int node) {
+    g_graph.connect(src, dst, node);
     return OK;
 }
 
 /**
  * @brief Register a process as listening for a message.
  */
-void lattice_listen(int pid) { g_graph.set_listening(pid, true); }
+void lattice_listen(int pid) {
+    g_graph.set_listening(pid, true);
+}
 
 /**
  * @brief Helper to switch execution to another process.
@@ -139,8 +165,20 @@ static void yield_to(int pid) {
 int lattice_send(int src, int dst, const message &msg) {
     Channel *ch = g_graph.find(src, dst);
     if (ch == nullptr) {
-        ch = &g_graph.connect(src, dst);
+        ch = &g_graph.connect(src, dst, net::local_node());
     }
+
+    // If the remote end is on another node, send over the network
+    if (ch->node != net::local_node()) {
+        std::span<const std::byte> bytes{
+            reinterpret_cast<const std::byte *>(&msg),
+            sizeof(message)
+        };
+        net::send(ch->node, bytes);
+        return OK;
+    }
+
+    // Local delivery: either wake the listener or enqueue
     if (g_graph.is_listening(dst)) {
         g_graph.inbox[dst] = msg;
         g_graph.set_listening(dst, false);
@@ -155,22 +193,30 @@ int lattice_send(int src, int dst, const message &msg) {
  * @brief Receive a message destined for a process.
  */
 int lattice_recv(int pid, message *msg) {
+    // Check inbox first
     auto it = g_graph.inbox.find(pid);
     if (it != g_graph.inbox.end()) {
         *msg = it->second;
         g_graph.inbox.erase(it);
         return OK;
     }
+
+    // Then scan all edges for a queued message
     for (auto &[src, vec] : g_graph.edges) {
-        auto vit = std::find_if(vec.begin(), vec.end(), [pid](const Channel &c) {
-            return c.dst == pid && !c.queue.empty();
-        });
+        auto vit = std::find_if(
+            vec.begin(), vec.end(),
+            [pid](const Channel &c) {
+                return c.dst == pid && !c.queue.empty();
+            }
+        );
         if (vit != vec.end()) {
             *msg = vit->queue.front();
             vit->queue.erase(vit->queue.begin());
             return OK;
         }
     }
+
+    // No message: register listener and return E_NO_MESSAGE
     lattice_listen(pid);
     return static_cast<int>(ErrorCode::E_NO_MESSAGE);
 }

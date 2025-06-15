@@ -20,6 +20,7 @@ struct message;
 struct Channel {
     int src;                             //!< Source process id
     int dst;                             //!< Destination process id
+    int node{0};                         //!< Destination node identifier
     std::vector<message> queue;          //!< Pending messages
     std::array<std::uint8_t, 32> secret; //!< Shared secret derived by PQ crypto
 };
@@ -29,8 +30,11 @@ struct Channel {
  */
 class Graph {
   public:
-    /** Add an edge between @p s and @p d creating a channel if absent. */
-    Channel &connect(int s, int d);
+    /**
+     * @brief Add an edge between @p s and @p d on @p node creating a channel if
+     *        absent.
+     */
+    Channel &connect(int s, int d, int node = 0);
     /** Find an existing channel or return nullptr. */
     Channel *find(int s, int d) noexcept;
     /** Mark @p pid as waiting for a message. */
@@ -55,7 +59,7 @@ extern Graph g_graph; //!< Global DAG instance
  * @param dst Destination process identifier.
  * @return Always returns ::OK for now.
  */
-int lattice_connect(int src, int dst);
+int lattice_connect(int src, int dst, int node = 0);
 
 /**
  * @brief Mark a process as waiting for an incoming message.
