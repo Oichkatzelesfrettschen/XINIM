@@ -1,11 +1,13 @@
 /*
  * @file lattice_ipc.cpp
- * @brief Reference-counted message buffer and lattice IPC logic.
+ * @brief Reference‐counted message buffer and lattice IPC logic.
  */
 
 #include "lattice_ipc.hpp"
+
 #include "../h/const.hpp"
 #include "../h/error.hpp"
+
 #include "glo.hpp"
 #include "net_driver.hpp"
 #include "proc.hpp"
@@ -15,226 +17,231 @@
 #include <memory>
 #include <span>
 #include <vector>
+#include <tuple>
+#include <deque>
+#include <unordered_map>
 
 namespace {
 
 /**
- * @brief XOR based symmetric cipher used for message payloads.
+ * @brief XOR-based symmetric cipher for message payloads.
  *
- * The routine applies a repeating XOR mask derived from the provided
- * secret. Encryption and decryption are identical operations.
+ * Applies a repeating XOR mask derived from @p key over @p buf in place.
+ * Encryption and decryption are identical.
  *
- * @param buf  Buffer to transform in place.
- * @param key  Channel secret used as XOR mask.
+ * @param buf  Span of bytes to transform.
+ * @param key  Span of secret bytes used as mask.
  */
-void xor_cipher(std::span<std::byte> buf, std::span<const std::uint8_t, 32> key) noexcept {
+void xor_cipher(std::span<std::byte> buf,
+                std::span<const std::byte> key) noexcept
+{
     for (std::size_t i = 0; i < buf.size(); ++i) {
-        buf[i] ^= std::byte{key[i % key.size()]};
+        buf[i] ^= key[i % key.size()];
     }
 }
 
-} // namespace
+} // anonymous namespace
 
 namespace lattice {
 
+/*==============================================================================
+ *                           MessageBuffer Class
+ *============================================================================*/
+
 /**
  * @class MessageBuffer
- * @brief Shared container for IPC message bytes.
+ * @brief Shared, reference‐counted container for IPC message bytes.
  *
- * The buffer uses reference counting so multiple threads can access the same
- * underlying storage without copying. Lifetime is automatically managed via
- * std::shared_ptr.
+ * Uses std::shared_ptr<std::vector<std::byte>> internally so that multiple
+ * parties can hold views without copying. Lifetime is managed automatically.
  */
-class MessageBuffer {
-  public:
-    using Byte = std::byte; ///< Convenience alias for byte type
+MessageBuffer::MessageBuffer() = default;
 
-    /// Construct an empty MessageBuffer.
-    MessageBuffer() = default;
+MessageBuffer::MessageBuffer(std::size_t size)
+    : data_(std::make_shared<std::vector<Byte>>(size))
+{}
 
-    /**
-     * @brief Construct buffer of given @p size in bytes.
-     * @param size Number of bytes to allocate.
-     */
-    explicit MessageBuffer(std::size_t size) : data_{std::make_shared<std::vector<Byte>>(size)} {}
-
-    /**
-     * @brief Obtain mutable view of the stored bytes.
-     * @return Span covering the buffer contents.
-     */
-    [[nodiscard]] std::span<Byte> span() noexcept {
-        return data_ ? std::span<Byte>{data_->data(), data_->size()} : std::span<Byte>{};
-    }
-
-    /**
-     * @brief Obtain const view of the stored bytes.
-     * @return Span over immutable bytes.
-     */
-    [[nodiscard]] std::span<const Byte> span() const noexcept {
-        return data_ ? std::span<const Byte>{data_->data(), data_->size()}
-                     : std::span<const Byte>{};
-    }
-
-    /// Number of bytes in the buffer.
-    [[nodiscard]] std::size_t size() const noexcept { return data_ ? data_->size() : 0U; }
-
-    /// Access underlying shared pointer for advanced sharing.
-    [[nodiscard]] std::shared_ptr<std::vector<Byte>> share() const noexcept { return data_; }
-
-  private:
-    std::shared_ptr<std::vector<Byte>> data_{}; ///< Shared data container
-};
-
-//------------------------------------------------------------------------------
-//  IPC / Graph implementation
-//------------------------------------------------------------------------------
-
-Graph g_graph{};
-
-/**
- * @brief Create or retrieve a channel between two processes.
- *
- * When a new channel is created both endpoints generate Kyber key
- * pairs. The shared secret is negotiated using pqcrypto::compute_shared_secret
- * before the channel is inserted into the adjacency list.
- */
-Channel &Graph::connect(int s, int d, int node_id) {
-    auto &vec = edges[s];
-    // Look for an existing channel matching both dst and node
-    auto it = std::find_if(vec.begin(), vec.end(), [d, node_id](const Channel &c) {
-        return c.dst == d && c.node_id == node_id;
-    });
-    if (it != vec.end()) {
-        return *it;
-    }
-
-    // Generate keypairs for both endpoints
-    pqcrypto::KeyPair src_kp = pqcrypto::generate_keypair();
-    pqcrypto::KeyPair dst_kp = pqcrypto::generate_keypair();
-
-    // Initialize the new channel
-    Channel ch{.src = s, .dst = d, .node_id = node_id};
-    ch.secret = pqcrypto::compute_shared_secret(src_kp, dst_kp);
-
-    vec.push_back(ch);
-    return vec.back();
+std::span<MessageBuffer::Byte> MessageBuffer::span() noexcept {
+    return data_
+        ? std::span<Byte>{ data_->data(), data_->size() }
+        : std::span<Byte>{};
 }
 
-/**
- * @brief Locate an existing channel.
- */
-Channel *Graph::find(int s, int d, int node_id) noexcept {
-    auto it = edges.find(s);
-    if (it == edges.end()) {
-        return nullptr;
+std::span<const MessageBuffer::Byte> MessageBuffer::span() const noexcept {
+    return data_
+        ? std::span<const Byte>{ data_->data(), data_->size() }
+        : std::span<const Byte>{};
+}
+
+std::size_t MessageBuffer::size() const noexcept {
+    return data_ ? data_->size() : 0;
+}
+
+std::shared_ptr<std::vector<MessageBuffer::Byte>>
+MessageBuffer::share() const noexcept {
+    return data_;
+}
+
+/*==============================================================================
+ *                            Graph & Channel Logic
+ *============================================================================*/
+
+Graph g_graph;  ///< Global IPC graph instance
+
+Channel &Graph::connect(pid_t src,
+                        pid_t dst,
+                        net::node_t node_id)
+{
+    auto key = std::make_tuple(src, dst, node_id);
+    auto it  = edges_.find(key);
+    if (it != edges_.end()) {
+        return it->second;
     }
-    auto &vec = it->second;
-    auto vit = std::find_if(vec.begin(), vec.end(), [d, node_id](const Channel &c) {
-        return c.dst == d && c.node_id == node_id;
-    });
-    return (vit != vec.end()) ? &*vit : nullptr;
+
+    // Generate per‐endpoint keys and derive shared secret
+    auto kp_src = pqcrypto::generate_keypair();
+    auto kp_dst = pqcrypto::generate_keypair();
+
+    Channel channel{};
+    channel.src     = src;
+    channel.dst     = dst;
+    channel.node_id = node_id;
+    channel.secret  = pqcrypto::compute_shared_secret(
+                          kp_src.private_key,
+                          kp_dst.public_key);
+
+    auto [ins_it, _] = edges_.emplace(key, std::move(channel));
+    return ins_it->second;
 }
 
-/**
- * @brief Locate a channel ignoring node identifier.
- */
-Channel *Graph::find_any(int s, int d) noexcept {
-    auto it = edges.find(s);
-    if (it == edges.end()) {
-        return nullptr;
+Channel *Graph::find(pid_t src,
+                     pid_t dst,
+                     net::node_t node_id) noexcept
+{
+    auto key = std::make_tuple(src, dst, node_id);
+    auto it  = edges_.find(key);
+    return (it != edges_.end()) ? &it->second : nullptr;
+}
+
+Channel *Graph::find_any(pid_t src, pid_t dst) noexcept {
+    for (auto & [key, ch] : edges_) {
+        if (std::get<0>(key) == src && std::get<1>(key) == dst) {
+            return &ch;
+        }
     }
-    auto &vec = it->second;
-    auto vit = std::find_if(vec.begin(), vec.end(), [d](const Channel &c) { return c.dst == d; });
-    return (vit != vec.end()) ? &*vit : nullptr;
+    return nullptr;
 }
 
-/**
- * @brief Check whether a process is waiting for a message.
- */
-bool Graph::is_listening(int pid) const noexcept {
-    auto it = listening.find(pid);
-    return (it != listening.end()) && it->second;
+bool Graph::is_listening(pid_t pid) const noexcept {
+    auto it = listening_.find(pid);
+    return (it != listening_.end()) && it->second;
 }
 
-/**
- * @brief Wrapper around Graph::connect for external consumers.
- */
-int lattice_connect(int src, int dst, int node_id) {
+void Graph::set_listening(pid_t pid, bool flag) noexcept {
+    listening_[pid] = flag;
+}
+
+/*==============================================================================
+ *                              IPC API Wrappers
+ *============================================================================*/
+
+int lattice_connect(pid_t src,
+                    pid_t dst,
+                    net::node_t node_id)
+{
     g_graph.connect(src, dst, node_id);
-    return OK;
+    return static_cast<int>(ErrorCode::OK);
+}
+
+void lattice_listen(pid_t pid) {
+    g_graph.set_listening(pid, true);
 }
 
 /**
- * @brief Register a process as listening for a message.
+ * @brief Yield execution context to another process.
  */
-void lattice_listen(int pid) { g_graph.set_listening(pid, true); }
-
-/**
- * @brief Helper to switch execution to another process.
- */
-static void yield_to(int pid) {
+static void yield_to(pid_t pid) {
     proc_ptr = proc_addr(pid);
     cur_proc = pid;
 }
 
-/**
- * @brief Send a message across a channel.
- */
-int lattice_send(int src, int dst, const message &msg) {
+int lattice_send(pid_t src,
+                 pid_t dst,
+                 const message &msg)
+{
+    // Ensure channel exists (local or remote)
     Channel *ch = g_graph.find_any(src, dst);
-    if (ch == nullptr) {
+    if (!ch) {
         ch = &g_graph.connect(src, dst, net::local_node());
     }
 
-    // If the remote end is on another node, send over the network
+    // Remote‐node delivery over network
     if (ch->node_id != net::local_node()) {
-        std::span<const std::byte> bytes{reinterpret_cast<const std::byte *>(&msg),
-                                         sizeof(message)};
+        std::span<const std::byte> bytes{
+            reinterpret_cast<const std::byte*>(&msg),
+            sizeof(message)
+        };
         net::send(ch->node_id, bytes);
-        return OK;
+        return static_cast<int>(ErrorCode::OK);
     }
 
-    // Local delivery: either wake the listener or enqueue
+    // Local delivery path
     if (g_graph.is_listening(dst)) {
-        g_graph.inbox[dst] = msg;
+        // Direct handoff
+        g_graph.inbox_[dst] = msg;
         g_graph.set_listening(dst, false);
         yield_to(dst);
     } else {
-        message enc = msg;
-        std::span<std::byte> buf{reinterpret_cast<std::byte *>(&enc), sizeof(message)};
-        xor_cipher(buf, ch->secret);
-        ch->queue.push_back(enc);
+        // Encrypt in place and queue
+        message copy = msg;
+        auto buf = std::span<std::byte>(
+            reinterpret_cast<std::byte*>(&copy),
+            sizeof(message)
+        );
+        xor_cipher(buf, std::span<const std::byte>(
+            reinterpret_cast<const std::byte*>(ch->secret.data()),
+            ch->secret.size()
+        ));
+        ch->queue.push_back(std::move(copy));
     }
-    return OK;
+
+    return static_cast<int>(ErrorCode::OK);
 }
 
-/**
- * @brief Receive a message destined for a process.
- */
-int lattice_recv(int pid, message *msg) {
-    // Check inbox first
-    auto it = g_graph.inbox.find(pid);
-    if (it != g_graph.inbox.end()) {
-        *msg = it->second;
-        g_graph.inbox.erase(it);
-        return OK;
+int lattice_recv(pid_t pid, message *out) {
+    // 1) Check inbox (direct handoff)
+    auto ib = g_graph.inbox_.find(pid);
+    if (ib != g_graph.inbox_.end()) {
+        *out = ib->second;
+        g_graph.inbox_.erase(ib);
+        return static_cast<int>(ErrorCode::OK);
     }
 
-    // Then scan all edges for a queued message
-    for (auto &[src, vec] : g_graph.edges) {
-        auto vit = std::find_if(vec.begin(), vec.end(), [pid](const Channel &c) {
-            return c.dst == pid && c.node_id == net::local_node() && !c.queue.empty();
-        });
-        if (vit != vec.end()) {
-            *msg = vit->queue.front();
-            std::span<std::byte> buf{reinterpret_cast<std::byte *>(msg), sizeof(message)};
-            xor_cipher(buf, vit->secret);
-            vit->queue.erase(vit->queue.begin());
-            return OK;
+    // 2) Scan queued channels
+    for (auto & [key, ch] : g_graph.edges_) {
+        if (std::get<1>(key) != pid ||
+            std::get<2>(key) != net::local_node() ||
+            ch.queue.empty())
+        {
+            continue;
         }
+
+        // Dequeue, decrypt in place, and return
+        *out = std::move(ch.queue.front());
+        ch.queue.pop_front();
+
+        auto buf = std::span<std::byte>(
+            reinterpret_cast<std::byte*>(out),
+            sizeof(message)
+        );
+        xor_cipher(buf, std::span<const std::byte>(
+            reinterpret_cast<const std::byte*>(ch.secret.data()),
+            ch.secret.size()
+        ));
+        return static_cast<int>(ErrorCode::OK);
     }
 
-    // No message: register listener and return E_NO_MESSAGE
+    // 3) No message: register as listener
     lattice_listen(pid);
     return static_cast<int>(ErrorCode::E_NO_MESSAGE);
 }

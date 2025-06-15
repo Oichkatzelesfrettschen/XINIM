@@ -6,6 +6,7 @@
 
 #include "pqcrypto.hpp"
 #include "proc.hpp"
+#include <map>
 #include <unordered_map>
 #include <vector>
 
@@ -45,9 +46,9 @@ class Graph {
     /** Check if @p pid is currently waiting for a message. */
     [[nodiscard]] bool is_listening(int pid) const noexcept;
 
-    std::unordered_map<int, std::vector<Channel>> edges; //!< adjacency list
-    std::unordered_map<int, bool> listening;             //!< listen state per pid
-    std::unordered_map<int, message> inbox;              //!< ready messages
+    std::map<std::tuple<int, int, int>, Channel> edges; //!< channel storage keyed by (src,dst,node)
+    std::unordered_map<int, bool> listening;            //!< listen state per pid
+    std::unordered_map<int, message> inbox;             //!< ready messages
 };
 
 extern Graph g_graph; //!< Global DAG instance

@@ -211,7 +211,9 @@ target_include_directories(minix_test_lattice_ipc PUBLIC
   ${CMAKE_SOURCE_DIR}/kernel
   ${CMAKE_SOURCE_DIR}/include
   ${CMAKE_SOURCE_DIR}/h
+  ${CMAKE_SOURCE_DIR}/crypto
 )
+target_link_libraries(minix_test_lattice_ipc PRIVATE pqcrypto)
 target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
 target_link_libraries(minix_test_lattice_ipc PRIVATE pqcrypto)
 add_test(NAME minix_test_lattice_ipc COMMAND minix_test_lattice_ipc)
