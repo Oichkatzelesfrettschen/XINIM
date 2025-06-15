@@ -187,6 +187,11 @@ PRIVATE void merge(struct hole *hp) noexcept {
  * @param clicks Number of clicks available.
  */
 PUBLIC void mem_init(uint64_t clicks) noexcept { // phys_clicks -> uint64_t
+    for (auto it = std::begin(hole); it != std::end(hole); ++it) {
+        auto next = std::next(it);
+        it->h_next = next != std::end(hole) ? &(*next) : nullptr;
+    }
+
     // Chain free slots using modern iteration. The first hole represents the
     // available memory region; remaining slots are placed on the free list.
     auto first = std::begin(hole);
@@ -197,6 +202,7 @@ PUBLIC void mem_init(uint64_t clicks) noexcept { // phys_clicks -> uint64_t
     }
 
     hole[0].h_next = nullptr; /* only 1 big hole initially */
+
     hole_head = &hole[0];
     free_slots = &hole[1];
     hole[0].h_base = 0;
