@@ -56,6 +56,25 @@ looking up connections.
 .. doxygenvariable:: lattice::ANY_NODE
    :project: XINIM
 
+Remote Channel Setup
+--------------------
+
+The lattice IPC layer supports connecting processes across multiple nodes.
+Use :cpp:func:`lattice_connect` with a non-zero ``node_id`` so the network
+driver can exchange handshake packets. The driver synchronizes channel
+metadata before capability tokens are installed.
+
+Example connection to a remote node:
+
+.. code-block:: cpp
+
+   constexpr net::node_t REMOTE = 1;
+   constexpr xinim::pid_t SRC_PID = 5;
+   constexpr xinim::pid_t DST_PID = 10;
+
+   // Establish a channel from SRC_PID on this node to DST_PID on node 1
+   lattice_connect(SRC_PID, DST_PID, REMOTE);
+
 Fastpath Integration
 --------------------
 
