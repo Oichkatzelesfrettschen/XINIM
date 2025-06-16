@@ -38,8 +38,20 @@ using RecvCallback = std::function<void(const Packet &)>;
 /** Initialize the driver with @p cfg opening the UDP socket. */
 void init(const Config &cfg);
 
-/** Register a remote @p node reachable at @p host:@p port. */
-void add_remote(node_t node, const std::string &host, std::uint16_t port);
+/**
+ * @brief Register a remote node reachable at the given address.
+ *
+ * The driver records @p host and @p port for the specified @p node. When
+ * @p tcp is ``true`` each send operation establishes a transient TCP
+ * connection instead of using UDP datagrams. The default behaviour remains
+ * UDP based.
+ *
+ * @param node Identifier of the remote node.
+ * @param host IPv4 dotted decimal string for the remote host.
+ * @param port Destination port used for either protocol.
+ * @param tcp  When ``true`` send() transmits over TCP.
+ */
+void add_remote(node_t node, const std::string &host, std::uint16_t port, bool tcp = false);
 
 /** Install a packet receive callback. */
 void set_recv_callback(RecvCallback cb);
@@ -50,19 +62,21 @@ void shutdown() noexcept;
 /**
  * @brief Obtain the network derived identifier for this host.
  *
- * The driver queries the bound UDP socket to read back the IPv4 address.
- * The address is converted to host byte order and returned as the node
- * identifier. A value of ``0`` indicates the address could not be
- * determined.
+ * The hostname is queried using ``gethostname`` and hashed into a
+ * numeric identifier. A value of ``0`` is returned if the hostname
+ * cannot be retrieved.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send raw bytes to a remote node using UDP.
+ * @brief Send raw bytes to a remote node.
  *
  * The payload is prefixed with the local node identifier before being
- * transmitted to the remote host registered through ::add_remote. If the
- * destination is unknown the function silently drops the data.
+ * transmitted to the remote host registered through ::add_remote. By
+ * default UDP datagrams are used, however if the remote peer was
+ * registered with ``tcp=true`` the driver establishes a short-lived TCP
+ * connection for the transfer. Unknown destinations are silently
+ * ignored.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
