@@ -19,6 +19,7 @@ The documentation is divided into several sections:
    lattice_ipc#remote-channel-setup
    pq_crypto
    scheduler
+   wait_graph
    service
    service_manager
    precommit
