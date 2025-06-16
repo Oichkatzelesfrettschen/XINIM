@@ -1,12 +1,13 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP based network driver interface for Lattice IPC.
+ * @brief UDP/TCP network driver interface for Lattice IPC.
  */
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <netinet/in.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -20,80 +21,68 @@ using node_t = int;
  * @brief In‐memory representation of a network packet.
  */
 struct Packet {
-    node_t src_node;                ///< Originating node ID
-    std::vector<std::byte> payload; ///< Packet payload bytes
+    node_t                 src_node;  ///< Originating node ID
+    std::vector<std::byte> payload;   ///< Packet payload bytes
 };
 
-/** Configuration options for ::init. */
+/** Configuration for ::init. */
 struct Config {
-    node_t node_id;     ///< Local node identifier
-    std::uint16_t port; ///< UDP port to bind locally
+    node_t      node_id;  ///< Local node identifier
+    uint16_t    port;     ///< UDP port to bind locally
 };
 
-/**
- * Callback invoked whenever a packet is received.
- */
-using RecvCallback = std::function<void(const Packet &)>;
-
-/** Initialize the driver with @p cfg opening the UDP socket. */
-void init(const Config &cfg);
+/** Callback invoked whenever a packet is received. */
+using RecvCallback = std::function<void(const Packet&)>;
 
 /**
- * @brief Register a remote node reachable at the given address.
+ * @brief Initialize the network driver.
  *
- * The driver records @p host and @p port for the specified @p node. When
- * @p tcp is ``true`` each send operation establishes a transient TCP
- * connection instead of using UDP datagrams. The default behaviour remains
- * UDP based.
- *
- * @param node Identifier of the remote node.
- * @param host IPv4 dotted decimal string for the remote host.
- * @param port Destination port used for either protocol.
- * @param tcp  When ``true`` send() transmits over TCP.
+ * Binds a UDP socket to cfg.port and starts background receiver threads.
  */
-void add_remote(node_t node, const std::string &host, std::uint16_t port, bool tcp = false);
+void init(const Config& cfg);
+
+/**
+ * @brief Register a remote peer.
+ *
+ * @param node Remote node identifier.
+ * @param host IPv4 address or hostname of the peer.
+ * @param port UDP/TCP port number.
+ * @param tcp  When true, send() will use a transient TCP connection; otherwise UDP.
+ */
+void add_remote(node_t node,
+                const std::string& host,
+                uint16_t port,
+                bool tcp = false);
 
 /** Install a packet receive callback. */
 void set_recv_callback(RecvCallback cb);
 
-/** Stop background networking threads and reset state. */
+/** Shutdown the network driver and stop all background threads. */
 void shutdown() noexcept;
 
 /**
- * @brief Obtain the network derived identifier for this host.
+ * @brief Derive a stable node ID from the local hostname.
  *
- * The hostname is queried using ``gethostname`` and hashed into a
- * numeric identifier. A value of ``0`` is returned if the hostname
- * cannot be retrieved.
+ * Hashes gethostname() into a node_t. Returns 0 on failure.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
  * @brief Send raw bytes to a remote node.
  *
- * The payload is prefixed with the local node identifier before being
- * transmitted to the remote host registered through ::add_remote. By
- * default UDP datagrams are used, however if the remote peer was
- * registered with ``tcp=true`` the driver establishes a short-lived TCP
- * connection for the transfer. Unknown destinations are silently
- * ignored.
- *
- * @param node Destination node ID.
- * @param data Span of bytes to transmit.
+ * Prefixes the payload with the local node ID and transmits via UDP or TCP
+ * depending on how the peer was registered. Unknown destinations are ignored.
  */
 void send(node_t node, std::span<const std::byte> data);
 
 /**
- * @brief Retrieve the next pending packet for the local node.
+ * @brief Retrieve the next pending packet for this node.
  *
- * @param out Packet object to populate with received data.
- * @return `true` if a packet was dequeued, `false` if none available.
+ * @return true if a packet was dequeued into out, false if none available.
  */
-[[nodiscard]] bool recv(Packet &out);
+[[nodiscard]] bool recv(Packet& out);
 
-/**
- * @brief Clear all queued packets across every node.
- */
+/** Clear all queued packets across every node. */
 void reset() noexcept;
 
 } // namespace net

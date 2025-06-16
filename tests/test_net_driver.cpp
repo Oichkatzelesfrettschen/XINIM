@@ -22,7 +22,8 @@ constexpr std::uint16_t CHILD_PORT = 14001;
 /** Parent process logic sending a packet and expecting a reply. */
 int parent_proc(pid_t child) {
     net::init({PARENT_NODE, PARENT_PORT});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::UDP);
+    assert(net::local_node() != 0);
 
     std::this_thread::sleep_for(100ms);
 
@@ -52,7 +53,7 @@ int parent_proc(pid_t child) {
 /** Child process echoing a different payload back. */
 int child_proc() {
     net::init({CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
+    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::UDP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
     net::send(PARENT_NODE, ready);

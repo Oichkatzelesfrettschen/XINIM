@@ -1,19 +1,18 @@
 Networking Driver
 =================
 
-The UDP networking layer transports lattice IPC packets between nodes.  A node
-binds to a local UDP port and registers remote peers through
-:cpp:func:`net::add_remote`.  The driver spawns background threads to poll the
-UDP socket and accept optional TCP connections. Packets are delivered over UDP
-unless the peer was added with ``tcp=true``.
+The networking driver transports Lattice IPC packets between nodes over UDP or, optionally, TCP.  Each node:
 
-The host identifier is computed by hashing ``gethostname`` with
-:cpp:func:`net::local_node`, providing a unique node ID across the cluster.
+- **Binds** to a local UDP port (and a TCP listen socket if TCP‐enabled).  
+- **Registers** peers via :cpp:func:`net::add_remote(node, host, port, tcp?)`.  
+- **Spawns** background threads to receive UDP datagrams and accept TCP connections.  
+- **Queues** incoming packets internally and invokes an optional callback.  
+- **Delivers** packets via :cpp:func:`net::recv`, or via the registered callback.  
+- **Shuts down** cleanly with :cpp:func:`net::shutdown`.
 
 API Overview
 ------------
-
-.. doxygenstruct:: net::Config
+.. doxygentypedef:: net::Config
    :project: XINIM
 
 .. doxygentypedef:: net::RecvCallback
@@ -41,81 +40,124 @@ API Overview
    :project: XINIM
 
 Local Node Identification
-------------------------
-
-``local_node()`` reads back the IPv4 address assigned to the socket opened by
-``net::init``. The driver invokes ``getsockname`` and converts the address into
-host byte order. The resulting integer uniquely identifies this host when
-exchanging packets.
+-------------------------
+:cpp:func:`net::local_node` opens its UDP socket (via :cpp:func:`net::init`),  
+calls ``getsockname()``, and returns the bound IPv4 address in host byte order  
+as a stable ``node_t`` identifier.
 
 Registering Remote Peers
------------------------
-
-Use ``net::add_remote`` to associate a numeric node identifier with a
-``host:port`` pair. Datagrams are only transmitted to nodes present in this
-mapping. Typically applications register peers immediately after initializing
-the driver so that outbound traffic succeeds.
-
-Typical Configuration Steps
----------------------------
-
-1. Call ``net::init`` with a :cpp:struct:`net::Config` describing the local node
-   and UDP port.
-2. Add remote nodes with :cpp:func:`net::add_remote`.
-3. Optionally install a receive callback using
-   :cpp:func:`net::set_recv_callback`.
-
-After these steps packets can be sent with :cpp:func:`net::send` and consumed
-via :cpp:func:`net::recv`.
-
-Example Two-Node Exchange
--------------------------
-
-The unit tests spawn two processes communicating over localhost. The following
-snippet mirrors that setup while omitting error handling:
+------------------------
+Use:
 
 .. code-block:: cpp
 
-   constexpr net::node_t PARENT_NODE = 0;      // identifier for parent
-   constexpr net::node_t CHILD_NODE  = 1;      // identifier for child
-   constexpr uint16_t PARENT_PORT = 14000;     // UDP port for parent
-   constexpr uint16_t CHILD_PORT  = 14001;     // UDP port for child
+   net::add_remote(node_id, "hostname-or-ip", port, /*tcp=*/false);
 
-   if (fork() == 0) {
-       // Child process configuration
-       net::init({CHILD_NODE, CHILD_PORT});
-       net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
-       std::array<std::byte, 1> ready{std::byte{0}}; // notify parent
-       net::send(PARENT_NODE, ready);
+to associate a numeric ``node_id`` with a host:port.  Only packets to registered  
+peers are transmitted.  For TCP, pass ``tcp=true``.
 
-       net::Packet pkt{}; // wait for message from parent
-       while (!net::recv(pkt)) {
-           std::this_thread::sleep_for(10ms);
-       }
+Typical Configuration Steps
+---------------------------
+1. **Initialize** the driver:
 
-       std::array<std::byte, 3> reply{
-           std::byte{9}, std::byte{8}, std::byte{7}}; // send reply
-       net::send(PARENT_NODE, reply);
-       std::this_thread::sleep_for(50ms);
+   .. code-block:: cpp
+
+      net::init({ local_node_id, udp_port });
+
+2. **Register** remote peers:
+
+   .. code-block:: cpp
+
+      net::add_remote(remote_node, "192.168.1.5", 15000, /*tcp=*/false);
+
+3. **(Optional)** Install a receive callback:
+
+   .. code-block:: cpp
+
+      net::set_recv_callback([](const net::Packet &pkt){
+          // handle incoming packet
+      });
+
+4. **Send** and **receive**:
+
+   .. code-block:: cpp
+
+      net::send(dest_node, payload_bytes);
+      net::Packet pkt;
+      if (net::recv(pkt)) {
+          // process pkt.payload
+      }
+
+5. **Shutdown** when done:
+
+   .. code-block:: cpp
+
+      net::shutdown();
+
+Example: Two‐Node Exchange
+--------------------------
+This example shows a parent and child process exchanging small payloads over UDP.
+
+.. code-block:: cpp
+
+   #include <array>
+   #include <thread>
+   #include <chrono>
+   #include <cassert>
+   #include <unistd.h>
+   #include <sys/wait.h>
+   #include "net_driver.hpp"
+
+   using namespace std::chrono_literals;
+   constexpr net::node_t   PARENT_NODE = 0, CHILD_NODE = 1;
+   constexpr uint16_t      PARENT_PORT = 14000, CHILD_PORT = 14001;
+
+   int parent_proc(pid_t child) {
+       net::init({PARENT_NODE, PARENT_PORT});
+       net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, /*tcp=*/false);
+
+       // wait for readiness signal
+       net::Packet pkt;
+       while (!net::recv(pkt)) std::this_thread::sleep_for(10ms);
+       assert(pkt.src_node == CHILD_NODE);
+
+       // send data
+       std::array<std::byte,3> data{1,2,3};
+       net::send(CHILD_NODE, data);
+
+       // await reply
+       while (!net::recv(pkt)) std::this_thread::sleep_for(10ms);
+       assert(pkt.src_node == CHILD_NODE);
+       assert(pkt.payload == std::vector<std::byte>{9,8,7});
+
+       waitpid(child, nullptr, 0);
        net::shutdown();
-       std::exit(0);
+       return 0;
    }
 
-   // Parent process setup
-   net::init({PARENT_NODE, PARENT_PORT});
-   net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+   int child_proc() {
+       net::init({CHILD_NODE, CHILD_PORT});
+       net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, /*tcp=*/false);
 
-   net::Packet pkt{};
-   while (!net::recv(pkt)) { // wait for child readiness
-       std::this_thread::sleep_for(10ms);
+       // signal readiness
+       net::send(PARENT_NODE, std::array<std::byte,1>{0});
+
+       // receive payload
+       net::Packet pkt;
+       while (!net::recv(pkt)) std::this_thread::sleep_for(10ms);
+       assert(pkt.src_node == PARENT_NODE);
+
+       // reply
+       net::send(PARENT_NODE, std::array<std::byte,3>{9,8,7});
+       net::shutdown();
+       return 0;
    }
 
-   std::array<std::byte, 3> data{
-       std::byte{1}, std::byte{2}, std::byte{3}}; // send data
-   net::send(CHILD_NODE, data);
-
-   do { // await reply
-       std::this_thread::sleep_for(10ms);
-   } while (!net::recv(pkt));
-
-   net::shutdown();
+   int main() {
+       pid_t pid = fork();
+       if (pid == 0) {
+           return child_proc();
+       } else {
+           return parent_proc(pid);
+       }
+   }
