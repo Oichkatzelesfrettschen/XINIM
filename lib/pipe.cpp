@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Create an anonymous pipe and store the file descriptors into 'fild'.
 int pipe(int fild[2]) {

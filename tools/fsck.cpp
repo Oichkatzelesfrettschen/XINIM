@@ -1,13 +1,13 @@
 /**
  * @file fsck.cpp
- * @brief Modern C++17 MINIX Filesystem Checker
+ * @brief Modern C++23 MINIX Filesystem Checker
  *
  * A comprehensive filesystem integrity checker and repair tool for MINIX filesystems.
  * Provides type-safe operations, proper error handling, and modular architecture
  * with support for interactive and automatic repair modes.
  *
  * @author Robbert van Renesse (original C implementation)
- * @author Modern C++17 conversion
+ * @author Modern C++23 conversion
  * @version 2.0
  * @date 2024
  *

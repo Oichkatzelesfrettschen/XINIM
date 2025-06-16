@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Current end of the data segment managed by brk/sbrk.
 extern char *brksize;

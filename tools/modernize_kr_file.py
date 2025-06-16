@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Automated K&R to C++17 modernization tool."""
+"""Automated K&R to C++23 modernization tool."""
 
 import argparse
 from pathlib import Path

@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 #ifndef SETJMP_H
@@ -23,6 +23,8 @@ using jmp_buf = std::jmp_buf; /* expose the standard buffer type */
  * forwarded directly without additional overhead.
  */
 inline int setjmp(jmp_buf env) { return std::setjmp(env); } // std::setjmp is not noexcept
-[[noreturn]] inline void longjmp(jmp_buf env, int val) noexcept { std::longjmp(env, val); } // std::longjmp is [[noreturn]]
+[[noreturn]] inline void longjmp(jmp_buf env, int val) noexcept {
+    std::longjmp(env, val);
+} // std::longjmp is [[noreturn]]
 
 #endif /* SETJMP_H */

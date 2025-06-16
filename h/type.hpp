@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 #ifndef TYPE_H
 #define TYPE_H
@@ -9,7 +9,6 @@
 #include <cstddef>              // for std::size_t
 #include <cstdint>              // for fixed-width integer types
 #include <xinim/core_types.hpp> // New include for xinim types
-
 
 // Utility functions -------------------------------------------------------*/
 /*!

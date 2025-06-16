@@ -1,16 +1,16 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* cat - concatenates files  		Author: Andy Tanenbaum */
 
-#include <cerrno>
-#include <array>
-#include <string_view>
 #include "blocksiz.hpp"
 #include "stat.hpp"
+#include <array>
+#include <cerrno>
+#include <string_view>
 
 constexpr std::size_t BUF_SIZE = 512; /* size of the output buffer */
 int unbuffered;                       /* non-zero for unbuffered operation */
@@ -22,11 +22,11 @@ static void copyfile(int fd1, int fd2);
 static void flush(void);
 static void quit(void);
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     // Parse options and copy each file to standard output.
 
-    int k = 1;                        // Start of file arguments
-    std::string_view p{};             // Potential '-u' flag
+    int k = 1;            // Start of file arguments
+    std::string_view p{}; // Potential '-u' flag
 
     if (argc >= 2) {
         p = argv[1];

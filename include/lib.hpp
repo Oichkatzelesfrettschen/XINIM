@@ -1,13 +1,13 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
-// Modern C++17 header guard
+// Modern C++23 header guard
 #pragma once
 
-// Use the C++17 versions of the system headers
+// Use the C++23 versions of the system headers
 #include "../h/callnr.hpp" // system call numbers
 #include "../h/const.hpp"  // system-wide constants
 #include "../h/error.hpp"  // error codes
@@ -29,18 +29,20 @@ inline constexpr int kFS = FS;
 
 // System call interface (typically C linkage)
 extern "C" int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, char *ptr2,
-                  char *ptr3) noexcept;
-extern "C" int callm3(int proc, int syscallnr, int int1, const char *name) noexcept; // name -> const char*
+                      char *ptr3) noexcept;
+extern "C" int callm3(int proc, int syscallnr, int int1,
+                      const char *name) noexcept; // name -> const char*
 extern "C" int callx(int proc, int syscallnr) noexcept;
 extern "C" std::size_t len(const char *s) noexcept; // return int -> std::size_t, s -> const char*
 extern "C" int send(int dst, message *m_ptr) noexcept;
 extern "C" int receive(int src, message *m_ptr) noexcept;
 extern "C" int sendrec(int srcdest, message *m_ptr) noexcept;
-extern int errno; // Standard global
+extern int errno;                 // Standard global
 extern "C" int begsig() noexcept; /* interrupts all vector here, (void) -> () */
 
 /* Memory allocation wrappers */
-// Assuming these are C-linkage if used across C/C++ boundaries, and noexcept if they abort on failure
+// Assuming these are C-linkage if used across C/C++ boundaries, and noexcept if they abort on
+// failure
 extern "C" void *safe_malloc(size_t size) noexcept;
 extern "C" void safe_free(void *ptr) noexcept;
 

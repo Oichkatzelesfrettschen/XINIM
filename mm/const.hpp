@@ -1,9 +1,9 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
-#include <cstddef> // For std::size_t
-#include "../../h/type.hpp" // For phys_clicks
 #include "../../h/const.hpp" // For MAX_PATH, MAX_ISTACK_BYTES
+#include "../../h/type.hpp"  // For phys_clicks
+#include <cstddef>           // For std::size_t
 
 /* Constants used by the Memory Manager. */
 

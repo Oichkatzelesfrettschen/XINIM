@@ -1,12 +1,11 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 /* General constants used by the kernel. */
 
 #include <cstddef>              // For std::size_t
 #include <cstdint>              // For uint64_t
 #include <xinim/core_types.hpp> // For std::uint64_t, std::size_t, etc.
-
 
 /* 64-bit configuration constants */
 /* Register order: rax, rbx, rcx, rdx, rsi, rdi, rbp, r8, r9, r10, r11, r12, r13, r14, r15 */

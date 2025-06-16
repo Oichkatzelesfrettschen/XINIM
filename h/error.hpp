@@ -2,7 +2,7 @@
 #ifndef H_ERROR_HPP
 #define H_ERROR_HPP
 
-// Modernized for C++17
+// Modernized for C++23
 #include "../include/defs.hpp" // Added for consistency and potential common types
 
 /* Error codes.  They are negative since a few system calls, such as READ, can

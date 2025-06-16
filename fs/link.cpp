@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file handles the LINK and UNLINK system calls.  It also deals with
  * deallocating the storage used by a file when the last UNLINK is done to a

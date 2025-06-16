@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 /* Device table.  This table is indexed by major device number.  It provides
  * the link between major device numbers and the routines that process them.

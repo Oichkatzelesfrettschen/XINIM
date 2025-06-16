@@ -1,15 +1,15 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 #pragma once
 
 // Shared stat structure used by the kernel. Definitions live in the
 // common header to avoid duplication.
-#include "../include/shared/stat_struct.hpp" // Defines struct stat with xinim types
 #include "../h/type.hpp" // For xinim::mode_t (via core_types.hpp) and other h/ specific types
+#include "../include/shared/stat_struct.hpp" // Defines struct stat with xinim types
 
 /* Some common definitions. */
 // Changed from mask_bits (uint16_t) to xinim::mode_t (std::uint32_t) for consistency

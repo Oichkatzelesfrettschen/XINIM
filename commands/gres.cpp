@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* gres - grep and substitute		Author: Martin C. Atkins */
@@ -23,7 +23,7 @@
  *	that this comment is always included without alteration.
  */
 
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 #include "regexp.hpp"
 #include "stdio.hpp"
 

@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 /* This is the filp table.  It is an intermediary between file descriptors and
  * inodes.  A slot is free if filp_count == 0.
@@ -16,4 +16,4 @@ EXTERN struct filp {
 } filp[NR_FILPS];
 
 // #define NIL_FILP (struct filp *)0 /* indicates absence of a filp slot */ // Replaced by constexpr
-inline constexpr struct filp* NIL_FILP = nullptr;
+inline constexpr struct filp *NIL_FILP = nullptr;

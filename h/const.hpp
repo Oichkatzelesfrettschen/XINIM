@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 #include "type.hpp" // Includes xinim::core_types.hpp transitively
 
 // Copyright (C) 1987 by Prentice-Hall, Inc.  Permission is hereby granted to
@@ -12,17 +12,17 @@
 
 // Storage class macros have been removed in favor of standard C++ keywords.
 
-inline constexpr int HZ = 60;              // clock frequency
-inline constexpr int BLOCK_SIZE = 1024;    // number of bytes in a disk block
-inline constexpr int MAJOR = 8;            // major device shift
-inline constexpr int MINOR = 0;            // minor device mask
+inline constexpr int HZ = 60;           // clock frequency
+inline constexpr int BLOCK_SIZE = 1024; // number of bytes in a disk block
+inline constexpr int MAJOR = 8;         // major device shift
+inline constexpr int MINOR = 0;         // minor device mask
 
-inline constexpr int NR_TASKS = 8;         // number of tasks in transfer vector
-inline constexpr int NR_PROCS = 16;        // number of slots in proc table
-inline constexpr int NR_SEGS = 3;          // segments per process
-inline constexpr int T = 0;                // text segment index
-inline constexpr int D = 1;                // data segment index
-inline constexpr int S = 2;                // stack segment index
+inline constexpr int NR_TASKS = 8;  // number of tasks in transfer vector
+inline constexpr int NR_PROCS = 16; // number of slots in proc table
+inline constexpr int NR_SEGS = 3;   // segments per process
+inline constexpr int T = 0;         // text segment index
+inline constexpr int D = 1;         // data segment index
+inline constexpr int S = 2;         // stack segment index
 
 inline constexpr std::int32_t kMaxPLong = 2147483647; // maximum positive signed 32-bit long
 // Note: Original was 2147483647L. Changed to std::int32_t for clarity.
@@ -39,11 +39,11 @@ inline constexpr int LOW_USER = 2;     // first user not part of OS
 
 // Miscellaneous constants
 inline constexpr int BYTE_MASK = 0377; // mask for 8 bits (Original name: BYTE)
-inline constexpr int TO_USER = 0;   // copy from fs to user
-inline constexpr int FROM_USER = 1; // copy from user to fs
-inline constexpr int READING = 0;   // copy data to user
-inline constexpr int WRITING = 1;   // copy data from user
-inline constexpr int ABS = -999;    // this process means absolute memory
+inline constexpr int TO_USER = 0;      // copy from fs to user
+inline constexpr int FROM_USER = 1;    // copy from user to fs
+inline constexpr int READING = 0;      // copy data to user
+inline constexpr int WRITING = 1;      // copy data from user
+inline constexpr int ABS = -999;       // this process means absolute memory
 
 inline constexpr int WORD_SIZE = 2; // number of bytes per word
 
@@ -79,8 +79,7 @@ inline constexpr mask_bits I_NOT_ALLOC = 0000000;     // inode is free
 // Ensure NIL_PTR from h/type.hpp is not redefined if it was there.
 // The version from xinim::core_types.hpp is preferred.
 // The line `inline constexpr char *NIL_PTR = nullptr;` was in the original `h/const.hpp`
-// This might conflict if h/type.hpp also defines it or includes xinim::core_types.hpp which defines it.
-// For this pass, I will remove the NIL_PTR definition from h/const.hpp to rely on the one from xinim::core_types.hpp (via h/type.hpp).
-// Renamed BYTE to BYTE_MASK to avoid conflict with potential byte type.
-// Renamed MAX_PATH to MAX_PATH_LEN for clarity.
-
+// This might conflict if h/type.hpp also defines it or includes xinim::core_types.hpp which defines
+// it. For this pass, I will remove the NIL_PTR definition from h/const.hpp to rely on the one from
+// xinim::core_types.hpp (via h/type.hpp). Renamed BYTE to BYTE_MASK to avoid conflict with
+// potential byte type. Renamed MAX_PATH to MAX_PATH_LEN for clarity.

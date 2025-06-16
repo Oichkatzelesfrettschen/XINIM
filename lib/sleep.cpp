@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 #include "../include/signal.h"
 
 static void alfun(int signum) { (void)signum; }

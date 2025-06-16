@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 #include "errno.hpp"
 #include "stat.hpp"

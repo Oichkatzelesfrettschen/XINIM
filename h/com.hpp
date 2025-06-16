@@ -1,7 +1,7 @@
 #pragma once
 define[^
 ]*
-Modernized for C++17
+Modernized for C++23
 
 #include "type.hpp" define[^
 ]*

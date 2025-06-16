@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* This file deals with protection in the file system.  It contains the code
@@ -15,6 +15,7 @@
  *   forbidden:	check to see if a given access is allowed on a given inode
  */
 
+#include "../../include/minix/fs_error.hpp" // For make_error_code, ErrorCode
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../h/type.hpp"
@@ -27,15 +28,14 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include "../../include/minix/fs_error.hpp" // For make_error_code, ErrorCode
+#include <cstdint>      // For uint16_t
 #include <expected>     // For std::expected, std::unexpected
 #include <system_error> // For std::error_code (though fs_error.hpp includes it)
-#include <cstdint>      // For uint16_t
 
 // Forward declarations for static functions if needed, or ensure they are defined before use.
 static std::expected<void, std::error_code> read_only(struct inode *ip);
-PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_t access_desired, int real_uid);
-
+PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_t access_desired,
+                                                      int real_uid);
 
 /*===========================================================================*
  *				do_chmod				     *
@@ -104,7 +104,7 @@ PUBLIC std::expected<void, std::error_code> do_chown() {
 
     // If read_only_res was OK:
     rip->i_uid = static_cast<uint16_t>(owner); // owner from message (int), i_uid is uid (uint16_t)
-    rip->i_gid = static_cast<uint8_t>(group); // group from message (int), i_gid is gid (uint8_t)
+    rip->i_gid = static_cast<uint8_t>(group);  // group from message (int), i_gid is gid (uint8_t)
     rip->i_dirt = DIRTY;
 
     put_inode(rip);
@@ -119,7 +119,8 @@ PUBLIC std::expected<uint16_t, std::error_code> do_umask() {
     /* Perform the umask(co_mode) system call. */
     register uint16_t r; // Was mask_bits
 
-    r = static_cast<uint16_t>(~fp->fp_umask); /* set 'r' to complement of old mask. fp_umask is mask_bits (uint16_t) */
+    r = static_cast<uint16_t>(
+        ~fp->fp_umask); /* set 'r' to complement of old mask. fp_umask is mask_bits (uint16_t) */
     // co_mode from message (int). RWX_MODES is int.
     fp->fp_umask = static_cast<uint16_t>(~(co_mode & RWX_MODES));
     return r; /* return complement of old mask */
@@ -155,7 +156,8 @@ PUBLIC std::expected<void, std::error_code> do_access() {
  *				forbidden				     *
  *===========================================================================*/
 // Modernized K&R, changed return type
-PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_t access_desired, int real_uid) {
+PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_t access_desired,
+                                                      int real_uid) {
     // rip is struct inode*
     // access_desired is mask_bits (uint16_t)
     // real_uid is int
@@ -166,14 +168,14 @@ PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_
      */
 
     register uint16_t bits, perm_bits; // Were mask_bits
-    uint16_t xmask; // Was mask_bits
+    uint16_t xmask;                    // Was mask_bits
     // int r; // Will use expected for return
     int shift;
     uint16_t test_uid; // uid -> uint16_t
     uint8_t test_gid;  // gid -> uint8_t
 
     /* Isolate the relevant rwx bits from the mode. */
-    bits = rip->i_mode; // i_mode is mask_bits (uint16_t)
+    bits = rip->i_mode;                                     // i_mode is mask_bits (uint16_t)
     test_uid = (real_uid ? fp->fp_realuid : fp->fp_effuid); // fp_realuid/effuid are uid (uint16_t)
     test_gid = (real_uid ? fp->fp_realgid : fp->fp_effgid); // fp_realgid/effgid are gid (uint8_t)
     if (super_user) {
@@ -195,7 +197,8 @@ PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_
     }
 
     /* If none of the X bits are on, not even the super-user can execute it. */
-    xmask = static_cast<uint16_t>((X_BIT << 6) | (X_BIT << 3) | X_BIT); /* all 3 X bits (X_BIT is int) */
+    xmask = static_cast<uint16_t>((X_BIT << 6) | (X_BIT << 3) |
+                                  X_BIT); /* all 3 X bits (X_BIT is int) */
     if ((access_desired & X_BIT) && (bits & xmask) == 0) {
         return std::unexpected(make_error_code(ErrorCode::EACCES));
     }
@@ -205,7 +208,8 @@ PUBLIC std::expected<void, std::error_code> forbidden(struct inode *rip, uint16_
      */
     if (access_desired & W_BIT) {
         auto read_only_res = read_only(rip);
-        if (!read_only_res) return std::unexpected(read_only_res.error());
+        if (!read_only_res)
+            return std::unexpected(read_only_res.error());
     }
 
     return {}; // OK

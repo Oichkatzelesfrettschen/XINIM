@@ -1,13 +1,14 @@
 #include "../h/com.hpp"
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 #include "../include/sgtty.hpp"
 
 // Perform an I/O control operation on a terminal device.
-int ioctl(int fd, int request,
-          union {
-              struct sgttyb *argp;
-              struct tchars *argt;
-          } u)
+int ioctl(
+    int fd, int request,
+    union {
+        struct sgttyb *argp;
+        struct tchars *argt;
+    } u)
 
 {
     int n;

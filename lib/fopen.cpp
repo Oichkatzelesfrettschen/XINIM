@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 #include "../include/stdio.hpp"
 #include <fcntl.h>
 
@@ -63,7 +63,7 @@ FILE *fopen(const char *name, const char *mode) {
     fp->_count = 0;
     fp->_fd = fd;
     fp->_flags = flags;
-    fp->_buf = static_cast<char*>(safe_malloc(BUFSIZ));
+    fp->_buf = static_cast<char *>(safe_malloc(BUFSIZ));
     fp->_flags |= IOMYBUF;
 
     fp->_ptr = fp->_buf;

@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file is the counterpart of "read.cpp".  It contains the code for writing
  * insofar as this is not contained in read_write().
@@ -22,8 +22,8 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <cstdint>    // For uint16_t, int32_t, uint32_t, int64_t
-#include <cstddef>    // For std::size_t, nullptr
+#include <cstddef> // For std::size_t, nullptr
+#include <cstdint> // For uint16_t, int32_t, uint32_t, int64_t
 
 /*===========================================================================*
  *				do_write				     *
@@ -43,9 +43,9 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
     // new_zone is zone_nr (uint16_t)
     /* Write a new zone into an inode. */
     int scale;
-    uint16_t z;      // zone_nr -> uint16_t
-    uint16_t *zp;    // zone_nr* -> uint16_t*
-    uint16_t b;      // block_nr -> uint16_t
+    uint16_t z;           // zone_nr -> uint16_t
+    uint16_t *zp;         // zone_nr* -> uint16_t*
+    uint16_t b;           // block_nr -> uint16_t
     int32_t excess, zone; // Were long, derived from position (int32_t)
     int index;
     struct buf *bp;
@@ -55,8 +55,8 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
     extern struct buf *get_block();
     extern real_time clock_time();
 
-    rip->i_dirt = DIRTY; /* inode will be changed */
-    bp = NIL_BUF; // NIL_BUF is (struct buf*)nullptr
+    rip->i_dirt = DIRTY;                     /* inode will be changed */
+    bp = NIL_BUF;                            // NIL_BUF is (struct buf*)nullptr
     scale = scale_factor(rip);               /* for zone-block conversion (returns int) */
     zone = (position / BLOCK_SIZE) >> scale; /* position is int32_t, zone is int32_t */
 
@@ -109,7 +109,7 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
         /* Create indirect block. */
         *zp = alloc_zone(rip->i_dev, rip->i_zone[0]);
         new_ind = TRUE;
-        if (bp != NIL_BUF) // NIL_BUF is (struct buf*)nullptr
+        if (bp != NIL_BUF)      // NIL_BUF is (struct buf*)nullptr
             bp->b_dirt = DIRTY; /* if double ind, it is dirty */
         if (*zp == kNoZone) {
             put_block(bp, INDIRECT_BLOCK); /* release dbl indirect blk */
@@ -152,7 +152,7 @@ PUBLIC void clear_zone(struct inode *rip, int32_t pos, int flag) {
     int scale;            // scale_factor returns int
     uint32_t zone_size;   // zone_type -> uint32_t
     extern struct buf *get_block();
-    extern uint16_t read_map(struct inode *rip, int32_t position); // Modernized read_map
+    extern uint16_t read_map(struct inode * rip, int32_t position); // Modernized read_map
 
     /* If the block size and zone size are the same, clear_zone() not needed. */
     if ((scale = scale_factor(rip)) == 0)
@@ -203,21 +203,21 @@ PUBLIC struct buf *new_block(struct inode *rip, int32_t position) {
     struct super_block *sp;
     extern struct buf *get_block();
     extern struct super_block *get_super();
-    extern uint16_t read_map(struct inode *rip, int32_t position); // Modernized read_map
-    extern uint16_t alloc_zone(uint16_t dev, uint16_t z); // Modernized alloc_zone
+    extern uint16_t read_map(struct inode * rip, int32_t position); // Modernized read_map
+    extern uint16_t alloc_zone(uint16_t dev, uint16_t z);           // Modernized alloc_zone
 
     /* Is another block available in the current zone? */
     if ((b = read_map(rip, position)) == kNoBlock) { // kNoBlock is block_nr (uint16_t)
         /* Choose first zone if need be. */
         if (compat_get_size(rip) == 0) { // compat_get_size returns file_pos64 (int64_t)
-            sp = get_super(rip->i_dev); // rip->i_dev is dev_nr (uint16_t)
-            z = sp->s_firstdatazone;    // s_firstdatazone is zone_nr (uint16_t)
+            sp = get_super(rip->i_dev);  // rip->i_dev is dev_nr (uint16_t)
+            z = sp->s_firstdatazone;     // s_firstdatazone is zone_nr (uint16_t)
         } else {
             z = rip->i_zone[0]; // i_zone[0] is zone_nr (uint16_t)
         }
         // alloc_zone takes (dev_nr, zone_nr) returns zone_nr (all uint16_t)
         if ((z = alloc_zone(rip->i_dev, z)) == kNoZone) // kNoZone is zone_nr (uint16_t)
-            return (NIL_BUF); // NIL_BUF is (struct buf*)nullptr
+            return (NIL_BUF);                           // NIL_BUF is (struct buf*)nullptr
         // write_map takes (inode*, file_pos, zone_nr) -> (inode*, int32_t, uint16_t)
         if ((r = write_map(rip, position, z)) != OK) {
             free_zone(rip->i_dev, z); // free_zone takes (dev_nr, zone_nr)
@@ -229,12 +229,13 @@ PUBLIC struct buf *new_block(struct inode *rip, int32_t position) {
         // position is int32_t, compat_get_size is int64_t
         if (static_cast<int64_t>(position) != compat_get_size(rip))
             clear_zone(rip, position, 1); // clear_zone takes (inode*, file_pos, int)
-        scale = scale_factor(rip); // returns int
+        scale = scale_factor(rip);        // returns int
         base_block = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale); // z is uint16_t
-        zone_size = static_cast<uint32_t>(BLOCK_SIZE) << scale; // BLOCK_SIZE is int
+        zone_size = static_cast<uint32_t>(BLOCK_SIZE) << scale;                // BLOCK_SIZE is int
         // position is int32_t, zone_size is uint32_t, BLOCK_SIZE is int. b is uint16_t.
         // Assuming positive position for modulo.
-        b = base_block + static_cast<uint16_t>((static_cast<uint32_t>(position) % zone_size) / BLOCK_SIZE);
+        b = base_block +
+            static_cast<uint16_t>((static_cast<uint32_t>(position) % zone_size) / BLOCK_SIZE);
     }
 
     bp = get_block(rip->i_dev, b, NO_READ); // rip->i_dev is dev_nr, b is block_nr
