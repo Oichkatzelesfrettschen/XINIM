@@ -49,6 +49,28 @@ bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept 
     return region.size() >= msg_len * sizeof(uint64_t) && region.aligned();
 }
 
+/**
+ * @brief Select the highest priority cache that fits the message.
+ *
+ * The routine tests each cache in order of L1, L2 then L3.  The first
+ * valid region able to hold the message registers is returned.
+ *
+ * @param state Fastpath state providing cache descriptors and length.
+ * @return Pointer to the chosen cache or @c nullptr if none work.
+ */
+const MessageRegion *select_cache(const State &state) noexcept {
+    if (message_region_valid(state.l1_buffer, state.msg_len)) {
+        return &state.l1_buffer;
+    }
+    if (message_region_valid(state.l2_buffer, state.msg_len)) {
+        return &state.l2_buffer;
+    }
+    if (message_region_valid(state.l3_buffer, state.msg_len)) {
+        return &state.l3_buffer;
+    }
+    return nullptr;
+}
+
 namespace detail {
 
 // --\tau_dequeue-- remove receiver from endpoint queue and adjust endpoint state
@@ -231,15 +253,8 @@ bool execute_fastpath(State &state, FastpathStats *stats) noexcept {
     detail::transfer_badge(state);
     detail::establish_reply(state);
 
-    // Select the smallest valid cache before spilling to main memory.
-    const MessageRegion *selected = nullptr;
-    if (message_region_valid(state.l1_buffer, state.msg_len)) {
-        selected = &state.l1_buffer;
-    } else if (message_region_valid(state.l2_buffer, state.msg_len)) {
-        selected = &state.l2_buffer;
-    } else if (message_region_valid(state.l3_buffer, state.msg_len)) {
-        selected = &state.l3_buffer;
-    }
+    // Select the smallest cache before spilling to main memory.
+    const MessageRegion *selected = select_cache(state);
 
     detail::copy_mrs(state, stats, selected);
     detail::update_thread_state(state);

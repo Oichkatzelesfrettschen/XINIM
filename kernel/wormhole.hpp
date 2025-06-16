@@ -201,6 +201,18 @@ void set_message_region(State &state, const MessageRegion &region) noexcept;
  */
 bool message_region_valid(const MessageRegion &region, size_t msg_len) noexcept;
 
+/**
+ * @brief Choose the highest priority cache able to hold the message.
+ *
+ * The function checks the three cache levels stored in @p state. The
+ * first region large enough for the message is returned. A @c nullptr
+ * indicates that none of the caches are usable for this message.
+ *
+ * @param state State containing the cache descriptors.
+ * @return Pointer to the chosen cache or @c nullptr when no cache fits.
+ */
+[[nodiscard]] const MessageRegion *select_cache(const State &state) noexcept;
+
 namespace detail {
 /// Remove the receiver from the endpoint queue.
 void dequeue_receiver(State &state) noexcept;
