@@ -48,21 +48,23 @@ void set_recv_callback(RecvCallback cb);
 void shutdown() noexcept;
 
 /**
- * @brief Obtain the network derived identifier for this host.
+ * @brief Retrieve the configured or detected node identifier.
  *
- * The driver queries the bound UDP socket to read back the IPv4 address.
- * The address is converted to host byte order and returned as the node
- * identifier. A value of ``0`` indicates the address could not be
- * determined.
+ * The driver prefers the identifier specified via ::Config::node_id.
+ * When that value is zero, the bound UDP socket is queried through
+ * <tt>getsockname</tt> to obtain the IPv4 address of the socket. The
+ * address is converted to host byte order and returned. A value of
+ * ``0`` denotes that no identifier was configured or detected.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send raw bytes to a remote node using UDP.
+ * @brief Transmit raw bytes to a remote node over UDP.
  *
- * The payload is prefixed with the local node identifier before being
- * transmitted to the remote host registered through ::add_remote. If the
- * destination is unknown the function silently drops the data.
+ * The payload is prefixed with the local identifier then sent via
+ * <tt>sendto</tt> directly to the host registered through ::add_remote.
+ * Unknown destinations result in silent packet drops. No queuing is
+ * performed.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
