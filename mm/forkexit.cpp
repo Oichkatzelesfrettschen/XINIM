@@ -22,6 +22,7 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
+#include "token.hpp"
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
 
@@ -100,6 +101,7 @@ PUBLIC int do_fork() {
         rmc->mp_seg[D].mem_phys + (rmp->mp_seg[S].mem_phys - rmp->mp_seg[D].mem_phys);
     rmc->mp_exitstatus = 0;
     rmc->mp_sigstatus = 0;
+    rmc->mp_token = generate_token();
 
     /* Find a free pid for the child and put it in the table. */
     do {
@@ -114,7 +116,7 @@ PUBLIC int do_fork() {
     } while (t);
 
     /* Tell kernel and file system about the (now successful) FORK. */
-    sys_fork(who, child_nr, rmc->mp_pid);
+    sys_fork(who, child_nr, rmc->mp_pid, rmc->mp_token);
     tell_fs(FORK, who, child_nr, 0);
 
     /* Report child's memory map to kernel. */

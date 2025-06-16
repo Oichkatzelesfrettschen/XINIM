@@ -22,6 +22,7 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
+#include "token.hpp"
 #include <algorithm> // For std::min (if min is not a macro)
 #include <cstddef>   // For std::size_t
 #include <cstdint>   // For uint64_t, int64_t
@@ -143,8 +144,9 @@ PUBLIC int do_exec() {
     rmp->mp_catch = 0;          /* reset all caught signals */
     rmp->mp_flags &= ~SEPARATE; /* turn off SEPARATE bit */
     rmp->mp_flags |= ft;        /* turn it on for separate I & D files */
+    rmp->mp_token = generate_token();
     new_sp = (char *)vsp;
-    sys_exec(who, new_sp);
+    sys_exec(who, new_sp, rmp->mp_token);
     return (OK);
 }
 

@@ -24,6 +24,7 @@ EXTERN struct proc {
     struct mem_map p_map[NR_SEGS]; /* memory map */
     xinim::virt_addr_t p_splimit;  /* lowest legal stack value - Formerly u64_t */
     xinim::pid_t p_pid;            /* process id passed in from MM - Formerly int */
+    std::uint64_t p_token;         /**< Capability token for privileged operations. */
 
     real_time user_time;   /* user time in ticks (real_time -> xinim::time_t) */
     real_time sys_time;    /* sys time in ticks (real_time -> xinim::time_t) */
