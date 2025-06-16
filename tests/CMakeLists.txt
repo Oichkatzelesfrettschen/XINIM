@@ -272,6 +272,12 @@ add_lattice_test(minix_test_lattice_network test_lattice_network.cpp ${CMAKE_SOU
 target_compile_definitions(minix_test_lattice_network PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_lattice_network_encrypted
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encrypted.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)
