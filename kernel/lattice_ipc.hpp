@@ -6,6 +6,7 @@
 
 #include "../include/xinim/core_types.hpp"
 #include "net_driver.hpp"
+#include "octonion.hpp"
 #include "pqcrypto.hpp"
 #include "proc.hpp"
 #include <map>
@@ -32,8 +33,8 @@ struct Channel {
      * @brief Identifier of the remote node or 0 for local delivery.
      */
     net::node_t node_id{0};
-    std::vector<message> queue;          //!< Pending messages encrypted with @c secret
-    std::array<std::uint8_t, 32> secret; //!< Shared secret derived by PQ crypto
+    std::vector<message> queue; //!< Pending messages encrypted with @c secret
+    Octonion secret;            //!< Capability derived from PQ secret
 };
 
 /**
@@ -68,8 +69,8 @@ extern Graph g_graph; //!< Global DAG instance
 /**
  * @brief Establish a channel between two processes.
  *
- * If the channel does not yet exist it is created and a shared
- * secret derived using the PQ cryptography routines.
+ * If absent a new channel is created. A capability token derived
+ * from a Kyber secret is installed on both directions of the link.
  *
  * @param src Source process identifier.
  * @param dst Destination process identifier.
