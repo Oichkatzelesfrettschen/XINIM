@@ -6,6 +6,11 @@ binds to a local UDP port and registers remote peers through
 :cpp:func:`net::add_remote`.  The driver spawns a background thread to poll the
 socket and invokes an optional callback whenever a packet arrives.
 
+When ``Config::node_id`` is set to ``0`` the driver derives a unique identifier
+by hashing the primary network interface.  This automatically detected value is
+returned by :cpp:func:`net::local_node` unless a different identifier is
+provided in the configuration.
+
 API Overview
 ------------
 

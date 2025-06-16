@@ -24,9 +24,16 @@ struct Packet {
     std::vector<std::byte> payload; ///< Packet payload bytes
 };
 
-/** Configuration options for ::init. */
+/**
+ * @brief Network driver configuration for ::init.
+ *
+ * Setting ``node_id`` to ``0`` instructs the driver to derive a unique
+ * identifier by hashing the primary network interface.  A non-zero value
+ * overrides the automatic detection and is returned by
+ * ::local_node().
+ */
 struct Config {
-    node_t node_id;     ///< Local node identifier
+    node_t node_id;     ///< Explicit node identifier or ``0`` for auto
     std::uint16_t port; ///< UDP port to bind locally
 };
 
@@ -48,12 +55,11 @@ void set_recv_callback(RecvCallback cb);
 void shutdown() noexcept;
 
 /**
- * @brief Obtain the network derived identifier for this host.
+ * @brief Report the configured node identifier.
  *
- * The driver queries the bound UDP socket to read back the IPv4 address.
- * The address is converted to host byte order and returned as the node
- * identifier. A value of ``0`` indicates the address could not be
- * determined.
+ * After calling ::init the driver either returns the user-supplied value
+ * or the automatically derived identifier when ``Config::node_id`` was
+ * zero.  ``0`` is returned if initialization has not yet occurred.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
