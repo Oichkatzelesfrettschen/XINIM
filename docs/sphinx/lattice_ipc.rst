@@ -27,6 +27,17 @@ well as the number of spill events when the queue is exhausted.  The
 .. doxygenfunction:: fastpath::execute_fastpath
    :project: XINIM
 
+Cache Hierarchy
+---------------
+
+The fastpath employs a tiered cache system to avoid spilling messages to the
+shared zero-copy buffer.  Each :cpp:struct:`fastpath::State` defines three
+caches named ``l1_buffer``, ``l2_buffer`` and ``l3_buffer``.  During
+``execute_fastpath`` the smallest cache capable of holding the message is chosen
+automatically.  Only when all caches are exhausted are the registers copied
+through the main region configured with
+:cpp:func:`fastpath::set_message_region`.
+
 Distributed Operation
 ---------------------
 

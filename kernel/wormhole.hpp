@@ -121,6 +121,30 @@ struct State {
     MessageRegion msg_region{0, 0};
     // region used for zero-copy transfer of message registers
 
+    /**
+     * @brief First-level cache for message copies.
+     *
+     * Aligned region used when the per-CPU queue overflows but remains
+     * within a single core. The buffer is optional and considered invalid
+     * when its size is zero.
+     */
+    MessageRegion l1_buffer{0, 0};
+
+    /**
+     * @brief Second-level cache for inter-core traffic.
+     *
+     * Messages spill here when the L1 buffer is full.  The same validity
+     * rules apply as for :c member:`l1_buffer`.
+     */
+    MessageRegion l2_buffer{0, 0};
+
+    /**
+     * @brief Third-level cache shared among all cores.
+     *
+     * This buffer is used only when both L1 and L2 caches are exhausted.
+     */
+    MessageRegion l3_buffer{0, 0};
+
     uint32_t current_tid{}; // currently running thread id
 };
 
