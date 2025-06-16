@@ -56,6 +56,15 @@ void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim:
     sched::scheduler.enqueue(pid);
 }
 
+/**
+ * @brief Add a new dependency to an existing service.
+ *
+ * The method ensures the dependency graph remains acyclic by validating that
+ * adding @p dep does not introduce a path back to @p pid.
+ *
+ * @param pid Service that will gain the dependency.
+ * @param dep Service that @p pid depends on.
+ */
 void ServiceManager::add_dependency(xinim::pid_t pid, xinim::pid_t dep) {
     auto it = services_.find(pid);
     if (it == services_.end()) {
@@ -68,6 +77,12 @@ void ServiceManager::add_dependency(xinim::pid_t pid, xinim::pid_t dep) {
     }
 }
 
+/**
+ * @brief Update the automatic restart limit for a service.
+ *
+ * @param pid   Service identifier to update.
+ * @param limit New restart limit applied to the service contract.
+ */
 void ServiceManager::set_restart_limit(xinim::pid_t pid, std::uint32_t limit) {
     auto it = services_.find(pid);
     if (it == services_.end()) {
@@ -121,6 +136,15 @@ bool ServiceManager::handle_crash(xinim::pid_t pid) {
     return true;
 }
 
+/**
+ * @brief Retrieve the liveness contract for @p pid.
+ *
+ * If the service has not been registered, a static empty contract is returned
+ * instead.
+ *
+ * @param pid Identifier of the service.
+ * @return Reference to the associated contract or an empty fallback.
+ */
 const ServiceManager::LivenessContract &ServiceManager::contract(xinim::pid_t pid) const {
     static const LivenessContract empty{};
     if (auto it = services_.find(pid); it != services_.end()) {
@@ -129,6 +153,12 @@ const ServiceManager::LivenessContract &ServiceManager::contract(xinim::pid_t pi
     return empty;
 }
 
+/**
+ * @brief Check whether a service is currently running.
+ *
+ * @param pid Identifier of the service.
+ * @return @c true if the service is active.
+ */
 bool ServiceManager::is_running(xinim::pid_t pid) const noexcept {
     if (auto it = services_.find(pid); it != services_.end()) {
         return it->second.running;
@@ -136,8 +166,10 @@ bool ServiceManager::is_running(xinim::pid_t pid) const noexcept {
     return false;
 }
 
+/// Global manager instance accessible throughout the kernel.
 ServiceManager service_manager{};
 
+/// Counter used to assign unique IDs to liveness contracts.
 std::atomic_uint64_t ServiceManager::next_contract_id_{1};
 
 } // namespace svc

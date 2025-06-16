@@ -101,8 +101,31 @@ class ServiceManager {
         LivenessContract contract{};    ///< Liveness contract for restarts
     };
 
+    /**
+     * @brief Check if a dependency path exists from @p start to @p target.
+     *
+     * The search avoids cycles by keeping track of previously @p visited
+     * services. A true result indicates that @p start transitively depends on
+     * @p target.
+     *
+     * @param start   Service to begin the search from.
+     * @param target  Service to reach.
+     * @param visited Set of services already examined.
+     * @return @c true if a path exists.
+     */
     bool has_path(xinim::pid_t start, xinim::pid_t target,
                   std::unordered_set<xinim::pid_t> &visited) const;
+
+    /**
+     * @brief Restart @p pid and recursively restart all dependents.
+     *
+     * This helper traverses the dependency DAG and restarts every service that
+     * directly or indirectly depends on @p pid. The @p visited set prevents
+     * cycles during the traversal.
+     *
+     * @param pid     Service to restart.
+     * @param visited Set of services already restarted in this operation.
+     */
     void restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pid_t> &visited);
 
     std::unordered_map<xinim::pid_t, ServiceInfo> services_{}; ///< Registered services
