@@ -79,7 +79,14 @@ void add_remote(node_t node, const std::string &host, std::uint16_t port) {
 
 void set_recv_callback(RecvCallback cb) { g_callback = std::move(cb); }
 
-node_t local_node() noexcept { return g_cfg.node_id; }
+node_t local_node() noexcept {
+    sockaddr_in addr{};
+    socklen_t len = sizeof(addr);
+    if (g_socket != -1 && ::getsockname(g_socket, reinterpret_cast<sockaddr *>(&addr), &len) == 0) {
+        return static_cast<node_t>(ntohl(addr.sin_addr.s_addr));
+    }
+    return 0;
+}
 
 void send(node_t node, std::span<const std::byte> data) {
     auto it = g_remotes.find(node);
