@@ -105,6 +105,11 @@ bool Scheduler::is_blocked(xinim::pid_t pid) const noexcept { return blocked_.co
  *
  * @param pid Identifier of the failing service.
  */
-void Scheduler::crash(xinim::pid_t pid) { svc::service_manager.handle_crash(pid); }
+void Scheduler::crash(xinim::pid_t pid) {
+    if (!svc::service_manager.handle_crash(pid) && current_ == pid) {
+        // Service exceeded restart limit; drop the thread from scheduling.
+        current_ = -1;
+    }
+}
 
 } // namespace sched

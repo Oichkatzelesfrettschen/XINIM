@@ -37,7 +37,8 @@ class Scheduler {
     /**
      * @brief Notify the scheduler that a service crashed.
      *
-     * The scheduler delegates restart handling to the global service manager.
+     * The scheduler delegates restart handling and liveness checks to the
+     * global service manager.
      *
      * @param pid Identifier of the crashed service.
      */

@@ -37,11 +37,13 @@ bool ServiceManager::has_path(xinim::pid_t start, xinim::pid_t target,
  *
  * Contracts are created lazily for each service and track restart counts.
  */
-void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim::pid_t> &deps) {
+void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim::pid_t> &deps,
+                                      std::uint32_t limit) {
     auto &info = services_[pid];
     if (info.contract.id == 0) {
         info.contract.id = next_contract_id_++;
     }
+    info.contract.policy.limit = limit;
 
     for (auto dep : deps) {
         std::unordered_set<xinim::pid_t> visited;
@@ -52,6 +54,26 @@ void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim:
 
     info.running = true;
     sched::scheduler.enqueue(pid);
+}
+
+void ServiceManager::add_dependency(xinim::pid_t pid, xinim::pid_t dep) {
+    auto it = services_.find(pid);
+    if (it == services_.end()) {
+        return;
+    }
+
+    std::unordered_set<xinim::pid_t> visited;
+    if (!has_path(dep, pid, visited)) {
+        it->second.deps.push_back(dep);
+    }
+}
+
+void ServiceManager::set_restart_limit(xinim::pid_t pid, std::uint32_t limit) {
+    auto it = services_.find(pid);
+    if (it == services_.end()) {
+        return;
+    }
+    it->second.contract.policy.limit = limit;
 }
 
 /**
@@ -68,7 +90,7 @@ void ServiceManager::restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pi
     }
 
     it->second.running = true;
-    ++it->second.contract.count;
+    ++it->second.contract.restarts;
     sched::scheduler.enqueue(pid);
 
     for (auto &[other_pid, info] : services_) {
@@ -81,14 +103,37 @@ void ServiceManager::restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pi
 /**
  * @brief React to a service crash by marking it inactive and restarting.
  */
-void ServiceManager::handle_crash(xinim::pid_t pid) {
+bool ServiceManager::handle_crash(xinim::pid_t pid) {
     auto it = services_.find(pid);
     if (it == services_.end()) {
-        return;
+        return false;
     }
-    it->second.running = false;
+
+    auto &info = it->second;
+    info.running = false;
+
+    if (info.contract.policy.limit != 0 && info.contract.restarts >= info.contract.policy.limit) {
+        return false;
+    }
+
     std::unordered_set<xinim::pid_t> visited;
     restart_tree(pid, visited);
+    return true;
+}
+
+const ServiceManager::LivenessContract &ServiceManager::contract(xinim::pid_t pid) const {
+    static const LivenessContract empty{};
+    if (auto it = services_.find(pid); it != services_.end()) {
+        return it->second.contract;
+    }
+    return empty;
+}
+
+bool ServiceManager::is_running(xinim::pid_t pid) const noexcept {
+    if (auto it = services_.find(pid); it != services_.end()) {
+        return it->second.running;
+    }
+    return false;
 }
 
 ServiceManager service_manager{};
