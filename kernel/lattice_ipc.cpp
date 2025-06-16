@@ -1,6 +1,6 @@
 /*
  * @file lattice_ipc.cpp
- * @brief Reference‐counted message buffer and lattice IPC logic.
+ * @brief Capability‐based, post‐quantum IPC with optional non-blocking support.
  */
 
 #include "lattice_ipc.hpp"
@@ -12,13 +12,13 @@
 #include "net_driver.hpp"
 #include "octonion.hpp"
 #include "proc.hpp"
+#include "schedule.hpp"
 
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstring>
 #include <deque>
-#include <memory>
 #include <span>
 #include <tuple>
 #include <unordered_map>
@@ -27,7 +27,7 @@
 namespace {
 
 /**
- * @brief XOR-stream cipher for payloads using an Octonion as key.
+ * @brief XOR-stream cipher using an Octonion as key.
  *
  * Encryption and decryption are identical.
  */
@@ -39,87 +39,40 @@ void xor_cipher(std::span<std::byte> buf, const Octonion &key) noexcept {
     }
 }
 
+/**
+ * @brief Low-level context switch to another PID.
+ */
+void yield_to(xinim::pid_t pid) {
+    proc_ptr = proc_addr(pid);
+    cur_proc = pid;
+}
+
 } // namespace
 
 namespace lattice {
 
 /*==============================================================================
- *                               Global State
+ *                            Global Graph State
  *============================================================================*/
 
-Graph g_graph;  ///< Singleton IPC graph
-
-/*==============================================================================
- *                            Graph Implementation
- *============================================================================*/
-
-Channel &Graph::connect(xinim::pid_t src,
-                        xinim::pid_t dst,
-                        net::node_t node_id)
-{
-    auto key = std::make_tuple(src, dst, node_id);
-    auto it  = edges_.find(key);
-    if (it != edges_.end()) {
-        return it->second;
-    }
-
-    Channel ch{};
-    ch.src     = src;
-    ch.dst     = dst;
-    ch.node_id = node_id;
-    edges_.emplace(key, std::move(ch));
-    return edges_[key];
-}
-
-Channel *Graph::find(xinim::pid_t src,
-                     xinim::pid_t dst,
-                     net::node_t node_id) noexcept
-{
-    if (node_id != ANY_NODE) {
-        auto key = std::make_tuple(src, dst, node_id);
-        auto it  = edges_.find(key);
-        if (it != edges_.end()) {
-            return &it->second;
-        }
-    } else {
-        for (auto & [k, ch] : edges_) {
-            if (std::get<0>(k) == src && std::get<1>(k) == dst) {
-                return &ch;
-            }
-        }
-    }
-    return nullptr;
-}
-
-bool Graph::is_listening(xinim::pid_t pid) const noexcept {
-    auto it = listening_.find(pid);
-    return it != listening_.end() && it->second;
-}
-
-void Graph::set_listening(xinim::pid_t pid, bool flag) noexcept {
-    listening_[pid] = flag;
-}
+Graph g_graph;  ///< Singleton IPC graph instance
 
 /*==============================================================================
  *                               IPC API
  *============================================================================*/
 
-static void yield_to(xinim::pid_t pid) {
-    proc_ptr = proc_addr(pid);
-    cur_proc = pid;
-}
-
+/**
+ * @brief Create bidirectional channels and perform stubbed Kyber exchange.
+ */
 int lattice_connect(xinim::pid_t src,
                     xinim::pid_t dst,
                     net::node_t node_id)
 {
-    // Perform stubbed Kyber key exchange
     auto kp_a         = pqcrypto::generate_keypair();
     auto kp_b         = pqcrypto::generate_keypair();
     auto secret_bytes = pqcrypto::compute_shared_secret(kp_a, kp_b);
     Octonion secret   = Octonion::from_bytes(secret_bytes);
 
-    // Create forward and reverse channels
     Channel &fwd = g_graph.connect(src, dst, node_id);
     Channel &bwd = g_graph.connect(dst, src, node_id);
     fwd.secret = secret;
@@ -131,16 +84,26 @@ void lattice_listen(xinim::pid_t pid) {
     g_graph.set_listening(pid, true);
 }
 
+/**
+ * @brief Send a message, optionally non-blocking.
+ *
+ * @param src    Sender PID.
+ * @param dst    Receiver PID.
+ * @param msg    Message struct.
+ * @param flags  IpcFlags::NONBLOCK to avoid blocking.
+ * @return OK or ErrorCode.
+ */
 int lattice_send(xinim::pid_t src,
                  xinim::pid_t dst,
-                 const message &msg)
+                 const message &msg,
+                 IpcFlags flags)
 {
     Channel *ch = g_graph.find(src, dst, ANY_NODE);
     if (!ch) {
         ch = &g_graph.connect(src, dst, net::local_node());
     }
 
-    // Remote delivery: prepend src/dst, XOR-encrypt, send over network
+    // Remote-node delivery
     if (ch->node_id != net::local_node()) {
         std::vector<std::byte> pkt(sizeof(xinim::pid_t) * 2 + sizeof(msg));
         auto ids = reinterpret_cast<xinim::pid_t*>(pkt.data());
@@ -152,20 +115,38 @@ int lattice_send(xinim::pid_t src,
         return OK;
     }
 
-    // Local delivery: direct handoff or queue
+    // Local delivery: direct handoff
     if (g_graph.is_listening(dst)) {
         g_graph.inbox_[dst] = msg;
         g_graph.set_listening(dst, false);
-        yield_to(dst);
-    } else {
-        message copy = msg;
-        xor_cipher({reinterpret_cast<std::byte*>(&copy), sizeof(copy)}, ch->secret);
-        ch->queue.push_back(std::move(copy));
+        sched::scheduler.yield_to(dst);
+        return OK;
     }
+
+    // If non-blocking, don’t queue
+    if (flags == IpcFlags::NONBLOCK) {
+        return static_cast<int>(ErrorCode::E_TRY_AGAIN);
+    }
+
+    // Blocking: encrypt & queue
+    message copy = msg;
+    xor_cipher({reinterpret_cast<std::byte*>(&copy), sizeof(copy)}, ch->secret);
+    ch->queue.push_back(std::move(copy));
     return OK;
 }
 
-int lattice_recv(xinim::pid_t pid, message *out) {
+/**
+ * @brief Receive a pending message, optionally non-blocking.
+ *
+ * @param pid    Receiver PID.
+ * @param out    Destination for the received message.
+ * @param flags  IpcFlags::NONBLOCK to avoid blocking.
+ * @return OK or ErrorCode.
+ */
+int lattice_recv(xinim::pid_t pid,
+                 message *out,
+                 IpcFlags flags)
+{
     // 1) Direct-handoff inbox
     auto ib = g_graph.inbox_.find(pid);
     if (ib != g_graph.inbox_.end()) {
@@ -188,22 +169,32 @@ int lattice_recv(xinim::pid_t pid, message *out) {
         }
     }
 
-    // 3) No message: register listener
+    // 3) Non-blocking: return immediately
+    if (flags == IpcFlags::NONBLOCK) {
+        return static_cast<int>(ErrorCode::E_NO_MESSAGE);
+    }
+
+    // 4) Blocking: register listener and block
     lattice_listen(pid);
     return static_cast<int>(ErrorCode::E_NO_MESSAGE);
 }
 
+/**
+ * @brief Poll the network for incoming packets.
+ *
+ * Decrypts and enqueues messages into the local graph.
+ */
 void poll_network() {
     net::Packet pkt;
     while (net::recv(pkt)) {
-        auto &payload = pkt.payload;
-        if (payload.size() != sizeof(xinim::pid_t)*2 + sizeof(message)) {
+        auto &p = pkt.payload;
+        if (p.size() != sizeof(xinim::pid_t)*2 + sizeof(message)) {
             continue;
         }
-        auto ids = reinterpret_cast<const xinim::pid_t*>(payload.data());
+        auto ids = reinterpret_cast<const xinim::pid_t*>(p.data());
         xinim::pid_t src = ids[0], dst = ids[1];
         message msg;
-        std::memcpy(&msg, payload.data() + sizeof(xinim::pid_t)*2, sizeof(msg));
+        std::memcpy(&msg, p.data() + sizeof(xinim::pid_t)*2, sizeof(msg));
 
         Channel *ch = g_graph.find(src, dst, pkt.src_node);
         if (!ch) {

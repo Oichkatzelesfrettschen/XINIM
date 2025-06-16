@@ -24,6 +24,14 @@ inline constexpr net::node_t ANY_NODE = -1;
 using ::message;
 
 /**
+ * @brief Flags controlling send and receive behavior.
+ */
+enum class IpcFlags : unsigned {
+    NONE = 0,     //!< Blocking semantics
+    NONBLOCK = 1, //!< Return immediately if no message can be sent or received
+};
+
+/**
  * @brief Channel connecting two processes.
  */
 struct Channel {
@@ -102,10 +110,12 @@ void lattice_listen(xinim::pid_t pid);
  *
  * @param src Sending process identifier.
  * @param dst Receiving process identifier.
- * @param msg Message to send.
- * @return ::OK on success.
+ * @param msg   Message to send.
+ * @param flags Behaviour control flags such as ::IpcFlags::NONBLOCK.
+ * @return ::OK on success or ::E_TRY_AGAIN when non-blocking fails.
  */
-int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg);
+int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg,
+                 IpcFlags flags = IpcFlags::NONE);
 
 /**
  * @brief Receive a message for a process.
@@ -116,10 +126,11 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg);
  * from the inbox populated by the network layer.
  *
  * @param pid Process identifier.
- * @param msg Buffer to store the received message.
+ * @param msg   Buffer to store the received message.
+ * @param flags Behaviour control flags, e.g. ::IpcFlags::NONBLOCK.
  * @return ::OK on success or ::E_NO_MESSAGE when no message is available.
  */
-int lattice_recv(xinim::pid_t pid, message *msg);
+int lattice_recv(xinim::pid_t pid, message *msg, IpcFlags flags = IpcFlags::NONE);
 
 /**
  * @brief Poll the network driver for incoming packets.
