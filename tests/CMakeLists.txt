@@ -255,6 +255,11 @@ add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 add_lattice_test(minix_test_lattice test_lattice.cpp)
 
 # -----------------------------------------------------------------------------
+# minix_test_lattice_send_recv
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_send_recv test_lattice_send_recv.cpp)
+
+# -----------------------------------------------------------------------------
 # minix_test_lattice_ipc
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice_ipc test_lattice_ipc.cpp ${CMAKE_SOURCE_DIR}/crypto)
