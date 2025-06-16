@@ -23,6 +23,20 @@ transfer and update scheduling state.
 .. doxygenfunction:: fastpath::execute_fastpath
    :project: XINIM
 
+Distributed Operation
+---------------------
+
+When nodes are connected over a network the lattice layer serializes messages
+into a small packet structure.  The packet begins with the sending and
+receiving process identifiers followed by the raw message bytes.  Packets are
+transmitted through :cpp:func:`net::send` and recovered with
+:cpp:func:`net::recv`.
+
+The helper :cpp:func:`lattice::poll_network` converts incoming packets back into
+messages.  Each message is encrypted with the channel's shared secret before
+being queued.  Applications call this function periodically to integrate remote
+messages into the standard queueing mechanism.
+
 Graph API
 ---------
 
