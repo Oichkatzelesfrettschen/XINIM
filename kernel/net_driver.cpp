@@ -101,7 +101,9 @@ node_t local_node() noexcept {
             hash ^= static_cast<std::uint8_t>(c);
             hash *= 16777619u;
         }
-        return static_cast<node_t>(hash);
+        // Ensure node ID is never zero (0 is reserved as a failure indicator)
+        node_t node_id = static_cast<node_t>(hash);
+        return node_id == 0 ? 1 : node_id;
     }
     return 0;
 }
