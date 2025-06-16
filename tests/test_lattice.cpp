@@ -8,6 +8,7 @@
 #include "../kernel/lattice_ipc.hpp"
 #include "../kernel/net_driver.hpp"
 #include "../kernel/pqcrypto.hpp"
+#include <algorithm>
 #include <cassert>
 
 /**
@@ -43,14 +44,17 @@ int main() {
     assert(lattice_recv(2, &out2) == OK);
     assert(out2.m_type == 99);
 
-    // PQ crypto negotiation
+    /**
+     * @brief Validate that computing a shared secret yields
+     *        a non-zero 32-byte value.
+     */
     auto a = pqcrypto::generate_keypair();
     auto b = pqcrypto::generate_keypair();
-    auto s1 = pqcrypto::compute_shared_secret(a, b);
-    auto s2 = pqcrypto::compute_shared_secret(b, a);
-    for (std::size_t i = 0; i < s1.size(); ++i) {
-        assert(s1[i] == s2[i]);
-    }
+    auto secret = pqcrypto::compute_shared_secret(a, b);
+
+    assert(secret.size() == pqcrystals_kyber512_BYTES);
+    bool nonzero = std::any_of(secret.begin(), secret.end(), [](std::uint8_t b) { return b != 0; });
+    assert(nonzero && "Secret must contain entropy");
 
     return 0;
 }

@@ -20,9 +20,11 @@ Message Hand-off
 ----------------
 
 Calling :cpp:func:`lattice::lattice_send` delivers a message immediately when the
-receiver is already waiting. In that case execution yields directly to the
-receiver via :cpp:func:`sched::Scheduler::yield_to` so the message handler runs
-without delay.
+receiver is already waiting. On such a fast path the scheduler invokes
+:cpp:func:`sched::Scheduler::yield_to` so the receiver handles the message
+without an extra context switch. Both send and
+:cpp:func:`lattice::lattice_recv` accept :cpp:type:`lattice::IpcFlags` with the
+``NONBLOCK`` option to return immediately when no delivery is possible.
 
 .. doxygenfunction:: sched::Scheduler::yield_to
    :project: XINIM

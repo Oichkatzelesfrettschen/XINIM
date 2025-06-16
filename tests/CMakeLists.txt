@@ -14,6 +14,9 @@ function(add_lattice_test target source)
     ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
     ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
     ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/service.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
     ${CMAKE_SOURCE_DIR}/kernel/table.cpp
     task_stubs.cpp)
   target_include_directories(${target} PUBLIC
