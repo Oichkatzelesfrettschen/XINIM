@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 /**
  * @brief Per-process memory management information.

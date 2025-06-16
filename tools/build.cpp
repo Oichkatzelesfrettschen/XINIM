@@ -34,7 +34,7 @@
  * init, and fsck into a single boot image with proper sector alignment and
  * patching for runtime execution.
  *
- * Modern C++17 implementation with proper error handling, type safety,
+ * Modern C++23 implementation with proper error handling, type safety,
  * and architectural design patterns.
  *
  * @namespace minix::builder

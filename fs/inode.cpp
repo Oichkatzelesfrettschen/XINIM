@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* This file manages the inode table.  There are procedures to allocate and
@@ -31,13 +31,14 @@
 #include "glo.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <cstdint> // For uint16_t, uint8_t, int16_t, int32_t, int64_t
 #include <cstddef> // For std::size_t, nullptr
+#include <cstdint> // For uint16_t, uint8_t, int16_t, int32_t, int64_t
 
 /*===========================================================================*
  *				get_inode				     *
  *===========================================================================*/
-PUBLIC struct inode *get_inode(uint16_t dev, uint16_t numb) { // dev_nr -> uint16_t, inode_nr -> uint16_t
+PUBLIC struct inode *get_inode(uint16_t dev,
+                               uint16_t numb) { // dev_nr -> uint16_t, inode_nr -> uint16_t
     /* Find a slot in the inode table, load the specified inode into it, and
      * return a pointer to the slot.  If 'dev' == kNoDev, just return a free slot.
      */
@@ -82,7 +83,7 @@ PUBLIC void put_inode(struct inode *rip) { // Added void return, modernized para
      * it and return it to the pool of available inodes.
      */
 
-    if (rip == nullptr) // NIL_INODE -> nullptr
+    if (rip == nullptr)        // NIL_INODE -> nullptr
         return;                /* checking here is easier than in caller */
     if (--rip->i_count == 0) { /* i_count == 0 means no one is using it now */
         // rip->i_nlinks is links (uint8_t), BYTE is int. Cast to ensure consistent comparison.
@@ -102,7 +103,8 @@ PUBLIC void put_inode(struct inode *rip) { // Added void return, modernized para
 /*===========================================================================*
  *				alloc_inode				     *
  *===========================================================================*/
-PUBLIC struct inode *alloc_inode(uint16_t dev, uint16_t bits) { // dev_nr -> uint16_t, mask_bits -> uint16_t
+PUBLIC struct inode *alloc_inode(uint16_t dev,
+                                 uint16_t bits) { // dev_nr -> uint16_t, mask_bits -> uint16_t
     /* Allocate a free inode on 'dev', and return a pointer to it. */
 
     register struct inode *rip;
@@ -117,10 +119,12 @@ PUBLIC struct inode *alloc_inode(uint16_t dev, uint16_t bits) { // dev_nr -> uin
     /* Acquire an inode from the bit map. */
     sp = get_super(dev); /* get pointer to super_block */
     // sp->s_ninodes is likely uint16_t or uint32_t. Cast to bit_nr (uint16_t) is explicit.
-    b = alloc_bit(sp->s_imap, static_cast<uint16_t>(sp->s_ninodes + 1), sp->s_imap_blocks, static_cast<uint16_t>(0));
+    b = alloc_bit(sp->s_imap, static_cast<uint16_t>(sp->s_ninodes + 1), sp->s_imap_blocks,
+                  static_cast<uint16_t>(0));
     if (b == NO_BIT) { // NO_BIT is uint16_t
         err_code = ErrorCode::ENFILE;
-        major = static_cast<int>(static_cast<uint16_t>(sp->s_dev >> MAJOR) & BYTE); // sp->s_dev is dev_nr (uint16_t)
+        major = static_cast<int>(static_cast<uint16_t>(sp->s_dev >> MAJOR) &
+                                 BYTE); // sp->s_dev is dev_nr (uint16_t)
         minor = static_cast<int>(static_cast<uint16_t>(sp->s_dev >> MINOR) & BYTE);
         if (sp->s_dev == ROOT_DEV) // ROOT_DEV is dev_nr (uint16_t)
             printf("Out of i-nodes on root device (RAM disk)\n");
@@ -131,15 +135,16 @@ PUBLIC struct inode *alloc_inode(uint16_t dev, uint16_t bits) { // dev_nr -> uin
     numb = static_cast<uint16_t>(b); // inode_nr -> uint16_t, b is bit_nr (uint16_t)
 
     /* Try to acquire a slot in the inode table. */
-    if ((rip = get_inode(kNoDev, numb)) == nullptr) { // kNoDev is dev_nr (uint16_t), NIL_INODE -> nullptr
+    if ((rip = get_inode(kNoDev, numb)) ==
+        nullptr) { // kNoDev is dev_nr (uint16_t), NIL_INODE -> nullptr
         /* No inode table slots available.  Free the inode just allocated. */
         free_bit(sp->s_imap, b);
     } else {
         /* An inode slot is available.  Put the inode just allocated into it. */
-        rip->i_mode = bits; // bits is uint16_t (mask_bits)
-        rip->i_nlinks = static_cast<links>(0); // links is uint8_t
-        rip->i_uid = fp->fp_effuid; // uid is uint16_t
-        rip->i_gid = fp->fp_effgid; // gid is uint8_t
+        rip->i_mode = bits;                                     // bits is uint16_t (mask_bits)
+        rip->i_nlinks = static_cast<links>(0);                  // links is uint8_t
+        rip->i_uid = fp->fp_effuid;                             // uid is uint16_t
+        rip->i_gid = fp->fp_effgid;                             // gid is uint8_t
         rip->i_dev = dev; /* was provisionally set to kNoDev */ // dev is uint16_t
 
         /* The fields not cleared already are cleared in wipe_inode().  They have
@@ -166,10 +171,10 @@ PUBLIC void wipe_inode(struct inode *rip) { // Added void return, modernized par
     register int i;
     extern real_time clock_time(); // clock_time returns int64_t (real_time)
 
-    rip->i_size = 0;    // file_pos (int32_t)
-    rip->i_size64 = 0;  // file_pos64 (int64_t)
-    rip->i_extents = NIL_EXTENT; // NIL_EXTENT is extent* (nullptr or specific value)
-    rip->i_extent_count = 0; // uint16_t
+    rip->i_size = 0;               // file_pos (int32_t)
+    rip->i_size64 = 0;             // file_pos64 (int64_t)
+    rip->i_extents = NIL_EXTENT;   // NIL_EXTENT is extent* (nullptr or specific value)
+    rip->i_extent_count = 0;       // uint16_t
     rip->i_modtime = clock_time(); // real_time (int64_t)
     rip->i_dirt = DIRTY;
     for (i = 0; i < NR_ZONE_NUMS; i++)
@@ -179,7 +184,9 @@ PUBLIC void wipe_inode(struct inode *rip) { // Added void return, modernized par
 /*===========================================================================*
  *				free_inode				     *
  *===========================================================================*/
-PUBLIC void free_inode(uint16_t dev, uint16_t numb) { // dev_nr -> uint16_t, inode_nr -> uint16_t. Added void return.
+PUBLIC void
+free_inode(uint16_t dev,
+           uint16_t numb) { // dev_nr -> uint16_t, inode_nr -> uint16_t. Added void return.
     /* Return an inode to the pool of unallocated inodes. */
 
     register struct super_block *sp;
@@ -187,7 +194,8 @@ PUBLIC void free_inode(uint16_t dev, uint16_t numb) { // dev_nr -> uint16_t, ino
 
     /* Locate the appropriate super_block. */
     sp = get_super(dev);
-    free_bit(sp->s_imap, static_cast<uint16_t>(numb)); // numb is inode_nr (uint16_t), cast to bit_nr (uint16_t)
+    free_bit(sp->s_imap,
+             static_cast<uint16_t>(numb)); // numb is inode_nr (uint16_t), cast to bit_nr (uint16_t)
 }
 
 /*===========================================================================*
@@ -207,8 +215,8 @@ PUBLIC void rw_inode(struct inode *rip, int rw_flag) { // Added void return, mod
     sp = get_super(rip->i_dev); // rip->i_dev is dev_nr (uint16_t)
     // rip->i_num is inode_nr (uint16_t). INODES_PER_BLOCK, s_imap_blocks etc are int/size_t.
     // Result of calculation should fit block_nr (uint16_t).
-    b = static_cast<uint16_t>( (static_cast<uint32_t>(rip->i_num - 1) / INODES_PER_BLOCK) +
-                                sp->s_imap_blocks + sp->s_zmap_blocks + 2 );
+    b = static_cast<uint16_t>((static_cast<uint32_t>(rip->i_num - 1) / INODES_PER_BLOCK) +
+                              sp->s_imap_blocks + sp->s_zmap_blocks + 2);
     bp = get_block(rip->i_dev, b, NORMAL); // b is block_nr (uint16_t)
     // Assuming bp->b_inode is d_inode*. rip->i_num is inode_nr (uint16_t).
     dip = bp->b_inode + (rip->i_num - 1) % INODES_PER_BLOCK;

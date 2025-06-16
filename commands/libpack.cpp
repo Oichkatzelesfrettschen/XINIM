@@ -1,14 +1,14 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* libpack - pack ASCII assembly code	Author: Andy Tanenbaum */
 #include <string_view>
 
-#include <cstdlib>   // for exit
-#include <unistd.h>  // for read, write
+#include <cstdlib>  // for exit
+#include <unistd.h> // for read, write
 
 #define BUFSIZ 20000
 
@@ -152,7 +152,7 @@ struct node *hash[MAX]; /* hash table */
 char input[BUFSIZ + 2];
 char xbuf[BUFSIZ + 2];
 // Forward declaration for the packing routine.
-static int pack88(char* inp, char* outp, int count);
+static int pack88(char *inp, char *outp, int count);
 int main() {
     int n, count, outbytes;
     char *p;
@@ -177,7 +177,7 @@ int main() {
 
 // Pack an ASCII assembly string ``inp`` of length ``count`` into ``outp``.
 // Returns the number of bytes in the packed output.
-static int pack88(char* inp, char* outp, int count) {
+static int pack88(char *inp, char *outp, int count) {
     /* Take a string and pack it to compact assembly code. */
 
     int k, hit, whchar, n;

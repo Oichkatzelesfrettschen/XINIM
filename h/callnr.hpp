@@ -1,7 +1,7 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
-#include "../include/defs.hpp" // Added for consistency and potential common types
+#include "../include/defs.hpp"    // Added for consistency and potential common types
 inline constexpr int NCALLS = 69; /* number of system calls allowed */
 inline constexpr int EXIT = 1;
 inline constexpr int FORK = 2;

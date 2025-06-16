@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* This file contains the main program of the File System.  It consists of
@@ -27,8 +27,8 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <cstdint>    // For uint16_t, uint32_t, uint64_t, int64_t, int32_t, uint8_t
 #include <cstddef>    // For std::size_t
+#include <cstdint>    // For uint16_t, uint32_t, uint64_t, int64_t, int32_t, uint8_t
 #include <inttypes.h> // For PRId64
 
 #define M64K 0xFFFF0000L /* 16 bit mask for DMA check */
@@ -212,10 +212,10 @@ static void load_ram() {
      */
 
     register struct buf *bp, *bp1;
-    uint32_t count;                 // Was int, count of blocks
-    int64_t k_loaded;               // Was long, for printf
+    uint32_t count;   // Was int, count of blocks
+    int64_t k_loaded; // Was long, for printf
     struct super_block *sp;
-    uint16_t i;                     // block_nr -> uint16_t
+    uint16_t i;                                                        // block_nr -> uint16_t
     uint64_t ram_clicks, init_org, init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
     extern uint64_t data_org[INFO + 2]; // phys_clicks[] -> uint64_t[]
     extern struct buf *get_block();
@@ -233,7 +233,7 @@ static void load_ram() {
         panic("Diskette in drive 0 is not root file system", NO_NUM);
     // sp->s_nzones is uint16_t, s_log_zone_size is uint8_t. Result fits uint32_t.
     count = static_cast<uint32_t>(sp->s_nzones) << sp->s_log_zone_size; /* # blocks on root dev */
-    if (count > MAX_RAM) // MAX_RAM is int
+    if (count > MAX_RAM)                                                // MAX_RAM is int
         panic("RAM disk is too big. # blocks = ", static_cast<int>(count)); // panic takes int
     // count is uint32_t, BLOCK_SIZE/CLICK_SIZE are int. Result fits uint64_t.
     ram_clicks = static_cast<uint64_t>(count) * (BLOCK_SIZE / CLICK_SIZE);
@@ -249,7 +249,7 @@ static void load_ram() {
     m1.m1_i2() = static_cast<int>(init_data_clicks);
     m1.m1_i3() = static_cast<int>(init_org + init_text_clicks + init_data_clicks + ram_clicks);
     // m1_p1 is char*. init_org is uint64_t. Requires uintptr_t intermediate for safety.
-    m1.m1_p1() = reinterpret_cast<char*>(static_cast<uintptr_t>(init_org));
+    m1.m1_p1() = reinterpret_cast<char *>(static_cast<uintptr_t>(init_org));
     if (sendrec(MM_PROC_NR, &m1) != OK)
         panic("FS Can't report to MM", NO_NUM);
 
@@ -259,14 +259,15 @@ static void load_ram() {
     // position(m1) is int64_t (was long). init_org etc are uint64_t. Sum is uint64_t.
     position(m1) = static_cast<int64_t>(init_org + init_text_clicks + init_data_clicks);
     position(m1) = position(m1) << CLICK_SHIFT; // CLICK_SHIFT is int.
-    count(m1) = static_cast<int>(count); // count(m1) is int, count is uint32_t. Narrowing.
+    count(m1) = static_cast<int>(count);        // count(m1) is int, count is uint32_t. Narrowing.
     if (sendrec(MEM, &m1) != OK)
         panic("Can't report size to MEM", NO_NUM);
 
     /* Copy the blocks one at a time from the root diskette to the RAM */
     printf("Loading RAM disk from root diskette.      Loaded:   0K ");
     for (i = 0; i < count; i++) { // i is uint16_t, count is uint32_t
-        bp = get_block(BOOT_DEV, static_cast<uint16_t>(i), NORMAL); // get_block takes block_nr (uint16_t)
+        bp = get_block(BOOT_DEV, static_cast<uint16_t>(i),
+                       NORMAL); // get_block takes block_nr (uint16_t)
         bp1 = get_block(ROOT_DEV, i, NO_READ);
         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
         bp1->b_dirt = DIRTY;

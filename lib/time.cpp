@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Return the current system time; optionally store it in '*tp'.
 long time(long *tp) {

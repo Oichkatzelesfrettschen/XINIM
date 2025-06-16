@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file contains the heart of the mechanism used to read (and write)
  * files.  Read and write requests are split up into chunks that do not cross

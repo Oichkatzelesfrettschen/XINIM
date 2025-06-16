@@ -13,7 +13,7 @@ This document outlines the high level plan for progressing the project toward a 
 
 1. Incrementally replace legacy drivers with permissive, non-GNU alternatives.
 2. Implement the required subset of POSIX.1-2008 for compatibility with modern tooling.
-3. Refactor code to fully embrace C++17 idioms and eliminate unsafe constructs.
+3. Refactor code to fully embrace C++23 idioms and eliminate unsafe constructs.
 4. Maintain cross‑platform support for both 32‑bit and 64‑bit builds.
 
 ## 3. Toward WebAssembly

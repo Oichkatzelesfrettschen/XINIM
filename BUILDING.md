@@ -4,14 +4,10 @@ This document describes how to build the Minix 1 sources and verify that the
 build environment works on a Unix-like host.
 
 The codebase is currently a **work in progress** focused on reproducing the
-original Minix simplicity on modern arm64 and x86_64 machines using C++17.
+original Minix simplicity on modern arm64 and x86_64 machines using C++23.
 
 ## Prerequisites
-
-A 64-bit x86 compiler toolchain is required.  Clang++ with C++17 is used by
-default across all Makefiles and CMake scripts.  GCC 9 or later can still be
-used if desired, and either NASM 2.14 or YASM 1.3 are known to work.  CMake 3.5
-or newer is needed when using the CMake build system.
+A 64-bit x86 compiler toolchain supporting C++23 is required. Clang++ 18 with the matching LLVM 18 suite (including lld and lldb) is preferred. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
 
 ## Building with Makefiles
 
@@ -101,4 +97,4 @@ provide the needed functionality and are built automatically.
 A helper script `tools/modernize_cpp17.sh` automates renaming sources to
 `.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
 header into each file. Invoke it from the repository root when ready to move
-the codebase fully to C++17.
+the codebase fully to C++23.

@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* This file contains the procedures that manipulate file descriptors.
@@ -21,8 +21,8 @@
 #include "glo.hpp"
 #include "inode.hpp" // Includes NIL_INODE (nullptr)
 #include "type.hpp"
-#include <cstdint>   // For uint16_t
-#include <cstddef>   // For nullptr (though NIL_FILP is from file.hpp)
+#include <cstddef> // For nullptr (though NIL_FILP is from file.hpp)
+#include <cstdint> // For uint16_t
 
 /*===========================================================================*
  *				get_fd					     *
@@ -75,7 +75,7 @@ PUBLIC struct filp *get_filp(int fild) {
 
     err_code = ErrorCode::EBADF;
     if (fild < 0 || fild >= NR_FDS)
-        return (NIL_FILP); // NIL_FILP is nullptr from file.hpp
+        return (NIL_FILP);      // NIL_FILP is nullptr from file.hpp
     return (fp->fp_filp[fild]); /* may also be NIL_FILP */
 }
 

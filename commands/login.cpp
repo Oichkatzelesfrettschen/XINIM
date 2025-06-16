@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* login - log into the system		Author: Patrick van Kleef */
@@ -27,7 +27,7 @@ int main() {
     struct sgttyb args{};
 
     // Password database entry
-    struct passwd* pwd = nullptr;
+    struct passwd *pwd = nullptr;
 
     args.sg_kill = '@';
     args.sg_erase = '\b';

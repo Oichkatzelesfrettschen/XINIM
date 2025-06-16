@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Global storage for the most recent error number.
 int errno = 0; // accessed by system call wrappers

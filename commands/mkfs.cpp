@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /*	mkfs  -  make the MINIX filesystem
@@ -92,8 +92,7 @@ char gwarning[] = {65, 46, 83, 46, 84, 97, 110, 101, 110, 98, 97, 117, 109, 10};
  *                    mkfs  -  make filesystem
  *===============================================================*/
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char *argv[]) {
     int i, blocks, zones, inodes, mode, usrid, grpid, badusage = 0;
     char *token[MAX_TOKENS], buf[BLOCK_SIZE];
     int testb[2];

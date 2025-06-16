@@ -1,5 +1,5 @@
 #include "../include/setjmp.hpp"
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 #include <csetjmp>
 
 /*

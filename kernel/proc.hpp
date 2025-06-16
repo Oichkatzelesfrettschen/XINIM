@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 /* Here is the declaration of the process table.  Three assembly code routines
  * reference fields in it.  They are restart(), save(), and csv().  When

@@ -1,12 +1,12 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
+#include <cstdlib> // for exit
 #include <string_view>
-#include <cstdlib>   // for exit
-#include <unistd.h>  // for read, write
+#include <unistd.h> // for read, write
 char *table[] = {"push ax",
                  "ret",
                  "mov bp,sp",
@@ -136,11 +136,11 @@ char input[IBUFSIZE + 1];
 char output[OBUFSIZE + 1];
 
 // Forward declaration of the unpack routine.
-static int unpack88(char* inp, char* outp);
+static int unpack88(char *inp, char *outp);
 
 int main() {
-    int n;          // number of bytes read from stdin
-    int count;      // count of bytes produced by unpack88
+    int n;     // number of bytes read from stdin
+    int count; // count of bytes produced by unpack88
 
     while (1) {
         n = read(0, input, IBUFSIZE);
@@ -156,10 +156,10 @@ int main() {
 
 // Expand packed assembly opcodes from ``inp`` into ``outp``.
 // Returns the number of bytes written to ``outp``.
-static int unpack88(char* inp, char* outp) {
-    int k;       // Current input byte as an unsigned value
-    char* p;     // Pointer for table lookups
-    char* orig = outp; // Keep start to compute byte count
+static int unpack88(char *inp, char *outp) {
+    int k;             // Current input byte as an unsigned value
+    char *p;           // Pointer for table lookups
+    char *orig = outp; // Keep start to compute byte count
 
     while (*inp != 0) {
         k = *inp & 0377;

@@ -1,5 +1,5 @@
 #pragma once
-// Modernized for C++17
+// Modernized for C++23
 
 /* The 'pc_psw' struct is machine dependent.  It must contain the information
  * pushed onto the stack by an interrupt, in the same format as the hardware
@@ -9,7 +9,6 @@
 
 #include "../include/defs.hpp"  // Project-wide definitions
 #include <xinim/core_types.hpp> // For xinim::virt_addr_t and std::uint64_t
-
 
 struct pc_psw {
     xinim::virt_addr_t pc; /* program counter */

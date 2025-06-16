@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /*  ========================================================================  *
@@ -134,11 +134,11 @@ struct regex;
  * Forward declarations
  */
 extern int nlines;               /* Number of lines in file */
-extern struct Line *header;             /* Head of line list */
-extern struct Line *tail;               /* Last line in line list */
-extern struct Line *top_line;           /* First line of screen */
-extern struct Line *bot_line;           /* Last line of screen */
-extern struct Line *cur_line;           /* Current line in use */
+extern struct Line *header;      /* Head of line list */
+extern struct Line *tail;        /* Last line in line list */
+extern struct Line *top_line;    /* First line of screen */
+extern struct Line *bot_line;    /* Last line of screen */
+extern struct Line *cur_line;    /* Current line in use */
 extern char *cur_text;           /* Pointer to char on current line in use */
 extern int last_y;               /* Last y of screen. Usually SCREENMAX */
 extern char screen[SCREEN_SIZE]; /* Output buffer for "writes" and "reads" */

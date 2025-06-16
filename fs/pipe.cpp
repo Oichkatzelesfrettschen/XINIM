@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file deals with the suspension and revival of processes.  A process can
  * be suspended because it wants to read or write from a pipe and can't, or

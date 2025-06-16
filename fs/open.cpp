@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file contains the procedures for creating, opening, closing, and
  * seeking on files.
@@ -24,8 +24,8 @@
 #include "inode.hpp"
 #include "param.hpp"
 #include "type.hpp"
-#include <cstdint> // For uint16_t, int32_t, int64_t etc.
 #include <cstddef> // For nullptr
+#include <cstdint> // For uint16_t, int32_t, int64_t etc.
 
 PRIVATE char mode_map[] = {R_BIT, W_BIT, R_BIT | W_BIT, 0};
 
@@ -65,8 +65,9 @@ int do_creat() {
     if (r == ErrorCode::EEXIST) {
         /* File exists already. */
         switch (rip->i_mode & I_TYPE) { // i_mode is mask_bits (uint16_t), I_TYPE is int
-        case I_REGULAR: /* truncate regular file */
-            if ((r = forbidden(rip, static_cast<uint16_t>(W_BIT), 0)) == OK) // W_BIT is int, forbidden expects mask_bits
+        case I_REGULAR:                 /* truncate regular file */
+            if ((r = forbidden(rip, static_cast<uint16_t>(W_BIT), 0)) ==
+                OK) // W_BIT is int, forbidden expects mask_bits
                 truncate(rip);
             break;
 
@@ -76,7 +77,8 @@ int do_creat() {
 
         case I_CHAR_SPECIAL: /* special files are special */
         case I_BLOCK_SPECIAL:
-            if ((r = forbidden(rip, static_cast<uint16_t>(W_BIT), 0)) != OK) // W_BIT is int, forbidden expects mask_bits
+            if ((r = forbidden(rip, static_cast<uint16_t>(W_BIT), 0)) !=
+                OK) // W_BIT is int, forbidden expects mask_bits
                 break;
             // rip->i_zone[0] is zone_nr (uint16_t). dev_open 1st param is dev_nr (uint16_t).
             // dev_open 2nd param is int access_bits. W_BIT is int.
@@ -107,7 +109,7 @@ int do_mknod() {
     register mask_bits bits;
 
     if (!super_user)
-        return (ErrorCode::EPERM); /* only super_user may make nodes */
+        return (ErrorCode::EPERM);                 /* only super_user may make nodes */
     if (fetch_name(name1, name1_length, M1) != OK) // name1, name1_length from param.hpp
         return (err_code);
     // mode is int. I_TYPE, ALL_MODES are int. fp_umask is mask_bits (uint16_t).
@@ -121,7 +123,7 @@ int do_mknod() {
  *				new_node				     *
  *===========================================================================*/
 // Changed to modern C++ signature, PRIVATE becomes static
-static struct inode* new_node(char *path, uint16_t bits, uint16_t z0) {
+static struct inode *new_node(char *path, uint16_t bits, uint16_t z0) {
     // path is char*
     // bits is mask_bits (uint16_t)
     // z0 is zone_nr (uint16_t)
@@ -135,13 +137,14 @@ static struct inode* new_node(char *path, uint16_t bits, uint16_t z0) {
     register struct inode *rlast_dir_ptr, *rip;
     register int r;
     char string[NAME_SIZE]; // NAME_SIZE is std::size_t (was int)
-    extern struct inode *alloc_inode(uint16_t, uint16_t); // Ensure this matches modernized alloc_inode
-    extern struct inode *advance(struct inode*, const char*); // Assuming advance signature
-    extern struct inode *last_dir(const char*, char*);    // Assuming last_dir signature
+    extern struct inode *alloc_inode(uint16_t,
+                                     uint16_t); // Ensure this matches modernized alloc_inode
+    extern struct inode *advance(struct inode *, const char *); // Assuming advance signature
+    extern struct inode *last_dir(const char *, char *);        // Assuming last_dir signature
 
     /* See if the path can be opened down to the last directory. */
     if ((rlast_dir_ptr = last_dir(path, string)) == nullptr) // NIL_INODE -> nullptr
-        return (nullptr); // NIL_INODE -> nullptr
+        return (nullptr);                                    // NIL_INODE -> nullptr
 
     /* The final directory is accessible. Get final component of the path. */
     rip = advance(rlast_dir_ptr, string);
@@ -158,8 +161,8 @@ static struct inode* new_node(char *path, uint16_t bits, uint16_t z0) {
          * the system more robust in the face of a crash: an inode with
          * no directory entry is much better than the opposite.
          */
-        rip->i_nlinks++; // i_nlinks is links (uint8_t)
-        rip->i_zone[0] = z0; // i_zone[0] is zone_nr (uint16_t), z0 is uint16_t
+        rip->i_nlinks++;        // i_nlinks is links (uint8_t)
+        rip->i_zone[0] = z0;    // i_zone[0] is zone_nr (uint16_t), z0 is uint16_t
         rw_inode(rip, WRITING); /* force inode to disk now */
 
         /* New inode acquired.  Try to make directory entry. */
@@ -208,7 +211,8 @@ int do_open() {
         return (ErrorCode::EINVAL);
     if (fetch_name(name, name_length, M3) != OK) // name, name_length from param.hpp
         return (err_code);
-    bits = static_cast<uint16_t>(mode_map[mode]); // mode_map elements are int. bits is mask_bits (uint16_t).
+    bits = static_cast<uint16_t>(
+        mode_map[mode]); // mode_map elements are int. bits is mask_bits (uint16_t).
     // get_fd expects mask_bits (uint16_t) for its first arg if it's 'bits_needed'.
     if ((r = get_fd(bits, &file_d, &fil_ptr)) != OK)
         return (r);
@@ -225,7 +229,7 @@ int do_open() {
 
     /* Opening regular files, directories and special files are different. */
     switch (rip->i_mode & I_TYPE) {
-    case I_DIRECTORY: // I_DIRECTORY is int constant
+    case I_DIRECTORY:                              // I_DIRECTORY is int constant
         if (bits & static_cast<uint16_t>(W_BIT)) { // bits is uint16_t, W_BIT is int
             put_inode(rip);
             return (ErrorCode::EISDIR);
@@ -278,7 +282,8 @@ int do_close() {
             do_sync(); /* purge cache */
             // mounted takes struct inode*. FALSE is likely 0.
             if (mounted(rip) == static_cast<int>(FALSE)) // Assuming FALSE is int 0
-                invalidate(static_cast<uint16_t>(rip->i_zone[0])); // invalidate expects dev_nr (uint16_t)
+                invalidate(
+                    static_cast<uint16_t>(rip->i_zone[0])); // invalidate expects dev_nr (uint16_t)
         }
         dev_close(static_cast<uint16_t>(rip->i_zone[0])); // dev_close expects dev_nr (uint16_t)
     }
@@ -318,7 +323,7 @@ int do_lseek() {
     /* The value of 'whence' determines the algorithm to use. */
     // whence is int from param.hpp. offset is int64_t from param.hpp.
     switch (whence) {
-    case 0: // SEEK_SET
+    case 0:           // SEEK_SET
         pos = offset; // int64_t = int64_t
         break;
     case 1: // SEEK_CUR

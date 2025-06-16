@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* cal - print a calendar		Author: Maritn Minow */
@@ -41,7 +41,7 @@ constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
 constexpr std::array<std::string_view, 13> monthname = {
     "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     int month = 0;
     int year = 0;
 

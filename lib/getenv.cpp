@@ -1,4 +1,4 @@
-// Modern C++17 implementation of the classic getenv routine.
+// Modern C++23 implementation of the classic getenv routine.
 #include <cstring>
 
 // The environment is provided by the hosting process.
