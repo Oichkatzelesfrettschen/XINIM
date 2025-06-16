@@ -1,125 +1,108 @@
 Lattice IPC Subsystem
 =====================
 
-The lattice IPC subsystem provides capability-based message passing in XINIM. It
-enables fast communication between threads using the fastpath implementation
-found in :file:`kernel/wormhole.hpp`.
+The **Lattice IPC** subsystem provides capability‐based message passing in XINIM,
+leveraging both a low‐latency fastpath for local transfers and a serialized
+packet format for distributed operation.
+
+Overview
+--------
+
+1. **Local Fastpath** — zero-copy, per-CPU queues with spillover statistics  
+2. **Tiered Caching** — L1/L2/L3 buffers to minimize spills  
+3. **Distributed Messaging** — encrypted, framed packets over the network  
+4. **Directed Graph API** — channel management via a DAG  
 
 Fastpath Overview
 -----------------
 
-The fastpath executes a series of transformations that perform zero-copy
-transfer and update scheduling state.
+The fastpath in `kernel/wormhole.hpp` executes a sequence of zero-copy
+transforms, yielding directly to the receiver’s thread when the per-CPU queue
+can accommodate the message.
 
-.. doxygenfile:: wormhole.hpp
-   :project: XINIM
-
-.. doxygenstruct:: fastpath::State
-   :project: XINIM
-
-.. doxygenstruct:: fastpath::FastpathStats
-   :project: XINIM
-
-The statistics track how often the per-CPU fastpath queue succeeds as
-well as the number of spill events when the queue is exhausted.  The
-``hit_count`` and ``fallback_count`` fields provide this insight.
-
-.. doxygenfunction:: fastpath::execute_fastpath
-   :project: XINIM
+- **State**: :cpp:struct:`fastpath::State` holds L1/L2/L3 buffers and counters  
+- **Stats**: :cpp:struct:`fastpath::FastpathStats` tracks `hit_count` and `fallback_count`  
+- **Entry Point**: :cpp:func:`fastpath::execute_fastpath`  
 
 Cache Hierarchy
 ---------------
 
-The fastpath employs a tiered cache system to avoid spilling messages to the
-shared zero-copy buffer.  Each :cpp:struct:`fastpath::State` defines three
-caches named ``l1_buffer``, ``l2_buffer`` and ``l3_buffer``.  During
-``execute_fastpath`` the smallest cache capable of holding the message is chosen
-automatically.  Only when all caches are exhausted are the registers copied
-through the main region configured with
+Each `fastpath::State` defines three buffers:
+
+- **L1**: per-core, smallest, lowest latency  
+- **L2**: shared among cores on the same socket  
+- **L3**: global to the node  
+
+The smallest buffer that fits the message is chosen. If all three are full, the
+message “spills” into the shared zero-copy region, configured by
 :cpp:func:`fastpath::set_message_region`.
-
-Performance Expectations
------------------------
-
-The L1 buffer is per-core and provides the lowest latency. L2 is shared
-among cores on a socket, and L3 spans the entire system. Spilling to the
-main message region should be rare as it is the slowest path.
 
 Distributed Operation
 ---------------------
 
-When nodes are connected over a network the lattice layer serializes messages
-into a small packet structure.  The packet begins with the sending and
-receiving process identifiers followed by the raw message bytes.  Packets are
-transmitted through :cpp:func:`net::send` and recovered with
-:cpp:func:`net::recv`.
+When channels span multiple nodes, the lattice layer serializes each `message`
+into a packet:
 
-The helper :cpp:func:`lattice::poll_network` converts incoming packets back into
-messages.  Each message is encrypted with the channel's shared secret before
-being queued.  Applications call this function periodically to integrate remote
-messages into the standard queueing mechanism.
+1. **Frame**: `[ src_pid | dst_pid | payload_bytes ]`  
+2. **Encrypt**: XOR‐stream with the channel’s shared secret  
+3. **Transmit**: via :cpp:func:`net::send`  
+4. **Receive**: via :cpp:func:`net::recv`  
+5. **Reintegrate**: :cpp:func:`lattice::poll_network` decrypts and enqueues  
 
 Graph API
 ---------
 
-Channels are stored in a directed acyclic graph accessible through
-:cpp:class:`lattice::Graph`. The helper constant
-:cpp:var:`lattice::ANY_NODE` selects a wildcard search across all nodes when
-looking up connections.
+Channels live in a directed acyclic graph, managed by :cpp:class:`lattice::Graph`.
 
-.. doxygenclass:: lattice::Graph
-   :project: XINIM
-   :members:
-
-.. doxygenvariable:: lattice::ANY_NODE
-   :project: XINIM
+- **Wildcard**: :cpp:var:`lattice::ANY_NODE` for node‐agnostic lookups  
+- **Connect**: :cpp:func:`lattice_connect(src, dst, node_id)`  
+- **Listen**: :cpp:func:`lattice_listen(pid)`  
+- **Send/Recv**: :cpp:func:`lattice_send` / :cpp:func:`lattice_recv`  
+- **Poll**: :cpp:func:`lattice::poll_network`  
+- **Submit**: :cpp:func:`lattice_channel_submit` / :cpp:func:`lattice_channel_add_dep`  
 
 Remote Channel Setup
 --------------------
 
-The lattice IPC layer supports connecting processes across multiple nodes.
-Use :cpp:func:`lattice_connect` with a non-zero ``node_id`` so the network
-driver can exchange handshake packets. The driver synchronizes channel
-metadata before capability tokens are installed.
-
-Example connection to a remote node:
+To connect to a process on another node:
 
 .. code-block:: cpp
 
    constexpr net::node_t REMOTE = 1;
-constexpr xinim::pid_t SRC_PID = 5;
-constexpr xinim::pid_t DST_PID = 10;
+   constexpr xinim::pid_t SRC_PID = 5;
+   constexpr xinim::pid_t DST_PID = 10;
 
-// Establish a channel from SRC_PID on this node to DST_PID on node 1
-lattice_connect(SRC_PID, DST_PID, REMOTE);
+   // Establish a shared‐secret channel SRC_PID → DST_PID on node 1
+   int rc = lattice_connect(SRC_PID, DST_PID, REMOTE);
+   if (rc != OK) {
+       // handle error
+   }
 
 Network Driver Behavior
-----------------------
+-----------------------
 
-The underlying transport is implemented in ``net_driver.cpp``. Each packet is
-prefixed with the sending node's identifier and delivered over UDP or TCP
-depending on the peer configuration. The driver maintains a mapping from node
-identifiers to host/port pairs added through :cpp:func:`net::add_remote`.
-Incoming packets are queued internally until retrieved with
-:cpp:func:`net::recv` or dispatched through the registered callback.
+The stubbed network driver in `net_driver.cpp`:
 
-The helper :cpp:func:`net::local_node` uses ``gethostname()`` to derive a stable
-node identifier by hashing the system hostname. Applications use this identifier
-when establishing remote channels.
+- **Frame** packets with `src_node` and `payload`  
+- **Queues** per‐node Packet objects internally  
+- **send()** enqueues, **recv()** dequeues for the local node  
+- **reset()** clears all queues  
 
-Fastpath Integration-- -- -- -- -- -- -- -- -- --
+:cpp:func:`net::local_node` hashes `gethostname()` to a stable `node_t`.
 
-        The wormhole IPC interface is declared in : file :`kernel /
-    wormhole.hpp`.It defines the *State *data structure along with helper utilities that prepare the
-        zero -
-    copy message region. : file :`kernel /
-        wormhole.cpp` implements the transformation steps that move messages,
-    manage endpoint queues and invoke the scheduler.
+Fastpath Integration
+--------------------
 
-    When threads exchange messages successfully,
-    control transfers to the receiver through the global scheduler
-        .The integration point is documented in
-``fastpath::execute_fastpath`` which yields to the destination thread
-        .
+The wormhole IPC interface in `kernel/wormhole.hpp` implements:
 
-        ..doxygenfunction::fastpath::execute_fastpath : project : XINIM
+- **State Setup**: allocate zero-copy region  
+- **execute_fastpath**: attempts L1→L2→L3 direct transfer, then yields  
+- **Scheduler Hook**: on success, immediately switches to the receiver thread  
+
+For full details, consult:
+
+.. doxygenfile:: kernel/wormhole.hpp
+   :project: XINIM
+
+.. doxygenfunction:: fastpath::execute_fastpath
+   :project: XINIM
