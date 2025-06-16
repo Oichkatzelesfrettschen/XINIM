@@ -18,6 +18,7 @@ The documentation is divided into several sections:
    pq_crypto
    scheduler
    service
+   service_manager
    precommit
    libsodium_tests
    api

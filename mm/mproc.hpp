@@ -20,6 +20,7 @@ EXTERN struct mproc {
     int mp_pid;                     /**< Process identifier. */
     int mp_parent;                  /**< Index of parent process. */
     int mp_procgrp;                 /**< Process group used for signals. */
+    std::uint64_t mp_token;         /**< Capability token for privileged actions. */
 
     /* Real and effective uids and gids. */
     uid mp_realuid; /**< Process real user id. */

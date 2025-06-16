@@ -256,6 +256,22 @@ inline int &pid(message &m) noexcept { return m.m1_i3(); }
  */
 inline char *&stack_ptr(message &m) noexcept { return m.m1_p1(); }
 /**
+ * @brief Set capability token.
+ * @param m    Message to update.
+ * @param val  Token value.
+ */
+inline void set_token(message &m, std::uint64_t val) noexcept {
+    m.m1_p2() = reinterpret_cast<char *>(val);
+}
+/**
+ * @brief Retrieve capability token from a message.
+ * @param m Message carrying the token.
+ * @return Stored token value.
+ */
+inline std::uint64_t token(const message &m) noexcept {
+    return reinterpret_cast<std::uint64_t>(m.m1_p2());
+}
+/**
  * @brief Accessor for the process number used by sys_sig.
  * @param m Reference to the message to access.
  * @return Reference to the process number field.

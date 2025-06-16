@@ -26,6 +26,7 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
+#include "token.hpp"
 #include <algorithm> // For std::min
 #include <cstddef>   // For std::size_t, nullptr
 #include <cstdint>   // For uint16_t, int64_t etc.
@@ -228,8 +229,8 @@ PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept {
         // rmp->mp_seg[D].mem_len is vir_clicks (std::size_t). adjust takes std::size_t for clicks &
         // sp.
         if (adjust(rmp, rmp->mp_seg[D].mem_len, new_sp) == OK) {
-            sys_sig(rmp - mproc, sig_nr, rmp->mp_func); // rmp->mp_func is int(*)()
-            return;                                     /* successful signal */
+            sys_sig(rmp - mproc, sig_nr, rmp->mp_func, rmp->mp_token);
+            return; /* successful signal */
         }
     }
 

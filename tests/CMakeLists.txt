@@ -107,6 +107,7 @@ add_executable(minix_test_fastpath
   test_fastpath.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
   ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
 )
 target_include_directories(minix_test_fastpath PUBLIC
@@ -120,6 +121,7 @@ add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
 add_executable(minix_test_scheduler
   test_scheduler.cpp
   ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
 )
 target_include_directories(minix_test_scheduler PUBLIC
@@ -134,6 +136,7 @@ add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
 add_executable(minix_test_scheduler_deadlock
   test_scheduler_deadlock.cpp
   ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
 )
 target_include_directories(minix_test_scheduler_deadlock PUBLIC
@@ -148,6 +151,7 @@ add_test(NAME minix_test_scheduler_deadlock COMMAND minix_test_scheduler_deadloc
 add_executable(minix_test_scheduler_edge
   test_scheduler_edge.cpp
   ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
 )
 target_include_directories(minix_test_scheduler_edge PUBLIC
@@ -176,6 +180,7 @@ add_executable(minix_test_fastpath_preconditions
   test_fastpath_preconditions.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
   ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
   ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
 )
 target_include_directories(minix_test_fastpath_preconditions PUBLIC
