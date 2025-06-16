@@ -8,6 +8,7 @@ using namespace fastpath;
 int main() {
     using sched::scheduler;
     State s{};
+    reset_fastpath_queues();
     scheduler.enqueue(1);
     scheduler.enqueue(2);
     scheduler.preempt();
@@ -48,8 +49,9 @@ int main() {
     bool ok = execute_fastpath(s, &stats);
     assert(ok);
     assert(stats.success_count == 1);
+    assert(stats.hit_count == 1);
+    assert(stats.fallback_count == 0);
     assert(s.receiver.mrs[0] == 42);
-    assert(buffer[0] == 42);
     assert(s.receiver.status == ThreadStatus::Running);
     assert(s.sender.status == ThreadStatus::Blocked);
     assert(s.receiver.badge == s.cap.badge);

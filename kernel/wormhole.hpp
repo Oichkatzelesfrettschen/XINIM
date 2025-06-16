@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../include/psd/vm/semantic_memory.hpp"
+#include "const.hpp"
 #include <array>
 #include <atomic>
 #include <cstdint>
@@ -13,6 +14,37 @@ namespace fastpath {
 // wormhole relies on a zero-copy capable message region to move
 // data between threads efficiently.
 using MessageRegion = psd::vm::semantic_region<psd::vm::semantic_message_tag>;
+
+/// Number of zero-copy queue slots per CPU.
+inline constexpr std::size_t FASTPATH_QUEUE_SIZE = 4;
+
+/**
+ * @brief Per-CPU queue retaining recently transferred messages.
+ *
+ * Each slot keeps one message copy aligned for cache residency.
+ */
+struct PerCpuQueue {
+    /// Cached message storage.
+    alignas(64) std::array<std::array<uint64_t, 8>, FASTPATH_QUEUE_SIZE> slots{};
+    /// Length of the message stored per slot.
+    std::array<std::size_t, FASTPATH_QUEUE_SIZE> lengths{};
+    /// Number of populated slots.
+    std::size_t used{0};
+
+    /// Determine whether no slots remain.
+    [[nodiscard]] bool full() const noexcept { return used >= FASTPATH_QUEUE_SIZE; }
+};
+
+/// Per-CPU fastpath queues.
+extern std::array<PerCpuQueue, NR_CPUS> cpu_queues;
+
+/**
+ * @brief Reset the per-CPU fastpath queues.
+ *
+ * Tests call this helper to start with empty caches ensuring
+ * predictable hit/fallback statistics.
+ */
+void reset_fastpath_queues() noexcept;
 // State components as described in the formalization.
 
 // Possible thread execution states.
@@ -102,7 +134,9 @@ struct FastpathStats {
     std::atomic<uint64_t> success_count{0}; // completed runs
     std::atomic<uint64_t> failure_count{0}; // failed runs
     std::array<std::atomic<uint64_t>, static_cast<size_t>(Precondition::Count)>
-        precondition_failures{}; // counters per precondition
+        precondition_failures{};             // counters per precondition
+    std::atomic<uint64_t> hit_count{0};      ///< queue fastpath hits
+    std::atomic<uint64_t> fallback_count{0}; ///< spill to shared memory
 
     FastpathStats() {
         for (auto &counter : precondition_failures) {
@@ -151,7 +185,7 @@ void transfer_badge(State &state) noexcept;
 /// Link the sender to the receiver for replies.
 void establish_reply(State &state) noexcept;
 /// Copy message registers using the configured message region.
-void copy_mrs(State &state) noexcept;
+void copy_mrs(State &state, FastpathStats *stats) noexcept;
 /// Update thread states after IPC.
 void update_thread_state(State &state) noexcept;
 /// Switch execution to the receiver.
