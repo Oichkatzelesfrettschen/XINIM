@@ -20,5 +20,6 @@ The documentation is divided into several sections:
    service
    service_manager
    precommit
+   networking
    libsodium_tests
    api

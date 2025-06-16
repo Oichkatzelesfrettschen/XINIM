@@ -47,42 +47,36 @@ namespace lattice {
  *                               Global State
  *============================================================================*/
 
-Graph g_graph;  ///< Singleton IPC graph
+Graph g_graph; ///< Singleton IPC graph
 
 /*==============================================================================
  *                            Graph Implementation
  *============================================================================*/
 
-Channel &Graph::connect(xinim::pid_t src,
-                        xinim::pid_t dst,
-                        net::node_t node_id)
-{
+Channel &Graph::connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
     auto key = std::make_tuple(src, dst, node_id);
-    auto it  = edges_.find(key);
+    auto it = edges_.find(key);
     if (it != edges_.end()) {
         return it->second;
     }
 
     Channel ch{};
-    ch.src     = src;
-    ch.dst     = dst;
+    ch.src = src;
+    ch.dst = dst;
     ch.node_id = node_id;
     edges_.emplace(key, std::move(ch));
     return edges_[key];
 }
 
-Channel *Graph::find(xinim::pid_t src,
-                     xinim::pid_t dst,
-                     net::node_t node_id) noexcept
-{
+Channel *Graph::find(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) noexcept {
     if (node_id != ANY_NODE) {
         auto key = std::make_tuple(src, dst, node_id);
-        auto it  = edges_.find(key);
+        auto it = edges_.find(key);
         if (it != edges_.end()) {
             return &it->second;
         }
     } else {
-        for (auto & [k, ch] : edges_) {
+        for (auto &[k, ch] : edges_) {
             if (std::get<0>(k) == src && std::get<1>(k) == dst) {
                 return &ch;
             }
@@ -96,9 +90,7 @@ bool Graph::is_listening(xinim::pid_t pid) const noexcept {
     return it != listening_.end() && it->second;
 }
 
-void Graph::set_listening(xinim::pid_t pid, bool flag) noexcept {
-    listening_[pid] = flag;
-}
+void Graph::set_listening(xinim::pid_t pid, bool flag) noexcept { listening_[pid] = flag; }
 
 /*==============================================================================
  *                               IPC API
@@ -109,15 +101,12 @@ static void yield_to(xinim::pid_t pid) {
     cur_proc = pid;
 }
 
-int lattice_connect(xinim::pid_t src,
-                    xinim::pid_t dst,
-                    net::node_t node_id)
-{
+int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
     // Perform stubbed Kyber key exchange
-    auto kp_a         = pqcrypto::generate_keypair();
-    auto kp_b         = pqcrypto::generate_keypair();
+    auto kp_a = pqcrypto::generate_keypair();
+    auto kp_b = pqcrypto::generate_keypair();
     auto secret_bytes = pqcrypto::compute_shared_secret(kp_a, kp_b);
-    Octonion secret   = Octonion::from_bytes(secret_bytes);
+    Octonion secret = Octonion::from_bytes(secret_bytes);
 
     // Create forward and reverse channels
     Channel &fwd = g_graph.connect(src, dst, node_id);
@@ -127,26 +116,21 @@ int lattice_connect(xinim::pid_t src,
     return OK;
 }
 
-void lattice_listen(xinim::pid_t pid) {
-    g_graph.set_listening(pid, true);
-}
+void lattice_listen(xinim::pid_t pid) { g_graph.set_listening(pid, true); }
 
-int lattice_send(xinim::pid_t src,
-                 xinim::pid_t dst,
-                 const message &msg)
-{
+int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
     Channel *ch = g_graph.find(src, dst, ANY_NODE);
     if (!ch) {
         ch = &g_graph.connect(src, dst, net::local_node());
     }
 
-    // Remote delivery: prepend src/dst, XOR-encrypt, send over network
+    // Remote delivery handled by the UDP driver
     if (ch->node_id != net::local_node()) {
         std::vector<std::byte> pkt(sizeof(xinim::pid_t) * 2 + sizeof(msg));
-        auto ids = reinterpret_cast<xinim::pid_t*>(pkt.data());
+        auto *ids = reinterpret_cast<xinim::pid_t *>(pkt.data());
         ids[0] = src;
         ids[1] = dst;
-        std::memcpy(pkt.data() + sizeof(xinim::pid_t)*2, &msg, sizeof(msg));
+        std::memcpy(pkt.data() + sizeof(xinim::pid_t) * 2, &msg, sizeof(msg));
         xor_cipher({pkt.data(), pkt.size()}, ch->secret);
         net::send(ch->node_id, pkt);
         return OK;
@@ -159,7 +143,7 @@ int lattice_send(xinim::pid_t src,
         yield_to(dst);
     } else {
         message copy = msg;
-        xor_cipher({reinterpret_cast<std::byte*>(&copy), sizeof(copy)}, ch->secret);
+        xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch->secret);
         ch->queue.push_back(std::move(copy));
     }
     return OK;
@@ -175,14 +159,11 @@ int lattice_recv(xinim::pid_t pid, message *out) {
     }
 
     // 2) Dequeue from any matching channel
-    for (auto & [key, ch] : g_graph.edges_) {
-        if (std::get<1>(key) == pid
-            && std::get<2>(key) == net::local_node()
-            && !ch.queue.empty())
-        {
+    for (auto &[key, ch] : g_graph.edges_) {
+        if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() && !ch.queue.empty()) {
             message copy = std::move(ch.queue.front());
             ch.queue.pop_front();
-            xor_cipher({reinterpret_cast<std::byte*>(&copy), sizeof(copy)}, ch->secret);
+            xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch->secret);
             *out = std::move(copy);
             return OK;
         }
@@ -193,23 +174,25 @@ int lattice_recv(xinim::pid_t pid, message *out) {
     return static_cast<int>(ErrorCode::E_NO_MESSAGE);
 }
 
+//------------------------------------------------------------------------------
+/// Drain the UDP driver queue and populate channel inboxes.
 void poll_network() {
     net::Packet pkt;
     while (net::recv(pkt)) {
         auto &payload = pkt.payload;
-        if (payload.size() != sizeof(xinim::pid_t)*2 + sizeof(message)) {
+        if (payload.size() != sizeof(xinim::pid_t) * 2 + sizeof(message)) {
             continue;
         }
-        auto ids = reinterpret_cast<const xinim::pid_t*>(payload.data());
+        auto ids = reinterpret_cast<const xinim::pid_t *>(payload.data());
         xinim::pid_t src = ids[0], dst = ids[1];
         message msg;
-        std::memcpy(&msg, payload.data() + sizeof(xinim::pid_t)*2, sizeof(msg));
+        std::memcpy(&msg, payload.data() + sizeof(xinim::pid_t) * 2, sizeof(msg));
 
         Channel *ch = g_graph.find(src, dst, pkt.src_node);
         if (!ch) {
             ch = &g_graph.connect(src, dst, pkt.src_node);
         }
-        xor_cipher({reinterpret_cast<std::byte*>(&msg), sizeof(msg)}, ch->secret);
+        xor_cipher({reinterpret_cast<std::byte *>(&msg), sizeof(msg)}, ch->secret);
         ch->queue.push_back(std::move(msg));
     }
 }

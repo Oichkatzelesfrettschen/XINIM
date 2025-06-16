@@ -1,12 +1,14 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief Minimal loopback network driver interface for Lattice IPC.
+ * @brief UDP based network driver interface for Lattice IPC.
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <span>
+#include <string>
 #include <vector>
 
 namespace net {
@@ -18,9 +20,32 @@ using node_t = int;
  * @brief In‐memory representation of a network packet.
  */
 struct Packet {
-    node_t                  src_node;  ///< Originating node ID
-    std::vector<std::byte>  payload;   ///< Packet payload bytes
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Packet payload bytes
 };
+
+/** Configuration options for ::init. */
+struct Config {
+    node_t node_id;     ///< Local node identifier
+    std::uint16_t port; ///< UDP port to bind locally
+};
+
+/**
+ * Callback invoked whenever a packet is received.
+ */
+using RecvCallback = std::function<void(const Packet &)>;
+
+/** Initialize the driver with @p cfg opening the UDP socket. */
+void init(const Config &cfg);
+
+/** Register a remote @p node reachable at @p host:@p port. */
+void add_remote(node_t node, const std::string &host, std::uint16_t port);
+
+/** Install a packet receive callback. */
+void set_recv_callback(RecvCallback cb);
+
+/** Stop background networking threads and reset state. */
+void shutdown() noexcept;
 
 /**
  * @brief Obtain the identifier for the local node.
