@@ -93,19 +93,49 @@ constexpr xinim::pid_t DST_PID = 10;
 // Establish a channel from SRC_PID on this node to DST_PID on node 1
 lattice_connect(SRC_PID, DST_PID, REMOTE);
 
-Network Driver Behavior
+UDP Networking Driver
+---------------------
+
+The UDP driver located in ``net_driver.cpp`` transports packets between nodes.
+Initialization occurs through :cpp:func:`net::init` which binds a local UDP socket and spawns a background receiver thread. Additional peers are registered using :cpp:func:`net::add_remote` to map a node identifier to an IPv4 address and port.
+
+:cpp:func:`net::send` prefixes the payload with the local node identifier then transmits it to the registered host. The receiver thread places arriving datagrams into an internal queue. Applications periodically call :cpp:func:`lattice::poll_network` so these packets become lattice messages.
+
+The helper :cpp:func:`net::local_node` reports the bound socket's IPv4 address as an integer value.
+
+Example Two Node Setup
 ----------------------
 
-The underlying transport is implemented in ``net_driver.cpp``. Each packet is
-prefixed with the sending node's identifier and transmitted via UDP. The driver
-maintains a mapping from node identifiers to host/port pairs added through
-:cpp:func:`net::add_remote`. Incoming datagrams are queued internally until
-retrieved with :cpp:func:`net::recv` or dispatched through the registered
-callback.
+.. code-block:: cpp
 
-The helper :cpp:func:`net::local_node` queries the bound socket to report the
-host's IPv4 address as an integer. Applications use this identifier when
-establishing remote channels.
+   // Node 0
+   net::init({0, 12000});
+   net::add_remote(1, "127.0.0.1", 12001);
+
+   lattice::g_graph = lattice::Graph{};
+   lattice_connect(1, 2, 1);
+
+   message msg{};
+   msg.m_type = 42;
+   lattice_send(1, 2, msg);
+
+   // Node 1 periodically polls for packets
+   poll_network();
+
+API Reference
+~~~~~~~~~~~~~~
+
+.. doxygenfunction:: net::init
+   :project: XINIM
+
+.. doxygenfunction:: net::add_remote
+   :project: XINIM
+
+.. doxygenfunction:: net::send
+   :project: XINIM
+
+.. doxygenfunction:: lattice::poll_network
+   :project: XINIM
 
 Fastpath Integration-- -- -- -- -- -- -- -- -- --
 
