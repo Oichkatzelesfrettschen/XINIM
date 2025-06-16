@@ -1,7 +1,7 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief Minimal network driver interface used by lattice IPC.
+ * @brief Minimal loopback network driver interface for Lattice IPC.
  */
 
 #include <cstddef>
@@ -11,40 +11,45 @@
 
 namespace net {
 
-/** \brief Integer type representing a network node identifier. */
+/** Identifier for a network node. */
 using node_t = int;
+
+/**
+ * @brief In‐memory representation of a network packet.
+ */
+struct Packet {
+    node_t                  src_node;  ///< Originating node ID
+    std::vector<std::byte>  payload;   ///< Packet payload bytes
+};
 
 /**
  * @brief Obtain the identifier for the local node.
  *
- * @return Node id of the current host.
+ * @return Node ID of this host (stub always returns 0).
  */
-[[nodiscard]] int local_node() noexcept;
+[[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send raw bytes to @p node.
+ * @brief Send raw bytes to a remote node.
  *
- * Implementations may queue or transmit the bytes immediately.
+ * Queues the data into an internal per‐node buffer for loopback testing.
  *
- * @param node Destination node identifier.
- * @param data Bytes to transmit.
+ * @param node Destination node ID.
+ * @param data Span of bytes to transmit.
  */
-void send(int node, std::span<const std::byte> data);
+void send(node_t node, std::span<const std::byte> data);
 
 /**
- * @brief In-memory representation of a network packet.
- */
-struct Packet {
-    node_t src_node;                ///< Identifier of the originating node
-    std::vector<std::byte> payload; ///< Raw bytes transmitted over the network
-};
-
-/**
- * @brief Retrieve a pending packet for the local node.
+ * @brief Retrieve the next pending packet for the local node.
  *
  * @param out Packet object to populate with received data.
- * @return True when a packet was dequeued, false otherwise.
+ * @return `true` if a packet was dequeued, `false` if none available.
  */
 [[nodiscard]] bool recv(Packet &out);
+
+/**
+ * @brief Clear all queued packets across every node.
+ */
+void reset() noexcept;
 
 } // namespace net
