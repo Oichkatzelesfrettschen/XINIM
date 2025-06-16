@@ -107,19 +107,15 @@ Incoming datagrams or TCP payloads are queued internally until retrieved with
 The helper :cpp:func:`net::local_node` hashes ``gethostname`` to derive a stable
 integer identifier for the current host.
 
-Fastpath Integration-- -- -- -- -- -- -- -- -- --
+Fastpath Integration
+--------------------
 
-        The wormhole IPC interface is declared in : file :`kernel /
-    wormhole.hpp`.It defines the *State *data structure along with helper utilities that prepare the
-        zero -
-    copy message region. : file :`kernel /
-        wormhole.cpp` implements the transformation steps that move messages,
-    manage endpoint queues and invoke the scheduler.
+The wormhole IPC interface is declared in :file:`kernel/wormhole.hpp`. It
+defines the :cpp:struct:`fastpath::State` data structure and prepares the
+zero-copy message region. The implementation resides in
+:file:`kernel/wormhole.cpp` and moves messages, manages endpoint queues and
+invokes the scheduler.
 
-    When threads exchange messages successfully,
-    control transfers to the receiver through the global scheduler
-        .The integration point is documented in
-``fastpath::execute_fastpath`` which yields to the destination thread
-        .
-
-        ..doxygenfunction::fastpath::execute_fastpath : project : XINIM
+When threads exchange messages successfully, control transfers to the receiver
+through the global scheduler. This integration point is documented in
+:cpp:func:`fastpath::execute_fastpath`.
