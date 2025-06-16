@@ -101,7 +101,9 @@ prefixed with the sending node's identifier and transmitted via UDP. The driver
 maintains a mapping from node identifiers to host/port pairs added through
 :cpp:func:`net::add_remote`. Incoming datagrams are queued internally until
 retrieved with :cpp:func:`net::recv` or dispatched through the registered
-callback.
+callback. The queue length is configurable and excess packets are either dropped
+or overwrite the oldest entry depending on the
+:cpp:member:`net::Config::overflow` policy.
 
 The helper :cpp:func:`net::local_node` queries the bound socket to report the
 host's IPv4 address as an integer. Applications use this identifier when

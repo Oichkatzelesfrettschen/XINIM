@@ -12,6 +12,7 @@
 #include <array>
 #include <cstring>
 #include <deque>
+#include <iostream>
 #include <mutex>
 #include <thread>
 #include <unordered_map>
@@ -46,6 +47,14 @@ void recv_loop() {
 
         {
             std::lock_guard<std::mutex> lock{g_mutex};
+            if (g_cfg.max_queue_length > 0 && g_queue.size() >= g_cfg.max_queue_length) {
+                if (g_cfg.overflow == OverflowPolicy::Drop) {
+                    std::cerr << "net_driver: receive queue full, dropping packet\n";
+                    continue;
+                }
+                std::cerr << "net_driver: receive queue full, overwriting oldest packet\n";
+                g_queue.pop_front();
+            }
             g_queue.push_back(pkt);
         }
         if (g_callback) {
