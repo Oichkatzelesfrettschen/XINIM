@@ -11,6 +11,7 @@
 #include "../include/xinim/core_types.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
+#include "octonion.hpp"
 #include "proc.hpp"
 
 #include <algorithm>
@@ -31,11 +32,13 @@ namespace {
  * Encryption and decryption are identical.
  *
  * @param buf  Span of bytes to transform.
- * @param key  Span of secret bytes used as mask.
+ * @param key  Capability providing masking bytes.
  */
-void xor_cipher(std::span<std::byte> buf, std::span<const std::byte> key) noexcept {
+void xor_cipher(std::span<std::byte> buf, const Octonion &key) noexcept {
+    std::array<std::uint8_t, 32> mask{};
+    key.to_bytes(mask);
     for (std::size_t i = 0; i < buf.size(); ++i) {
-        buf[i] ^= key[i % key.size()];
+        buf[i] ^= std::byte{mask[i % mask.size()]};
     }
 }
 
@@ -123,15 +126,10 @@ Channel &Graph::connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id)
         return it->second;
     }
 
-    // Generate per‐endpoint keys and derive shared secret
-    auto kp_src = pqcrypto::generate_keypair();
-    auto kp_dst = pqcrypto::generate_keypair();
-
     Channel channel{};
     channel.src = src;
     channel.dst = dst;
     channel.node_id = node_id;
-    channel.secret = pqcrypto::compute_shared_secret(kp_src, kp_dst);
 
     auto [ins_it, _] = edges_.emplace(key, std::move(channel));
     return ins_it->second;
@@ -172,7 +170,15 @@ void Graph::set_listening(xinim::pid_t pid, bool flag) noexcept { listening_[pid
  *============================================================================*/
 
 int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
-    g_graph.connect(src, dst, node_id);
+    auto kp_a = pqcrypto::generate_keypair();
+    auto kp_b = pqcrypto::generate_keypair();
+    auto bytes = pqcrypto::compute_shared_secret(kp_a, kp_b);
+    Octonion token = Octonion::from_bytes(bytes);
+
+    auto &forward = g_graph.connect(src, dst, node_id);
+    auto &back = g_graph.connect(dst, src, node_id);
+    forward.secret = token;
+    back.secret = token;
     return OK;
 }
 
@@ -217,9 +223,7 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
         // Encrypt in place and queue
         message copy = msg;
         auto buf = std::span<std::byte>(reinterpret_cast<std::byte *>(&copy), sizeof(message));
-        xor_cipher(
-            buf, std::span<const std::byte>(reinterpret_cast<const std::byte *>(ch->secret.data()),
-                                            ch->secret.size()));
+        xor_cipher(buf, ch->secret);
         ch->queue.push_back(std::move(copy));
     }
 
@@ -249,9 +253,7 @@ int lattice_recv(xinim::pid_t pid, message *out) {
         ch.queue.erase(ch.queue.begin());
 
         auto buf = std::span<std::byte>(reinterpret_cast<std::byte *>(out), sizeof(message));
-        xor_cipher(buf,
-                   std::span<const std::byte>(reinterpret_cast<const std::byte *>(ch.secret.data()),
-                                              ch.secret.size()));
+        xor_cipher(buf, ch.secret);
         return OK;
     }
 
