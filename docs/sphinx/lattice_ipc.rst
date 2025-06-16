@@ -38,6 +38,13 @@ automatically.  Only when all caches are exhausted are the registers copied
 through the main region configured with
 :cpp:func:`fastpath::set_message_region`.
 
+Performance Expectations
+-----------------------
+
+The L1 buffer is per-core and provides the lowest latency. L2 is shared
+among cores on a socket, and L3 spans the entire system. Spilling to the
+main message region should be rare as it is the slowest path.
+
 Distributed Operation
 ---------------------
 
@@ -80,24 +87,25 @@ Example connection to a remote node:
 .. code-block:: cpp
 
    constexpr net::node_t REMOTE = 1;
-   constexpr xinim::pid_t SRC_PID = 5;
-   constexpr xinim::pid_t DST_PID = 10;
+constexpr xinim::pid_t SRC_PID = 5;
+constexpr xinim::pid_t DST_PID = 10;
 
-   // Establish a channel from SRC_PID on this node to DST_PID on node 1
-   lattice_connect(SRC_PID, DST_PID, REMOTE);
+// Establish a channel from SRC_PID on this node to DST_PID on node 1
+lattice_connect(SRC_PID, DST_PID, REMOTE);
 
-Fastpath Integration
---------------------
+Fastpath Integration-- -- -- -- -- -- -- -- -- --
 
-The wormhole IPC interface is declared in :file:`kernel/wormhole.hpp`. It
-defines the *State* data structure along with helper utilities that prepare the
-zero-copy message region.  :file:`kernel/wormhole.cpp` implements the
-transformation steps that move messages, manage endpoint queues and invoke the
-scheduler.
+        The wormhole IPC interface is declared in : file :`kernel /
+    wormhole.hpp`.It defines the *State *data structure along with helper utilities that prepare the
+        zero -
+    copy message region. : file :`kernel /
+        wormhole.cpp` implements the transformation steps that move messages,
+    manage endpoint queues and invoke the scheduler.
 
-When threads exchange messages successfully, control transfers to the receiver
-through the global scheduler.  The integration point is documented in
-``fastpath::execute_fastpath`` which yields to the destination thread.
+    When threads exchange messages successfully,
+    control transfers to the receiver through the global scheduler
+        .The integration point is documented in
+``fastpath::execute_fastpath`` which yields to the destination thread
+        .
 
-.. doxygenfunction:: fastpath::execute_fastpath
-   :project: XINIM
+        ..doxygenfunction::fastpath::execute_fastpath : project : XINIM
