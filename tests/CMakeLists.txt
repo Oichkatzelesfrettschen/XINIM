@@ -204,6 +204,22 @@ target_include_directories(minix_test_fastpath_preconditions PUBLIC
 add_test(NAME minix_test_fastpath_preconditions COMMAND minix_test_fastpath_preconditions)
 
 # -----------------------------------------------------------------------------
+# minix_test_fastpath_cache_performance
+# -----------------------------------------------------------------------------
+add_executable(minix_test_fastpath_cache_performance
+  test_fastpath_cache_performance.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
+)
+target_include_directories(minix_test_fastpath_cache_performance PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+  ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME minix_test_fastpath_cache_performance COMMAND minix_test_fastpath_cache_performance)
+
+# -----------------------------------------------------------------------------
 # minix_test_semantic_region
 # -----------------------------------------------------------------------------
 add_executable(minix_test_semantic_region

@@ -98,8 +98,10 @@ inline void establish_reply(State &state) noexcept { state.sender.reply_to = sta
  *
  * @param state Fastpath state containing the message buffers.
  * @param stats Optional statistics tracker updated with hit/fallback counts.
+ * @param cache Optional intermediate buffer selected by the caller.
  */
-inline void copy_mrs(State &state, FastpathStats *stats) noexcept {
+inline void copy_mrs(State &state, FastpathStats *stats,
+                     const MessageRegion *cache = nullptr) noexcept {
     auto &queue = cpu_queues[state.sender.core];
     const auto len = std::min(state.msg_len, state.sender.mrs.size());
     if (!queue.full()) {
@@ -112,8 +114,15 @@ inline void copy_mrs(State &state, FastpathStats *stats) noexcept {
             stats->hit_count.fetch_add(1, std::memory_order_relaxed);
         }
     } else {
-        if (message_region_valid(state.msg_region, state.msg_len)) {
-            auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
+        const MessageRegion *region = nullptr;
+        if (cache != nullptr && message_region_valid(*cache, state.msg_len)) {
+            region = cache;
+        } else if (message_region_valid(state.msg_region, state.msg_len)) {
+            region = &state.msg_region;
+        }
+
+        if (region != nullptr) {
+            auto *buffer = static_cast<uint64_t *>(region->zero_copy_map());
             std::ranges::copy_n(state.sender.mrs.begin(), len, buffer);
             std::ranges::copy_n(buffer, len, state.receiver.mrs.begin());
         } else {
@@ -221,7 +230,18 @@ bool execute_fastpath(State &state, FastpathStats *stats) noexcept {
     detail::dequeue_receiver(state);
     detail::transfer_badge(state);
     detail::establish_reply(state);
-    detail::copy_mrs(state, stats);
+
+    // Select the smallest valid cache before spilling to main memory.
+    const MessageRegion *selected = nullptr;
+    if (message_region_valid(state.l1_buffer, state.msg_len)) {
+        selected = &state.l1_buffer;
+    } else if (message_region_valid(state.l2_buffer, state.msg_len)) {
+        selected = &state.l2_buffer;
+    } else if (message_region_valid(state.l3_buffer, state.msg_len)) {
+        selected = &state.l3_buffer;
+    }
+
+    detail::copy_mrs(state, stats, selected);
     detail::update_thread_state(state);
     detail::context_switch(state);
 
