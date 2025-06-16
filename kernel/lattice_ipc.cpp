@@ -16,6 +16,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <cstring>
 #include <deque>
 #include <memory>
 #include <span>
@@ -207,8 +208,12 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
 
     // Remote‐node delivery over network
     if (ch->node_id != net::local_node()) {
-        std::span<const std::byte> bytes{reinterpret_cast<const std::byte *>(&msg),
-                                         sizeof(message)};
+        std::vector<std::byte> packet(sizeof(xinim::pid_t) * 2 + sizeof(message));
+        auto *ids = reinterpret_cast<xinim::pid_t *>(packet.data());
+        ids[0] = src;
+        ids[1] = dst;
+        std::memcpy(packet.data() + sizeof(xinim::pid_t) * 2, &msg, sizeof(message));
+        std::span<const std::byte> bytes(packet.data(), packet.size());
         net::send(ch->node_id, bytes);
         return OK;
     }
@@ -260,6 +265,32 @@ int lattice_recv(xinim::pid_t pid, message *out) {
     // 3) No message: register as listener
     lattice_listen(pid);
     return static_cast<int>(ErrorCode::E_NO_MESSAGE);
+}
+
+void poll_network() {
+    net::Packet pkt{};
+    while (net::recv(pkt)) {
+        if (pkt.payload.size() != sizeof(xinim::pid_t) * 2 + sizeof(message)) {
+            continue;
+        }
+        auto *ids = reinterpret_cast<const xinim::pid_t *>(pkt.payload.data());
+        xinim::pid_t src = ids[0];
+        xinim::pid_t dst = ids[1];
+        message msg{};
+        std::memcpy(reinterpret_cast<void *>(&msg), pkt.payload.data() + sizeof(xinim::pid_t) * 2,
+                    sizeof(message));
+
+        Channel *ch = g_graph.find(src, dst, pkt.src_node);
+        if (!ch) {
+            ch = &g_graph.connect(src, dst, pkt.src_node);
+        }
+
+        auto buf = std::span<std::byte>(reinterpret_cast<std::byte *>(&msg), sizeof(message));
+        xor_cipher(
+            buf, std::span<const std::byte>(reinterpret_cast<const std::byte *>(ch->secret.data()),
+                                            ch->secret.size()));
+        ch->queue.push_back(std::move(msg));
+    }
 }
 
 } // namespace lattice

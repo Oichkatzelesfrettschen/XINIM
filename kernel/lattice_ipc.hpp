@@ -121,4 +121,12 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg);
  */
 int lattice_recv(xinim::pid_t pid, message *msg);
 
+/**
+ * @brief Poll the network driver for incoming packets.
+ *
+ * Received packets are transformed back into messages and encrypted with the
+ * corresponding channel secret before being queued on that channel.
+ */
+void poll_network();
+
 } // namespace lattice
