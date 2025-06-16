@@ -291,6 +291,19 @@ target_link_libraries(minix_test_net_driver PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver COMMAND minix_test_net_driver)
 
 # -----------------------------------------------------------------------------
+# minix_test_net_driver_tcp
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_tcp
+  test_net_driver_tcp.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_tcp PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
+
+# -----------------------------------------------------------------------------
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)
