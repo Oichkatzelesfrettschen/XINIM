@@ -7,6 +7,7 @@
 #include "../include/xinim/core_types.hpp"
 #include "net_driver.hpp"
 #include "octonion.hpp"
+#include "octonion_math.hpp"
 #include "pqcrypto.hpp"
 #include "proc.hpp"
 #include <map>
@@ -42,7 +43,7 @@ struct Channel {
      */
     net::node_t node_id{0};
     std::vector<message> queue; //!< Pending messages encrypted with @c secret
-    Octonion secret;            //!< Capability derived from PQ secret
+    OctonionToken secret;       //!< Capability derived from PQ secret
 };
 
 /**
