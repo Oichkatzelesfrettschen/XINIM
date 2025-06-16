@@ -65,6 +65,7 @@
 #include "proc.hpp" // Includes NIL_PROC definition
 #include "type.hpp"
 #include <cstddef> // For std::size_t, nullptr
+#include <cstdint>
 #include <cstdint> // For uint64_t, uintptr_t
 
 #define COPY_UNIT 65534L /* max bytes to copy at once */
@@ -134,11 +135,13 @@ static int do_fork(message *m_ptr) noexcept {
     int k1;                     /* number of parent process */
     int k2;                     /* number of child process */
     int pid;                    /* process id of child */
+    std::uint64_t tok;          /* capability token */
     int bytes;                  /* counter for copying proc struct */
 
     k1 = proc1(*m_ptr);  /* extract parent slot number from msg */
     k2 = proc2(*m_ptr);  /* extract child slot number */
     pid = ::pid(*m_ptr); /* extract child process id */
+    tok = token(*m_ptr); /* capability token */
 
     if (k1 < 0 || k1 >= NR_PROCS || k2 < 0 || k2 >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
@@ -154,6 +157,7 @@ static int do_fork(message *m_ptr) noexcept {
     rpc->p_flags |= NO_MAP;  /* inhibit the process from running */
     rpc->p_pid = pid;        /* install child's pid */
     rpc->p_reg[RET_REG] = 0; /* child sees pid = 0 to know it is child */
+    rpc->p_token = tok;      /* install capability token */
 
     rpc->user_time = 0; /* set all the accounting times to 0 */
     rpc->sys_time = 0;
@@ -214,9 +218,11 @@ static int do_exec(message *m_ptr) noexcept {
     register struct proc *rp;
     int k;            /* which process */
     uintptr_t sp_val; /* new sp value from message (was char*, treat as address value) */
+    std::uint64_t tok;
 
     k = proc1(*m_ptr); /* 'k' tells which process did EXEC */
     sp_val = reinterpret_cast<uintptr_t>(stack_ptr(*m_ptr));
+    tok = token(*m_ptr);
     if (k < 0 || k >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
@@ -226,7 +232,8 @@ static int do_exec(message *m_ptr) noexcept {
     rp->p_flags &= ~RECEIVING; /* MM does not reply to EXEC call */
     if (rp->p_flags == 0)
         ready(rp);
-    set_name(k, sp); /* save command string for F1 display */
+    rp->p_token = tok; /* update capability token */
+    set_name(k, sp);   /* save command string for F1 display */
     return (OK);
 }
 
@@ -352,14 +359,18 @@ static int do_sig(message *m_ptr) noexcept {
     int proc_nr;                            /* process number */
     int sig;                                /* signal number 1-16 */
     int (*sig_handler)();                   /* pointer to the signal handler */
+    std::uint64_t tok;
 
     /* Extract parameters and prepare to build the words that get pushed. */
     proc_nr = pr(*m_ptr);       /* process being signalled */
     sig = signum(*m_ptr);       /* signal number, 1 to 16 */
     sig_handler = func(*m_ptr); /* run time system addr for catching sigs */
+    tok = token(*m_ptr);
     if (proc_nr < LOW_USER || proc_nr >= NR_PROCS)
         return (ErrorCode::E_BAD_PROC);
     rp = proc_addr(proc_nr);
+    if (tok != rp->p_token)
+        return (ErrorCode::EACCES);
     vir_addr = reinterpret_cast<std::size_t>(sig_stuff); // sig_stuff is char[]
     new_sp = static_cast<std::size_t>(rp->p_sp); // rp->p_sp is uint64_t, new_sp is std::size_t
 
