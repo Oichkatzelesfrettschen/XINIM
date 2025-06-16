@@ -12,6 +12,7 @@
 #include "glo.hpp"
 #include "net_driver.hpp"
 #include "proc.hpp"
+#include "schedule.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -179,20 +180,9 @@ int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
 void lattice_listen(xinim::pid_t pid) { g_graph.set_listening(pid, true); }
 
 /**
- * @brief Yield execution context to another process.
- */
-/**
- * @brief Switch execution to the specified process.
- */
-static void yield_to(pid_t pid) {
-    proc_ptr = proc_addr(pid);
-    cur_proc = pid;
-}
-
-/**
  * @brief Send a message, creating a channel if necessary.
  */
-int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
+int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlags flags) {
     // Ensure channel exists (local or remote)
     Channel *ch = g_graph.find(src, dst, ANY_NODE);
     if (!ch) {
@@ -212,16 +202,20 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
         // Direct handoff
         g_graph.inbox_[dst] = msg;
         g_graph.set_listening(dst, false);
-        yield_to(dst);
-    } else {
-        // Encrypt in place and queue
-        message copy = msg;
-        auto buf = std::span<std::byte>(reinterpret_cast<std::byte *>(&copy), sizeof(message));
-        xor_cipher(
-            buf, std::span<const std::byte>(reinterpret_cast<const std::byte *>(ch->secret.data()),
-                                            ch->secret.size()));
-        ch->queue.push_back(std::move(copy));
+        sched::scheduler.yield_to(dst);
+        return OK;
     }
+
+    if (flags == IpcFlags::NONBLOCK) {
+        return static_cast<int>(ErrorCode::E_TRY_AGAIN);
+    }
+
+    // Encrypt in place and queue
+    message copy = msg;
+    auto buf = std::span<std::byte>(reinterpret_cast<std::byte *>(&copy), sizeof(message));
+    xor_cipher(buf, std::span<const std::byte>(
+                        reinterpret_cast<const std::byte *>(ch->secret.data()), ch->secret.size()));
+    ch->queue.push_back(std::move(copy));
 
     return OK;
 }
@@ -229,7 +223,7 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
 /**
  * @brief Receive a pending message for @p pid.
  */
-int lattice_recv(xinim::pid_t pid, message *out) {
+int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
     // 1) Check inbox (direct handoff)
     auto ib = g_graph.inbox_.find(pid);
     if (ib != g_graph.inbox_.end()) {
@@ -253,6 +247,10 @@ int lattice_recv(xinim::pid_t pid, message *out) {
                    std::span<const std::byte>(reinterpret_cast<const std::byte *>(ch.secret.data()),
                                               ch.secret.size()));
         return OK;
+    }
+
+    if (flags == IpcFlags::NONBLOCK) {
+        return static_cast<int>(ErrorCode::E_NO_MESSAGE);
     }
 
     // 3) No message: register as listener
