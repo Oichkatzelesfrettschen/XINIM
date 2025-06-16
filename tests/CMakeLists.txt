@@ -207,6 +207,12 @@ add_lattice_test(minix_test_lattice_ipc test_lattice_ipc.cpp ${CMAKE_SOURCE_DIR}
 target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_lattice_network
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_network test_lattice_network.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_lattice_network PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)

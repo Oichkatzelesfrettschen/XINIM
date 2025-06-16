@@ -7,6 +7,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <span>
+#include <vector>
 
 namespace net {
 
@@ -29,5 +30,15 @@ using node_t = int;
  * @param data Bytes to transmit.
  */
 void send(int node, std::span<const std::byte> data);
+
+/**
+ * @brief Retrieve the next packet queued for @p node.
+ *
+ * @return Packet data or an empty vector when no packet is available.
+ */
+[[nodiscard]] std::vector<std::byte> receive(int node);
+
+/** @brief Clear all queued packets across all nodes. */
+void reset() noexcept;
 
 } // namespace net

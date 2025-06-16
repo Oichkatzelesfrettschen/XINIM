@@ -201,7 +201,12 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg) {
 
     // Remote‐node delivery over network
     if (ch->node_id != net::local_node()) {
-        std::span<const std::byte> bytes{reinterpret_cast<const std::byte *>(&msg),
+        message copy = msg;
+        auto buf = std::span<std::byte>(reinterpret_cast<std::byte *>(&copy), sizeof(message));
+        xor_cipher(
+            buf, std::span<const std::byte>(reinterpret_cast<const std::byte *>(ch->secret.data()),
+                                            ch->secret.size()));
+        std::span<const std::byte> bytes{reinterpret_cast<const std::byte *>(&copy),
                                          sizeof(message)};
         net::send(ch->node_id, bytes);
         return OK;
