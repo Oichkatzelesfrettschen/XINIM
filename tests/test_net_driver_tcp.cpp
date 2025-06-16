@@ -1,6 +1,6 @@
 /**
- * @file test_net_driver.cpp
- * @brief Validate raw packet delivery between two nodes.
+ * @file test_net_driver_tcp.cpp
+ * @brief Validate TCP packet delivery between two nodes.
  */
 
 #include "../kernel/net_driver.hpp"
@@ -16,18 +16,16 @@ namespace {
 
 constexpr net::node_t PARENT_NODE = 0;
 constexpr net::node_t CHILD_NODE = 1;
-constexpr std::uint16_t PARENT_PORT = 14000;
-constexpr std::uint16_t CHILD_PORT = 14001;
+constexpr std::uint16_t PARENT_PORT = 15000;
+constexpr std::uint16_t CHILD_PORT = 15001;
 
-/** Parent process logic sending a packet and expecting a reply. */
 int parent_proc(pid_t child) {
     net::init({PARENT_NODE, PARENT_PORT});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::UDP);
+    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::TCP);
     assert(net::local_node() != 0);
 
     std::this_thread::sleep_for(100ms);
 
-    // Wait for the child to signal readiness
     net::Packet pkt{};
     while (!net::recv(pkt)) {
         std::this_thread::sleep_for(10ms);
@@ -50,10 +48,9 @@ int parent_proc(pid_t child) {
     return status;
 }
 
-/** Child process echoing a different payload back. */
 int child_proc() {
     net::init({CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::UDP);
+    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
     net::send(PARENT_NODE, ready);

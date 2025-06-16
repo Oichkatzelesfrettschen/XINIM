@@ -1,12 +1,13 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP based network driver interface for Lattice IPC.
+ * @brief UDP/TCP network driver interface for Lattice IPC.
  */
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <netinet/in.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -31,6 +32,20 @@ struct Config {
 };
 
 /**
+ * @brief Supported transport protocols.
+ */
+enum class Protocol { UDP, TCP };
+
+/**
+ * @brief Description of a remote node.
+ */
+struct Remote {
+    sockaddr_in addr;   ///< Destination address
+    Protocol proto;     ///< Transport protocol
+    int tcp_socket{-1}; ///< Connected TCP socket when @c proto is TCP
+};
+
+/**
  * Callback invoked whenever a packet is received.
  */
 using RecvCallback = std::function<void(const Packet &)>;
@@ -38,8 +53,16 @@ using RecvCallback = std::function<void(const Packet &)>;
 /** Initialize the driver with @p cfg opening the UDP socket. */
 void init(const Config &cfg);
 
-/** Register a remote @p node reachable at @p host:@p port. */
-void add_remote(node_t node, const std::string &host, std::uint16_t port);
+/**
+ * @brief Register a remote node.
+ *
+ * @param node Numeric identifier for the peer.
+ * @param host IPv4 address or hostname of the peer.
+ * @param port UDP/TCP port number.
+ * @param proto Transport protocol used to reach the peer.
+ */
+void add_remote(node_t node, const std::string &host, std::uint16_t port,
+                Protocol proto = Protocol::UDP);
 
 /** Install a packet receive callback. */
 void set_recv_callback(RecvCallback cb);
@@ -50,19 +73,19 @@ void shutdown() noexcept;
 /**
  * @brief Obtain the network derived identifier for this host.
  *
- * The driver queries the bound UDP socket to read back the IPv4 address.
- * The address is converted to host byte order and returned as the node
- * identifier. A value of ``0`` indicates the address could not be
- * determined.
+ * The driver calls @c gethostname and hashes the resulting string to
+ * generate a stable node identifier. A value of ``0`` indicates the
+ * hostname could not be retrieved.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send raw bytes to a remote node using UDP.
+ * @brief Send raw bytes to a remote node.
  *
  * The payload is prefixed with the local node identifier before being
- * transmitted to the remote host registered through ::add_remote. If the
- * destination is unknown the function silently drops the data.
+ * transmitted either via UDP datagrams or an established TCP connection
+ * depending on the configuration of the remote node. Unknown destinations
+ * are ignored.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.

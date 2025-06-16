@@ -97,15 +97,15 @@ Network Driver Behavior
 ----------------------
 
 The underlying transport is implemented in ``net_driver.cpp``. Each packet is
-prefixed with the sending node's identifier and transmitted via UDP. The driver
-maintains a mapping from node identifiers to host/port pairs added through
-:cpp:func:`net::add_remote`. Incoming datagrams are queued internally until
-retrieved with :cpp:func:`net::recv` or dispatched through the registered
-callback.
+prefixed with the sending node's identifier and delivered over UDP or TCP
+depending on the peer configuration. The driver maintains a mapping from node
+identifiers to host/port pairs added through :cpp:func:`net::add_remote`.
+Incoming packets are queued internally until retrieved with
+:cpp:func:`net::recv` or dispatched through the registered callback.
 
-The helper :cpp:func:`net::local_node` queries the bound socket to report the
-host's IPv4 address as an integer. Applications use this identifier when
-establishing remote channels.
+The helper :cpp:func:`net::local_node` uses ``gethostname()`` to derive a stable
+node identifier by hashing the system hostname. Applications use this identifier
+when establishing remote channels.
 
 Fastpath Integration-- -- -- -- -- -- -- -- -- --
 

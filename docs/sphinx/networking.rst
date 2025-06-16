@@ -1,10 +1,13 @@
 Networking Driver
 =================
 
-The UDP networking layer transports lattice IPC packets between nodes.  A node
-binds to a local UDP port and registers remote peers through
-:cpp:func:`net::add_remote`.  The driver spawns a background thread to poll the
-socket and invokes an optional callback whenever a packet arrives.
+The networking layer transports lattice IPC packets between nodes using either
+UDP datagrams or TCP streams.  A node binds to a local UDP port and registers
+remote peers through :cpp:func:`net::add_remote` selecting the desired
+protocol.  The driver spawns a background thread to poll the UDP socket and
+invokes an optional callback whenever a packet arrives. TCP connections are
+established lazily when the remote is added and reused for subsequent
+transmissions.
 
 API Overview
 ------------
@@ -25,6 +28,9 @@ API Overview
    :project: XINIM
 
 .. doxygenfunction:: net::send
+   :project: XINIM
+
+.. doxygenfunction:: net::local_node
    :project: XINIM
 
 .. doxygenfunction:: net::recv
