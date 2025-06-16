@@ -84,7 +84,8 @@ void add_remote(node_t node, const std::string &host, std::uint16_t port, Protoc
         rem.tcp_socket = ::socket(AF_INET, SOCK_STREAM, 0);
         if (::connect(rem.tcp_socket, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) != 0) {
             ::close(rem.tcp_socket);
-            rem.tcp_socket = -1;
+            // Do not register the remote if connect fails
+            return;
         }
     }
     g_remotes[node] = rem;
