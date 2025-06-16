@@ -138,7 +138,9 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlag
         ids[1] = dst;
         std::memcpy(pkt.data() + sizeof(xinim::pid_t) * 2, &msg, sizeof(msg));
         xor_cipher({pkt.data(), pkt.size()}, ch->secret);
-        net::send(ch->node_id, pkt);
+        if (!net::send(ch->node_id, pkt)) {
+            return static_cast<int>(ErrorCode::EIO);
+        }
         return OK;
     }
 

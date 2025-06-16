@@ -88,17 +88,20 @@ node_t local_node() noexcept {
     return 0;
 }
 
-void send(node_t node, std::span<const std::byte> data) {
+bool send(node_t node, std::span<const std::byte> data) {
     auto it = g_remotes.find(node);
     if (it == g_remotes.end()) {
-        return; // unknown destination
+        return false; // Unknown destination
     }
+
     std::vector<std::byte> buf(sizeof(node_t) + data.size());
     std::memcpy(buf.data(), &g_cfg.node_id, sizeof(node_t));
     std::memcpy(buf.data() + sizeof(node_t), data.data(), data.size());
 
-    ::sendto(g_socket, buf.data(), buf.size(), 0, reinterpret_cast<const sockaddr *>(&it->second),
-             sizeof(sockaddr_in));
+    const ssize_t ret =
+        ::sendto(g_socket, buf.data(), buf.size(), 0,
+                 reinterpret_cast<const sockaddr *>(&it->second), sizeof(sockaddr_in));
+    return ret == static_cast<ssize_t>(buf.size());
 }
 
 bool recv(Packet &out) {

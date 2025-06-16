@@ -62,12 +62,13 @@ void shutdown() noexcept;
  *
  * The payload is prefixed with the local node identifier before being
  * transmitted to the remote host registered through ::add_remote. If the
- * destination is unknown the function silently drops the data.
+ * destination is unknown the function returns ``false``.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
+ * @return ``true`` on success, ``false`` on failure or unknown destination.
  */
-void send(node_t node, std::span<const std::byte> data);
+[[nodiscard]] bool send(node_t node, std::span<const std::byte> data);
 
 /**
  * @brief Retrieve the next pending packet for the local node.

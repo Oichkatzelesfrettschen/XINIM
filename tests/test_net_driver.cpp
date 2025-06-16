@@ -22,6 +22,9 @@ constexpr std::uint16_t CHILD_PORT = 14001;
 /** Parent process logic sending a packet and expecting a reply. */
 int parent_proc(pid_t child) {
     net::init({PARENT_NODE, PARENT_PORT});
+    std::array<std::byte, 1> bogus{std::byte{0}};
+    assert(!net::send(99, bogus)); // unknown node should fail
+
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     std::this_thread::sleep_for(100ms);
@@ -33,7 +36,7 @@ int parent_proc(pid_t child) {
     }
 
     std::array<std::byte, 3> data{std::byte{1}, std::byte{2}, std::byte{3}};
-    net::send(CHILD_NODE, data);
+    assert(net::send(CHILD_NODE, data));
 
     do {
         std::this_thread::sleep_for(10ms);
@@ -52,10 +55,13 @@ int parent_proc(pid_t child) {
 /** Child process echoing a different payload back. */
 int child_proc() {
     net::init({CHILD_NODE, CHILD_PORT});
+    std::array<std::byte, 1> bogus{std::byte{0}};
+    assert(!net::send(77, bogus)); // unknown node should fail
+
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     std::array<std::byte, 1> ready{std::byte{0}};
-    net::send(PARENT_NODE, ready);
+    assert(net::send(PARENT_NODE, ready));
 
     net::Packet pkt{};
     while (!net::recv(pkt)) {
@@ -64,7 +70,7 @@ int child_proc() {
     assert(pkt.src_node == PARENT_NODE);
 
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    net::send(PARENT_NODE, reply);
+    assert(net::send(PARENT_NODE, reply));
 
     std::this_thread::sleep_for(50ms);
     net::shutdown();
