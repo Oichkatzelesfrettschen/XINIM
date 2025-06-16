@@ -6,6 +6,7 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 enable_testing()
+find_package(Threads REQUIRED)
 
 function(add_lattice_test target source)
   add_executable(${target}
@@ -24,7 +25,7 @@ function(add_lattice_test target source)
     ${CMAKE_SOURCE_DIR}/h
     ${ARGN})
   target_compile_definitions(${target} PRIVATE EXTERN=extern)
-  target_link_libraries(${target} PRIVATE pqcrypto)
+  target_link_libraries(${target} PRIVATE pqcrypto Threads::Threads)
   add_test(NAME ${target} COMMAND ${target})
 endfunction()
 
