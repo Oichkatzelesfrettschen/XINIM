@@ -278,6 +278,19 @@ add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encry
 target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_net_driver
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver
+  test_net_driver.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver COMMAND minix_test_net_driver)
+
+# -----------------------------------------------------------------------------
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)

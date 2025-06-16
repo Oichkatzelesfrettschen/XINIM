@@ -93,6 +93,20 @@ constexpr xinim::pid_t DST_PID = 10;
 // Establish a channel from SRC_PID on this node to DST_PID on node 1
 lattice_connect(SRC_PID, DST_PID, REMOTE);
 
+Network Driver Behavior
+----------------------
+
+The underlying transport is implemented in ``net_driver.cpp``. Each packet is
+prefixed with the sending node's identifier and transmitted via UDP. The driver
+maintains a mapping from node identifiers to host/port pairs added through
+:cpp:func:`net::add_remote`. Incoming datagrams are queued internally until
+retrieved with :cpp:func:`net::recv` or dispatched through the registered
+callback.
+
+The helper :cpp:func:`net::local_node` queries the bound socket to report the
+host's IPv4 address as an integer. Applications use this identifier when
+establishing remote channels.
+
 Fastpath Integration-- -- -- -- -- -- -- -- -- --
 
         The wormhole IPC interface is declared in : file :`kernel /
