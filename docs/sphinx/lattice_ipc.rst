@@ -20,6 +20,10 @@ transfer and update scheduling state.
 .. doxygenstruct:: fastpath::FastpathStats
    :project: XINIM
 
+The statistics track how often the per-CPU fastpath queue succeeds as
+well as the number of spill events when the queue is exhausted.  The
+``hit_count`` and ``fallback_count`` fields provide this insight.
+
 .. doxygenfunction:: fastpath::execute_fastpath
    :project: XINIM
 

@@ -115,6 +115,20 @@ target_include_directories(minix_test_fastpath PUBLIC
 add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
 
 # -----------------------------------------------------------------------------
+# minix_test_fastpath_fallback
+# -----------------------------------------------------------------------------
+add_executable(minix_test_fastpath_fallback
+  test_fastpath_fallback.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
+)
+target_include_directories(minix_test_fastpath_fallback PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+add_test(NAME minix_test_fastpath_fallback COMMAND minix_test_fastpath_fallback)
+
+# -----------------------------------------------------------------------------
 # minix_test_scheduler
 # -----------------------------------------------------------------------------
 add_executable(minix_test_scheduler

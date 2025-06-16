@@ -14,6 +14,14 @@
 
 namespace fastpath {
 
+std::array<PerCpuQueue, NR_CPUS> cpu_queues{};
+
+void reset_fastpath_queues() noexcept {
+    for (auto &q : cpu_queues) {
+        q.used = 0;
+    }
+}
+
 // Moved set_message_region and message_region_valid to the outer fastpath namespace
 /**
  * @brief Store a zero-copy message region.
@@ -84,16 +92,36 @@ inline void establish_reply(State &state) noexcept { state.sender.reply_to = sta
 /**
  * @brief Copy message registers from sender to receiver.
  *
+ * The function first attempts to store the registers in the per-CPU
+ * fastpath queue. When the queue is full, it spills the data to the
+ * shared message region.
+ *
  * @param state Fastpath state containing the message buffers.
+ * @param stats Optional statistics tracker updated with hit/fallback counts.
  */
-inline void copy_mrs(State &state) noexcept {
+inline void copy_mrs(State &state, FastpathStats *stats) noexcept {
+    auto &queue = cpu_queues[state.sender.core];
     const auto len = std::min(state.msg_len, state.sender.mrs.size());
-    if (message_region_valid(state.msg_region, state.msg_len)) {
-        auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
-        std::ranges::copy_n(state.sender.mrs.begin(), len, buffer);
-        std::ranges::copy_n(buffer, len, state.receiver.mrs.begin());
+    if (!queue.full()) {
+        auto &slot = queue.slots[queue.used];
+        std::ranges::copy_n(state.sender.mrs.begin(), len, slot.begin());
+        queue.lengths[queue.used] = len;
+        ++queue.used;
+        std::ranges::copy_n(slot.begin(), len, state.receiver.mrs.begin());
+        if (stats != nullptr) {
+            stats->hit_count.fetch_add(1, std::memory_order_relaxed);
+        }
     } else {
-        std::ranges::copy_n(state.sender.mrs.begin(), len, state.receiver.mrs.begin());
+        if (message_region_valid(state.msg_region, state.msg_len)) {
+            auto *buffer = static_cast<uint64_t *>(state.msg_region.zero_copy_map());
+            std::ranges::copy_n(state.sender.mrs.begin(), len, buffer);
+            std::ranges::copy_n(buffer, len, state.receiver.mrs.begin());
+        } else {
+            std::ranges::copy_n(state.sender.mrs.begin(), len, state.receiver.mrs.begin());
+        }
+        if (stats != nullptr) {
+            stats->fallback_count.fetch_add(1, std::memory_order_relaxed);
+        }
     }
 }
 
@@ -178,9 +206,6 @@ static bool preconditions(const State &s, FastpathStats *stats) noexcept {
            check(s.sender.core == s.receiver.core, Precondition::P9, stats);
 }
 
-// convenient alias for transformation function pointer
-using Transformer = void (*)(State &);
-
 /**
  * @brief Apply all transformation steps when preconditions hold.
  *
@@ -193,11 +218,12 @@ bool execute_fastpath(State &state, FastpathStats *stats) noexcept {
         return false;
     }
 
-    constexpr std::array<Transformer, 6> steps{detail::dequeue_receiver,    detail::transfer_badge,
-                                               detail::establish_reply,     detail::copy_mrs,
-                                               detail::update_thread_state, detail::context_switch};
-
-    std::ranges::for_each(steps, [&state](Transformer step) { step(state); });
+    detail::dequeue_receiver(state);
+    detail::transfer_badge(state);
+    detail::establish_reply(state);
+    detail::copy_mrs(state, stats);
+    detail::update_thread_state(state);
+    detail::context_switch(state);
 
     if (stats != nullptr) {
         stats->success_count.fetch_add(1, std::memory_order_relaxed);
