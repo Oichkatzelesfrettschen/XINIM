@@ -102,10 +102,11 @@ Channels live in a DAG managed by `lattice::Graph`:
 - `lattice_connect(src, dst, node_id)` → OK / error  
 - `lattice_listen(pid)`  
 - `lattice_send(src, dst, msg, flags)`  
-- `lattice_recv(pid, &msg, flags)`  
-- `lattice_channel_add_dep(parent, child)`  
-- `lattice_channel_submit(chan)`  
-- `lattice::poll_network()` integrates remote packets  
+- `lattice_recv(pid, &msg, flags)`
+- `lattice_channel_add_dep(parent, child)`
+- `lattice_channel_submit(chan)`
+- `lattice::poll_network()` integrates remote packets
+- Blocking `lattice_recv` waits up to 100ms for a message when `IpcFlags::NONE` is used
 
 Remote Channel Setup
 --------------------

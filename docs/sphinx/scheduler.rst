@@ -24,7 +24,9 @@ receiver is already waiting. On such a fast path the scheduler invokes
 :cpp:func:`sched::Scheduler::yield_to` so the receiver handles the message
 without an extra context switch. Both send and
 :cpp:func:`lattice::lattice_recv` accept :cpp:type:`lattice::IpcFlags` with the
-``NONBLOCK`` option to return immediately when no delivery is possible.
+``NONBLOCK`` option to return immediately when no delivery is possible. Without
+that flag the scheduler blocks the caller until a message arrives or a 100 ms
+timeout elapses.
 
 .. doxygenfunction:: sched::Scheduler::yield_to
    :project: XINIM
