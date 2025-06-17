@@ -313,20 +313,35 @@ node_t local_node() noexcept {
 }
 
 std::errc send(node_t node, std::span<const std::byte> data) {
-    Remote rem;
+    Remote *rem_ptr = nullptr;
     {
         std::lock_guard lock{g_remotes_mutex};
         auto it = g_remotes.find(node);
         if (it == g_remotes.end())
             return std::errc::host_unreachable;
-        rem = it->second;
+        rem_ptr = &it->second;
     }
 
+    Remote rem = *rem_ptr;
     auto buf = frame_payload(data);
 
     if (rem.proto == Protocol::TCP) {
         int fd = rem.tcp_fd;
         bool transient = fd < 0;
+        int err = 0;
+
+        auto attempt_send = [&](int sock) -> std::errc {
+            std::size_t sent = 0;
+            while (sent < buf.size()) {
+                ssize_t n = ::send(sock, buf.data() + sent, buf.size() - sent, 0);
+                if (n < 0) {
+                    err = errno;
+                    return std::errc::io_error;
+                }
+                sent += static_cast<std::size_t>(n);
+            }
+            return std::errc{};
+        };
 
         if (transient) {
             fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
@@ -338,20 +353,27 @@ std::errc send(node_t node, std::span<const std::byte> data) {
             }
         }
 
-        std::size_t sent = 0;
-        while (sent < buf.size()) {
-            ssize_t n = ::send(fd, buf.data() + sent, buf.size() - sent, 0);
-            if (n < 0) {
-                if (transient)
-                    ::close(fd);
-                return std::errc::io_error;
+        auto rc = attempt_send(fd);
+
+        if (rc != std::errc{} && !transient && connection_lost(err) && rem.tcp_fd >= 0) {
+            try {
+                reconnect_tcp(rem);
+                {
+                    std::lock_guard lock{g_remotes_mutex};
+                    auto it = g_remotes.find(node);
+                    if (it != g_remotes.end())
+                        it->second.tcp_fd = rem.tcp_fd;
+                }
+                fd = rem.tcp_fd;
+                rc = attempt_send(fd);
+            } catch (const std::system_error &) {
+                rc = std::errc::io_error;
             }
-            sent += static_cast<std::size_t>(n);
         }
 
         if (transient)
             ::close(fd);
-        return std::errc{};
+        return rc;
     }
 
     ssize_t n = ::sendto(g_udp_sock, buf.data(), buf.size(), 0,

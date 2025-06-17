@@ -49,7 +49,8 @@ Implemented in `net_driver.hpp` / `.cpp`:
 - **set_recv_callback(cb)**: optional callback on arrival  
 - **send(node, data)**: frame `[local_node|data]`, transmit via UDP/TCP
 - **reconnect**: persistent TCP sockets are reopened automatically when a write
-  fails with ``EPIPE`` or similar errors
+  fails with ``EPIPE``, ``ECONNRESET``, ``ENOTCONN`` or ``ECONNABORTED`` and the
+  send is retried once
 - **recv(out_pkt)**: dequeue next `Packet{
     src_node, payload
 }`
@@ -70,7 +71,9 @@ receives and TCP connection handling. Each remote node registers its address
 with :cpp:func:`net::add_remote`. Frames are transmitted by
 :cpp:func:`net::send`. For TCP peers the function establishes a transient
 connection when necessary and automatically reconnects persistent sockets
-when writes fail due to ``EPIPE`` or connection reset. ``net::send`` now
+when writes fail with ``EPIPE``, ``ECONNRESET``, ``ENOTCONN`` or
+``ECONNABORTED``. After reconnecting a persistent connection the send is
+retried once. ``net::send`` now
 returns a ``std::errc`` value
 where ``std::errc::success`` indicates success. Socket failures such as
 ``ECONNREFUSED`` propagate as ``std::system_error`` exceptions. Incoming
