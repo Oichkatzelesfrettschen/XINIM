@@ -9,6 +9,7 @@
 
 #include "../h/const.hpp"
 #include "paging.hpp"
+#include <vector>
 
 /**
  * @brief Flags describing permissions and properties for a virtual memory region.
@@ -56,14 +57,17 @@ struct vm_area {
  * @brief Per-process bookkeeping of virtual memory areas.
  */
 struct vm_proc {
-    struct vm_area areas[VM_MAX_AREAS]; ///< List of owned areas.
-    int area_count;                     ///< Number of valid entries.
+    std::vector<vm_area> areas; ///< List of owned areas.
+    int area_count{};           ///< Number of valid entries.
+
+    /// Construct an empty process record with space for ::VM_MAX_AREAS areas.
+    vm_proc() : areas(VM_MAX_AREAS) {}
 };
 
-void vm_init(void);
-void *vm_alloc(u64_t bytes, VmFlags flags);
-void vm_handle_fault(int proc, virt_addr64 addr);
-int vm_fork(int parent, int child);
-void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags);
+void vm_init() noexcept;
+void *vm_alloc(u64_t bytes, VmFlags flags) noexcept;
+void vm_handle_fault(int proc, virt_addr64 addr) noexcept;
+int vm_fork(int parent, int child) noexcept;
+void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) noexcept;
 
 #endif /* VM_H */
