@@ -8,25 +8,38 @@
 #include "stdio.hpp"
 
 #define EOS '\0'
-#define BOOLEAN int
-#define TRUE 1
-#define FALSE 0
+
+/// Alias for boolean type used in legacy code.
+using Boolean = bool;
 
 char *pch, *errorp;
 
-static BOOLEAN is(char *pc) {
-    register char *ps = pch;
+/**
+ * @brief Compare @p pc with the current input pointer and advance on match.
+ *
+ * @param pc String to compare.
+ * @return True if the prefix matches.
+ */
+static Boolean is(char *pc) {
+    char *ps = pch;
 
     while (*ps++ == *pc++)
         if (*pc == EOS) {
             pch = ps;
-            return (TRUE);
+            return true;
         }
-    return (FALSE);
+    return false;
 }
 
-#define BIGNUM 2147483647
+/// Upper bound for numeric parsing.
+/// Upper bound for numeric parsing.
+constexpr long kBigNum = 2147483647;
 
+/**
+ * @brief Parse a number with optional scale suffixes.
+ *
+ * Supports 'w', 'b', 'k', and 'x' multipliers.
+ */
 static int num(void) {
     long ans;
     register char *pc;
@@ -35,7 +48,7 @@ static int num(void) {
     ans = 0L;
     while ((*pc >= '0') && (*pc <= '9'))
         ans = (long)((*pc++ - '0') + (ans * 10));
-    while (TRUE)
+    while (true)
         switch (*pc++) {
         case 'w':
             ans *= 2L;
@@ -50,7 +63,7 @@ static int num(void) {
             pch = pc;
             ans *= (long)num();
         case EOS:
-            if ((ans >= BIGNUM) || (ans < 0)) {
+            if ((ans >= kBigNum) || (ans < 0)) {
                 fprintf(stderr, "dd: argument %s out of range\n", errorp);
                 done(1);
             }
