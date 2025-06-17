@@ -7,7 +7,7 @@ The codebase is currently a **work in progress** focused on reproducing the
 original Minix simplicity on modern arm64 and x86_64 machines using C++23.
 
 ## Prerequisites
-A 64-bit x86 compiler toolchain supporting C++23 is required. Clang++ 18 with the matching LLVM 18 suite (including lld and lldb) is preferred. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
+A 64-bit x86 compiler toolchain supporting C++23 is required. Install Clang++ 18 and the full LLVM 18 suite—including lld and lldb—before building or running tests. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
 
 ## Building with Makefiles
 
