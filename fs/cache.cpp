@@ -1,15 +1,18 @@
-/* The file system maintains a buffer cache to reduce the number of disk
- * accesses needed.  Whenever a read or write to the disk is done, a check is
- * first made to see if the block is in the cache.  This file manages the
- * cache.
+/**
+ * @file
+ * @brief Buffer cache management for the file system.
+ *
+ *
+ * The file system maintains a buffer cache to reduce disk accesses. Whenever a
+ * read or write is performed, the cache is consulted first. This file manages the cache.
  *
  * The entry points into this file are:
- *   get_block:	  request to fetch a block for reading or writing from cache
- *   put_block:	  return a block previously requested with get_block
- *   alloc_zone:  allocate a new zone (to increase the length of a file)
- *   free_zone:	  release a zone (when a file is removed)
- *   rw_block:	  read or write a block from the disk itself
- *   invalidate:  remove all the cache blocks on some device
+ * - get_block(): request to fetch a block for reading or writing from cache
+ * - put_block(): return a block previously requested with get_block()
+ * - alloc_zone(): allocate a new zone (to increase the length of a file)
+ * - free_zone(): release a zone (when a file is removed)
+ * - rw_block(): read or write a block from the disk itself
+ * - invalidate(): remove all the cache blocks on some device
  */
 
 #include "../h/const.hpp"
@@ -24,9 +27,14 @@
 #include "super.hpp"
 #include "type.hpp"
 
-/*===========================================================================*
- *				get_block				     *
- *===========================================================================*/
+/**
+ * @brief Request to fetch a block for reading or writing from cache.
+ *
+ * @param dev on which device is the block?
+ * @param block which block is wanted?
+ * @param only_search if NO_READ, do not read from disk
+ * @return Pointer to the buffer describing the requested block.
+ */
 PUBLIC struct buf *get_block(dev, block, only_search)
 register dev_nr dev;     /* on which device is the block? */
 register block_nr block; /* which block is wanted? */
@@ -107,9 +115,12 @@ int only_search;         /* if NO_READ, don't read, else act normal */
     return (bp); /* return the newly acquired block */
 }
 
-/*===========================================================================*
- *				put_block				     *
- *===========================================================================*/
+/**
+ * @brief Return a block previously requested with get_block.
+ *
+ * @param bp pointer to the buffer to be released
+ * @param block_type INODE_BLOCK, DIRECTORY_BLOCK, or similar
+ */
 PUBLIC put_block(bp, block_type)
 register struct buf *bp; /* pointer to the buffer to be released */
 int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
@@ -187,9 +198,13 @@ int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
         bp->b_dev = kNoDev;
 }
 
-/*===========================================================================*
- *				alloc_zone				     *
- *===========================================================================*/
+/**
+ * @brief Allocate a new zone on the indicated device.
+ *
+ * @param dev device where the zone is wanted
+ * @param z try to allocate a new zone near this one
+ * @return Allocated zone number or NO_ZONE on failure
+ */
 PUBLIC zone_nr alloc_zone(dev, z)
 dev_nr dev; /* device where zone wanted */
 zone_nr z;  /* try to allocate new zone near this one */
@@ -226,9 +241,12 @@ zone_nr z;  /* try to allocate new zone near this one */
     return (sp->s_firstdatazone - 1 + (zone_nr)b);
 }
 
-/*===========================================================================*
- *				free_zone				     *
- *===========================================================================*/
+/**
+ * @brief Release a previously allocated zone.
+ *
+ * @param dev device where the zone is located
+ * @param numb zone number to be returned
+ */
 PUBLIC free_zone(dev, numb)
 dev_nr dev;   /* device where zone located */
 zone_nr numb; /* zone to be returned */
@@ -246,9 +264,12 @@ zone_nr numb; /* zone to be returned */
     free_bit(sp->s_zmap, (bit_nr)numb - (sp->s_firstdatazone - 1));
 }
 
-/*===========================================================================*
- *				rw_block				     *
- *===========================================================================*/
+/**
+ * @brief Perform disk I/O for a cached block.
+ *
+ * @param bp buffer pointer
+ * @param rw_flag either READING or WRITING
+ */
 PUBLIC rw_block(bp, rw_flag)
 register struct buf *bp; /* buffer pointer */
 int rw_flag;             /* READING or WRITING */
@@ -282,9 +303,11 @@ int rw_flag;             /* READING or WRITING */
     bp->b_dirt = CLEAN;
 }
 
-/*===========================================================================*
- *				invalidate				     *
- *===========================================================================*/
+/**
+ * @brief Invalidate cached blocks for a device.
+ *
+ * @param device device whose blocks are to be purged
+ */
 PUBLIC invalidate(device)
 dev_nr device; /* device whose blocks are to be purged */
 {
