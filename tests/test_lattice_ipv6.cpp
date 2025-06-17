@@ -17,6 +17,9 @@
 
 using namespace lattice;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 /// Identifier for the parent node.
 static constexpr net::node_t PARENT_NODE = 0;
 /// Identifier for the child node.
@@ -54,7 +57,8 @@ void packet_hook(const net::Packet &pkt) {
  * @return Status code from the child.
  */
 static int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::init(
+        net::Config{PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "::1", CHILD_PORT);
 
     g_graph = Graph{};
@@ -86,7 +90,8 @@ static int parent_proc(pid_t child) {
  * @return Exit status code.
  */
 static int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "::1", PARENT_PORT);
     net::set_recv_callback(packet_hook);
 

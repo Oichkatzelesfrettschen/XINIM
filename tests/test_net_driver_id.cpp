@@ -143,7 +143,8 @@ namespace {
  */
 int main() {
     const auto expect = compute_expected();
-    net::init({0, 15000});
+    static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+    net::init({0, 15000, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     const auto actual = net::local_node();
     assert(actual == expect);
     net::shutdown();

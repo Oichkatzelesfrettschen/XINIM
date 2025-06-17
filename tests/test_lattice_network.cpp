@@ -16,6 +16,9 @@
 
 using namespace lattice;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 static constexpr net::node_t PARENT_NODE = 0;
 static constexpr net::node_t CHILD_NODE = 1;
 static constexpr uint16_t PARENT_PORT = 12000;
@@ -23,7 +26,7 @@ static constexpr uint16_t CHILD_PORT = 12001;
 
 /** Parent side logic sending a message and waiting for a reply. */
 static int parent_proc(pid_t child) {
-    net::init({PARENT_NODE, PARENT_PORT});
+    net::init({PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     g_graph = Graph{};
@@ -51,7 +54,7 @@ static int parent_proc(pid_t child) {
 
 /** Child process responding to the parent's message. */
 static int child_proc() {
-    net::init({CHILD_NODE, CHILD_PORT});
+    net::init({CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     g_graph = Graph{};

@@ -14,12 +14,15 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 int main() {
     constexpr net::node_t SELF = 50;
     constexpr uint16_t PORT = 16550;
     constexpr int THREADS = 4;
 
-    net::init(net::Config{SELF, PORT});
+    net::init(net::Config{SELF, PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
 
     std::atomic<int> received{0};
     net::set_recv_callback([&](const net::Packet &) { received.fetch_add(1); });

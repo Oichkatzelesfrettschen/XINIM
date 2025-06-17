@@ -14,6 +14,9 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 static constexpr net::node_t PARENT_NODE = 0;
 static constexpr net::node_t CHILD_NODE = 1;
 static constexpr uint16_t PARENT_PORT = 14000;
@@ -22,7 +25,8 @@ static constexpr uint16_t CHILD_PORT = 14001;
 /** Parent process: verifies unknown‐peer send fails, then exchanges payloads. */
 int parent_proc(pid_t child_pid) {
     // Initialize UDP driver for parent
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::init(
+        net::Config{PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
 
     // Unknown destination should be rejected
     std::array<std::byte, 1> bogus{std::byte{0}};
@@ -62,7 +66,8 @@ int parent_proc(pid_t child_pid) {
 /** Child process: signals readiness, echoes back a 3-byte reply. */
 int child_proc() {
     // Initialize UDP driver for child
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
 
     // Unknown destination should be rejected
     std::array<std::byte, 1> bogus{std::byte{0}};

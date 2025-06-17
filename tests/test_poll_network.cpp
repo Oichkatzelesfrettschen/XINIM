@@ -27,6 +27,9 @@
 
 using namespace lattice;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 /// Local node identifier for the parent process
 static constexpr net::node_t PARENT_NODE = 0;
 /// Local node identifier for the child process
@@ -45,7 +48,8 @@ static constexpr std::uint16_t CHILD_PORT = 15001;
  * @return Process exit code used by the parent.
  */
 static int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     g_graph = Graph{};
@@ -77,7 +81,8 @@ static int child_proc() {
  * @return Status code returned from waitpid.
  */
 static int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::init(
+        net::Config{PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     g_graph = Graph{};

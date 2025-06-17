@@ -81,7 +81,8 @@ Example
 ^^^^^^^
 .. code-block:: cpp
 
-   net::init({0, 15000});
+   net::init({0, 15000, 0,
+              net::OverflowPolicy::DropNewest, "/etc/xinim/node_id"});
 net::add_remote(1, "127.0.0.1", 15001);
 lattice_connect(1, 1, 1);
 

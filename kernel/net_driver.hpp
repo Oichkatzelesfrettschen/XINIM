@@ -38,8 +38,8 @@ using node_t = int;
  * received as a Packet with the `src_node` field and a payload vector.
  */
 struct Packet {
-    node_t src_node;                  ///< Originating node ID
-    std::vector<std::byte> payload;  ///< Message payload (excluding prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
 };
 
 /**
@@ -62,19 +62,22 @@ enum class Protocol {
  * @brief Network driver configuration structure.
  *
  * This struct defines the initialization parameters for the network stack.
- * Use `node_id = 0` to auto-detect the ID and persist it to `/etc/xinim/node_id`.
+ * Use `node_id = 0` to auto-detect the ID and persist it. The location is
+ * determined by ``node_id_path`` and defaults to ``/etc/xinim/node_id`` when the
+ * path string is empty.
  */
 struct Config {
-    node_t node_id;                 ///< Preferred node identifier (0 = auto-detect)
-    std::uint16_t port;            ///< Local port to bind UDP/TCP sockets
-    std::size_t max_queue_length;  ///< Maximum packets in the receive queue
-    OverflowPolicy overflow;       ///< Policy when the receive queue overflows
+    node_t node_id;               ///< Preferred node identifier (0 = auto-detect)
+    std::uint16_t port;           ///< Local port to bind UDP/TCP sockets
+    std::size_t max_queue_length; ///< Maximum packets in the receive queue
+    OverflowPolicy overflow;      ///< Policy when the receive queue overflows
+    std::string node_id_path;     ///< File storing the persistent node ID
 
-    constexpr Config(node_t node_id_ = 0,
-                     std::uint16_t port_ = 0,
-                     std::size_t max_len = 0,
-                     OverflowPolicy policy = OverflowPolicy::DropNewest) noexcept
-        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy) {}
+    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
+                     OverflowPolicy policy = OverflowPolicy::DropNewest,
+                     std::string_view path = {}) noexcept
+        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy),
+          node_id_path(path) {}
 };
 
 /**

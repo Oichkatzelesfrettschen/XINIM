@@ -9,18 +9,19 @@
 #include <unistd.h>
 
 int main() {
-    ::unlink("/etc/xinim/node_id");
+    static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+    ::unlink(NODE_ID_FILE);
 
-    net::init(net::Config{0, 16000});
+    net::init(net::Config{0, 16000, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     const auto first = net::local_node();
     assert(first != 0);
     net::shutdown();
 
-    net::init(net::Config{0, 16000});
+    net::init(net::Config{0, 16000, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     const auto second = net::local_node();
     assert(first == second);
     net::shutdown();
 
-    ::unlink("/etc/xinim/node_id");
+    ::unlink(NODE_ID_FILE);
     return 0;
 }

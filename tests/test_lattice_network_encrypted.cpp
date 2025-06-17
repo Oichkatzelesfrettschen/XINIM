@@ -18,6 +18,9 @@
 
 using namespace lattice;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 /// Local and remote node identifiers used in the test
 static constexpr net::node_t PARENT_NODE = 0;
 static constexpr net::node_t CHILD_NODE = 1;
@@ -49,7 +52,7 @@ void packet_hook(const net::Packet &pkt) {
  * @brief Parent process sending a message and waiting for acknowledgement.
  */
 static int parent_proc(pid_t child) {
-    net::init({PARENT_NODE, PARENT_PORT});
+    net::init({PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     g_graph = Graph{};
@@ -79,7 +82,7 @@ static int parent_proc(pid_t child) {
  * @brief Child process validating encryption and responding to the parent.
  */
 static int child_proc() {
-    net::init({CHILD_NODE, CHILD_PORT});
+    net::init({CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
     net::set_recv_callback(packet_hook);
 

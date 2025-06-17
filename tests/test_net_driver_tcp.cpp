@@ -14,6 +14,9 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 namespace {
 
 constexpr net::node_t PARENT_NODE = 0;
@@ -23,7 +26,8 @@ constexpr uint16_t CHILD_PORT = 15001;
 
 /** Parent process: receives a “ready” packet, sends payload, and checks reply. */
 int parent_proc(pid_t child_pid) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::init(
+        net::Config{PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::TCP);
 
     // Wait for child to signal readiness
@@ -57,7 +61,8 @@ int parent_proc(pid_t child_pid) {
 
 /** Child process: signals ready, echoes back a 3-byte reply. */
 int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
 
     // Signal readiness

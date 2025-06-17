@@ -12,11 +12,14 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 int main() {
     constexpr net::node_t SELF = 42;
     constexpr uint16_t PORT = 16050;
 
-    net::Config cfg{SELF, PORT};
+    net::Config cfg{SELF, PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE};
     net::init(cfg);
     net::add_remote(SELF, "127.0.0.1", PORT);
 

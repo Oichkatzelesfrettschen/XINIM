@@ -14,6 +14,9 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 namespace {
 
 constexpr net::node_t PARENT_NODE = 0;
@@ -23,7 +26,8 @@ constexpr uint16_t CHILD_PORT = 15501;
 
 /** Child process: signal ready then exit to drop the connection. */
 int child_once() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
@@ -35,7 +39,8 @@ int child_once() {
 
 /** Child process: wait for payload after reconnect and acknowledge. */
 int child_second() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
 
     net::Packet pkt;
@@ -54,7 +59,8 @@ int child_second() {
 
 /** Parent routine orchestrating reconnection. */
 int parent_proc() {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::init(
+        net::Config{PARENT_NODE, PARENT_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     pid_t first_child = fork();
     if (first_child == 0) {
         return child_once();

@@ -48,7 +48,9 @@ Node Identity
 -------------
 Each node assigns itself a numeric ``node_t`` identifier when
 :cpp:func:`net::init` executes.  The ``node_id`` and UDP port are
-provided via the configuration structure.  After initialization,
+provided via the configuration structure along with an optional
+``node_id_path`` string.  When this path is empty the driver defaults
+to ``/etc/xinim/node_id``.  After initialization,
 :cpp:func:`net::local_node` reports this identifier and all outgoing
 packets carry it as the source ID so peers can validate who originated
 each message.
@@ -64,8 +66,8 @@ Windows—and hashes the first active device that is not a loopback interface.
 Should this process fail, the driver falls back to hashing the local host name.
 The computed identifier is non-zero and remains constant for the lifetime of
 the process. When the identifier is computed it is written to
-``/etc/xinim/node_id`` so that subsequent invocations of :cpp:func:`net::init`
-reuse the same value.
+``cfg.node_id_path`` (defaulting to ``/etc/xinim/node_id``) so that subsequent
+invocations of :cpp:func:`net::init` reuse the same value.
 
 Implementation Steps
 ~~~~~~~~~~~~~~~~~~~~
@@ -110,7 +112,8 @@ Typical Configuration Steps
 
    .. code-block:: cpp
 
-      net::init({ node_id, udp_port });
+      net::init({ node_id, udp_port, 0,
+                  net::OverflowPolicy::DropNewest, "/etc/xinim/node_id" });
 
 2. **Register** remote peers:
 
@@ -150,13 +153,15 @@ exchanging a greeting over UDP.
 .. code-block:: cpp
 
    // node A initialization
-   net::init({1, 12000});  // bind port and assign ID 1
+   net::init({1, 12000, 0,
+              net::OverflowPolicy::DropNewest, "/etc/xinim/node_id"});  // bind port and assign ID 1
    net::add_remote(2, "127.0.0.1", 12001, /*tcp=*/false);  // register node B
    net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::send(2, std::array<std::byte,3>{'h','i','!'});  // greet B
 
    // node B initialization
-   net::init({2, 12001});  // bind port and assign ID 2
+   net::init({2, 12001, 0,
+              net::OverflowPolicy::DropNewest, "/etc/xinim/node_id"});  // bind port and assign ID 2
    net::add_remote(1, "127.0.0.1", 12000, /*tcp=*/false);  // register node A
    net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::Packet pkt{};  // buffer for incoming packet
@@ -192,7 +197,8 @@ process that exchange a handshake. The child echoes its
 
    // Child waits for a handshake then replies with its node ID
    int child_proc() {
-       net::init({CHILD_NODE, CHILD_PORT});
+      net::init({CHILD_NODE, CHILD_PORT, 0,
+                 net::OverflowPolicy::DropNewest, "/etc/xinim/node_id"});
        net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
        g_graph = Graph{};
        lattice_connect(2, 1, PARENT_NODE);
@@ -213,7 +219,8 @@ process that exchange a handshake. The child echoes its
 
    // Parent sends the handshake and verifies the response
    int parent_proc(pid_t child) {
-       net::init({PARENT_NODE, PARENT_PORT});
+      net::init({PARENT_NODE, PARENT_PORT, 0,
+                 net::OverflowPolicy::DropNewest, "/etc/xinim/node_id"});
        net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
        g_graph = Graph{};
        lattice_connect(1, 2, CHILD_NODE);

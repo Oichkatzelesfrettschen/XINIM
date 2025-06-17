@@ -13,6 +13,9 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 namespace {
 
 constexpr net::node_t PARENT_NODE = 0;
@@ -32,7 +35,8 @@ constexpr std::uint16_t CHILD_PORT = 14101;
  * @return Exit status from the child.
  */
 int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest});
+    net::init(
+        net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest, NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};
@@ -79,7 +83,8 @@ int parent_proc(pid_t child) {
  * @return Always zero on success.
  */
 int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     net::Packet pkt{};

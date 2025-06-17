@@ -14,6 +14,9 @@
 
 using namespace std::chrono_literals;
 
+/// Path for the persistent node identifier during tests
+static constexpr char NODE_ID_FILE[] = "/tmp/xinim_node_id";
+
 namespace {
 
 constexpr net::node_t PARENT_NODE = 0;
@@ -27,7 +30,8 @@ constexpr uint16_t TCP_CHILD_PORT = 17003;
  * @brief Child process for the UDP phase.
  */
 int udp_child() {
-    net::init(net::Config{CHILD_NODE, UDP_CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, UDP_CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "::1", UDP_PARENT_PORT, net::Protocol::UDP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
@@ -52,7 +56,8 @@ int udp_child() {
  * @brief Parent process for the UDP phase.
  */
 int udp_parent(pid_t child) {
-    net::init(net::Config{PARENT_NODE, UDP_PARENT_PORT});
+    net::init(net::Config{PARENT_NODE, UDP_PARENT_PORT, 0, net::OverflowPolicy::DropNewest,
+                          NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "::1", UDP_CHILD_PORT, net::Protocol::UDP);
 
     net::Packet pkt;
@@ -81,7 +86,8 @@ int udp_parent(pid_t child) {
  * @brief Child process for the TCP phase.
  */
 int tcp_child() {
-    net::init(net::Config{CHILD_NODE, TCP_CHILD_PORT});
+    net::init(
+        net::Config{CHILD_NODE, TCP_CHILD_PORT, 0, net::OverflowPolicy::DropNewest, NODE_ID_FILE});
     net::add_remote(PARENT_NODE, "::1", TCP_PARENT_PORT, net::Protocol::TCP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
@@ -106,7 +112,8 @@ int tcp_child() {
  * @brief Parent process for the TCP phase.
  */
 int tcp_parent(pid_t child) {
-    net::init(net::Config{PARENT_NODE, TCP_PARENT_PORT});
+    net::init(net::Config{PARENT_NODE, TCP_PARENT_PORT, 0, net::OverflowPolicy::DropNewest,
+                          NODE_ID_FILE});
     net::add_remote(CHILD_NODE, "::1", TCP_CHILD_PORT, net::Protocol::TCP);
 
     net::Packet pkt;
