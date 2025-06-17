@@ -1,16 +1,10 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
-/* This file contains the main program of the File System.  It consists of
- * a loop that gets messages requesting work, carries out the work, and sends
- * replies.
+/**
+ * @file main.cpp
+ * @brief Entry point and helper routines for the file system server.
  *
- * The entry points into this file are
- *   main:	main program of the File System
- *   reply:	send a reply to a process after the requested work is done
+ * This module implements the main server loop that receives requests from other subsystems,
+ * dispatches the appropriate handler and returns the result.  The helper functions initialize
+ * global state, manage the buffer cache and load the RAM disk.
  */
 
 #include "../h/callnr.hpp"
@@ -35,10 +29,12 @@
 #define INFO 2           /* where in data_org is info from build */
 #define MAX_RAM 512      /* maxium RAM disk size in blocks */
 
-/*===========================================================================*
- *				main					     *
- *===========================================================================*/
-// Entry point for the file system process.
+/**
+ * @brief Entry point for the file system process.
+ *
+ * The main loop receives requests, dispatches them and sends the reply back to
+ * the caller. It never terminates while the system is running.
+ */
 int main() {
     /* This is the main program of the file system.  The main loop consists of
      * three major activities: getting new work, processing the work, and sending
@@ -73,15 +69,10 @@ int main() {
     return 0; // main never returns but placate the compiler
 }
 
-/*===========================================================================*
- *				get_work				     *
- *===========================================================================*/
-// Retrieve work from message queue or resume a suspended process.
+/**
+ * @brief Retrieve work from the message queue or resume a suspended process.
+ */
 static void get_work() {
-    /* Normally wait for new input.  However, if 'reviving' is
-     * nonzero, a suspended process must be awakened.
-     */
-
     register struct fproc *rp;
 
     if (reviving != 0) {
@@ -109,29 +100,21 @@ static void get_work() {
     fs_call = m.m_type;
 }
 
-/*===========================================================================*
- *				reply					     *
- *===========================================================================*/
+/**
+ * @brief Send a reply to a user process.
+ *
+ * The send may fail if the destination died. Failure is ignored.
+ */
 void reply(int whom, int result) {
-    /* Send a reply to a user process. It may fail (if the process has just
-     * been killed by a signal, so don't check the return code.  If the send
-     * fails, just ignore it.
-     */
 
     reply_type = result;
     send(whom, &m1);
 }
 
-/*===========================================================================*
- *				fs_init					     *
- *===========================================================================*/
-// Initialize buffers and super block at startup.
+/**
+ * @brief Initialize buffers, super block and process table.
+ */
 static void fs_init() {
-    /* Initialize global variables, tables, etc. */
-
-    register struct inode *rip;
-    int i;
-    extern struct inode *get_inode();
 
     buf_pool();   /* initialize buffer pool */
     load_ram();   /* Load RAM disk from root diskette. */
@@ -166,9 +149,9 @@ static void fs_init() {
         panic("inode size != 32", NO_NUM);
 }
 
-/*===========================================================================*
- *				buf_pool				     *
- *===========================================================================*/
+/**
+ * @brief Set up the buffer cache used for block I/O.
+ */
 // Set up buffer pool for block I/O.
 static void buf_pool() {
     /* Initialize the buffer pool.  On the IBM PC, the hardware DMA chip is
@@ -202,9 +185,9 @@ static void buf_pool() {
     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
 }
 
-/*===========================================================================*
- *				load_ram				     *
- *===========================================================================*/
+/**
+ * @brief Load the RAM disk from the root device.
+ */
 // Load the RAM disk from the root device.
 static void load_ram() {
     /* The root diskette contains a block-by-block image of the root file system
@@ -282,9 +265,9 @@ static void load_ram() {
     printf("\rRAM disk loaded.  Please remove root diskette.           \n\n");
 }
 
-/*===========================================================================*
- *				load_super				     *
- *===========================================================================*/
+/**
+ * @brief Load the super block for the root device.
+ */
 // Load the super block for the root device.
 static void load_super() {
     register struct super_block *sp;

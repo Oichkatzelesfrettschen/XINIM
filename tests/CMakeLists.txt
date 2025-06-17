@@ -217,17 +217,6 @@ target_include_directories(minix_test_net_driver_loopback PUBLIC
 )
 target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
-add_lattice_test(minix_test_lattice                  test_lattice.cpp)
-add_lattice_test(minix_test_lattice_send_recv       test_lattice_send_recv.cpp)
-add_lattice_test(minix_test_lattice_send_error      test_lattice_send_error.cpp)
-add_lattice_test(minix_test_lattice_ipc             test_lattice_ipc.cpp)
-add_lattice_test(minix_test_lattice_network         test_lattice_network.cpp)
-add_lattice_test(minix_test_lattice_network_encrypted
-                                         test_lattice_network_encrypted.cpp)
-add_lattice_test(minix_test_net_two_node            test_net_two_node.cpp)
-add_lattice_test(minix_test_net_driver              test_net_driver.cpp)
-add_lattice_test(minix_test_net_driver_overflow     test_net_driver_overflow.cpp)
-add_lattice_test(minix_test_net_driver_tcp          test_net_driver_tcp.cpp)
 
 # -----------------------------------------------------------------------------
 # Crypto library

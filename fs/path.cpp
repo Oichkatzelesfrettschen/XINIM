@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
 /* This file contains the procedures that look up path names in the directory
  * system and determine the inode number that goes with a given path name.
  *
