@@ -258,6 +258,11 @@ add_lattice_test(minix_test_lattice test_lattice.cpp)
 # minix_test_lattice_send_recv
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice_send_recv test_lattice_send_recv.cpp)
+# -----------------------------------------------------------------------------
+# minix_test_lattice_send_error
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_send_error test_lattice_send_error.cpp)
+
 
 # -----------------------------------------------------------------------------
 # minix_test_lattice_ipc

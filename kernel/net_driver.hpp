@@ -34,8 +34,8 @@ using node_t = int;
  * @brief In‐memory representation of a network packet.
  */
 struct Packet {
-    node_t                 src_node;  ///< Originating node ID
-    std::vector<std::byte> payload;   ///< Raw payload bytes (post‐prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Raw payload bytes (post‐prefix)
 };
 
 /**
@@ -73,13 +73,13 @@ enum class Protocol { UDP, TCP };
  * When proto==UDP, send() uses sendto() on the bound UDP socket.
  */
 struct Remote {
-    sockaddr_in addr;     ///< IPv4 socket address of the peer
-    Protocol     proto;   ///< Protocol to use (UDP or TCP)
-    int          tcp_fd{-1}; ///< TCP socket FD (if persistent; optional)
+    sockaddr_in addr; ///< IPv4 socket address of the peer
+    Protocol proto;   ///< Protocol to use (UDP or TCP)
+    int tcp_fd{-1};   ///< TCP socket FD (if persistent; optional)
 };
 
 /** Callback type invoked on packet arrival. */
-using RecvCallback = std::function<void(const Packet&)>;
+using RecvCallback = std::function<void(const Packet &)>;
 
 /**
  * @brief Initialize the network driver.
@@ -91,7 +91,7 @@ using RecvCallback = std::function<void(const Packet&)>;
  * @param cfg Local node configuration.
  * @throws std::system_error on socket/bind errors.
  */
-void init(const Config& cfg);
+void init(const Config &cfg);
 
 /**
  * @brief Register a remote peer for send().
@@ -101,9 +101,7 @@ void init(const Config& cfg);
  * @param port  UDP/TCP port on which peer listens.
  * @param proto Transport protocol to use.
  */
-void add_remote(node_t node,
-                const std::string& host,
-                uint16_t port,
+void add_remote(node_t node, const std::string &host, uint16_t port,
                 Protocol proto = Protocol::UDP);
 
 /**
@@ -144,7 +142,8 @@ void shutdown() noexcept;
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
- * @return ``true`` on success, ``false`` on failure or unknown destination.
+ * @return ``true`` on success; ``false`` if the peer is unknown or a socket
+ *         error occurs.
  */
 [[nodiscard]] bool send(node_t node, std::span<const std::byte> data);
 
@@ -154,7 +153,7 @@ void shutdown() noexcept;
  * @param out Packet object to populate.
  * @return true if a packet was dequeued into out, false otherwise.
  */
-[[nodiscard]] bool recv(Packet& out);
+[[nodiscard]] bool recv(Packet &out);
 
 /**
  * @brief Clear all pending packets across every node.
