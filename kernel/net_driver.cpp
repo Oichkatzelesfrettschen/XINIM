@@ -14,13 +14,25 @@
 
 #include "net_driver.hpp"
 
+#if defined(_WIN32)
+#include <iphlpapi.h>
+#include <winsock2.h>
+#include <ws2tcpip.h>
+#pragma comment(lib, "iphlpapi.lib")
+#else
 #include <arpa/inet.h>
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netdb.h>
+#if defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) ||   \
+    defined(__DragonFly__)
+#include <net/if_dl.h>
+#else
 #include <netpacket/packet.h>
+#endif
 #include <sys/socket.h>
 #include <unistd.h>
+#endif
 
 #include <array>
 #include <atomic>
@@ -71,6 +83,149 @@ static RecvCallback g_callback;
 static std::atomic<bool> g_running{false};
 /** Background receiver threads. */
 static std::jthread g_udp_thread, g_tcp_thread;
+
+/**
+ * @brief Platform-specific helper deriving a node identifier.
+ *
+ * Enumerates network interfaces using APIs tailored for each operating system
+ * and hashes the first active, non-loopback address. The function returns
+ * ``0`` when no suitable interface can be found.
+ */
+[[nodiscard]] static node_t derive_node() noexcept {
+#if defined(_WIN32)
+    ULONG size = 0;
+    if (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, nullptr, &size) != ERROR_BUFFER_OVERFLOW) {
+        return 0;
+    }
+    std::vector<unsigned char> buf(size);
+    auto *addrs = reinterpret_cast<PIP_ADAPTER_ADDRESSES>(buf.data());
+    if (GetAdaptersAddresses(AF_UNSPEC, 0, nullptr, addrs, &size) != NO_ERROR) {
+        return 0;
+    }
+    for (auto *cur = addrs; cur != nullptr; cur = cur->Next) {
+        if (cur->OperStatus != IfOperStatusUp || cur->IfType == IF_TYPE_SOFTWARE_LOOPBACK) {
+            continue;
+        }
+        if (cur->PhysicalAddressLength > 0) {
+            std::size_t value = 0;
+            for (unsigned i = 0; i < cur->PhysicalAddressLength; ++i) {
+                value = value * 131 + cur->PhysicalAddress[i];
+            }
+            return static_cast<node_t>(value & 0x7fffffff);
+        }
+        for (auto *ua = cur->FirstUnicastAddress; ua; ua = ua->Next) {
+            auto fam = ua->Address.lpSockaddr->sa_family;
+            if (fam == AF_INET) {
+                auto *sin = reinterpret_cast<sockaddr_in *>(ua->Address.lpSockaddr);
+                std::size_t value = 0;
+                const auto *b = reinterpret_cast<const unsigned char *>(&sin->sin_addr);
+                for (unsigned i = 0; i < sizeof(sin->sin_addr); ++i) {
+                    value = value * 131 + b[i];
+                }
+                return static_cast<node_t>(value & 0x7fffffff);
+            }
+            if (fam == AF_INET6) {
+                auto *sin6 = reinterpret_cast<sockaddr_in6 *>(ua->Address.lpSockaddr);
+                std::size_t value = 0;
+                const auto *b = reinterpret_cast<const unsigned char *>(&sin6->sin6_addr);
+                for (unsigned i = 0; i < sizeof(sin6->sin6_addr); ++i) {
+                    value = value * 131 + b[i];
+                }
+                return static_cast<node_t>(value & 0x7fffffff);
+            }
+        }
+    }
+    return 0;
+#elif defined(__APPLE__) || defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || \
+    defined(__DragonFly__)
+    ifaddrs *ifa = nullptr;
+    if (getifaddrs(&ifa) != 0) {
+        return 0;
+    }
+    node_t result = 0;
+    for (auto *cur = ifa; cur != nullptr; cur = cur->ifa_next) {
+        if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK)) {
+            continue;
+        }
+        if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_LINK) {
+            auto *sdl = reinterpret_cast<sockaddr_dl *>(cur->ifa_addr);
+            if (sdl->sdl_alen > 0) {
+                std::size_t value = 0;
+                const auto *b = reinterpret_cast<const unsigned char *>(LLADDR(sdl));
+                for (int i = 0; i < sdl->sdl_alen; ++i) {
+                    value = value * 131 + b[i];
+                }
+                result = static_cast<node_t>(value & 0x7fffffff);
+                break;
+            }
+        }
+        if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET) {
+            auto *sin = reinterpret_cast<sockaddr_in *>(cur->ifa_addr);
+            std::size_t value = 0;
+            const auto *b = reinterpret_cast<const unsigned char *>(&sin->sin_addr);
+            for (unsigned i = 0; i < sizeof(sin->sin_addr); ++i) {
+                value = value * 131 + b[i];
+            }
+            result = static_cast<node_t>(value & 0x7fffffff);
+            break;
+        }
+        if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET6) {
+            auto *sin6 = reinterpret_cast<sockaddr_in6 *>(cur->ifa_addr);
+            std::size_t value = 0;
+            const auto *b = reinterpret_cast<const unsigned char *>(&sin6->sin6_addr);
+            for (unsigned i = 0; i < sizeof(sin6->sin6_addr); ++i) {
+                value = value * 131 + b[i];
+            }
+            result = static_cast<node_t>(value & 0x7fffffff);
+            break;
+        }
+    }
+    freeifaddrs(ifa);
+    return result;
+#else
+    ifaddrs *ifa = nullptr;
+    if (getifaddrs(&ifa) != 0) {
+        return 0;
+    }
+    node_t result = 0;
+    for (auto *cur = ifa; cur != nullptr; cur = cur->ifa_next) {
+        if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK)) {
+            continue;
+        }
+        if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_PACKET) {
+            auto *ll = reinterpret_cast<sockaddr_ll *>(cur->ifa_addr);
+            std::size_t value = 0;
+            for (int i = 0; i < ll->sll_halen; ++i) {
+                value = value * 131 + ll->sll_addr[i];
+            }
+            result = static_cast<node_t>(value & 0x7fffffff);
+            break;
+        }
+        if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET) {
+            auto *sin = reinterpret_cast<sockaddr_in *>(cur->ifa_addr);
+            std::size_t value = 0;
+            const auto *b = reinterpret_cast<const unsigned char *>(&sin->sin_addr);
+            for (unsigned i = 0; i < sizeof(sin->sin_addr); ++i) {
+                value = value * 131 + b[i];
+            }
+            result = static_cast<node_t>(value & 0x7fffffff);
+            break;
+        }
+        if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET6) {
+            auto *sin6 = reinterpret_cast<sockaddr_in6 *>(cur->ifa_addr);
+            std::size_t value = 0;
+            const auto *b = reinterpret_cast<const unsigned char *>(&sin6->sin6_addr);
+            for (unsigned i = 0; i < sizeof(sin6->sin6_addr); ++i) {
+                value = value * 131 + b[i];
+            }
+            result = static_cast<node_t>(value & 0x7fffffff);
+            break;
+        }
+    }
+    freeifaddrs(ifa);
+    return result;
+#endif
+}
 
 /**
  * @brief Frame a payload by prefixing with the local node ID.
@@ -289,53 +444,15 @@ node_t local_node() noexcept {
         }
     }
     // 2) derive from active network interface
-    ifaddrs *ifa = nullptr;
-    if (::getifaddrs(&ifa) == 0) {
-        node_t result = 0;
-        for (auto *cur = ifa; cur != nullptr; cur = cur->ifa_next) {
-            if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK)) {
-                continue;
-            }
-            if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_PACKET) {
-                auto *ll = reinterpret_cast<sockaddr_ll *>(cur->ifa_addr);
-                std::size_t value = 0;
-                for (int i = 0; i < ll->sll_halen; ++i) {
-                    value = value * 131 + ll->sll_addr[i];
-                }
-                result = static_cast<node_t>(value & 0x7fffffff);
-                break;
-            }
-            if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET) {
-                auto *sin = reinterpret_cast<sockaddr_in *>(cur->ifa_addr);
-                std::size_t value = 0;
-                const auto *b = reinterpret_cast<const unsigned char *>(&sin->sin_addr);
-                for (unsigned i = 0; i < sizeof(sin->sin_addr); ++i) {
-                    value = value * 131 + b[i];
-                }
-                result = static_cast<node_t>(value & 0x7fffffff);
-                break;
-            }
-            if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET6) {
-                auto *sin6 = reinterpret_cast<sockaddr_in6 *>(cur->ifa_addr);
-                std::size_t value = 0;
-                const auto *b = reinterpret_cast<const unsigned char *>(&sin6->sin6_addr);
-                for (unsigned i = 0; i < sizeof(sin6->sin6_addr); ++i) {
-                    value = value * 131 + b[i];
-                }
-                result = static_cast<node_t>(value & 0x7fffffff);
-                break;
-            }
+    node_t derived = derive_node();
+    if (derived != 0) {
+        g_cfg.node_id = derived;
+        std::filesystem::create_directories("/etc/xinim");
+        std::ofstream out{NODE_ID_FILE, std::ios::trunc};
+        if (out) {
+            out << derived;
         }
-        ::freeifaddrs(ifa);
-        if (result != 0) {
-            g_cfg.node_id = result;
-            std::filesystem::create_directories("/etc/xinim");
-            std::ofstream out{NODE_ID_FILE, std::ios::trunc};
-            if (out) {
-                out << result;
-            }
-            return result;
-        }
+        return derived;
     }
     // 3) fallback to host name
     char host[256]{};

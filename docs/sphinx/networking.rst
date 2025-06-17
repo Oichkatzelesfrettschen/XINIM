@@ -58,23 +58,25 @@ Local Node Identification
 -------------------------
 :cpp:func:`net::local_node` first verifies that ``net::init`` provided a
 non-zero ``node_id``. If it did, the identifier is returned unchanged.
-Otherwise the driver calls ``getifaddrs()`` to list network interfaces and
-hashes the first active device that is not a loopback interface. Should this
-process fail, the driver falls back to hashing the local host name. The
-computed identifier is non-zero and remains constant for the lifetime of the
-process. When the identifier is computed it is written to ``/etc/xinim/node_id``
-so that subsequent invocations of :cpp:func:`net::init` reuse the same value.
+Otherwise the driver enumerates network interfaces using platform-specific
+APIs—``getifaddrs`` on Linux and the BSD family or ``GetAdaptersAddresses`` on
+Windows—and hashes the first active device that is not a loopback interface.
+Should this process fail, the driver falls back to hashing the local host name.
+The computed identifier is non-zero and remains constant for the lifetime of
+the process. When the identifier is computed it is written to
+``/etc/xinim/node_id`` so that subsequent invocations of :cpp:func:`net::init`
+reuse the same value.
 
 Implementation Steps
 ~~~~~~~~~~~~~~~~~~~~
 The internal logic of :cpp:func:`net::local_node` unfolds in these steps:
 
 #. If ``Config::node_id`` is non-zero return it immediately.
-#. Invoke ``getifaddrs`` to enumerate interfaces.
+#. Invoke the platform specific API to enumerate interfaces.
 #. Iterate until the first device flagged ``IFF_UP`` and not ``IFF_LOOPBACK`` is
    found.
    * If a link-layer (MAC) address is present, hash its bytes.
-   * Otherwise hash the IPv4 address.
+   * Otherwise hash the IPv4 or IPv6 address.
 #. Release the interface list.
 #. If a valid interface produced a hash, return it.
 #. As a fallback obtain the hostname via ``gethostname`` and hash that value.
