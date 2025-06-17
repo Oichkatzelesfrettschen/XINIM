@@ -7,6 +7,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <iostream>
 #include <sys/wait.h>
 #include <thread>
 
@@ -26,7 +27,7 @@ constexpr std::uint16_t CHILD_PORT = 14101;
  * @return Exit status from the child.
  */
 int parent_proc(pid_t child) {
-    net::init({PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest});
+    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};
@@ -41,8 +42,8 @@ int parent_proc(pid_t child) {
         std::this_thread::sleep_for(10ms);
     }
 
-    std::array<std::byte, 1> start{std::byte{0}};
-    net::send(CHILD_NODE, start);
+    std::array<std::byte, 1> pkt_start{std::byte{0}};
+    net::send(CHILD_NODE, pkt_start);
 
     std::this_thread::sleep_for(100ms);
 
@@ -64,7 +65,7 @@ int parent_proc(pid_t child) {
  * @return Always zero on success.
  */
 int child_proc() {
-    net::init({CHILD_NODE, CHILD_PORT});
+    net::init(net::Config{CHILD_NODE, CHILD_PORT});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     net::Packet pkt{};
