@@ -44,8 +44,8 @@ struct Packet {
  * @brief Policy for handling packets when the receive queue is full.
  */
 enum class OverflowPolicy {
-    Drop,      ///< Discard the newest packet when the queue is full
-    Overwrite, ///< Replace the oldest packet when the queue is full
+    DropNewest, ///< Discard the newest packet when the queue is full
+    DropOldest  ///< Replace the oldest packet when the queue is full
 };
 
 /**
@@ -140,9 +140,9 @@ void shutdown() noexcept;
  * @brief Retrieve the configured or detected node identifier.
  *
  * Returns ``cfg.node_id`` when it is non‑zero.  Otherwise the function
- * attempts to detect the identifier from the bound UDP socket via
- * ``getsockname()``.  If detection fails a deterministic fallback based on
- * the hostname is used.
+ * derives a deterministic identifier by hashing the first active
+ * non-loopback interface (preferring the MAC address when available).
+ * If no suitable interface exists, the hostname is hashed as a fallback.
 
  */
 [[nodiscard]] node_t local_node() noexcept;
@@ -155,8 +155,11 @@ void shutdown() noexcept;
  * destination is unknown the function returns ``false``.  Frames the packet
  * as ``[ local_node() | payload ... ]`` and immediately transmits it using
  * the ``sendto()`` syscall over the UDP or TCP/IP/IPv4/SNMP stack provided by
- * the Berkeley sockets implementation.  No additional queuing occurs and
- * unknown node IDs are silently ignored.
+ * the Berkeley sockets implementation.  For TCP peers a persistent
+ * connection is reused when available; otherwise a transient
+ * connection is established for the duration of the send.  No
+ * additional queuing occurs and unknown node IDs are silently
+ * ignored.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.

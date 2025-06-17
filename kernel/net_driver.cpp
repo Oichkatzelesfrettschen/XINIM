@@ -15,7 +15,10 @@
 #include "net_driver.hpp"
 
 #include <arpa/inet.h>
+#include <ifaddrs.h>
+#include <net/if.h>
 #include <netdb.h>
+#include <netpacket/packet.h>
 #include <sys/socket.h>
 #include <unistd.h>
 
@@ -34,33 +37,72 @@ namespace net {
 namespace {
 
 /** Active driver configuration. */
-static Config                      g_cfg{};
+static Config g_cfg{};
 /** UDP socket descriptor. */
-static int                         g_udp_sock   = -1;
+static int g_udp_sock = -1;
 /** TCP listening socket descriptor. */
-static int                         g_tcp_listen = -1;
+static int g_tcp_listen = -1;
 
 /**
  * Represents a remote peer: address, transport, and optional persistent TCP fd.
  */
 struct Remote {
-    sockaddr_in addr{};       ///< Destination IPv4 address
-    Protocol     proto;       ///< UDP or TCP
-    int          tcp_fd = -1; ///< persistent TCP socket if proto==TCP
+    sockaddr_in addr{}; ///< Destination IPv4 address
+    Protocol proto;     ///< UDP or TCP
+    int tcp_fd = -1;    ///< persistent TCP socket if proto==TCP
 };
 
 /** Map from node ID to remote peer info. */
 static std::unordered_map<node_t, Remote> g_remotes;
 /** Queue of received packets. */
-static std::deque<Packet>                g_queue;
+static std::deque<Packet> g_queue;
 /** Mutex guarding g_queue. */
-static std::mutex                         g_mutex;
+static std::mutex g_mutex;
 /** Optional callback invoked on packet arrival. */
-static RecvCallback                       g_callback;
+static RecvCallback g_callback;
 /** Controls background I/O threads. */
-static std::atomic<bool>                  g_running{false};
+static std::atomic<bool> g_running{false};
 /** Background receiver threads. */
-static std::jthread                       g_udp_thread, g_tcp_thread;
+static std::jthread g_udp_thread, g_tcp_thread;
+
+/**
+ * @brief Compute a deterministic node identifier from network interfaces.
+ */
+[[nodiscard]] static node_t compute_local_id() noexcept {
+    ifaddrs *ifa = nullptr;
+    if (::getifaddrs(&ifa) == 0) {
+        for (auto *cur = ifa; cur != nullptr; cur = cur->ifa_next) {
+            if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK)) {
+                continue;
+            }
+            if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_PACKET) {
+                auto *ll = reinterpret_cast<sockaddr_ll *>(cur->ifa_addr);
+                std::size_t val = 0;
+                for (int i = 0; i < ll->sll_halen; ++i) {
+                    val = val * 131 + ll->sll_addr[i];
+                }
+                ::freeifaddrs(ifa);
+                return static_cast<node_t>(val & 0x7fffffff);
+            }
+            if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET) {
+                auto *sin = reinterpret_cast<sockaddr_in *>(cur->ifa_addr);
+                auto *byte = reinterpret_cast<const unsigned char *>(&sin->sin_addr);
+                std::size_t val = 0;
+                for (unsigned i = 0; i < sizeof(sin->sin_addr); ++i) {
+                    val = val * 131 + byte[i];
+                }
+                ::freeifaddrs(ifa);
+                return static_cast<node_t>(val & 0x7fffffff);
+            }
+        }
+        ::freeifaddrs(ifa);
+    }
+    char host[256]{};
+    if (::gethostname(host, sizeof(host)) == 0) {
+        return static_cast<node_t>(std::hash<std::string_view>{}(host) & 0x7fffffff);
+    }
+    return 1;
+}
 
 /**
  * @brief Frame a payload by prefixing with the local node ID.
@@ -76,7 +118,7 @@ static std::vector<std::byte> frame_payload(std::span<const std::byte> data) {
 /**
  * @brief Enqueue a packet, applying overflow policy if the queue is full.
  */
-static void enqueue_packet(Packet&& pkt) {
+static void enqueue_packet(Packet &&pkt) {
     std::lock_guard lock{g_mutex};
     if (g_cfg.max_queue_length > 0 &&
         g_queue.size() >= static_cast<size_t>(g_cfg.max_queue_length)) {
@@ -100,18 +142,14 @@ static void udp_recv_loop() {
     while (g_running.load(std::memory_order_relaxed)) {
         sockaddr_in peer{};
         socklen_t len = sizeof(peer);
-        ssize_t n = ::recvfrom(g_udp_sock,
-                               buf.data(), buf.size(),
-                               0,
-                               reinterpret_cast<sockaddr*>(&peer),
-                               &len);
+        ssize_t n = ::recvfrom(g_udp_sock, buf.data(), buf.size(), 0,
+                               reinterpret_cast<sockaddr *>(&peer), &len);
         if (n <= static_cast<ssize_t>(sizeof(node_t))) {
             continue;
         }
         Packet pkt;
         std::memcpy(&pkt.src_node, buf.data(), sizeof(pkt.src_node));
-        pkt.payload.assign(buf.begin() + sizeof(pkt.src_node),
-                           buf.begin() + n);
+        pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n);
         enqueue_packet(std::move(pkt));
     }
 }
@@ -124,9 +162,7 @@ static void tcp_accept_loop() {
     while (g_running.load(std::memory_order_relaxed)) {
         sockaddr_in peer{};
         socklen_t len = sizeof(peer);
-        int client = ::accept(g_tcp_listen,
-                              reinterpret_cast<sockaddr*>(&peer),
-                              &len);
+        int client = ::accept(g_tcp_listen, reinterpret_cast<sockaddr *>(&peer), &len);
         if (client < 0) {
             continue;
         }
@@ -138,8 +174,7 @@ static void tcp_accept_loop() {
             }
             Packet pkt;
             std::memcpy(&pkt.src_node, buf.data(), sizeof(pkt.src_node));
-            pkt.payload.assign(buf.begin() + sizeof(pkt.src_node),
-                               buf.begin() + n);
+            pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n);
             enqueue_packet(std::move(pkt));
         }
         ::close(client);
@@ -148,7 +183,7 @@ static void tcp_accept_loop() {
 
 } // namespace
 
-void init(const Config& cfg) {
+void init(const Config &cfg) {
     g_cfg = cfg;
 
     // Create UDP socket
@@ -157,12 +192,10 @@ void init(const Config& cfg) {
         throw std::system_error(errno, std::generic_category(), "net_driver: UDP socket");
     }
     sockaddr_in addr{};
-    addr.sin_family      = AF_INET;
-    addr.sin_port        = htons(cfg.port);
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(cfg.port);
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (::bind(g_udp_sock,
-               reinterpret_cast<sockaddr*>(&addr),
-               sizeof(addr)) < 0) {
+    if (::bind(g_udp_sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: UDP bind");
     }
 
@@ -173,9 +206,7 @@ void init(const Config& cfg) {
     }
     int opt = 1;
     ::setsockopt(g_tcp_listen, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    if (::bind(g_tcp_listen,
-               reinterpret_cast<sockaddr*>(&addr),
-               sizeof(addr)) < 0) {
+    if (::bind(g_tcp_listen, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: TCP bind");
     }
 
@@ -197,14 +228,16 @@ void shutdown() noexcept {
         ::close(g_tcp_listen);
         g_tcp_listen = -1;
     }
-    if (g_udp_thread.joinable()) g_udp_thread.join();
-    if (g_tcp_thread.joinable()) g_tcp_thread.join();
+    if (g_udp_thread.joinable())
+        g_udp_thread.join();
+    if (g_tcp_thread.joinable())
+        g_tcp_thread.join();
 
     {
         std::lock_guard lock{g_mutex};
         g_queue.clear();
     }
-    for (auto& [_, rem] : g_remotes) {
+    for (auto &[_, rem] : g_remotes) {
         if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
             ::close(rem.tcp_fd);
         }
@@ -213,57 +246,33 @@ void shutdown() noexcept {
     g_callback = nullptr;
 }
 
-void add_remote(node_t node,
-                const std::string& host,
-                uint16_t port,
-                Protocol proto) {
+void add_remote(node_t node, const std::string &host, uint16_t port, Protocol proto) {
     Remote rem{};
     rem.proto = proto;
     rem.addr.sin_family = AF_INET;
-    rem.addr.sin_port   = htons(port);
+    rem.addr.sin_port = htons(port);
     if (::inet_aton(host.c_str(), &rem.addr.sin_addr) == 0) {
         throw std::invalid_argument("net_driver: invalid host address");
     }
     if (proto == Protocol::TCP) {
         rem.tcp_fd = ::socket(AF_INET, SOCK_STREAM, 0);
         if (rem.tcp_fd < 0 ||
-            ::connect(rem.tcp_fd,
-                      reinterpret_cast<sockaddr*>(&rem.addr),
-                      sizeof(rem.addr)) != 0) {
-            if (rem.tcp_fd >= 0) ::close(rem.tcp_fd);
+            ::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr)) != 0) {
+            if (rem.tcp_fd >= 0)
+                ::close(rem.tcp_fd);
             throw std::system_error(errno, std::generic_category(), "net_driver: TCP connect");
         }
     }
     g_remotes[node] = rem;
 }
 
-void set_recv_callback(RecvCallback cb) {
-    g_callback = std::move(cb);
-}
+void set_recv_callback(RecvCallback cb) { g_callback = std::move(cb); }
 
 node_t local_node() noexcept {
-    // 1) Configured ID
     if (g_cfg.node_id != 0) {
         return g_cfg.node_id;
     }
-    // 2) Bound UDP socket address
-    if (g_udp_sock >= 0) {
-        sockaddr_in sa{};
-        socklen_t len = sizeof(sa);
-        if (::getsockname(g_udp_sock,
-                          reinterpret_cast<sockaddr*>(&sa),
-                          &len) == 0) {
-            node_t id = static_cast<node_t>(ntohl(sa.sin_addr.s_addr) & 0x7fffffff);
-            return id != 0 ? id : 1;
-        }
-    }
-    // 3) Fallback: hash hostname
-    char host[256]{};
-    if (::gethostname(host, sizeof(host)) == 0) {
-        auto h = std::hash<std::string_view>{}(host) & 0x7fffffff;
-        return h ? static_cast<node_t>(h) : 1;
-    }
-    return 1;
+    return compute_local_id();
 }
 
 bool send(node_t node, std::span<const std::byte> data) {
@@ -272,20 +281,40 @@ bool send(node_t node, std::span<const std::byte> data) {
         return false; // unknown destination
     }
     auto buf = frame_payload(data);
-    auto& rem = it->second;
-    if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
-        return ::send(rem.tcp_fd, buf.data(), buf.size(), 0) ==
-               static_cast<ssize_t>(buf.size());
+    auto &rem = it->second;
+    if (rem.proto == Protocol::TCP) {
+        int fd = rem.tcp_fd;
+        if (fd < 0) {
+            fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            if (fd < 0 ||
+                ::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr)) != 0) {
+                if (fd >= 0) {
+                    ::close(fd);
+                }
+                return false;
+            }
+        }
+        ssize_t total = 0;
+        while (total < static_cast<ssize_t>(buf.size())) {
+            ssize_t n = ::send(fd, buf.data() + total, buf.size() - total, 0);
+            if (n <= 0) {
+                if (rem.tcp_fd < 0) {
+                    ::close(fd);
+                }
+                return false;
+            }
+            total += n;
+        }
+        if (rem.tcp_fd < 0) {
+            ::close(fd);
+        }
+        return true;
     }
-    return ::sendto(g_udp_sock,
-                    buf.data(), buf.size(),
-                    0,
-                    reinterpret_cast<sockaddr*>(&rem.addr),
-                    sizeof(rem.addr)) ==
-           static_cast<ssize_t>(buf.size());
+    return ::sendto(g_udp_sock, buf.data(), buf.size(), 0, reinterpret_cast<sockaddr *>(&rem.addr),
+                    sizeof(rem.addr)) == static_cast<ssize_t>(buf.size());
 }
 
-bool recv(Packet& out) {
+bool recv(Packet &out) {
     std::lock_guard lock{g_mutex};
     if (g_queue.empty()) {
         return false;
