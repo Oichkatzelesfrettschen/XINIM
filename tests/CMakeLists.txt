@@ -158,6 +158,12 @@ add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encry
 target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_lattice_ipv6
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_ipv6 test_lattice_ipv6.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_lattice_ipv6 PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
 # minix_test_net_two_node
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${CMAKE_SOURCE_DIR}/crypto)
