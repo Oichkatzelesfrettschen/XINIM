@@ -1,6 +1,6 @@
 /**
- * @file test_net_driver_overflow.cpp
- * @brief Validate queue overflow handling for net::OverflowPolicy::Overwrite.
+ * @file test_net_driver_drop.cpp
+ * @brief Validate queue overflow handling for net::OverflowPolicy::Drop.
  */
 
 #include "../kernel/net_driver.hpp"
@@ -21,13 +21,13 @@ constexpr std::uint16_t PARENT_PORT = 14100;
 constexpr std::uint16_t CHILD_PORT = 14101;
 
 /**
- * @brief Parent process instructs the child and verifies the last packet is kept.
+ * @brief Parent process instructs the child and verifies the first packet is kept.
  *
  * @param child PID of the forked child process.
  * @return Exit status from the child.
  */
 int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::Overwrite});
+    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::Drop});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};
@@ -51,7 +51,7 @@ int parent_proc(pid_t child) {
         return 1; // no packet received
     }
     assert(pkt.payload.size() == 1);
-    assert(pkt.payload[0] == std::byte{2});
+    assert(pkt.payload[0] == std::byte{1});
 
     int status = 0;
     waitpid(child, &status, 0);
@@ -86,7 +86,7 @@ int child_proc() {
 } // namespace
 
 /**
- * @brief Entry point spawning a child to run the overflow test.
+ * @brief Entry point spawning a child to run the drop test.
  */
 int main() {
     pid_t pid = fork();
