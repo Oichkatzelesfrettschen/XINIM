@@ -19,3 +19,17 @@ be changed dynamically through
 :cpp:func:`svc::ServiceManager::set_restart_limit`.
 
 For API-level details see :doc:`service_manager`.
+
+Service Control Utility
+-----------------------
+The ``svcctl`` command communicates with the service manager using lattice IPC.
+It supports the following subcommands::
+
+   svcctl list
+   svcctl start <pid>
+   svcctl stop <pid>
+   svcctl restart <pid>
+
+The ``list`` subcommand prints all registered services along with their running
+state. The other subcommands request that the service manager manipulate the
+specified service.
