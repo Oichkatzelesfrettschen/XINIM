@@ -43,7 +43,7 @@ int parent_proc(pid_t child) {
     }
 
     std::array<std::byte, 1> pkt_start{std::byte{0}};
-    net::send(CHILD_NODE, pkt_start);
+    assert(net::send(CHILD_NODE, pkt_start) == std::errc{});
 
     std::this_thread::sleep_for(100ms);
 
@@ -75,8 +75,8 @@ int child_proc() {
 
     std::array<std::byte, 1> one{std::byte{1}};
     std::array<std::byte, 1> two{std::byte{2}};
-    net::send(PARENT_NODE, one);
-    net::send(PARENT_NODE, two);
+    assert(net::send(PARENT_NODE, one) == std::errc{});
+    assert(net::send(PARENT_NODE, two) == std::errc{});
 
     std::this_thread::sleep_for(50ms);
     net::shutdown();

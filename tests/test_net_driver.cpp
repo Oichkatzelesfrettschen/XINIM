@@ -26,7 +26,7 @@ int parent_proc(pid_t child_pid) {
 
     // Unknown destination should be rejected
     std::array<std::byte, 1> bogus{std::byte{0}};
-    assert(!net::send(99, bogus));
+    assert(net::send(99, bogus) == std::errc::host_unreachable);
 
     // Register child as UDP peer
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::UDP);
@@ -41,7 +41,7 @@ int parent_proc(pid_t child_pid) {
 
     // Send a 3-byte message
     std::array<std::byte, 3> data{std::byte{1}, std::byte{2}, std::byte{3}};
-    assert(net::send(CHILD_NODE, data));
+    assert(net::send(CHILD_NODE, data) == std::errc{});
 
     // Await and verify child's reply
     while (!net::recv(pkt)) {
@@ -66,14 +66,14 @@ int child_proc() {
 
     // Unknown destination should be rejected
     std::array<std::byte, 1> bogus{std::byte{0}};
-    assert(!net::send(77, bogus));
+    assert(net::send(77, bogus) == std::errc::host_unreachable);
 
     // Register parent as UDP peer
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::UDP);
 
     // Signal readiness to parent
     std::array<std::byte, 1> ready{std::byte{0}};
-    assert(net::send(PARENT_NODE, ready));
+    assert(net::send(PARENT_NODE, ready) == std::errc{});
 
     // Receive parent's message
     net::Packet pkt;
@@ -85,7 +85,7 @@ int child_proc() {
 
     // Send back reply [9,8,7]
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    assert(net::send(PARENT_NODE, reply));
+    assert(net::send(PARENT_NODE, reply) == std::errc{});
 
     // Give parent time to receive
     std::this_thread::sleep_for(50ms);
