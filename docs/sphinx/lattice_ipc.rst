@@ -56,7 +56,36 @@ Configuration (`net::Config`):
 - ``node_id``: preferred ID (0=auto‐detect)  
 - ``port``: UDP/TCP port to bind  
 - ``max_queue``: max queued packets  
-- ``overflow``: policy (`DROP_OLDEST` | `DROP_NEWEST`)  
+- ``overflow``: policy (`DROP_OLDEST` | `DROP_NEWEST`)
+
+UDP Network Driver
+------------------
+The default networking backend transports packets over UDP. Invoking
+:cpp:func:`net::init` binds the local UDP port and starts a background
+receiver thread. Each remote node registers its address via
+:cpp:func:`net::add_remote`. Outgoing payloads are framed and transmitted
+by :cpp:func:`net::send`. Received datagrams remain queued internally until
+:cpp:func:`lattice::poll_network` decrypts and enqueues them for IPC.
+
+Example
+^^^^^^^
+.. code-block:: cpp
+
+   net::init({0, 15000});
+   net::add_remote(1, "127.0.0.1", 15001);
+   lattice_connect(1, 1, 1);
+
+   message ping{};
+   ping.m_type = 42;
+   lattice_send(1, 1, ping);
+
+   for (;;) {
+       lattice::poll_network();
+       if (lattice_recv(1, &ping) == OK) {
+           break;
+       }
+   }
+   net::shutdown();
 
 Local Node Identification
 -------------------------
