@@ -37,6 +37,7 @@ macro(add_lattice_test name test_src)
     target_include_directories(${name} PRIVATE
         ${XINIM_INCLUDES}
         ${CMAKE_SOURCE_DIR}/crypto
+        ${CMAKE_SOURCE_DIR}/tests
     )
     target_compile_definitions(${name} PRIVATE EXTERN=extern)
     target_link_libraries(${name} PRIVATE pqcrypto Threads::Threads)
