@@ -10,6 +10,11 @@ The networking driver transports Lattice IPC packets between nodes over UDP or, 
 - **Delivers** packets via :cpp:func:`net::recv`, or via the registered callback.  
 - **Shuts down** cleanly with :cpp:func:`net::shutdown`.
 
+When ``Config::node_id`` is set to ``0`` the driver derives a unique identifier
+by hashing the primary network interface.  This automatically detected value is
+returned by :cpp:func:`net::local_node` unless a different identifier is
+provided in the configuration.
+
 API Overview
 ------------
 .. doxygentypedef:: net::Config

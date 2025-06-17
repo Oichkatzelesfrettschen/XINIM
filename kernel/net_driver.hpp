@@ -48,7 +48,14 @@ enum class OverflowPolicy {
     Overwrite, ///< Replace the oldest packet when the queue is full
 };
 
-/** Configuration options for ::init. */
+/**
+ * @brief Network driver configuration for ::init.
+ *
+ * Setting ``node_id`` to ``0`` instructs the driver to derive a unique
+ * identifier by hashing the primary network interface.  A non-zero value
+ * overrides the automatic detection and is returned by
+ * ::local_node().
+ */
 struct Config {
     node_t node_id;               ///< Local node identifier
     std::uint16_t port;           ///< UDP port to bind locally
@@ -124,12 +131,19 @@ void set_recv_callback(RecvCallback cb);
 void shutdown() noexcept;
 
 /**
+ * @brief Report the configured node identifier.
+ *
+ * After calling ::init the driver either returns the user-supplied value
+ * or the automatically derived identifier when ``Config::node_id`` was
+ * zero.  ``0`` is returned if initialization has not yet occurred.
+
  * @brief Retrieve the configured or detected node identifier.
  *
  * Returns ``cfg.node_id`` when it is non‑zero.  Otherwise the function
  * attempts to detect the identifier from the bound UDP socket via
  * ``getsockname()``.  If detection fails a deterministic fallback based on
  * the hostname is used.
+
  */
 [[nodiscard]] node_t local_node() noexcept;
 
