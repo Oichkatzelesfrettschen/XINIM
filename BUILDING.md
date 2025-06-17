@@ -98,3 +98,29 @@ A helper script `tools/modernize_cpp17.sh` automates renaming sources to
 `.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
 header into each file. Invoke it from the repository root when ready to move
 the codebase fully to C++23.
+
+## Development Tools
+
+Several optional utilities generate code metrics and perform static analysis.
+Install them using the package manager and Python's package installer:
+
+```sh
+sudo apt-get install -y cloc cppcheck cscope
+python3 -m pip install --user lizard
+```
+
+### Running the Tools
+
+Create a directory called `logs/` at the project root and store all reports
+there:
+
+```sh
+mkdir -p logs
+cloc . > logs/cloc.log
+lizard -o logs/lizard.log .
+cppcheck --enable=all --std=c++23 --output-file=logs/cppcheck.log .
+cscope -Rb -q
+```
+
+`cscope` writes its database to `cscope.out`. The other commands generate log
+files in the `logs/` directory for later review.
