@@ -13,8 +13,8 @@
 
 FILES=$(git diff --cached --name-only --diff-filter=ACM | grep -E '\.(cpp|hpp)$')
 if [ -n "$FILES" ]; then
-    clang-format -i $FILES
-    git add $FILES
+    echo "$FILES" | xargs clang-format -i
+    echo "$FILES" | xargs git add
 fi
 
 exit 0
