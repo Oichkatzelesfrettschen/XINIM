@@ -16,6 +16,12 @@
 #undef printf
 #endif
 
+/**
+ * @brief Process descriptor stored in the kernel table.
+ *
+ * The table entry tracks register state, memory layout and accounting
+ * information for every task and user process.
+ */
 EXTERN struct proc {
     std::uint64_t p_reg[NR_REGS];  /* process' registers */
     xinim::virt_addr_t p_sp;       /* stack pointer - Formerly u64_t */
