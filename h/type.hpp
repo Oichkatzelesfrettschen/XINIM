@@ -11,13 +11,13 @@
 #include <xinim/core_types.hpp> // New include for xinim types
 
 // Utility functions -------------------------------------------------------*/
-/*!
- * rief Return the larger of two values.
+/**
+ * @brief Return the larger of two values.
  */
 template <typename T> constexpr T max(T a, T b) noexcept { return a > b ? a : b; }
 
-/*!
- * rief Return the smaller of two values.
+/**
+ * @brief Return the smaller of two values.
  */
 template <typename T> constexpr T min(T a, T b) noexcept { return a < b ? a : b; }
 

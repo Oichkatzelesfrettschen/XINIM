@@ -80,9 +80,9 @@ dev_nr dev; /* which device is being unmounted? */
     sp = get_super(dev); /* get the superblock pointer */
     bufs_in_use -= sp->s_imap_blocks + sp->s_zmap_blocks;
     for (i = 0; i < sp->s_imap_blocks; i++)
-        put_block(sp->s_imap[i], I_MAP_BLOCK);
+        put_block(sp->s_imap[i], BlockType::IMap);
     for (i = 0; i < sp->s_zmap_blocks; i++)
-        put_block(sp->s_zmap[i], ZMAP_BLOCK);
+        put_block(sp->s_zmap[i], BlockType::ZMap);
     return (OK);
 }
 
@@ -251,5 +251,5 @@ int rw_flag;                     /* READING or WRITING */
     }
 
     sp->s_dirt = CLEAN;
-    put_block(bp, ZUPER_BLOCK);
+    put_block(bp, BlockType::Zuper);
 }

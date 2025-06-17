@@ -262,7 +262,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
                     ldir_ptr->i_modtime = clock_time();
                 } else
                     *numb = dp->d_inum; /* 'flag' is LOOK_UP */
-                put_block(bp, DIRECTORY_BLOCK);
+                put_block(bp, BlockType::Directory);
                 return (OK);
             }
 
@@ -275,8 +275,8 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
 
         /* The whole block has been searched or ENTER has a free slot. */
         if (e_hit)
-            break;                      /* e_hit set if ENTER can be performed now */
-        put_block(bp, DIRECTORY_BLOCK); /* otherwise, continue searching dir */
+            break;                           /* e_hit set if ENTER can be performed now */
+        put_block(bp, BlockType::Directory); /* otherwise, continue searching dir */
     }
 
     /* The whole directory has now been searched. */
@@ -299,7 +299,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
     copy(dp->d_name, string, NAME_SIZE);
     dp->d_inum = *numb;
     bp->b_dirt = DIRTY;
-    put_block(bp, DIRECTORY_BLOCK);
+    put_block(bp, BlockType::Directory);
     ldir_ptr->i_modtime = clock_time();
     if (new_slots > old_slots)
         compat_set_size(ldir_ptr, (file_pos)new_slots * DIR_ENTRY_SIZE);

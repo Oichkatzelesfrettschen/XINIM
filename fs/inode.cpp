@@ -226,7 +226,7 @@ PUBLIC void rw_inode(struct inode *rip, int rw_flag) { // Added void return, mod
         bp->b_dirt = DIRTY;
     }
 
-    put_block(bp, INODE_BLOCK);
+    put_block(bp, BlockType::Inode);
     rip->i_dirt = CLEAN;
 }
 

@@ -272,8 +272,8 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
     if (rw_flag == WRITING)
         bp->b_dirt = DIRTY;
     // off and chunk are std::size_t, BLOCK_SIZE is int
-    n = (off + chunk == static_cast<std::size_t>(BLOCK_SIZE) ? FULL_DATA_BLOCK
-                                                             : PARTIAL_DATA_BLOCK);
+    n = (off + chunk == static_cast<std::size_t>(BLOCK_SIZE) ? BlockType::FullData
+                                                             : BlockType::PartialData);
     put_block(bp, n);
     return (r);
 }
@@ -329,7 +329,7 @@ PUBLIC uint16_t read_map(struct inode *rip,
         /* get double indirect block */ // rip->i_dev is dev_nr (uint16_t)
         // bp->b_ind is zone_nr[] (uint16_t[]). excess / NR_INDIRECTS is int32_t / size_t.
         z = bp->b_ind[static_cast<std::size_t>(excess / static_cast<int32_t>(NR_INDIRECTS))];
-        put_block(bp, INDIRECT_BLOCK);                        /* release double ind block */
+        put_block(bp, BlockType::Indirect);                   /* release double ind block */
         excess = excess % static_cast<int32_t>(NR_INDIRECTS); /* index into single ind blk */
     }
 
@@ -340,7 +340,7 @@ PUBLIC uint16_t read_map(struct inode *rip,
     b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
     bp = get_block(rip->i_dev, b, IoMode::Normal);   /* get single indirect block */
     z = bp->b_ind[static_cast<std::size_t>(excess)]; // excess is int32_t
-    put_block(bp, INDIRECT_BLOCK);                   /* release single indirect blk */
+    put_block(bp, BlockType::Indirect);              /* release single indirect blk */
     if (z == kNoZone)
         return (kNoBlock);
     // z is uint16_t, boff is int32_t. b is uint16_t.
