@@ -63,6 +63,25 @@ hashes the first active device that is not a loopback interface. Should this
 process fail, the driver falls back to hashing the local host name. The
 computed identifier is non-zero and remains constant for the lifetime of the
 process.
+
+Implementation Steps
+~~~~~~~~~~~~~~~~~~~~
+The internal logic of :cpp:func:`net::local_node` unfolds in these steps:
+
+#. If ``Config::node_id`` is non-zero return it immediately.
+#. Invoke ``getifaddrs`` to enumerate interfaces.
+#. Iterate until the first device flagged ``IFF_UP`` and not ``IFF_LOOPBACK`` is
+   found.
+   * If a link-layer (MAC) address is present, hash its bytes.
+   * Otherwise hash the IPv4 address.
+#. Release the interface list.
+#. If a valid interface produced a hash, return it.
+#. As a fallback obtain the hostname via ``gethostname`` and hash that value.
+
+.. note::
+   IPv6 addresses are not yet considered, and the identifier may change when
+   network hardware changes.  Future enhancements are noted in
+   :file:`../../ROADMAP.md`.
 Registering Remote Peers
 ------------------------
 A node communicates only with peers explicitly added using
