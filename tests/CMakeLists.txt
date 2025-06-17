@@ -133,6 +133,16 @@ target_include_directories(minix_test_service_contract PRIVATE
 )
 add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
 
+add_executable(minix_test_service_manager_dag
+    test_service_manager_dag.cpp
+    ${FASTPATH_SOURCES}
+)
+target_include_directories(minix_test_service_manager_dag PRIVATE
+    ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME minix_test_service_manager_dag COMMAND minix_test_service_manager_dag)
+
 # -----------------------------------------------------------------------------
 # Lattice IPC tests
 # -----------------------------------------------------------------------------
