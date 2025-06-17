@@ -26,6 +26,26 @@ manager. Contracts track how many times each service has been restarted via the
 ``RestartContract`` structure. Dependents of the crashed service are restarted in
 order to preserve required ordering.
 
+Persistent Configuration
+-----------------------
+
+Service state is written to ``/etc/xinim/services.json`` on shutdown. The file
+contains a list of services with their dependencies and liveness contracts::
+
+    {
+      "services": [
+        {
+          "pid": 1,
+          "running": true,
+          "deps": [2],
+          "contract": {"id": 1, "limit": 3, "restarts": 0}
+        }
+      ]
+    }
+
+The manager loads this file during initialization to restore the dependency
+graph and restart counters.
+
 .. doxygenclass:: svc::ServiceManager
    :project: XINIM
    :members:
