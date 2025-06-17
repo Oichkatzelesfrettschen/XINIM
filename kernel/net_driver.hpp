@@ -38,10 +38,27 @@ struct Packet {
     std::vector<std::byte> payload;   ///< Raw payload bytes (post‐prefix)
 };
 
-/** Configuration options for ::init(). */
+/**
+ * @brief Policy for handling packets when the receive queue is full.
+ */
+enum class OverflowPolicy {
+    Drop,      ///< Discard the newest packet when the queue is full
+    Overwrite, ///< Replace the oldest packet when the queue is full
+};
+
+/** Configuration options for ::init. */
 struct Config {
-    node_t      node_id;  ///< Preferred local node identifier (0 to auto‐detect)
-    uint16_t    port;     ///< UDP port to bind locally
+    node_t node_id;               ///< Local node identifier
+    std::uint16_t port;           ///< UDP port to bind locally
+    std::size_t max_queue_length; ///< Maximum number of queued packets (0 = unlimited)
+    OverflowPolicy overflow;      ///< Overflow behaviour when queue is full
+
+    /// Construct a Config with sensible defaults.
+    explicit constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0,
+                              std::size_t max_queue_length_ = 0,
+                              OverflowPolicy overflow_ = OverflowPolicy::Drop) noexcept
+        : node_id{node_id_}, port{port_}, max_queue_length{max_queue_length_}, overflow{overflow_} {
+    }
 };
 
 /**
