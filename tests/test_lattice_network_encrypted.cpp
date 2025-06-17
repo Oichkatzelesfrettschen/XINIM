@@ -57,7 +57,7 @@ static int parent_proc(pid_t child) {
 
     message msg{};
     msg.m_type = 77;
-    lattice_send(1, 2, msg);
+    assert(lattice_send(1, 2, msg) == OK);
 
     message reply{};
     for (;;) {
@@ -117,7 +117,7 @@ static int child_proc() {
     // Reply back to the parent
     message ack{};
     ack.m_type = 88;
-    lattice_send(2, 1, ack);
+    assert(lattice_send(2, 1, ack) == OK);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     net::shutdown();

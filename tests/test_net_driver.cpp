@@ -1,82 +1,104 @@
 /**
  * @file test_net_driver.cpp
- * @brief Validate raw packet delivery between two nodes.
+ * @brief Validate UDP packet delivery between two nodes.
  */
 
 #include "../kernel/net_driver.hpp"
 
+#include <array>
 #include <cassert>
 #include <chrono>
 #include <sys/wait.h>
 #include <thread>
+#include <unistd.h>
 
 using namespace std::chrono_literals;
 
-namespace {
+static constexpr net::node_t PARENT_NODE = 0;
+static constexpr net::node_t CHILD_NODE  = 1;
+static constexpr uint16_t      PARENT_PORT = 14000;
+static constexpr uint16_t      CHILD_PORT  = 14001;
 
-constexpr net::node_t PARENT_NODE = 0;
-constexpr net::node_t CHILD_NODE = 1;
-constexpr std::uint16_t PARENT_PORT = 14000;
-constexpr std::uint16_t CHILD_PORT = 14001;
-
-/** Parent process logic sending a packet and expecting a reply. */
-int parent_proc(pid_t child) {
+/** Parent process: verifies unknown‐peer send fails, then exchanges payloads. */
+int parent_proc(pid_t child_pid) {
+    // Initialize UDP driver for parent
     net::init({PARENT_NODE, PARENT_PORT});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
-    std::this_thread::sleep_for(100ms);
+    // Unknown destination should be rejected
+    std::array<std::byte,1> bogus{std::byte{0}};
+    assert(!net::send(99, bogus));
 
-    // Wait for the child to signal readiness
-    net::Packet pkt{};
+    // Register child as UDP peer
+    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::UDP);
+    assert(net::local_node() != 0);
+
+    // Wait for child's readiness signal
+    net::Packet pkt;
     while (!net::recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
-
-    std::array<std::byte, 3> data{std::byte{1}, std::byte{2}, std::byte{3}};
-    net::send(CHILD_NODE, data);
-
-    do {
-        std::this_thread::sleep_for(10ms);
-    } while (!net::recv(pkt));
-
     assert(pkt.src_node == CHILD_NODE);
-    assert(pkt.payload.size() == 3);
-    assert(pkt.payload[0] == std::byte{9});
 
-    int status = 0;
-    waitpid(child, &status, 0);
+    // Send a 3-byte message
+    std::array<std::byte,3> data{std::byte{1}, std::byte{2}, std::byte{3}};
+    assert(net::send(CHILD_NODE, data));
+
+    // Await and verify child's reply
+    while (!net::recv(pkt)) {
+        std::this_thread::sleep_for(10ms);
+    }
+    assert(pkt.src_node == CHILD_NODE);
+    assert(pkt.payload.size() == data.size());
+    assert(pkt.payload[0] == std::byte{9});
+    assert(pkt.payload[1] == std::byte{8});
+    assert(pkt.payload[2] == std::byte{7});
+
+    // Clean up
+    waitpid(child_pid, nullptr, 0);
     net::shutdown();
-    return status;
+    return 0;
 }
 
-/** Child process echoing a different payload back. */
+/** Child process: signals readiness, echoes back a 3-byte reply. */
 int child_proc() {
+    // Initialize UDP driver for child
     net::init({CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
-    std::array<std::byte, 1> ready{std::byte{0}};
-    net::send(PARENT_NODE, ready);
+    // Unknown destination should be rejected
+    std::array<std::byte,1> bogus{std::byte{0}};
+    assert(!net::send(77, bogus));
 
-    net::Packet pkt{};
+    // Register parent as UDP peer
+    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::UDP);
+
+    // Signal readiness to parent
+    std::array<std::byte,1> ready{std::byte{0}};
+    assert(net::send(PARENT_NODE, ready));
+
+    // Receive parent's message
+    net::Packet pkt;
     while (!net::recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == PARENT_NODE);
+    assert(pkt.payload.size() == 3);
 
-    std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    net::send(PARENT_NODE, reply);
+    // Send back reply [9,8,7]
+    std::array<std::byte,3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
+    assert(net::send(PARENT_NODE, reply));
 
+    // Give parent time to receive
     std::this_thread::sleep_for(50ms);
     net::shutdown();
     return 0;
 }
 
-} // namespace
-
 int main() {
     pid_t pid = fork();
+    assert(pid >= 0);
     if (pid == 0) {
         return child_proc();
+    } else {
+        return parent_proc(pid);
     }
-    return parent_proc(pid);
 }

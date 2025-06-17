@@ -278,6 +278,12 @@ add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encry
 target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_net_two_node
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_net_two_node PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
 # minix_test_net_driver
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver
@@ -302,6 +308,17 @@ target_include_directories(minix_test_net_driver_overflow PUBLIC
 )
 target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_overflow COMMAND minix_test_net_driver_overflow)
+# minix_test_net_driver_tcp
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_tcp
+  test_net_driver_tcp.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_tcp PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
 
 # -----------------------------------------------------------------------------
 # Crypto subdirectory
