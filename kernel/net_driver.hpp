@@ -19,6 +19,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <netinet/in.h>
 #include <span>
@@ -38,8 +39,8 @@ using node_t = int;
  * received as a Packet with the `src_node` field and a payload vector.
  */
 struct Packet {
-    node_t src_node;                  ///< Originating node ID
-    std::vector<std::byte> payload;  ///< Message payload (excluding prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
 };
 
 /**
@@ -62,19 +63,21 @@ enum class Protocol {
  * @brief Network driver configuration structure.
  *
  * This struct defines the initialization parameters for the network stack.
- * Use `node_id = 0` to auto-detect the ID and persist it to `/etc/xinim/node_id`.
+ * Use `node_id = 0` to auto-detect the ID and persist it to `node_id_dir`.
  */
 struct Config {
-    node_t node_id;                 ///< Preferred node identifier (0 = auto-detect)
-    std::uint16_t port;            ///< Local port to bind UDP/TCP sockets
-    std::size_t max_queue_length;  ///< Maximum packets in the receive queue
-    OverflowPolicy overflow;       ///< Policy when the receive queue overflows
+    node_t node_id;               ///< Preferred node identifier (0 = auto-detect)
+    std::uint16_t port;           ///< Local port to bind UDP/TCP sockets
+    std::size_t max_queue_length; ///< Maximum packets in the receive queue
+    OverflowPolicy overflow;      ///< Policy when the receive queue overflows
+    /** Directory where the auto-detected node ID is stored. */
+    std::filesystem::path node_id_dir;
 
-    constexpr Config(node_t node_id_ = 0,
-                     std::uint16_t port_ = 0,
-                     std::size_t max_len = 0,
-                     OverflowPolicy policy = OverflowPolicy::DropNewest) noexcept
-        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy) {}
+    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
+                     OverflowPolicy policy = OverflowPolicy::DropNewest,
+                     std::filesystem::path dir_ = {}) noexcept
+        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy),
+          node_id_dir(std::move(dir_)) {}
 };
 
 /**
@@ -88,7 +91,8 @@ using RecvCallback = std::function<void(const Packet &)>;
  * Initializes dual-stack (IPv4/IPv6) UDP and TCP sockets and launches
  * background receiver threads. The function binds to `cfg.port` for both protocols.
  *
- * @param cfg Driver configuration including port, node ID, and overflow policy.
+ * @param cfg Driver configuration including port, node ID, overflow policy and
+ *            the directory for persisting the identifier.
  * @throws std::system_error on socket failure, bind failure, or thread launch failure.
  */
 void init(const Config &cfg);
@@ -131,9 +135,12 @@ void shutdown() noexcept;
  *
  * If a node ID was provided in Config, that value is returned.
  * Otherwise, the following procedure is used:
- *   1. Try reading `/etc/xinim/node_id`
+ *   1. Try reading `node_id_dir/node_id`
  *   2. Derive from first active non-loopback interface (MAC or IP)
  *   3. Fallback to hash of hostname
+ *
+ * When executed without root privileges and `node_id_dir` is empty, the
+ * directory defaults to `$XDG_STATE_HOME/xinim` or `$HOME/.xinim`.
  *
  * @return Stable integer node identifier (never 0 unless initialization failed).
  */
