@@ -1,12 +1,14 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP/TCP network driver interface for Lattice IPC.
+ * @brief UDP + TCP/IP + IPv4 + SNMP network driver interface built on
+ *        Berkeley sockets for Lattice IPC.
  *
- * This driver binds a local UDP port (and TCP listen socket, if enabled)
- * and provides asynchronous send/receive of framed, prefixed packets.
- * Each packet is prefixed with the sender's node ID and delivered over
- * UDP or a transient TCP connection based on peer configuration.
+ * This driver binds a local UDP port (with an optional TCP listening
+ * socket) and provides asynchronous send/receive of framed packets.
+ * Each frame is prefixed with the sender's node identifier and is
+ * transmitted over UDP or a transient TCP connection using standard
+ * Berkeley socket calls.
  *
  * Usage:
  *   1. net::init({ node_id, udp_port });
@@ -34,8 +36,8 @@ using node_t = int;
  * @brief In‐memory representation of a network packet.
  */
 struct Packet {
-    node_t                 src_node;  ///< Originating node ID
-    std::vector<std::byte> payload;   ///< Raw payload bytes (post‐prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Raw payload bytes (post‐prefix)
 };
 
 /**
@@ -73,13 +75,13 @@ enum class Protocol { UDP, TCP };
  * When proto==UDP, send() uses sendto() on the bound UDP socket.
  */
 struct Remote {
-    sockaddr_in addr;     ///< IPv4 socket address of the peer
-    Protocol     proto;   ///< Protocol to use (UDP or TCP)
-    int          tcp_fd{-1}; ///< TCP socket FD (if persistent; optional)
+    sockaddr_in addr; ///< IPv4 socket address of the peer
+    Protocol proto;   ///< Protocol to use (UDP or TCP)
+    int tcp_fd{-1};   ///< TCP socket FD (if persistent; optional)
 };
 
 /** Callback type invoked on packet arrival. */
-using RecvCallback = std::function<void(const Packet&)>;
+using RecvCallback = std::function<void(const Packet &)>;
 
 /**
  * @brief Initialize the network driver.
@@ -91,7 +93,7 @@ using RecvCallback = std::function<void(const Packet&)>;
  * @param cfg Local node configuration.
  * @throws std::system_error on socket/bind errors.
  */
-void init(const Config& cfg);
+void init(const Config &cfg);
 
 /**
  * @brief Register a remote peer for send().
@@ -101,9 +103,7 @@ void init(const Config& cfg);
  * @param port  UDP/TCP port on which peer listens.
  * @param proto Transport protocol to use.
  */
-void add_remote(node_t node,
-                const std::string& host,
-                uint16_t port,
+void add_remote(node_t node, const std::string &host, uint16_t port,
                 Protocol proto = Protocol::UDP);
 
 /**
@@ -124,11 +124,12 @@ void set_recv_callback(RecvCallback cb);
 void shutdown() noexcept;
 
 /**
- * @brief Retrieve the local node identifier.
+ * @brief Retrieve the configured or detected node identifier.
  *
- * Returns cfg.node_id if nonzero; otherwise calls getsockname()
- * on the bound UDP socket, converting the IPv4 address to host‐order.
- * Returns 0 if detection fails.
+ * Returns ``cfg.node_id`` when it is non‑zero.  Otherwise the function
+ * attempts to detect the identifier from the bound UDP socket via
+ * ``getsockname()``.  If detection fails a deterministic fallback based on
+ * the hostname is used.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
@@ -137,10 +138,11 @@ void shutdown() noexcept;
  *
  * The payload is prefixed with the local node identifier before being
  * transmitted to the remote host registered through ::add_remote. If the
- * destination is unknown the function returns ``false``.
- * Frames the packet as [ local_node() | payload... ] and transmits
- * via UDP or TCP based on the peer's Protocol.
- * Unknown node IDs are silently ignored.
+ * destination is unknown the function returns ``false``.  Frames the packet
+ * as ``[ local_node() | payload ... ]`` and immediately transmits it using
+ * the ``sendto()`` syscall over the UDP or TCP/IP/IPv4/SNMP stack provided by
+ * the Berkeley sockets implementation.  No additional queuing occurs and
+ * unknown node IDs are silently ignored.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
@@ -154,7 +156,7 @@ void shutdown() noexcept;
  * @param out Packet object to populate.
  * @return true if a packet was dequeued into out, false otherwise.
  */
-[[nodiscard]] bool recv(Packet& out);
+[[nodiscard]] bool recv(Packet &out);
 
 /**
  * @brief Clear all pending packets across every node.
