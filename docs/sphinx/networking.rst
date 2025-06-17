@@ -56,12 +56,13 @@ each message.
 
 Local Node Identification
 -------------------------
-:cpp:func:`net::local_node` first checks whether ``net::init`` supplied a
-non-zero ``node_id``.  If so, the value is returned directly.  Otherwise the
-driver enumerates network interfaces using ``getifaddrs(3)`` and hashes the
-first active, non-loopback MAC address or IPv4 address.  If interface
-enumeration fails, the host name is hashed instead.  The resulting value is
-non-zero and remains stable for the life of the process.
+:cpp:func:`net::local_node` first verifies that ``net::init`` provided a
+non-zero ``node_id``. If it did, the identifier is returned unchanged.
+Otherwise the driver calls ``getifaddrs()`` to list network interfaces and
+hashes the first active device that is not a loopback interface. Should this
+process fail, the driver falls back to hashing the local host name. The
+computed identifier is non-zero and remains constant for the lifetime of the
+process.
 Registering Remote Peers
 ------------------------
 A node communicates only with peers explicitly added using
