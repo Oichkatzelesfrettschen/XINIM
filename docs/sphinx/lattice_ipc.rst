@@ -93,9 +93,10 @@ Example
 
 Local Node Identification
 -------------------------
-The function ``net::local_node()`` returns, in order:
+The function `net::local_node()` returns, in order:
 1. the configured ``node_id`` if nonzero
-2. a hash of the first active, non-loopback network interface (MAC or IPv4)
+2. a deterministic hash of the first active non-loopback interface
+   (preferring the MAC address when available)
 3. a fallback hash of the local hostname
 
 Graph API
