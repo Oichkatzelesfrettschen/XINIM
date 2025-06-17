@@ -18,6 +18,20 @@ Dependencies
 Dependencies form a directed acyclic graph. The manager verifies new edges do not
 introduce cycles using an internal search routine.
 
+Unregistering Services
+----------------------
+
+Services may be removed from the manager with
+:cpp:func:`svc::ServiceManager::unregister_service`. Deregistration drops all
+metadata and removes any dependency edges referencing the service.
+
+Removing Dependencies
+---------------------
+
+Existing edges in the dependency graph can be erased using
+:cpp:func:`svc::ServiceManager::remove_dependency`. After removal the affected
+service no longer restarts when the former parent crashes.
+
 Automatic Restarts
 ------------------
 
