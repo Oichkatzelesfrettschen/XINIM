@@ -220,6 +220,19 @@ target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
 
 # -----------------------------------------------------------------------------
+# minix_test_net_driver_reconnect
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_reconnect
+  test_net_driver_reconnect.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_reconnect PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_reconnect PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_reconnect COMMAND minix_test_net_driver_reconnect)
+
+# -----------------------------------------------------------------------------
 # minix_test_net_driver_loopback
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver_loopback

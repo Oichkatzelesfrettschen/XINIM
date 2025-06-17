@@ -24,6 +24,7 @@
 
 #include <array>
 #include <atomic>
+#include <cerrno>
 #include <cstring>
 #include <deque>
 #include <filesystem>
@@ -71,6 +72,41 @@ static RecvCallback g_callback;
 static std::atomic<bool> g_running{false};
 /** Background receiver threads. */
 static std::jthread g_udp_thread, g_tcp_thread;
+
+/**
+ * @brief Determine whether a socket error indicates connection loss.
+ *
+ * @param err Error code from ``errno``.
+ * @return ``true`` if the connection should be re-established.
+ */
+[[nodiscard]] static bool connection_lost(int err) noexcept {
+    return err == EPIPE || err == ECONNRESET || err == ENOTCONN || err == ECONNABORTED;
+}
+
+/**
+ * @brief Establish or re-establish a TCP connection for a remote.
+ *
+ * Closes any existing socket stored in @p rem and attempts to create a new
+ * connection using the stored peer address.
+ *
+ * @param rem Remote peer information to update with the new socket.
+ * @throws std::system_error when socket creation or connect fails.
+ */
+static void reconnect_tcp(Remote &rem) {
+    if (rem.tcp_fd >= 0) {
+        ::close(rem.tcp_fd);
+    }
+    rem.tcp_fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
+    if (rem.tcp_fd < 0) {
+        throw std::system_error(errno, std::generic_category(), "net_driver: socket");
+    }
+    if (::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
+        int err = errno;
+        ::close(rem.tcp_fd);
+        rem.tcp_fd = -1;
+        throw std::system_error(err, std::generic_category(), "net_driver: connect");
+    }
+}
 
 /**
  * @brief Frame a payload by prefixing with the local node ID.
@@ -375,8 +411,8 @@ std::errc send(node_t node, std::span<const std::byte> data) {
 
     if (rem.proto == Protocol::TCP) {
         int fd = rem.tcp_fd;
-        bool tmp = false;
-        if (fd < 0) {
+        bool tmp = fd < 0;
+        if (tmp) {
             fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
             if (fd < 0) {
                 throw std::system_error(errno, std::generic_category(), "net_driver: socket");
@@ -386,19 +422,47 @@ std::errc send(node_t node, std::span<const std::byte> data) {
                 ::close(fd);
                 throw std::system_error(err, std::generic_category(), "net_driver: connect");
             }
-            tmp = true;
         }
-        std::size_t sent = 0;
-        while (sent < buf.size()) {
-            ssize_t n = ::send(fd, buf.data() + sent, buf.size() - sent, 0);
-            if (n < 0) {
+
+        auto transmit = [&](int sock) -> int {
+            std::size_t sent = 0;
+            while (sent < buf.size()) {
+                ssize_t n = ::send(sock, buf.data() + sent, buf.size() - sent, 0);
+                if (n < 0) {
+                    return errno;
+                }
+                sent += static_cast<std::size_t>(n);
+            }
+            return 0;
+        };
+
+        int err = transmit(fd);
+        if (err != 0 && !tmp && connection_lost(err)) {
+            try {
+                reconnect_tcp(rem);
+                {
+                    std::lock_guard lock{g_remotes_mutex};
+                    auto it = g_remotes.find(node);
+                    if (it != g_remotes.end()) {
+                        it->second.tcp_fd = rem.tcp_fd;
+                    }
+                }
+                err = transmit(rem.tcp_fd);
+            } catch (...) {
                 if (tmp) {
                     ::close(fd);
                 }
-                throw std::system_error(errno, std::generic_category(), "net_driver: send");
+                throw;
             }
-            sent += static_cast<std::size_t>(n);
         }
+
+        if (err != 0) {
+            if (tmp) {
+                ::close(fd);
+            }
+            throw std::system_error(err, std::generic_category(), "net_driver: send");
+        }
+
         if (tmp) {
             ::close(fd);
         }
