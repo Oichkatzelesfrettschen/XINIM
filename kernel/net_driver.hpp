@@ -34,8 +34,8 @@ using node_t = int;
  * @brief In‐memory representation of a network packet.
  */
 struct Packet {
-    node_t                 src_node;  ///< Originating node ID
-    std::vector<std::byte> payload;   ///< Raw payload bytes (post‐prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Raw payload bytes (post‐prefix)
 };
 
 /**
@@ -73,13 +73,13 @@ enum class Protocol { UDP, TCP };
  * When proto==UDP, send() uses sendto() on the bound UDP socket.
  */
 struct Remote {
-    sockaddr_in addr;     ///< IPv4 socket address of the peer
-    Protocol     proto;   ///< Protocol to use (UDP or TCP)
-    int          tcp_fd{-1}; ///< TCP socket FD (if persistent; optional)
+    sockaddr_in addr; ///< IPv4 socket address of the peer
+    Protocol proto;   ///< Protocol to use (UDP or TCP)
+    int tcp_fd{-1};   ///< TCP socket FD (if persistent; optional)
 };
 
 /** Callback type invoked on packet arrival. */
-using RecvCallback = std::function<void(const Packet&)>;
+using RecvCallback = std::function<void(const Packet &)>;
 
 /**
  * @brief Initialize the network driver.
@@ -91,7 +91,7 @@ using RecvCallback = std::function<void(const Packet&)>;
  * @param cfg Local node configuration.
  * @throws std::system_error on socket/bind errors.
  */
-void init(const Config& cfg);
+void init(const Config &cfg);
 
 /**
  * @brief Register a remote peer for send().
@@ -101,9 +101,7 @@ void init(const Config& cfg);
  * @param port  UDP/TCP port on which peer listens.
  * @param proto Transport protocol to use.
  */
-void add_remote(node_t node,
-                const std::string& host,
-                uint16_t port,
+void add_remote(node_t node, const std::string &host, uint16_t port,
                 Protocol proto = Protocol::UDP);
 
 /**
@@ -126,9 +124,10 @@ void shutdown() noexcept;
 /**
  * @brief Retrieve the local node identifier.
  *
- * Returns cfg.node_id if nonzero; otherwise calls getsockname()
- * on the bound UDP socket, converting the IPv4 address to host‐order.
- * Returns 0 if detection fails.
+ * The node identifier is established during ::init. If ``Config::node_id`` is
+ * zero, the driver hashes the MAC address of the primary network interface, or
+ * its IPv4 address when the MAC cannot be read. A hashed host name is used as a
+ * final fallback. Providing a non-zero ``node_id`` bypasses the detection.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
@@ -154,7 +153,7 @@ void shutdown() noexcept;
  * @param out Packet object to populate.
  * @return true if a packet was dequeued into out, false otherwise.
  */
-[[nodiscard]] bool recv(Packet& out);
+[[nodiscard]] bool recv(Packet &out);
 
 /**
  * @brief Clear all pending packets across every node.

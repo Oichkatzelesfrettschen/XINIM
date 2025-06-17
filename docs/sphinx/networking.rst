@@ -41,9 +41,11 @@ API Overview
 
 Local Node Identification
 -------------------------
-:cpp:func:`net::local_node` opens its UDP socket (via :cpp:func:`net::init`),  
-calls ``getsockname()``, and returns the bound IPv4 address in host byte order  
-as a stable ``node_t`` identifier.
+When :cpp:func:`net::init` is invoked with ``Config::node_id`` set to ``0`` the
+driver hashes the MAC address of the primary network interface.  If that fails
+the IPv4 address is hashed instead.  This derived value becomes the identifier
+returned by :cpp:func:`net::local_node`.  Passing a non-zero ``node_id``
+overrides detection entirely.
 
 Registering Remote Peers
 ------------------------
@@ -62,7 +64,7 @@ Typical Configuration Steps
 
    .. code-block:: cpp
 
-      net::init({ local_node_id, udp_port });
+   net::init({ 0, udp_port });  // derive node_id automatically
 
 2. **Register** remote peers:
 

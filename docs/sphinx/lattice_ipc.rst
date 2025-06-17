@@ -60,10 +60,12 @@ Configuration (`net::Config`):
 
 Local Node Identification
 -------------------------
-:cpp:func:`net::local_node` returns in order:
-1. configured ``node_id`` if nonzero  
-2. IP address bound to UDP socket via ``getsockname``  
-3. Fallback to hashed hostname  
+:cpp:func:`net::local_node` returns the identifier chosen during
+:cpp:func:`net::init`.  Detection proceeds in order:
+1. configured ``node_id`` if nonzero
+2. hash of the primary interface's MAC address
+3. hash of the interface's IPv4 address
+4. hashed hostname
 
 Graph API
 ---------
