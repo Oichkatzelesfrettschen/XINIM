@@ -39,6 +39,16 @@ API Overview
 .. doxygenfunction:: net::shutdown
    :project: XINIM
 
+Node Identity
+-------------
+Every node assigns itself a numeric ``node_t`` identifier during
+:cpp:func:`net::init`.  The configuration structure passed to
+``net::init`` specifies both the local node ID and the UDP port to bind.
+Once initialized, :cpp:func:`net::local_node()` returns this identifier
+and it becomes the source ID for all outgoing packets.  Peers use this
+value to authenticate who sent each message.
+
+
 Local Node Identification
 -------------------------
 :cpp:func:`net::local_node` opens its UDP socket (via :cpp:func:`net::init`),  
@@ -93,6 +103,25 @@ Typical Configuration Steps
    .. code-block:: cpp
 
       net::shutdown();
+
+Simple Registration Example
+---------------------------
+This brief code sample demonstrates two nodes registering each other and
+exchanging a greeting over UDP.
+
+.. code-block:: cpp
+
+   // node A initialization
+   net::init({1, 12000});  // bind port and assign ID 1
+   net::add_remote(2, "127.0.0.1", 12001, /*tcp=*/false);  // register node B
+   net::send(2, std::array<std::byte,3>{'h','i','!'});  // greet B
+
+   // node B initialization
+   net::init({2, 12001});  // bind port and assign ID 2
+   net::add_remote(1, "127.0.0.1", 12000, /*tcp=*/false);  // register node A
+   net::Packet pkt{};  // buffer for incoming packet
+   while (!net::recv(pkt)) { /* wait for greeting */ }
+   net::send(1, std::array<std::byte,3>{'o','k','!'});  // reply to A
 
 Example: Two‐Node Exchange
 --------------------------
