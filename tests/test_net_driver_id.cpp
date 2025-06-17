@@ -143,9 +143,9 @@ namespace {
  */
 int main() {
     const auto expect = compute_expected();
-    net::init({0, 15000});
-    const auto actual = net::local_node();
+    net::driver.init({0, 15000});
+    const auto actual = net::driver.local_node();
     assert(actual == expect);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }

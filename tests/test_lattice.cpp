@@ -23,11 +23,11 @@ int main() {
     msg.m_type = 42;
 
     assert(lattice_connect(1, 2) == OK);
-    assert(g_graph.find(1, 2, net::local_node()) != nullptr);
+    assert(g_graph.find(1, 2, net::driver.local_node()) != nullptr);
 
     // Destination not listening -> message enqueued
     assert(lattice_send(1, 2, msg) == OK);
-    auto *ch = g_graph.find(1, 2, net::local_node());
+    auto *ch = g_graph.find(1, 2, net::driver.local_node());
     assert(ch && ch->queue.size() == 1);
 
     message out{};

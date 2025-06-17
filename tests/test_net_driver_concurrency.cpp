@@ -19,16 +19,16 @@ int main() {
     constexpr uint16_t PORT = 16550;
     constexpr int THREADS = 4;
 
-    net::init(net::Config{SELF, PORT});
+    net::driver.init(net::Config{SELF, PORT});
 
     std::atomic<int> received{0};
-    net::set_recv_callback([&](const net::Packet &) { received.fetch_add(1); });
+    net::driver.set_recv_callback([&](const net::Packet &) { received.fetch_add(1); });
 
     auto worker = [&](int idx) {
         net::node_t node = static_cast<net::node_t>(idx + 1);
-        net::add_remote(node, "127.0.0.1", PORT);
+        net::driver.add_remote(node, "127.0.0.1", PORT);
         std::array<std::byte, 1> payload{std::byte{static_cast<unsigned char>(idx)}};
-        assert(net::send(node, payload) == std::errc{});
+        assert(net::driver.send(node, payload) == std::errc{});
     };
 
     std::vector<std::thread> threads;
@@ -46,6 +46,6 @@ int main() {
 
     assert(received.load() == THREADS);
 
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }

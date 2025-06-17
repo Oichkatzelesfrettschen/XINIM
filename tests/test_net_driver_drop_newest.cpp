@@ -32,13 +32,13 @@ constexpr std::uint16_t CHILD_PORT = 14201;
  * @return Exit status from the child.
  */
 int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropNewest});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+    net::driver.init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropNewest});
+    net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};
     constexpr auto timeout = 5s;
     auto start = std::chrono::steady_clock::now();
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         if (std::chrono::steady_clock::now() - start > timeout) {
             std::cerr << "Timeout waiting for child readiness." << std::endl;
             std::exit(EXIT_FAILURE);
@@ -47,12 +47,12 @@ int parent_proc(pid_t child) {
     }
 
     std::array<std::byte, 1> start_pkt{std::byte{0}};
-    assert(net::send(CHILD_NODE, start_pkt) == std::errc{});
+    assert(net::driver.send(CHILD_NODE, start_pkt) == std::errc{});
 
     std::this_thread::sleep_for(100ms);
 
     std::vector<std::byte> received{};
-    while (net::recv(pkt)) {
+    while (net::driver.recv(pkt)) {
         if (!pkt.payload.empty()) {
             received.push_back(pkt.payload.front());
         }
@@ -63,7 +63,7 @@ int parent_proc(pid_t child) {
 
     int status = 0;
     waitpid(child, &status, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return status;
 }
 
@@ -76,21 +76,21 @@ int parent_proc(pid_t child) {
  * @return Always zero on success.
  */
 int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
+    net::driver.init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     net::Packet pkt{};
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
 
     std::array<std::byte, 1> one{std::byte{1}};
     std::array<std::byte, 1> two{std::byte{2}};
-    assert(net::send(PARENT_NODE, one) == std::errc{});
-    assert(net::send(PARENT_NODE, two) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, one) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, two) == std::errc{});
 
     std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 

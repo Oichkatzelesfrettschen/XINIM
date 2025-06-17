@@ -27,24 +27,24 @@ constexpr uint16_t TCP_CHILD_PORT = 17003;
  * @brief Child process for the UDP phase.
  */
 int udp_child() {
-    net::init(net::Config{CHILD_NODE, UDP_CHILD_PORT});
-    net::add_remote(PARENT_NODE, "::1", UDP_PARENT_PORT, net::Protocol::UDP);
+    net::driver.init(net::Config{CHILD_NODE, UDP_CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "::1", UDP_PARENT_PORT, net::Protocol::UDP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
-    assert(net::send(PARENT_NODE, ready) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, ready) == std::errc{});
 
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == PARENT_NODE);
     assert(pkt.payload.size() == 3);
 
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    assert(net::send(PARENT_NODE, reply) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, reply) == std::errc{});
 
     std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 
@@ -52,28 +52,28 @@ int udp_child() {
  * @brief Parent process for the UDP phase.
  */
 int udp_parent(pid_t child) {
-    net::init(net::Config{PARENT_NODE, UDP_PARENT_PORT});
-    net::add_remote(CHILD_NODE, "::1", UDP_CHILD_PORT, net::Protocol::UDP);
+    net::driver.init(net::Config{PARENT_NODE, UDP_PARENT_PORT});
+    net::driver.add_remote(CHILD_NODE, "::1", UDP_CHILD_PORT, net::Protocol::UDP);
 
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == CHILD_NODE);
 
     std::array<std::byte, 3> payload{std::byte{1}, std::byte{2}, std::byte{3}};
-    assert(net::send(CHILD_NODE, payload) == std::errc{});
+    assert(net::driver.send(CHILD_NODE, payload) == std::errc{});
 
     do {
         std::this_thread::sleep_for(10ms);
-    } while (!net::recv(pkt));
+    } while (!net::driver.recv(pkt));
 
     assert(pkt.src_node == CHILD_NODE);
     assert(pkt.payload.size() == payload.size());
 
     int status = 0;
     waitpid(child, &status, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return status;
 }
 
@@ -81,24 +81,24 @@ int udp_parent(pid_t child) {
  * @brief Child process for the TCP phase.
  */
 int tcp_child() {
-    net::init(net::Config{CHILD_NODE, TCP_CHILD_PORT});
-    net::add_remote(PARENT_NODE, "::1", TCP_PARENT_PORT, net::Protocol::TCP);
+    net::driver.init(net::Config{CHILD_NODE, TCP_CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "::1", TCP_PARENT_PORT, net::Protocol::TCP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
-    assert(net::send(PARENT_NODE, ready) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, ready) == std::errc{});
 
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == PARENT_NODE);
     assert(pkt.payload.size() == 3);
 
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    assert(net::send(PARENT_NODE, reply) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, reply) == std::errc{});
 
     std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 
@@ -106,28 +106,28 @@ int tcp_child() {
  * @brief Parent process for the TCP phase.
  */
 int tcp_parent(pid_t child) {
-    net::init(net::Config{PARENT_NODE, TCP_PARENT_PORT});
-    net::add_remote(CHILD_NODE, "::1", TCP_CHILD_PORT, net::Protocol::TCP);
+    net::driver.init(net::Config{PARENT_NODE, TCP_PARENT_PORT});
+    net::driver.add_remote(CHILD_NODE, "::1", TCP_CHILD_PORT, net::Protocol::TCP);
 
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == CHILD_NODE);
 
     std::array<std::byte, 3> payload{std::byte{1}, std::byte{2}, std::byte{3}};
-    assert(net::send(CHILD_NODE, payload) == std::errc{});
+    assert(net::driver.send(CHILD_NODE, payload) == std::errc{});
 
     do {
         std::this_thread::sleep_for(10ms);
-    } while (!net::recv(pkt));
+    } while (!net::driver.recv(pkt));
 
     assert(pkt.src_node == CHILD_NODE);
     assert(pkt.payload.size() == payload.size());
 
     int status = 0;
     waitpid(child, &status, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return status;
 }
 

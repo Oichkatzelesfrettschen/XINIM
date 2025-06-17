@@ -4,15 +4,15 @@ Networking Driver
 The networking driver transports Lattice IPC packets between nodes over UDP or, optionally, TCP.  Each node:
 
 - **Binds** to a local UDP port (and a TCP listen socket if TCP‐enabled).  
-- **Registers** peers via :cpp:func:`net::add_remote`.
+- **Registers** peers via :cpp:func:`net::Driver::add_remote`.
 - **Spawns** background threads to receive UDP datagrams and accept TCP connections.  
 - **Queues** incoming packets internally and invokes an optional callback.  
-- **Delivers** packets via :cpp:func:`net::recv`, or via the registered callback.  
-- **Shuts down** cleanly with :cpp:func:`net::shutdown`.
+- **Delivers** packets via :cpp:func:`net::Driver::recv`, or via the registered callback.
+- **Shuts down** cleanly with :cpp:func:`net::Driver::shutdown`.
 
 When ``Config::node_id`` is set to ``0`` the driver derives a unique identifier
 by hashing the primary network interface.  This automatically detected value is
-returned by :cpp:func:`net::local_node` unless a different identifier is
+returned by :cpp:func:`net::Driver::local_node` unless a different identifier is
 provided in the configuration.
 
 API Overview
@@ -23,31 +23,31 @@ API Overview
 .. doxygentypedef:: net::RecvCallback
    :project: XINIM
 
-.. doxygenfunction:: net::init
+.. doxygenfunction:: net::Driver::init
    :project: XINIM
 
-.. doxygenfunction:: net::add_remote
+.. doxygenfunction:: net::Driver::add_remote
    :project: XINIM
 
-.. doxygenfunction:: net::local_node
+.. doxygenfunction:: net::Driver::local_node
    :project: XINIM
 
-.. doxygenfunction:: net::set_recv_callback
+.. doxygenfunction:: net::Driver::set_recv_callback
    :project: XINIM
 
-.. doxygenfunction:: net::send
+.. doxygenfunction:: net::Driver::send
    :project: XINIM
 
-.. doxygenfunction:: net::recv
+.. doxygenfunction:: net::Driver::recv
    :project: XINIM
 
-.. doxygenfunction:: net::shutdown
+.. doxygenfunction:: net::Driver::shutdown
    :project: XINIM
 
 Node Identity
 -------------
 Each node assigns itself a numeric ``node_t`` identifier when
-:cpp:func:`net::init` executes.  The ``node_id`` and UDP port are
+:cpp:func:`net::Driver::init` executes.  The ``node_id`` and UDP port are
 provided via the configuration structure.  After initialization,
 :cpp:func:`net::local_node` reports this identifier and all outgoing
 packets carry it as the source ID so peers can validate who originated
@@ -56,7 +56,7 @@ each message.
 
 Local Node Identification
 -------------------------
-:cpp:func:`net::local_node` first verifies that ``net::init`` provided a
+:cpp:func:`net::Driver::local_node` first verifies that ``net::Driver::init`` provided a
 non-zero ``node_id``. If it did, the identifier is returned unchanged.
 Otherwise the driver enumerates network interfaces using platform-specific
 APIs—``getifaddrs`` on Linux and the BSD family or ``GetAdaptersAddresses`` on
@@ -64,7 +64,7 @@ Windows—and hashes the first active device that is not a loopback interface.
 Should this process fail, the driver falls back to hashing the local host name.
 The computed identifier is non-zero and remains constant for the lifetime of
 the process. When the identifier is computed it is written to
-``/etc/xinim/node_id`` so that subsequent invocations of :cpp:func:`net::init`
+``/etc/xinim/node_id`` so that subsequent invocations of :cpp:func:`net::Driver::init`
 reuse the same value.
 
 Implementation Steps
@@ -90,9 +90,9 @@ The internal logic of :cpp:func:`net::local_node` unfolds in these steps:
 Registering Remote Peers
 ------------------------
 A node communicates only with peers explicitly added using
-:cpp:func:`net::add_remote`::
+:cpp:func:`net::Driver::add_remote`::
 
-   net::add_remote(node_id, "hostname-or-ip", port, /*tcp=*/false);
+   net::driver.add_remote(node_id, "hostname-or-ip", port, /*tcp=*/false);
 
 The ``node_id`` uniquely identifies the peer.  The ``host`` and ``port``
 parameters supply its address. ``host`` accepts IPv4 or IPv6 literals or a
@@ -110,19 +110,19 @@ Typical Configuration Steps
 
    .. code-block:: cpp
 
-      net::init({ node_id, udp_port });
+      net::driver.init({ node_id, udp_port });
 
 2. **Register** remote peers:
 
    .. code-block:: cpp
 
-      net::add_remote(remote_node, "192.168.1.5", 15000, /*tcp=*/false);
+      net::driver.add_remote(remote_node, "192.168.1.5", 15000, /*tcp=*/false);
 
 3. **(Optional)** Install a receive callback:
 
    .. code-block:: cpp
 
-      net::set_recv_callback([](const net::Packet &pkt){
+      net::driver.set_recv_callback([](const net::Packet &pkt){
           // handle incoming packet
       });
 
@@ -130,9 +130,9 @@ Typical Configuration Steps
 
    .. code-block:: cpp
 
-      net::send(dest_node, payload_bytes);
+      net::driver.send(dest_node, payload_bytes);
       net::Packet pkt;
-      if (net::recv(pkt)) {
+      if (net::driver.recv(pkt)) {
           // process pkt.payload
       }
 
@@ -140,7 +140,7 @@ Typical Configuration Steps
 
    .. code-block:: cpp
 
-      net::shutdown();
+      net::driver.shutdown();
 
 Simple Registration Example
 ---------------------------
@@ -150,18 +150,18 @@ exchanging a greeting over UDP.
 .. code-block:: cpp
 
    // node A initialization
-   net::init({1, 12000});  // bind port and assign ID 1
-   net::add_remote(2, "127.0.0.1", 12001, /*tcp=*/false);  // register node B
-   net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
-   net::send(2, std::array<std::byte,3>{'h','i','!'});  // greet B
+   net::driver.init({1, 12000});  // bind port and assign ID 1
+   net::driver.add_remote(2, "127.0.0.1", 12001, /*tcp=*/false);  // register node B
+   net::driver.add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
+   net::driver.send(2, std::array<std::byte,3>{'h','i','!'});  // greet B
 
    // node B initialization
-   net::init({2, 12001});  // bind port and assign ID 2
-   net::add_remote(1, "127.0.0.1", 12000, /*tcp=*/false);  // register node A
-   net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
+   net::driver.init({2, 12001});  // bind port and assign ID 2
+   net::driver.add_remote(1, "127.0.0.1", 12000, /*tcp=*/false);  // register node A
+   net::driver.add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::Packet pkt{};  // buffer for incoming packet
-   while (!net::recv(pkt)) { /* wait for greeting */ }
-   net::send(1, std::array<std::byte,3>{'o','k','!'});  // reply to A
+   while (!net::driver.recv(pkt)) { /* wait for greeting */ }
+   net::driver.send(1, std::array<std::byte,3>{'o','k','!'});  // reply to A
 
 Example: Two‐Node Exchange
 --------------------------
@@ -192,8 +192,8 @@ process that exchange a handshake. The child echoes its
 
    // Child waits for a handshake then replies with its node ID
    int child_proc() {
-       net::init({CHILD_NODE, CHILD_PORT});
-       net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
+       net::driver.init({CHILD_NODE, CHILD_PORT});
+       net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
        g_graph = Graph{};
        lattice_connect(2, 1, PARENT_NODE);
 
@@ -205,16 +205,16 @@ process that exchange a handshake. The child echoes its
        }
 
        message reply{};
-       reply.m_type = net::local_node();
+       reply.m_type = net::driver.local_node();
        lattice_send(2, 1, reply);
-       net::shutdown();
+       net::driver.shutdown();
        return 0;
    }
 
    // Parent sends the handshake and verifies the response
    int parent_proc(pid_t child) {
-       net::init({PARENT_NODE, PARENT_PORT});
-       net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+       net::driver.init({PARENT_NODE, PARENT_PORT});
+       net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
        g_graph = Graph{};
        lattice_connect(1, 2, CHILD_NODE);
 
@@ -229,9 +229,9 @@ process that exchange a handshake. The child echoes its
            std::this_thread::sleep_for(10ms);
        }
 
-       assert(reply.m_type != net::local_node());
+       assert(reply.m_type != net::driver.local_node());
        waitpid(child, nullptr, 0);
-       net::shutdown();
+       net::driver.shutdown();
        return 0;
    }
 

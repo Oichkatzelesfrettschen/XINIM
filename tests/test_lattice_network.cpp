@@ -23,8 +23,8 @@ static constexpr uint16_t CHILD_PORT = 12001;
 
 /** Parent side logic sending a message and waiting for a reply. */
 static int parent_proc(pid_t child) {
-    net::init({PARENT_NODE, PARENT_PORT});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+    net::driver.init({PARENT_NODE, PARENT_PORT});
+    net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     g_graph = Graph{};
     lattice_connect(1, 2, CHILD_NODE);
@@ -45,14 +45,14 @@ static int parent_proc(pid_t child) {
 
     int status = 0;
     waitpid(child, &status, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return status;
 }
 
 /** Child process responding to the parent's message. */
 static int child_proc() {
-    net::init({CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
+    net::driver.init({CHILD_NODE, CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     g_graph = Graph{};
     lattice_connect(2, 1, PARENT_NODE);
@@ -72,7 +72,7 @@ static int child_proc() {
     assert(lattice_send(2, 1, ack) == OK);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 

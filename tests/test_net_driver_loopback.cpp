@@ -17,14 +17,14 @@ int main() {
     constexpr uint16_t PORT = 16050;
 
     net::Config cfg{SELF, PORT};
-    net::init(cfg);
-    net::add_remote(SELF, "127.0.0.1", PORT);
+    net::driver.init(cfg);
+    net::driver.add_remote(SELF, "127.0.0.1", PORT);
 
     std::array<std::byte, 2> payload{std::byte{0xAA}, std::byte{0x55}};
-    assert(net::send(SELF, payload) == std::errc{});
+    assert(net::driver.send(SELF, payload) == std::errc{});
 
     net::Packet pkt{};
-    for (int i = 0; i < 100 && !net::recv(pkt); ++i) {
+    for (int i = 0; i < 100 && !net::driver.recv(pkt); ++i) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == SELF);
@@ -32,6 +32,6 @@ int main() {
     assert(pkt.payload[0] == payload[0]);
     assert(pkt.payload[1] == payload[1]);
 
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }

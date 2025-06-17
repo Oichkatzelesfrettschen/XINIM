@@ -22,29 +22,29 @@ static constexpr uint16_t CHILD_PORT = 14001;
 /** Parent process: verifies unknown‐peer send fails, then exchanges payloads. */
 int parent_proc(pid_t child_pid) {
     // Initialize UDP driver for parent
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::driver.init(net::Config{PARENT_NODE, PARENT_PORT});
 
     // Unknown destination should be rejected
     std::array<std::byte, 1> bogus{std::byte{0}};
-    assert(net::send(99, bogus) == std::errc::host_unreachable);
+    assert(net::driver.send(99, bogus) == std::errc::host_unreachable);
 
     // Register child as UDP peer
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::UDP);
-    assert(net::local_node() != 0);
+    net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::UDP);
+    assert(net::driver.local_node() != 0);
 
     // Wait for child's readiness signal
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == CHILD_NODE);
 
     // Send a 3-byte message
     std::array<std::byte, 3> data{std::byte{1}, std::byte{2}, std::byte{3}};
-    assert(net::send(CHILD_NODE, data) == std::errc{});
+    assert(net::driver.send(CHILD_NODE, data) == std::errc{});
 
     // Await and verify child's reply
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == CHILD_NODE);
@@ -55,29 +55,29 @@ int parent_proc(pid_t child_pid) {
 
     // Clean up
     waitpid(child_pid, nullptr, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 
 /** Child process: signals readiness, echoes back a 3-byte reply. */
 int child_proc() {
     // Initialize UDP driver for child
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::driver.init(net::Config{CHILD_NODE, CHILD_PORT});
 
     // Unknown destination should be rejected
     std::array<std::byte, 1> bogus{std::byte{0}};
-    assert(net::send(77, bogus) == std::errc::host_unreachable);
+    assert(net::driver.send(77, bogus) == std::errc::host_unreachable);
 
     // Register parent as UDP peer
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::UDP);
+    net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::UDP);
 
     // Signal readiness to parent
     std::array<std::byte, 1> ready{std::byte{0}};
-    assert(net::send(PARENT_NODE, ready) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, ready) == std::errc{});
 
     // Receive parent's message
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == PARENT_NODE);
@@ -85,11 +85,11 @@ int child_proc() {
 
     // Send back reply [9,8,7]
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    assert(net::send(PARENT_NODE, reply) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, reply) == std::errc{});
 
     // Give parent time to receive
     std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 

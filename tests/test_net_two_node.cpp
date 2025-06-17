@@ -4,11 +4,11 @@
  *        separate net::init configurations.
  *
  * Each node binds to a distinct UDP port. The parent sends a handshake
- * message to the child and receives the child's net::local_node()
+ * message to the child and receives the child's net::driver.local_node()
  * identifier in response. The test ensures the two processes report
  * different node IDs and demonstrates the minimal setup steps:
  * 1. Initialize networking with net::init providing node ID and port.
- * 2. Register the peer with net::add_remote.
+ * 2. Register the peer with net::driver.add_remote.
  * 3. Establish a channel via lattice_connect.
  * 4. Exchange messages while polling the network with poll_network().
  */
@@ -39,13 +39,13 @@ static constexpr std::uint16_t CHILD_PORT = 13001;
  * @brief Child process logic responding with its node identifier.
  *
  * The child waits for a handshake from the parent, then replies with
- * its net::local_node() value encoded in the message type.
+ * its net::driver.local_node() value encoded in the message type.
  *
  * @return Process exit code used by the parent.
  */
 static int child_proc() {
-    net::init({CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
+    net::driver.init({CHILD_NODE, CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     g_graph = Graph{};
     lattice_connect(2, 1, PARENT_NODE);
@@ -61,11 +61,11 @@ static int child_proc() {
     assert(incoming.m_type == 0x1234);
 
     message reply{};
-    reply.m_type = net::local_node();
+    reply.m_type = net::driver.local_node();
     assert(lattice_send(2, 1, reply) == OK);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 
@@ -76,8 +76,8 @@ static int child_proc() {
  * @return Status code returned from waitpid.
  */
 static int parent_proc(pid_t child) {
-    net::init({PARENT_NODE, PARENT_PORT});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+    net::driver.init({PARENT_NODE, PARENT_PORT});
+    net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     g_graph = Graph{};
     lattice_connect(1, 2, CHILD_NODE);
@@ -95,13 +95,13 @@ static int parent_proc(pid_t child) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 
-    auto parent_id = net::local_node();
+    auto parent_id = net::driver.local_node();
     auto child_id = reply.m_type;
     assert(parent_id != child_id);
 
     int status = 0;
     waitpid(child, &status, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return status;
 }
 

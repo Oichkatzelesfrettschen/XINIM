@@ -28,38 +28,23 @@
 #include <vector>
 
 namespace net {
-namespace {
 
 constexpr char NODE_ID_FILE[] = "/etc/xinim/node_id";
 
-static Config g_cfg{};
-static int g_udp_sock = -1;
-static int g_tcp_listen = -1;
+Driver driver{};
 
-struct Remote {
-    sockaddr_storage addr{};
-    socklen_t addr_len{};
-    Protocol proto{};
-    int tcp_fd = -1;
-};
+Driver::~Driver() { shutdown(); }
 
-static std::unordered_map<node_t, Remote> g_remotes;
-static std::mutex g_remotes_mutex;
-
-static std::deque<Packet> g_queue;
-static std::mutex g_mutex;
-static RecvCallback g_callback;
-static std::atomic<bool> g_running{false};
-static std::jthread g_udp_thread, g_tcp_thread;
-
-[[nodiscard]] static bool connection_lost(int err) noexcept {
+[[nodiscard]] bool Driver::connection_lost(int err) noexcept {
     return err == EPIPE || err == ECONNRESET || err == ENOTCONN || err == ECONNABORTED;
 }
 
-static void reconnect_tcp(Remote &rem) {
-    if (rem.tcp_fd >= 0) ::close(rem.tcp_fd);
+void Driver::reconnect_tcp(Remote &rem) {
+    if (rem.tcp_fd >= 0)
+        ::close(rem.tcp_fd);
     rem.tcp_fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
-    if (rem.tcp_fd < 0) throw std::system_error(errno, std::generic_category(), "net_driver: socket");
+    if (rem.tcp_fd < 0)
+        throw std::system_error(errno, std::generic_category(), "net_driver: socket");
     if (::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
         int err = errno;
         ::close(rem.tcp_fd);
@@ -68,7 +53,7 @@ static void reconnect_tcp(Remote &rem) {
     }
 }
 
-[[nodiscard]] static std::vector<std::byte> frame_payload(std::span<const std::byte> data) {
+[[nodiscard]] std::vector<std::byte> Driver::frame_payload(std::span<const std::byte> data) {
     node_t nid = local_node();
     std::vector<std::byte> buf(sizeof(nid) + data.size());
     std::memcpy(buf.data(), &nid, sizeof(nid));
@@ -76,45 +61,50 @@ static void reconnect_tcp(Remote &rem) {
     return buf;
 }
 
-static void enqueue_packet(Packet &&pkt) {
-    std::lock_guard lock{g_mutex};
-    if (g_cfg.max_queue_length > 0 && g_queue.size() >= g_cfg.max_queue_length) {
-        if (g_cfg.overflow == OverflowPolicy::DropNewest) return;
-        g_queue.pop_front(); // DropOldest
+void Driver::enqueue_packet(Packet &&pkt) {
+    std::lock_guard lock{mutex_};
+    if (cfg_.max_queue_length > 0 && queue_.size() >= cfg_.max_queue_length) {
+        if (cfg_.overflow == OverflowPolicy::DropNewest)
+            return;
+        queue_.pop_front();
     }
-    g_queue.push_back(std::move(pkt));
-    if (g_callback) g_callback(g_queue.back());
+    queue_.push_back(std::move(pkt));
+    if (callback_)
+        callback_(queue_.back());
 }
 
-static void udp_recv_loop() {
+void Driver::udp_recv_loop() {
     std::array<std::byte, 2048> buf;
-    while (g_running.load(std::memory_order_relaxed)) {
+    while (running_.load(std::memory_order_relaxed)) {
         sockaddr_storage peer{};
         socklen_t len = sizeof(peer);
-        ssize_t n = ::recvfrom(g_udp_sock, buf.data(), buf.size(), 0,
+        ssize_t n = ::recvfrom(udp_sock_, buf.data(), buf.size(), 0,
                                reinterpret_cast<sockaddr *>(&peer), &len);
-        if (n <= static_cast<ssize_t>(sizeof(node_t))) continue;
+        if (n <= static_cast<ssize_t>(sizeof(node_t)))
+            continue;
 
-        Packet pkt;
+        Packet pkt{};
         std::memcpy(&pkt.src_node, buf.data(), sizeof(pkt.src_node));
         pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n);
         enqueue_packet(std::move(pkt));
     }
 }
 
-static void tcp_accept_loop() {
-    ::listen(g_tcp_listen, SOMAXCONN);
-    while (g_running.load(std::memory_order_relaxed)) {
+void Driver::tcp_accept_loop() {
+    ::listen(tcp_listen_, SOMAXCONN);
+    while (running_.load(std::memory_order_relaxed)) {
         sockaddr_storage peer{};
         socklen_t len = sizeof(peer);
-        int client = ::accept(g_tcp_listen, reinterpret_cast<sockaddr *>(&peer), &len);
-        if (client < 0) continue;
+        int client = ::accept(tcp_listen_, reinterpret_cast<sockaddr *>(&peer), &len);
+        if (client < 0)
+            continue;
 
         std::array<std::byte, 2048> buf;
         while (true) {
             ssize_t n = ::recv(client, buf.data(), buf.size(), 0);
-            if (n <= static_cast<ssize_t>(sizeof(node_t))) break;
-            Packet pkt;
+            if (n <= static_cast<ssize_t>(sizeof(node_t)))
+                break;
+            Packet pkt{};
             std::memcpy(&pkt.src_node, buf.data(), sizeof(pkt.src_node));
             pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n);
             enqueue_packet(std::move(pkt));
@@ -123,60 +113,72 @@ static void tcp_accept_loop() {
     }
 }
 
-} // anonymous namespace
+void Driver::init(const Config &cfg) {
+    cfg_ = cfg;
 
-void init(const Config &cfg) {
-    g_cfg = cfg;
-
-    if (g_cfg.node_id == 0) {
+    if (cfg_.node_id == 0) {
         std::ifstream in{NODE_ID_FILE};
-        if (in) in >> g_cfg.node_id;
+        if (in)
+            in >> cfg_.node_id;
     }
 
-    g_udp_sock = ::socket(AF_INET6, SOCK_DGRAM, 0);
-    if (g_udp_sock < 0) throw std::system_error(errno, std::generic_category(), "UDP socket");
+    udp_sock_ = ::socket(AF_INET6, SOCK_DGRAM, 0);
+    if (udp_sock_ < 0)
+        throw std::system_error(errno, std::generic_category(), "UDP socket");
     int off = 0;
-    ::setsockopt(g_udp_sock, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
+    ::setsockopt(udp_sock_, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
     sockaddr_in6 addr6{};
     addr6.sin6_family = AF_INET6;
     addr6.sin6_port = htons(cfg.port);
     addr6.sin6_addr = in6addr_any;
-    if (::bind(g_udp_sock, reinterpret_cast<sockaddr *>(&addr6), sizeof(addr6)) < 0)
+    if (::bind(udp_sock_, reinterpret_cast<sockaddr *>(&addr6), sizeof(addr6)) < 0)
         throw std::system_error(errno, std::generic_category(), "UDP bind");
 
-    g_tcp_listen = ::socket(AF_INET6, SOCK_STREAM, 0);
-    if (g_tcp_listen < 0) throw std::system_error(errno, std::generic_category(), "TCP socket");
-    ::setsockopt(g_tcp_listen, SOL_SOCKET, SO_REUSEADDR, &off, sizeof(off));
-    ::setsockopt(g_tcp_listen, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
-    if (::bind(g_tcp_listen, reinterpret_cast<sockaddr *>(&addr6), sizeof(addr6)) < 0)
+    tcp_listen_ = ::socket(AF_INET6, SOCK_STREAM, 0);
+    if (tcp_listen_ < 0)
+        throw std::system_error(errno, std::generic_category(), "TCP socket");
+    ::setsockopt(tcp_listen_, SOL_SOCKET, SO_REUSEADDR, &off, sizeof(off));
+    ::setsockopt(tcp_listen_, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
+    if (::bind(tcp_listen_, reinterpret_cast<sockaddr *>(&addr6), sizeof(addr6)) < 0)
         throw std::system_error(errno, std::generic_category(), "TCP bind");
 
-    g_running.store(true, std::memory_order_relaxed);
-    g_udp_thread = std::jthread{udp_recv_loop};
-    g_tcp_thread = std::jthread{tcp_accept_loop};
+    running_.store(true, std::memory_order_relaxed);
+    udp_thread_ = std::jthread{[this] { udp_recv_loop(); }};
+    tcp_thread_ = std::jthread{[this] { tcp_accept_loop(); }};
 }
 
-void shutdown() noexcept {
-    g_running.store(false, std::memory_order_relaxed);
-    if (g_udp_sock != -1) { ::close(g_udp_sock); g_udp_sock = -1; }
-    if (g_tcp_listen != -1) { ::shutdown(g_tcp_listen, SHUT_RDWR); ::close(g_tcp_listen); g_tcp_listen = -1; }
-    if (g_udp_thread.joinable()) g_udp_thread.join();
-    if (g_tcp_thread.joinable()) g_tcp_thread.join();
+void Driver::shutdown() noexcept {
+    running_.store(false, std::memory_order_relaxed);
+    if (udp_sock_ != -1) {
+        ::close(udp_sock_);
+        udp_sock_ = -1;
+    }
+    if (tcp_listen_ != -1) {
+        ::shutdown(tcp_listen_, SHUT_RDWR);
+        ::close(tcp_listen_);
+        tcp_listen_ = -1;
+    }
+    if (udp_thread_.joinable())
+        udp_thread_.join();
+    if (tcp_thread_.joinable())
+        tcp_thread_.join();
 
-    std::lock_guard lock{g_mutex};
-    g_queue.clear();
+    {
+        std::lock_guard lock{mutex_};
+        queue_.clear();
+    }
 
-    std::lock_guard rlock{g_remotes_mutex};
-    for (auto &[_, rem] : g_remotes) {
+    std::lock_guard rlock{remotes_mutex_};
+    for (auto &[_, rem] : remotes_) {
         if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
             ::close(rem.tcp_fd);
         }
     }
-    g_remotes.clear();
-    g_callback = nullptr;
+    remotes_.clear();
+    callback_ = nullptr;
 }
 
-void add_remote(node_t node, const std::string &host, uint16_t port, Protocol proto) {
+void Driver::add_remote(node_t node, const std::string &host, uint16_t port, Protocol proto) {
     Remote rem{};
     rem.proto = proto;
 
@@ -200,33 +202,35 @@ void add_remote(node_t node, const std::string &host, uint16_t port, Protocol pr
         }
     }
     ::freeaddrinfo(res);
-    if (rem.addr_len == 0) throw std::invalid_argument("host address resolution failed");
+    if (rem.addr_len == 0)
+        throw std::invalid_argument("host address resolution failed");
 
     if (proto == Protocol::TCP) {
         reconnect_tcp(rem);
     }
 
-    std::lock_guard lock{g_remotes_mutex};
-    g_remotes[node] = rem;
+    std::lock_guard lock{remotes_mutex_};
+    remotes_[node] = rem;
 }
 
-void set_recv_callback(RecvCallback cb) {
-    g_callback = std::move(cb);
-}
+void Driver::set_recv_callback(RecvCallback cb) { callback_ = std::move(cb); }
 
-node_t local_node() noexcept {
-    if (g_cfg.node_id != 0) return g_cfg.node_id;
+node_t Driver::local_node() noexcept {
+    if (cfg_.node_id != 0)
+        return cfg_.node_id;
 
     std::ifstream in{NODE_ID_FILE};
     if (in) {
-        in >> g_cfg.node_id;
-        if (g_cfg.node_id != 0) return g_cfg.node_id;
+        in >> cfg_.node_id;
+        if (cfg_.node_id != 0)
+            return cfg_.node_id;
     }
 
     ifaddrs *ifa = nullptr;
     if (::getifaddrs(&ifa) == 0) {
         for (auto *cur = ifa; cur != nullptr; cur = cur->ifa_next) {
-            if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK)) continue;
+            if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK))
+                continue;
 
             if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_PACKET) {
                 auto *ll = reinterpret_cast<sockaddr_ll *>(cur->ifa_addr);
@@ -234,24 +238,25 @@ node_t local_node() noexcept {
                 for (int i = 0; i < ll->sll_halen; ++i)
                     val = val * 131 + ll->sll_addr[i];
                 ::freeifaddrs(ifa);
-                g_cfg.node_id = static_cast<node_t>(val & 0x7fffffff);
+                cfg_.node_id = static_cast<node_t>(val & 0x7fffffff);
                 std::filesystem::create_directories("/etc/xinim");
                 std::ofstream out{NODE_ID_FILE};
-                out << g_cfg.node_id;
-                return g_cfg.node_id;
+                out << cfg_.node_id;
+                return cfg_.node_id;
             }
 
             if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET) {
                 auto *sin = reinterpret_cast<sockaddr_in *>(cur->ifa_addr);
                 const auto *b = reinterpret_cast<const uint8_t *>(&sin->sin_addr);
                 std::size_t val = 0;
-                for (int i = 0; i < 4; ++i) val = val * 131 + b[i];
+                for (int i = 0; i < 4; ++i)
+                    val = val * 131 + b[i];
                 ::freeifaddrs(ifa);
-                g_cfg.node_id = static_cast<node_t>(val & 0x7fffffff);
+                cfg_.node_id = static_cast<node_t>(val & 0x7fffffff);
                 std::filesystem::create_directories("/etc/xinim");
                 std::ofstream out{NODE_ID_FILE};
-                out << g_cfg.node_id;
-                return g_cfg.node_id;
+                out << cfg_.node_id;
+                return cfg_.node_id;
             }
         }
         ::freeifaddrs(ifa);
@@ -259,22 +264,23 @@ node_t local_node() noexcept {
 
     char host[256]{};
     if (::gethostname(host, sizeof(host)) == 0) {
-        g_cfg.node_id = static_cast<node_t>(std::hash<std::string_view>{}(host) & 0x7fffffff);
+        cfg_.node_id = static_cast<node_t>(std::hash<std::string_view>{}(host) & 0x7fffffff);
         std::filesystem::create_directories("/etc/xinim");
         std::ofstream out{NODE_ID_FILE};
-        out << g_cfg.node_id;
-        return g_cfg.node_id;
+        out << cfg_.node_id;
+        return cfg_.node_id;
     }
 
     return 1;
 }
 
-std::errc send(node_t node, std::span<const std::byte> data) {
+std::errc Driver::send(node_t node, std::span<const std::byte> data) {
     Remote rem;
     {
-        std::lock_guard lock{g_remotes_mutex};
-        auto it = g_remotes.find(node);
-        if (it == g_remotes.end()) return std::errc::host_unreachable;
+        std::lock_guard lock{remotes_mutex_};
+        auto it = remotes_.find(node);
+        if (it == remotes_.end())
+            return std::errc::host_unreachable;
         rem = it->second;
     }
 
@@ -286,8 +292,10 @@ std::errc send(node_t node, std::span<const std::byte> data) {
 
         if (transient) {
             fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
-            if (fd < 0 || ::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
-                if (fd >= 0) ::close(fd);
+            if (fd < 0 ||
+                ::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
+                if (fd >= 0)
+                    ::close(fd);
                 return std::errc::connection_refused;
             }
         }
@@ -296,17 +304,19 @@ std::errc send(node_t node, std::span<const std::byte> data) {
         while (sent < buf.size()) {
             ssize_t n = ::send(fd, buf.data() + sent, buf.size() - sent, 0);
             if (n < 0) {
-                if (transient) ::close(fd);
+                if (transient)
+                    ::close(fd);
                 return std::errc::io_error;
             }
             sent += static_cast<std::size_t>(n);
         }
 
-        if (transient) ::close(fd);
+        if (transient)
+            ::close(fd);
         return std::errc{};
     }
 
-    ssize_t n = ::sendto(g_udp_sock, buf.data(), buf.size(), 0,
+    ssize_t n = ::sendto(udp_sock_, buf.data(), buf.size(), 0,
                          reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len);
     if (n < 0 || static_cast<std::size_t>(n) != buf.size()) {
         return std::errc::io_error;
@@ -314,17 +324,18 @@ std::errc send(node_t node, std::span<const std::byte> data) {
     return std::errc{};
 }
 
-bool recv(Packet &out) {
-    std::lock_guard lock{g_mutex};
-    if (g_queue.empty()) return false;
-    out = std::move(g_queue.front());
-    g_queue.pop_front();
+bool Driver::recv(Packet &out) {
+    std::lock_guard lock{mutex_};
+    if (queue_.empty())
+        return false;
+    out = std::move(queue_.front());
+    queue_.pop_front();
     return true;
 }
 
-void reset() noexcept {
-    std::lock_guard lock{g_mutex};
-    g_queue.clear();
+void Driver::reset() noexcept {
+    std::lock_guard lock{mutex_};
+    queue_.clear();
 }
 
 } // namespace net

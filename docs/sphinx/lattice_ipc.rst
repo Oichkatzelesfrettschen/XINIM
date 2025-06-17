@@ -37,8 +37,8 @@ Each `message` is serialized as:
 **Pipeline**:
 1. **Frame**: prefix with `src_pid` and `dst_pid` (both ints)  
 2. **Encrypt**: XOR‐stream with the channel’s shared secret  
-3. **Transmit**: `net::send()` (UDP or TCP)  
-4. **Receive**: `net::recv()`  
+3. **Transmit**: `net::driver.send()` (UDP or TCP)
+4. **Receive**: `net::driver.recv()`
 5. **Reintegrate**: `lattice::poll_network()` decrypts and enqueues  
 
 Network Driver Behavior
@@ -65,12 +65,12 @@ Configuration (`net::Config`):
 Network Driver
 --------------
 The networking backend transports packets over UDP or TCP. Calling
-:cpp:func:`net::init` binds the UDP socket and spawns background threads for
+:cpp:func:`net::Driver::init` binds the UDP socket and spawns background threads for
 receives and TCP connection handling. Each remote node registers its address
-with :cpp:func:`net::add_remote`. Frames are transmitted by
-:cpp:func:`net::send`. For TCP peers the function establishes a transient
+with :cpp:func:`net::Driver::add_remote`. Frames are transmitted by
+:cpp:func:`net::Driver::send`. For TCP peers the function establishes a transient
 connection when necessary and automatically reconnects persistent sockets
-when writes fail due to ``EPIPE`` or connection reset. ``net::send`` now
+when writes fail due to ``EPIPE`` or connection reset. ``net::Driver::send`` now
 returns a ``std::errc`` value
 where ``std::errc::success`` indicates success. Socket failures such as
 ``ECONNREFUSED`` propagate as ``std::system_error`` exceptions. Incoming
@@ -81,8 +81,8 @@ Example
 ^^^^^^^
 .. code-block:: cpp
 
-   net::init({0, 15000});
-net::add_remote(1, "127.0.0.1", 15001);
+   net::driver.init({0, 15000});
+net::driver.add_remote(1, "127.0.0.1", 15001);
 lattice_connect(1, 1, 1);
 
 message ping{};
@@ -95,7 +95,7 @@ for (;;) {
         break;
     }
 }
-net::shutdown();
+net::driver.shutdown();
 
 Local Node Identification
 -------------------------

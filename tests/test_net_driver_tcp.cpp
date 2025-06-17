@@ -23,24 +23,24 @@ constexpr uint16_t CHILD_PORT = 15001;
 
 /** Parent process: receives a “ready” packet, sends payload, and checks reply. */
 int parent_proc(pid_t child_pid) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::TCP);
+    net::driver.init(net::Config{PARENT_NODE, PARENT_PORT});
+    net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT, net::Protocol::TCP);
 
     // Wait for child to signal readiness
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == CHILD_NODE);
 
     // Send a 3-byte payload
     std::array<std::byte, 3> data{std::byte{1}, std::byte{2}, std::byte{3}};
-    assert(net::send(CHILD_NODE, data) == std::errc{});
+    assert(net::driver.send(CHILD_NODE, data) == std::errc{});
 
     // Wait for reply
     do {
         std::this_thread::sleep_for(10ms);
-    } while (!net::recv(pkt));
+    } while (!net::driver.recv(pkt));
 
     assert(pkt.src_node == CHILD_NODE);
     assert(pkt.payload.size() == data.size());
@@ -51,22 +51,22 @@ int parent_proc(pid_t child_pid) {
     // Clean up
     int status = 0;
     waitpid(child_pid, &status, 0);
-    net::shutdown();
+    net::driver.shutdown();
     return status;
 }
 
 /** Child process: signals ready, echoes back a 3-byte reply. */
 int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
+    net::driver.init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
 
     // Signal readiness
     std::array<std::byte, 1> ready{std::byte{0}};
-    assert(net::send(PARENT_NODE, ready) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, ready) == std::errc{});
 
     // Wait for parent payload
     net::Packet pkt;
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == PARENT_NODE);
@@ -74,11 +74,11 @@ int child_proc() {
 
     // Send back reply [9,8,7]
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    assert(net::send(PARENT_NODE, reply) == std::errc{});
+    assert(net::driver.send(PARENT_NODE, reply) == std::errc{});
 
     // Allow time for delivery before shutdown
     std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 

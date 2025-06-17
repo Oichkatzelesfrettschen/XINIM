@@ -11,15 +11,15 @@
 int main() {
     ::unlink("/etc/xinim/node_id");
 
-    net::init(net::Config{0, 16000});
-    const auto first = net::local_node();
+    net::driver.init(net::Config{0, 16000});
+    const auto first = net::driver.local_node();
     assert(first != 0);
-    net::shutdown();
+    net::driver.shutdown();
 
-    net::init(net::Config{0, 16000});
-    const auto second = net::local_node();
+    net::driver.init(net::Config{0, 16000});
+    const auto second = net::driver.local_node();
     assert(first == second);
-    net::shutdown();
+    net::driver.shutdown();
 
     ::unlink("/etc/xinim/node_id");
     return 0;
