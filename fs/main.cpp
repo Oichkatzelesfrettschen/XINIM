@@ -21,6 +21,9 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uint16_t, uint32_t, uint64_t, int64_t, int32_t, uint8_t
 #include <inttypes.h> // For PRId64
@@ -209,7 +212,7 @@ static void load_ram() {
     init_data_clicks = data_org[INFO + 2];
 
     /* Get size of RAM disk by reading root file system's super block */
-    bp = get_block(BOOT_DEV, SUPER_BLOCK, NORMAL); /* get RAM super block */
+    bp = get_block(BOOT_DEV, SUPER_BLOCK, IoMode::Normal); /* get RAM super block */
     copy(super_block, bp->b_data, sizeof(struct super_block));
     sp = &super_block[0];
     if (sp->s_magic != SUPER_MAGIC)
@@ -250,8 +253,8 @@ static void load_ram() {
     printf("Loading RAM disk from root diskette.      Loaded:   0K ");
     for (i = 0; i < count; i++) { // i is uint16_t, count is uint32_t
         bp = get_block(BOOT_DEV, static_cast<uint16_t>(i),
-                       NORMAL); // get_block takes block_nr (uint16_t)
-        bp1 = get_block(ROOT_DEV, i, NO_READ);
+                       IoMode::Normal); // get_block takes block_nr (uint16_t)
+        bp1 = get_block(ROOT_DEV, i, IoMode::NoRead);
         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
         bp1->b_dirt = DIRTY;
         put_block(bp, BlockType::IMap);

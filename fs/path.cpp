@@ -20,6 +20,9 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 
 /*===========================================================================*
  *				eat_path				     *
@@ -242,7 +245,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
         b = read_map(ldir_ptr, pos); /* get block number */
 
         /* Since directories don't have holes, 'b' cannot be NO_BLOCK. */
-        bp = get_block(ldir_ptr->i_dev, b, NORMAL); /* get a dir block */
+        bp = get_block(ldir_ptr->i_dev, b, IoMode::Normal); /* get a dir block */
 
         /* Search a directory block. */
         for (dp = &bp->b_dir[0]; dp < &bp->b_dir[NR_DIR_ENTRIES]; dp++) {

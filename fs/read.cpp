@@ -27,6 +27,9 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #include <algorithm> // For std::min
 #include <cstddef>   // For std::size_t
 #include <cstdint>   // For uint16_t, int32_t, int64_t etc.
@@ -234,7 +237,7 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
     if (!block_spec && b == kNoBlock) { // kNoBlock is block_nr (uint16_t)
         if (rw_flag == READING) {
             /* Reading from a nonexistent block.  Must read as all zeros. */
-            bp = get_block(kNoDev, kNoBlock, NORMAL);
+            bp = get_block(kNoDev, kNoBlock, IoMode::Normal);
             /* get a buffer */ // kNoDev is dev_nr (uint16_t)
             zero_block(bp);
         } else {
@@ -248,12 +251,12 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
          * the cache, acquire it, otherwise just acquire a free buffer.
          */
         // chunk is std::size_t, BLOCK_SIZE is int
-        n = (rw_flag == WRITING && chunk == static_cast<std::size_t>(BLOCK_SIZE) ? NO_READ
-                                                                                 : NORMAL);
+        n = (rw_flag == WRITING && chunk == static_cast<std::size_t>(BLOCK_SIZE) ? IoMode::NoRead
+                                                                                 : IoMode::Normal);
         // position is int32_t, compat_get_size returns file_pos64 (int64_t), off is std::size_t
         if (rw_flag == WRITING && off == 0 &&
             static_cast<int64_t>(position) >= compat_get_size(rip))
-            n = NO_READ;
+            n = IoMode::NoRead;
         bp = get_block(dev, b, n); // dev, b are uint16_t
     }
 
@@ -322,7 +325,7 @@ PUBLIC uint16_t read_map(struct inode *rip,
         excess -= static_cast<int32_t>(NR_INDIRECTS); /* single indir doesn't count */
         // z is uint16_t, b is uint16_t
         b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
-        bp = get_block(rip->i_dev, b, NORMAL);
+        bp = get_block(rip->i_dev, b, IoMode::Normal);
         /* get double indirect block */ // rip->i_dev is dev_nr (uint16_t)
         // bp->b_ind is zone_nr[] (uint16_t[]). excess / NR_INDIRECTS is int32_t / size_t.
         z = bp->b_ind[static_cast<std::size_t>(excess / static_cast<int32_t>(NR_INDIRECTS))];
@@ -335,7 +338,7 @@ PUBLIC uint16_t read_map(struct inode *rip,
         return (kNoBlock);
     // z is uint16_t, b is uint16_t
     b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
-    bp = get_block(rip->i_dev, b, NORMAL);           /* get single indirect block */
+    bp = get_block(rip->i_dev, b, IoMode::Normal);   /* get single indirect block */
     z = bp->b_ind[static_cast<std::size_t>(excess)]; // excess is int32_t
     put_block(bp, BlockType::Indirect);              /* release single indirect blk */
     if (z == kNoZone)
@@ -401,6 +404,6 @@ PUBLIC void read_ahead() { // Modernized signature (was already using ())
     if ((b = read_map(rip, rdahedpos)) == kNoBlock) // kNoBlock is block_nr (uint16_t)
         return;                                     /* at EOF */
     // rip->i_dev is dev_nr (uint16_t). b is uint16_t.
-    bp = get_block(rip->i_dev, b, NORMAL);
-    put_block(bp, BlockType::PartialData);
+    bp = get_block(rip->i_dev, b, IoMode::Normal);
+    put_block(bp, PARTIAL_DATA_BLOCK);
 }

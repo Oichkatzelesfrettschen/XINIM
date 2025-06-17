@@ -22,6 +22,9 @@
 #include "extent.hpp"
 #include "file.hpp"
 #include "fproc.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #include "glo.hpp"
 #include "super.hpp"
 #include "type.hpp"
@@ -211,7 +214,7 @@ PUBLIC void rw_inode(struct inode *rip, int rw_flag) { // Added void return, mod
     // Result of calculation should fit block_nr (uint16_t).
     b = static_cast<uint16_t>((static_cast<uint32_t>(rip->i_num - 1) / INODES_PER_BLOCK) +
                               sp->s_imap_blocks + sp->s_zmap_blocks + 2);
-    bp = get_block(rip->i_dev, b, NORMAL); // b is block_nr (uint16_t)
+    bp = get_block(rip->i_dev, b, IoMode::Normal); // b is block_nr (uint16_t)
     // Assuming bp->b_inode is d_inode*. rip->i_num is inode_nr (uint16_t).
     dip = bp->b_inode + (rip->i_num - 1) % INODES_PER_BLOCK;
 
