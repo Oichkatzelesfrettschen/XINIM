@@ -1,4 +1,31 @@
-file(GLOB FS_SRC "*.cpp") # Use quotes for robustness
+##
+# List all source files for the file system server explicitly.  Using an
+# explicit list avoids surprises when new files are added and makes
+# dependencies clear.
+##
+set(FS_SRC
+  cache.cpp
+  compat.cpp
+  device.cpp
+  filedes.cpp
+  inode.cpp
+  link.cpp
+  main.cpp
+  misc.cpp
+  mount.cpp
+  open.cpp
+  path.cpp
+  pipe.cpp
+  protect.cpp
+  putc.cpp
+  read.cpp
+  stadir.cpp
+  super.cpp
+  table.cpp
+  time.cpp
+  utility.cpp
+  write.cpp
+)
 
 add_executable(minix_fs_server ${FS_SRC})
 

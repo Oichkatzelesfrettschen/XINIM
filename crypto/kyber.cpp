@@ -10,6 +10,7 @@
 
 #include <algorithm>
 #include <array>
+#include <memory>
 #include <random>
 #include <stdexcept>
 
@@ -20,55 +21,62 @@ namespace {
 constexpr std::size_t NONCE_SIZE = 12;
 constexpr std::size_t TAG_SIZE = 16;
 
+/**
+ * @brief Create a managed EVP_CIPHER_CTX.
+ *
+ * This helper allocates an OpenSSL cipher context and wraps it in a
+ * `std::unique_ptr` with `EVP_CIPHER_CTX_free` as the deleter.
+ *
+ * @throws std::runtime_error if allocation fails.
+ * @return Managed cipher context instance.
+ */
+[[nodiscard]] auto make_cipher_ctx()
+    -> std::unique_ptr<EVP_CIPHER_CTX, decltype(&EVP_CIPHER_CTX_free)> {
+    EVP_CIPHER_CTX *raw = EVP_CIPHER_CTX_new();
+    if (!raw) {
+        throw std::runtime_error{"EVP_CIPHER_CTX_new failed"};
+    }
+    return {raw, EVP_CIPHER_CTX_free};
+}
+
 /// Wrapper around OpenSSL AES-256-GCM encryption.
 std::vector<std::byte> aes_gcm_encrypt(std::span<const std::byte> plain,
                                        std::span<const std::byte, pqcrystals_kyber512_BYTES> key,
                                        std::span<const std::byte, NONCE_SIZE> nonce,
                                        std::array<std::byte, TAG_SIZE> &tag) {
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
-        throw std::runtime_error{"EVP_CIPHER_CTX_new failed"};
-    }
+    auto ctx = make_cipher_ctx();
 
-    if (EVP_EncryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (EVP_EncryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
         throw std::runtime_error{"EVP_EncryptInit_ex failed"};
     }
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, NONCE_SIZE, nullptr) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, NONCE_SIZE, nullptr) != 1) {
         throw std::runtime_error{"EVP_CTRL_GCM_SET_IVLEN failed"};
     }
-    if (EVP_EncryptInit_ex(ctx, nullptr, nullptr,
+    if (EVP_EncryptInit_ex(ctx.get(), nullptr, nullptr,
                            reinterpret_cast<const unsigned char *>(key.data()),
                            reinterpret_cast<const unsigned char *>(nonce.data())) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_EncryptInit_ex key/nonce failed"};
     }
 
     std::vector<std::byte> cipher(plain.size());
     int out_len = 0;
-    if (EVP_EncryptUpdate(ctx, reinterpret_cast<unsigned char *>(cipher.data()), &out_len,
+    if (EVP_EncryptUpdate(ctx.get(), reinterpret_cast<unsigned char *>(cipher.data()), &out_len,
                           reinterpret_cast<const unsigned char *>(plain.data()),
                           static_cast<int>(plain.size())) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_EncryptUpdate failed"};
     }
 
     int tmp_len = 0;
-    if (EVP_EncryptFinal_ex(ctx, reinterpret_cast<unsigned char *>(cipher.data()) + out_len,
+    if (EVP_EncryptFinal_ex(ctx.get(), reinterpret_cast<unsigned char *>(cipher.data()) + out_len,
                             &tmp_len) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_EncryptFinal_ex failed"};
     }
     out_len += tmp_len;
     cipher.resize(out_len);
 
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_GET_TAG, TAG_SIZE, tag.data()) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_GET_TAG, TAG_SIZE, tag.data()) != 1) {
         throw std::runtime_error{"EVP_CTRL_GCM_GET_TAG failed"};
     }
-
-    EVP_CIPHER_CTX_free(ctx);
     return cipher;
 }
 
@@ -77,48 +85,38 @@ std::vector<std::byte> aes_gcm_decrypt(std::span<const std::byte> cipher,
                                        std::span<const std::byte, pqcrystals_kyber512_BYTES> key,
                                        std::span<const std::byte, NONCE_SIZE> nonce,
                                        std::span<const std::byte, TAG_SIZE> tag) {
-    EVP_CIPHER_CTX *ctx = EVP_CIPHER_CTX_new();
-    if (!ctx) {
-        throw std::runtime_error{"EVP_CIPHER_CTX_new failed"};
-    }
+    auto ctx = make_cipher_ctx();
 
-    if (EVP_DecryptInit_ex(ctx, EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (EVP_DecryptInit_ex(ctx.get(), EVP_aes_256_gcm(), nullptr, nullptr, nullptr) != 1) {
         throw std::runtime_error{"EVP_DecryptInit_ex failed"};
     }
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_IVLEN, NONCE_SIZE, nullptr) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
+    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_IVLEN, NONCE_SIZE, nullptr) != 1) {
         throw std::runtime_error{"EVP_CTRL_GCM_SET_IVLEN failed"};
     }
-    if (EVP_DecryptInit_ex(ctx, nullptr, nullptr,
+    if (EVP_DecryptInit_ex(ctx.get(), nullptr, nullptr,
                            reinterpret_cast<const unsigned char *>(key.data()),
                            reinterpret_cast<const unsigned char *>(nonce.data())) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_DecryptInit_ex key/nonce failed"};
     }
 
     std::vector<std::byte> plain(cipher.size());
     int out_len = 0;
-    if (EVP_DecryptUpdate(ctx, reinterpret_cast<unsigned char *>(plain.data()), &out_len,
+    if (EVP_DecryptUpdate(ctx.get(), reinterpret_cast<unsigned char *>(plain.data()), &out_len,
                           reinterpret_cast<const unsigned char *>(cipher.data()),
                           static_cast<int>(cipher.size())) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_DecryptUpdate failed"};
     }
-    if (EVP_CIPHER_CTX_ctrl(ctx, EVP_CTRL_GCM_SET_TAG, TAG_SIZE,
+    if (EVP_CIPHER_CTX_ctrl(ctx.get(), EVP_CTRL_GCM_SET_TAG, TAG_SIZE,
                             const_cast<std::byte *>(tag.data())) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_CTRL_GCM_SET_TAG failed"};
     }
     int tmp_len = 0;
-    if (EVP_DecryptFinal_ex(ctx, reinterpret_cast<unsigned char *>(plain.data()) + out_len,
+    if (EVP_DecryptFinal_ex(ctx.get(), reinterpret_cast<unsigned char *>(plain.data()) + out_len,
                             &tmp_len) != 1) {
-        EVP_CIPHER_CTX_free(ctx);
         throw std::runtime_error{"EVP_DecryptFinal_ex failed"};
     }
     out_len += tmp_len;
     plain.resize(out_len);
-    EVP_CIPHER_CTX_free(ctx);
     return plain;
 }
 

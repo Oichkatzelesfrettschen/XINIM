@@ -1,77 +1,122 @@
 #pragma once
-// Modernized for C++23
-
-/* Buffer (block) cache.  To acquire a block, a routine calls get_block(),
- * telling which block it wants.  The block is then regarded as "in use"
- * and has its 'b_count' field incremented.  All the blocks, whether in use
- * or not, are chained together in an LRU list, with 'front' pointing
- * to the least recently used block, and 'rear' to the most recently used
- * block.  A reverse chain, using the field b_prev is also maintained.
- * Usage for LRU is measured by the time the put_block() is done.  The second
- * parameter to put_block() can violate the LRU order and put a block on the
- * front of the list, if it will probably not be needed soon.  If a block
- * is modified, the modifying routine must set b_dirt to DIRTY, so the block
- * will eventually be rewritten to the disk.
+/**
+ * @file buf.hpp
+ * @brief Unified buffer (block) cache for file system subsystems.
+ *
+ * The buffer cache provides a fixed-size in-memory pool for recently used
+ * blocks. Buffers are organized in an LRU chain and a fast hash table
+ * for quick lookup by (device, block number).
+ *
+ * Blocks are marked CLEAN or DIRTY and reference counted. Each buffer
+ * can represent different structures—raw data, inodes, directory entries,
+ * indirect blocks—accessed via union overlay macros.
+ *
+ * To acquire a buffer, use `get_block()`. Release it with `put_block()`,
+ * optionally providing usage hints to guide eviction policy.
  */
+
+#include "fs/const.hpp"
+#include "fs/type.hpp"
+#include "fs/inode.hpp"
+#include "fs/super.hpp"
+
+/// Forward declaration of the buffer struct.
+struct buf;
 
 /**
- * @brief Descriptor for a cached disk block.
+ * @struct buf
+ * @brief Represents a single cached block in the buffer cache.
  */
 EXTERN struct buf {
-    /** Data portion of the buffer. */
+    /**
+     * @union
+     * @brief Overlay union to reinterpret block contents.
+     */
     union {
-        char b__data[BLOCK_SIZE];           /**< Ordinary user data. */
-        dir_struct b__dir[NR_DIR_ENTRIES];  /**< Directory block. */
-        zone_nr b__ind[NR_INDIRECTS];       /**< Indirect block. */
-        d_inode b__inode[INODES_PER_BLOCK]; /**< Inode block. */
-        int b__int[INTS_PER_BLOCK];         /**< Block full of integers. */
-    } b;
+        char b__data[BLOCK_SIZE];              ///< Raw block data.
+        dir_struct b__dir[NR_DIR_ENTRIES];     ///< Directory entries.
+        zone_nr b__ind[NR_INDIRECTS];          ///< Indirect block zones.
+        d_inode b__inode[INODES_PER_BLOCK];    ///< Inode table block.
+        int b__int[INTS_PER_BLOCK];            ///< Integer array (e.g., bitmaps).
+    } b; ///< Buffer data section.
 
-    /** Header portion of the buffer. */
-    struct buf *b_next; /**< Used to link buffers in a chain. */
-    struct buf *b_prev; /**< Used to link buffers the other way. */
-    struct buf *b_hash; /**< Used to link buffers on hash chains. */
-    block_nr b_blocknr; /**< Block number of its (minor) device. */
-    dev_nr b_dev;       /**< Major | minor device where block resides. */
-    char b_dirt;        /**< CLEAN or DIRTY. */
-    char b_count;       /**< Number of users of this buffer. */
-} buf[NR_BUFS];
+    buf* b_next;    ///< Next buffer in LRU or hash chain.
+    buf* b_prev;    ///< Previous buffer in LRU chain.
+    buf* b_hash;    ///< Next in hash table chain.
 
-/* A block is free if b_dev == NO_DEV. */
+    block_nr b_blocknr; ///< Block number within device.
+    dev_nr b_dev;       ///< Device identifier (major | minor).
+    char b_dirt;        ///< DIRTY if modified; CLEAN otherwise.
+    char b_count;       ///< Number of active users holding this buffer.
+} buf[NR_BUFS]; ///< Global buffer array.
 
-#define NIL_BUF (struct buf *)0 /* indicates absence of a buffer */
-
-/* These defs make it possible to use to bp->b_data instead of bp->b.b__data */
-#define b_data b.b__data
-#define b_dir b.b__dir
-#define b_ind b.b__ind
+/**
+ * @name Buffer Pointer Macros
+ * @brief Access overlayed buffer data fields from a ::buf pointer.
+ */
+///@{
+#define b_data  b.b__data
+#define b_dir   b.b__dir
+#define b_ind   b.b__ind
 #define b_inode b.b__inode
-#define b_int b.b__int
+#define b_int   b.b__int
+///@}
 
-/** Hash table for quick buffer lookup by block number. */
-EXTERN struct buf *buf_hash[NR_BUF_HASH];
+/** Null buffer pointer. */
+#define NIL_BUF (struct buf*)0
 
-/** Points to the least recently used free block. */
-EXTERN struct buf *front;
+/** A buffer is free when its device field equals NO_DEV. */
 
-/** Points to the most recently used free block. */
-EXTERN struct buf *rear;
+/**
+ * @brief Buffer hash table indexed by block number modulo NR_BUF_HASH.
+ */
+EXTERN struct buf* buf_hash[NR_BUF_HASH];
 
-/** Number of buffers currently in use (not on free list). */
+/**
+ * @brief Least recently used (front) and most recently used (rear) buffer pointers.
+ *
+ * These maintain a doubly-linked circular LRU list of all buffers.
+ */
+EXTERN struct buf* front; ///< LRU (least recently used) buffer.
+EXTERN struct buf* rear;  ///< MRU (most recently used) buffer.
+
+/**
+ * @brief Number of buffers currently held in use (not on the free list).
+ */
 EXTERN int bufs_in_use;
 
 /**
- * @brief Usage hint flags and classifications for cached blocks.
+ * @enum BlockType
+ * @brief Usage hints provided to `put_block()` to guide eviction policy.
  */
 enum class BlockType : int {
-    WriteImmediate = 0100,                /**< Block should be written to disk now. */
-    OneShot = 0200,                       /**< Block not likely to be needed soon. */
-    Inode = 0 + WriteImmediate,           /**< Inode block. */
-    Directory = 1 + WriteImmediate,       /**< Directory block. */
-    Indirect = 2 + WriteImmediate,        /**< Pointer block. */
-    IMap = 3 + WriteImmediate + OneShot,  /**< Inode bit map. */
-    ZMap = 4 + WriteImmediate + OneShot,  /**< Free zone map. */
-    Zuper = 5 + WriteImmediate + OneShot, /**< Super block. */
-    FullData = 6,                         /**< Data, fully used. */
-    PartialData = 7                       /**< Data, partly used. */
+    /// Write this block back immediately to disk.
+    WriteImmediate = 0100,
+
+    /// This block is unlikely to be reused soon.
+    OneShot = 0200,
+
+    /// This block contains inode metadata.
+    Inode = 0 + WriteImmediate,
+
+    /// This block contains directory entries.
+    Directory = 1 + WriteImmediate,
+
+    /// This block contains indirect zone pointers.
+    Indirect = 2 + WriteImmediate,
+
+    /// This block is part of the inode allocation bitmap.
+    IMap = 3 + WriteImmediate + OneShot,
+
+    /// This block is part of the zone allocation bitmap.
+    ZMap = 4 + WriteImmediate + OneShot,
+
+    /// This block contains the filesystem superblock.
+    Zuper = 5 + WriteImmediate + OneShot,
+
+    /// Full block of user data (no internal fragmentation).
+    FullData = 6,
+
+    /// Partial user data (with tail fragmentation).
+    PartialData = 7
 };
