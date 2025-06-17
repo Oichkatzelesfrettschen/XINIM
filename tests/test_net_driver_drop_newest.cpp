@@ -1,6 +1,6 @@
 /**
- * @file test_net_driver_overflow.cpp
- * @brief Validate queue overflow handling for net::OverflowPolicy::DropOldest.
+ * @file test_net_driver_drop_newest.cpp
+ * @brief Validate queue overflow handling for net::OverflowPolicy::DropNewest.
  */
 
 #include "../kernel/net_driver.hpp"
@@ -10,6 +10,7 @@
 #include <iostream>
 #include <sys/wait.h>
 #include <thread>
+#include <vector>
 
 using namespace std::chrono_literals;
 
@@ -17,40 +18,37 @@ namespace {
 
 constexpr net::node_t PARENT_NODE = 0;
 constexpr net::node_t CHILD_NODE = 1;
-constexpr std::uint16_t PARENT_PORT = 14100;
-constexpr std::uint16_t CHILD_PORT = 14101;
+constexpr std::uint16_t PARENT_PORT = 14200;
+constexpr std::uint16_t CHILD_PORT = 14201;
 
 /**
- * @brief Parent process instructs the child and verifies only the newest packet
- *        remains in the queue after overflow.
+ * @brief Parent instructs the child and verifies only the first packet remains.
  *
- * The function drains any queued packets after giving the child time to send a
- * burst. The number and content of packets is validated to ensure the
- * ``DropOldest`` policy discarded the first packet while preserving the second.
+ * After the child sends a burst of packets, the queue is drained. The packet
+ * count and contents confirm that the newest packet was dropped while the oldest
+ * was preserved.
  *
  * @param child PID of the forked child process.
  * @return Exit status from the child.
  */
 int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest});
+    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropNewest});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};
-    // Wait for the child to signal readiness, with timeout to avoid infinite wait
     constexpr auto timeout = 5s;
     auto start = std::chrono::steady_clock::now();
     while (!net::recv(pkt)) {
         if (std::chrono::steady_clock::now() - start > timeout) {
-            std::cerr << "Timeout waiting for child to signal readiness." << std::endl;
+            std::cerr << "Timeout waiting for child readiness." << std::endl;
             std::exit(EXIT_FAILURE);
         }
         std::this_thread::sleep_for(10ms);
     }
 
-    std::array<std::byte, 1> pkt_start{std::byte{0}};
-    assert(net::send(CHILD_NODE, pkt_start) == std::errc{});
+    std::array<std::byte, 1> start_pkt{std::byte{0}};
+    assert(net::send(CHILD_NODE, start_pkt) == std::errc{});
 
-    // Allow child to send its packets
     std::this_thread::sleep_for(100ms);
 
     std::vector<std::byte> received{};
@@ -61,7 +59,7 @@ int parent_proc(pid_t child) {
     }
 
     assert(received.size() == 1);
-    assert(received[0] == std::byte{2});
+    assert(received[0] == std::byte{1});
 
     int status = 0;
     waitpid(child, &status, 0);
@@ -70,11 +68,10 @@ int parent_proc(pid_t child) {
 }
 
 /**
- * @brief Child sends two packets quickly to overflow the parent's queue.
+ * @brief Child sends two packets in rapid succession to overflow the parent.
  *
- * After waiting for a start signal from the parent, two single-byte packets are
- * transmitted in rapid succession. The function then sleeps briefly to ensure
- * delivery before shutting down.
+ * The child waits for a start signal before transmitting two one-byte packets
+ * back-to-back. A short delay gives the parent time to drain the queue.
  *
  * @return Always zero on success.
  */
@@ -100,7 +97,7 @@ int child_proc() {
 } // namespace
 
 /**
- * @brief Entry point spawning a child to run the overflow test.
+ * @brief Entry point spawning a child to run the DropNewest overflow test.
  */
 int main() {
     pid_t pid = fork();
