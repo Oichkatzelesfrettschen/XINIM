@@ -30,8 +30,14 @@ int parent_proc(pid_t child) {
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};
-    // Wait for the child to signal readiness
+    // Wait for the child to signal readiness, with timeout to avoid infinite wait
+    constexpr auto timeout = 5s;
+    auto start = std::chrono::steady_clock::now();
     while (!net::recv(pkt)) {
+        if (std::chrono::steady_clock::now() - start > timeout) {
+            std::cerr << "Timeout waiting for child to signal readiness." << std::endl;
+            std::exit(EXIT_FAILURE);
+        }
         std::this_thread::sleep_for(10ms);
     }
 
