@@ -23,34 +23,86 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
+
+/// Forward declaration needed for BufferGuard.
+void put_block(struct buf *bp, int block_type);
+
+/**
+ * @class BufferGuard
+ * @brief RAII helper that automatically releases a buffer using put_block.
+ */
+class BufferGuard {
+  public:
+    BufferGuard(struct buf *bp, int type) : bp_{bp}, type_{type} {}
+    BufferGuard(const BufferGuard &) = delete;
+    BufferGuard &operator=(const BufferGuard &) = delete;
+    BufferGuard(BufferGuard &&other) noexcept : bp_{other.bp_}, type_{other.type_} {
+        other.bp_ = nullptr;
+    }
+    BufferGuard &operator=(BufferGuard &&other) noexcept {
+        if (this != &other) {
+            release();
+            bp_ = other.bp_;
+            type_ = other.type_;
+            other.bp_ = nullptr;
+        }
+        return *this;
+    }
+    ~BufferGuard() { release(); }
+
+    [[nodiscard]] auto get() const noexcept -> struct buf * { return bp_; }
+    [[nodiscard]] auto operator->() const noexcept -> struct buf * { return bp_; }
+    [[nodiscard]] auto operator*() const noexcept -> struct buf & { return *bp_; }
+
+    void release() noexcept {
+        if (bp_ != nullptr) {
+            put_block(bp_, type_);
+            bp_ = nullptr;
+        }
+    }
+
+  private:
+    struct buf *bp_{nullptr};
+    int type_{};
+};
 
 /*===========================================================================*
  *				get_block				     *
  *===========================================================================*/
-PUBLIC struct buf *get_block(dev, block, only_search)
-register dev_nr dev;     /* on which device is the block? */
-register block_nr block; /* which block is wanted? */
-int only_search;         /* if NO_READ, don't read, else act normal */
-{
+/**
+ * @brief Retrieve a block from the buffer cache.
+ *
+ * This function checks if the requested block is already cached. If not, a
+ * buffer is chosen from the LRU list and the block is read from disk unless
+ * @p mode equals IoMode::NoRead.
+ *
+ * @param dev  Device on which the block resides.
+ * @param blk  Block number to obtain.
+ * @param mode I/O mode controlling whether the block is read from disk.
+ * @return Pointer to the buffer containing the block.
+ */
+auto get_block(dev_nr dev, block_nr blk, IoMode mode) -> struct buf * {
     /* Check to see if the requested block is in the block cache.  If so, return
-     * a pointer to it.  If not, evict some other block and fetch it (unless
-     * 'only_search' is 1).  All blocks in the cache, whether in use or not,
-     * are linked together in a chain, with 'front' pointing to the least recently
-     * used block and 'rear' to the most recently used block.  If 'only_search' is
-     * 1, the block being requested will be overwritten in its entirety, so it is
-     * only necessary to see if it is in the cache; if it is not, any free buffer
-     * will do.  It is not necessary to actually read the block in from disk.
+     * a pointer to it.  If not, evict some other block and fetch it.  All
+     * blocks in the cache, whether in use or not, are linked together in a chain
+     * with 'front' pointing to the least recently used block and 'rear' to the
+     * most recently used block.  When @p mode is IoMode::NoRead the buffer is
+     * returned without reading from disk because the caller intends to
+     * overwrite the entire block.
      * In addition to the LRU chain, there is also a hash chain to link together
      * blocks whose block numbers end with the same bit strings, for fast lookup.
      */
 
     register struct buf *bp, *prev_ptr;
 
-    /* Search the list of blocks not currently in use for (dev, block). */
-    bp = buf_hash[block & (NR_BUF_HASH - 1)]; /* search the hash chain */
+    /* Search the list of blocks not currently in use for (dev, blk). */
+    bp = buf_hash[blk & (NR_BUF_HASH - 1)]; /* search the hash chain */
     if (dev != kNoDev) {
         while (bp != NIL_BUF) {
-            if (bp->b_blocknr == block && bp->b_dev == dev) {
+            if (bp->b_blocknr == blk && bp->b_dev == dev) {
                 /* Block needed has been found. */
                 if (bp->b_count == 0)
                     bufs_in_use++;
@@ -95,14 +147,14 @@ int only_search;         /* if NO_READ, don't read, else act normal */
         rw_block(bp, WRITING);
 
     /* Fill in block's parameters and add it to the hash chain where it goes. */
-    bp->b_dev = dev;       /* fill in device number */
-    bp->b_blocknr = block; /* fill in block number */
-    bp->b_count++;         /* record that block is being used */
+    bp->b_dev = dev;     /* fill in device number */
+    bp->b_blocknr = blk; /* fill in block number */
+    bp->b_count++;       /* record that block is being used */
     bp->b_hash = buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)];
     buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)] = bp; /* add to hash list */
 
-    /* Go get the requested block, unless only_search = NO_READ. */
-    if (dev != kNoDev && only_search == NORMAL)
+    /* Go get the requested block, unless mode == IoMode::NoRead. */
+    if (dev != kNoDev && mode == IoMode::Normal)
         rw_block(bp, READING);
     return (bp); /* return the newly acquired block */
 }
@@ -110,10 +162,16 @@ int only_search;         /* if NO_READ, don't read, else act normal */
 /*===========================================================================*
  *				put_block				     *
  *===========================================================================*/
-PUBLIC put_block(bp, block_type)
-register struct buf *bp; /* pointer to the buffer to be released */
-int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
-{
+/**
+ * @brief Release a buffer previously obtained with get_block.
+ *
+ * Depending on @p block_type the buffer is placed either at the front or the
+ * rear of the LRU chain. Important buffers may be written immediately to disk.
+ *
+ * @param bp         Buffer to release.
+ * @param block_type Block usage hint, e.g. INODE_BLOCK or DIRECTORY_BLOCK.
+ */
+void put_block(struct buf *bp, int block_type) {
     /* Return a block to the list of available blocks.   Depending on 'block_type'
      * it may be put on the front or rear of the LRU chain.  Blocks that are
      * expected to be needed again shortly (e.g., partially full data blocks)
@@ -190,10 +248,16 @@ int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
 /*===========================================================================*
  *				alloc_zone				     *
  *===========================================================================*/
-PUBLIC zone_nr alloc_zone(dev, z)
-dev_nr dev; /* device where zone wanted */
-zone_nr z;  /* try to allocate new zone near this one */
-{
+/**
+ * @brief Allocate a new zone on a device.
+ *
+ * The allocation tries to obtain a zone near @p z to improve locality.
+ *
+ * @param dev Device on which to allocate the zone.
+ * @param z   Desired zone vicinity.
+ * @return Newly allocated zone number or NO_ZONE on failure.
+ */
+auto alloc_zone(dev_nr dev, zone_nr z) -> zone_nr {
     /* Allocate a new zone on the indicated device and return its number. */
 
     bit_nr b, bit;
@@ -229,10 +293,13 @@ zone_nr z;  /* try to allocate new zone near this one */
 /*===========================================================================*
  *				free_zone				     *
  *===========================================================================*/
-PUBLIC free_zone(dev, numb)
-dev_nr dev;   /* device where zone located */
-zone_nr numb; /* zone to be returned */
-{
+/**
+ * @brief Release a previously allocated zone.
+ *
+ * @param dev  Device on which the zone resides.
+ * @param numb Zone number to free.
+ */
+void free_zone(dev_nr dev, zone_nr numb) {
     /* Return a zone. */
 
     register struct super_block *sp;
@@ -249,10 +316,13 @@ zone_nr numb; /* zone to be returned */
 /*===========================================================================*
  *				rw_block				     *
  *===========================================================================*/
-PUBLIC rw_block(bp, rw_flag)
-register struct buf *bp; /* buffer pointer */
-int rw_flag;             /* READING or WRITING */
-{
+/**
+ * @brief Perform raw I/O on a buffer.
+ *
+ * @param bp      Buffer to read or write.
+ * @param rw_flag Either READING or WRITING.
+ */
+void rw_block(struct buf *bp, int rw_flag) {
     /* Read or write a disk block. This is the only routine in which actual disk
      * I/O is invoked.  If an error occurs, a message is printed here, but the error
      * is not reported to the caller.  If the error occurred while purging a block
@@ -285,14 +355,15 @@ int rw_flag;             /* READING or WRITING */
 /*===========================================================================*
  *				invalidate				     *
  *===========================================================================*/
-PUBLIC invalidate(device)
-dev_nr device; /* device whose blocks are to be purged */
-{
-    /* Remove all the blocks belonging to some device from the cache. */
-
-    register struct buf *bp;
-
-    for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++)
-        if (bp->b_dev == device)
+/**
+ * @brief Invalidate all cached blocks belonging to a device.
+ *
+ * @param device Device whose cached blocks should be purged.
+ */
+void invalidate(dev_nr device) {
+    for (auto bp = &buf[0]; bp < &buf[NR_BUFS]; ++bp) {
+        if (bp->b_dev == device) {
             bp->b_dev = kNoDev;
+        }
+    }
 }

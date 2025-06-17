@@ -22,6 +22,9 @@
 #include "inode.hpp"
 #include "param.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 
 /*===========================================================================*
  *				do_link					     *
@@ -178,7 +181,7 @@ register struct inode *rip; /* pointer to inode to be truncated */
     free_zone(dev, rip->i_zone[NR_DZONE_NUM]); /* single indirect zone */
     if ((z = rip->i_zone[NR_DZONE_NUM + 1]) != kNoZone) {
         b = (block_nr)z << scale;
-        bp = get_block(dev, b, NORMAL); /* get double indirect zone */
+        bp = get_block(dev, b, IoMode::Normal); /* get double indirect zone */
         for (iz = &bp->b_ind[0]; iz < &bp->b_ind[NR_INDIRECTS]; iz++) {
             free_zone(dev, *iz);
         }

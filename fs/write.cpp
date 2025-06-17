@@ -22,6 +22,9 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #include <cstddef> // For std::size_t, nullptr
 #include <cstdint> // For uint16_t, int32_t, uint32_t, int64_t
 
@@ -98,7 +101,7 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
         // z is uint16_t, b is uint16_t. scale is int.
         b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
         // rip->i_dev is dev_nr (uint16_t), b is block_nr (uint16_t).
-        bp = get_block(rip->i_dev, b, (new_dbl ? NO_READ : NORMAL));
+        bp = get_block(rip->i_dev, b, (new_dbl ? IoMode::NoRead : IoMode::Normal));
         if (new_dbl)
             zero_block(bp);
         zp = &bp->b_ind[index]; // bp->b_ind is zone_nr[] (uint16_t[])
@@ -121,7 +124,7 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
     /* 'zp' now points to indirect block's zone number. */
     // *zp is uint16_t, b is uint16_t, scale is int
     b = static_cast<uint16_t>(static_cast<uint32_t>(*zp) << scale);
-    bp = get_block(rip->i_dev, b, (new_ind ? NO_READ : NORMAL));
+    bp = get_block(rip->i_dev, b, (new_ind ? IoMode::NoRead : IoMode::Normal));
     if (new_ind)
         zero_block(bp);
     // bp->b_ind is uint16_t[]. excess is int32_t (small index). new_zone is uint16_t.
@@ -177,7 +180,7 @@ PUBLIC void clear_zone(struct inode *rip, int32_t pos, int flag) {
     /* Clear all the blocks between 'blo' and 'bhi'. */
     for (b = blo; b <= bhi; b++) { // b, blo, bhi are uint16_t
         // rip->i_dev is dev_nr (uint16_t)
-        bp = get_block(rip->i_dev, b, NO_READ);
+        bp = get_block(rip->i_dev, b, IoMode::NoRead);
         zero_block(bp);
         put_block(bp, FULL_DATA_BLOCK);
     }
@@ -238,7 +241,7 @@ PUBLIC struct buf *new_block(struct inode *rip, int32_t position) {
             static_cast<uint16_t>((static_cast<uint32_t>(position) % zone_size) / BLOCK_SIZE);
     }
 
-    bp = get_block(rip->i_dev, b, NO_READ); // rip->i_dev is dev_nr, b is block_nr
+    bp = get_block(rip->i_dev, b, IoMode::NoRead); // rip->i_dev is dev_nr, b is block_nr
     zero_block(bp);
     return (bp);
 }
