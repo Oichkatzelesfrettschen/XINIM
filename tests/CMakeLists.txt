@@ -16,9 +16,7 @@ set(XINIM_INCLUDES
     ${CMAKE_SOURCE_DIR}/kernel
 )
 
-# -----------------------------------------------------------------------------
-# Helper macro for lattice IPC tests
-# -----------------------------------------------------------------------------
+# Common sources for Lattice IPC tests
 set(LATTICE_COMMON_SOURCES
     ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
     ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
@@ -30,6 +28,7 @@ set(LATTICE_COMMON_SOURCES
     task_stubs.cpp
 )
 
+# Helper macro for Lattice IPC tests
 macro(add_lattice_test name test_src)
     add_executable(${name}
         ${test_src}
@@ -53,27 +52,21 @@ add_executable(minix_test_lib
     ${CMAKE_SOURCE_DIR}/lib/strcmp.cpp
     ${CMAKE_SOURCE_DIR}/lib/rand.cpp
 )
-target_include_directories(minix_test_lib PRIVATE
-    ${XINIM_INCLUDES}
-)
+target_include_directories(minix_test_lib PRIVATE ${XINIM_INCLUDES})
 target_compile_options(minix_test_lib PRIVATE -fno-builtin)
 add_test(NAME minix_test_lib COMMAND minix_test_lib)
 
 add_executable(minix_test_syscall
     test_syscall.cpp
 )
-target_include_directories(minix_test_syscall PRIVATE
-    ${XINIM_INCLUDES}
-)
+target_include_directories(minix_test_syscall PRIVATE ${XINIM_INCLUDES})
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
 add_executable(minix_test_memory_stream
     test_memory_stream.cpp
     ${CMAKE_SOURCE_DIR}/lib/io/src/memory_stream.cpp
 )
-target_include_directories(minix_test_memory_stream PRIVATE
-    ${XINIM_INCLUDES}
-)
+target_include_directories(minix_test_memory_stream PRIVATE ${XINIM_INCLUDES})
 add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
 
 # -----------------------------------------------------------------------------
@@ -90,25 +83,19 @@ add_executable(minix_test_fastpath
     test_fastpath.cpp
     ${FASTPATH_SOURCES}
 )
-target_include_directories(minix_test_fastpath PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-)
+target_include_directories(minix_test_fastpath PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
 add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
 
 add_executable(minix_test_fastpath_fallback
     test_fastpath_fallback.cpp
     ${FASTPATH_SOURCES}
 )
-target_include_directories(minix_test_fastpath_fallback PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-)
+target_include_directories(minix_test_fastpath_fallback PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
 add_test(NAME minix_test_fastpath_fallback COMMAND minix_test_fastpath_fallback)
 
 add_executable(minix_test_scheduler
     test_scheduler.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
+    ${FASTPATH_SOURCES}
 )
 target_include_directories(minix_test_scheduler PRIVATE
     ${CMAKE_SOURCE_DIR}/kernel
@@ -118,9 +105,7 @@ add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
 
 add_executable(minix_test_scheduler_deadlock
     test_scheduler_deadlock.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
+    ${FASTPATH_SOURCES}
 )
 target_include_directories(minix_test_scheduler_deadlock PRIVATE
     ${CMAKE_SOURCE_DIR}/kernel
@@ -138,19 +123,30 @@ target_include_directories(minix_test_wait_graph PRIVATE
 )
 add_test(NAME minix_test_wait_graph COMMAND minix_test_wait_graph)
 
+add_executable(minix_test_service_contract
+    test_service_contract.cpp
+    ${FASTPATH_SOURCES}
+)
+target_include_directories(minix_test_service_contract PRIVATE
+    ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
+
 # -----------------------------------------------------------------------------
 # Lattice IPC tests
 # -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice             test_lattice.cpp)
-add_lattice_test(minix_test_lattice_send_recv    test_lattice_send_recv.cpp)
-add_lattice_test(minix_test_lattice_ipc          test_lattice_ipc.cpp)
-add_lattice_test(minix_test_lattice_network      test_lattice_network.cpp)
+add_lattice_test(minix_test_lattice                  test_lattice.cpp)
+add_lattice_test(minix_test_lattice_send_recv       test_lattice_send_recv.cpp)
+add_lattice_test(minix_test_lattice_send_error      test_lattice_send_error.cpp)
+add_lattice_test(minix_test_lattice_ipc             test_lattice_ipc.cpp)
+add_lattice_test(minix_test_lattice_network         test_lattice_network.cpp)
 add_lattice_test(minix_test_lattice_network_encrypted
-                                          test_lattice_network_encrypted.cpp)
-add_lattice_test(minix_test_net_two_node         test_net_two_node.cpp)
-add_lattice_test(minix_test_net_driver           test_net_driver.cpp)
-add_lattice_test(minix_test_net_driver_overflow  test_net_driver_overflow.cpp)
-add_lattice_test(minix_test_net_driver_tcp       test_net_driver_tcp.cpp)
+                                         test_lattice_network_encrypted.cpp)
+add_lattice_test(minix_test_net_two_node            test_net_two_node.cpp)
+add_lattice_test(minix_test_net_driver              test_net_driver.cpp)
+add_lattice_test(minix_test_net_driver_overflow     test_net_driver_overflow.cpp)
+add_lattice_test(minix_test_net_driver_tcp          test_net_driver_tcp.cpp)
 
 # -----------------------------------------------------------------------------
 # Crypto library

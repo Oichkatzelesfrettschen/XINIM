@@ -62,7 +62,7 @@ static int child_proc() {
 
     message reply{};
     reply.m_type = net::local_node();
-    lattice_send(2, 1, reply);
+    assert(lattice_send(2, 1, reply) == OK);
 
     std::this_thread::sleep_for(std::chrono::milliseconds(50));
     net::shutdown();
@@ -84,7 +84,7 @@ static int parent_proc(pid_t child) {
 
     message msg{};
     msg.m_type = 0x1234;
-    lattice_send(1, 2, msg);
+    assert(lattice_send(1, 2, msg) == OK);
 
     message reply{};
     for (;;) {

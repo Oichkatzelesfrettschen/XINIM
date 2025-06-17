@@ -160,7 +160,8 @@ void shutdown() noexcept;
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
- * @return ``true`` on success, ``false`` on failure or unknown destination.
+ * @return ``true`` on success; ``false`` if the peer is unknown or a socket
+ *         error occurs.
  */
 [[nodiscard]] bool send(node_t node, std::span<const std::byte> data);
 

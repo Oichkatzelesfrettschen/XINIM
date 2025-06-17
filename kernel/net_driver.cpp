@@ -2,13 +2,13 @@
  * @file net_driver.cpp
  * @brief Robust UDP/TCP network driver for Lattice IPC.
  *
- * This implementation merges support for:
- *  - Configurable receive queue length + overflow policy
- *  - Hybrid UDP/TCP peer transport (transient TCP or persistent)
+ * This implementation merges:
+ *  - Configurable receive queue length & overflow policy
+ *  - Hybrid UDP/TCP transport (transient UDP or persistent TCP)
  *  - Framed packets prefixed with local_node()
  *  - Background I/O threads for UDP datagrams and TCP accepts
  *  - Optional receive callback on packet arrival
- *  - Blocking/non-blocking send/recv APIs
+ *  - Blocking send/recv APIs
  *  - Auto-detectable or configured node identifier
  */
 
@@ -19,8 +19,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
-#include <atomic>
 #include <array>
+#include <atomic>
 #include <cstring>
 #include <deque>
 #include <mutex>
@@ -41,32 +41,31 @@ static int                         g_udp_sock   = -1;
 static int                         g_tcp_listen = -1;
 
 /**
- * Represents a remote peer: IPv4 address + transport preference.
+ * Represents a remote peer: address, transport, and optional persistent TCP fd.
  */
 struct Remote {
-    sockaddr_in addr{};            ///< Destination address
-    Protocol     proto    = Protocol::UDP; ///< UDP or TCP
-    int          tcp_fd   = -1;    ///< Persistent TCP socket if proto==TCP
+    sockaddr_in addr{};       ///< Destination IPv4 address
+    Protocol     proto;       ///< UDP or TCP
+    int          tcp_fd = -1; ///< persistent TCP socket if proto==TCP
 };
 
-/** Mapping from node ID to Remote info. */
+/** Map from node ID to remote peer info. */
 static std::unordered_map<node_t, Remote> g_remotes;
 /** Queue of received packets. */
 static std::deque<Packet>                g_queue;
 /** Mutex guarding g_queue. */
 static std::mutex                         g_mutex;
-/** Optional user callback invoked on packet arrival. */
-static RecvCallback                       g_callback = nullptr;
-/** Flag to control background threads. */
+/** Optional callback invoked on packet arrival. */
+static RecvCallback                       g_callback;
+/** Controls background I/O threads. */
 static std::atomic<bool>                  g_running{false};
-/** Background threads for UDP and TCP I/O. */
+/** Background receiver threads. */
 static std::jthread                       g_udp_thread, g_tcp_thread;
 
 /**
- * @brief Prefix data with local node ID and return a new buffer.
+ * @brief Frame a payload by prefixing with the local node ID.
  */
-static std::vector<std::byte>
-frame_payload(std::span<const std::byte> data) {
+static std::vector<std::byte> frame_payload(std::span<const std::byte> data) {
     node_t nid = local_node();
     std::vector<std::byte> buf(sizeof(nid) + data.size());
     std::memcpy(buf.data(), &nid, sizeof(nid));
@@ -75,17 +74,16 @@ frame_payload(std::span<const std::byte> data) {
 }
 
 /**
- * @brief Enqueue a packet, applying overflow policy if full.
+ * @brief Enqueue a packet, applying overflow policy if the queue is full.
  */
 static void enqueue_packet(Packet&& pkt) {
     std::lock_guard lock{g_mutex};
     if (g_cfg.max_queue_length > 0 &&
-        g_queue.size() >= static_cast<size_t>(g_cfg.max_queue_length))
-    {
+        g_queue.size() >= static_cast<size_t>(g_cfg.max_queue_length)) {
         if (g_cfg.overflow == OverflowPolicy::DropOldest) {
             g_queue.pop_front();
-        } else { // OverwriteOldest
-            g_queue.pop_front();
+        } else if (g_cfg.overflow == OverflowPolicy::DropNewest) {
+            return; // drop the new packet
         }
     }
     g_queue.push_back(std::move(pkt));
@@ -95,9 +93,9 @@ static void enqueue_packet(Packet&& pkt) {
 }
 
 /**
- * @brief Background loop to receive UDP datagrams.
+ * @brief Background loop receiving UDP datagrams.
  */
-void udp_recv_loop() {
+static void udp_recv_loop() {
     std::array<std::byte, 2048> buf;
     while (g_running.load(std::memory_order_relaxed)) {
         sockaddr_in peer{};
@@ -119,10 +117,10 @@ void udp_recv_loop() {
 }
 
 /**
- * @brief Background loop to accept and process TCP connections.
+ * @brief Background loop accepting and processing TCP connections.
  */
-void tcp_accept_loop() {
-    ::listen(g_tcp_listen, 8);
+static void tcp_accept_loop() {
+    ::listen(g_tcp_listen, SOMAXCONN);
     while (g_running.load(std::memory_order_relaxed)) {
         sockaddr_in peer{};
         socklen_t len = sizeof(peer);
@@ -148,15 +146,15 @@ void tcp_accept_loop() {
     }
 }
 
-} // anonymous namespace
+} // namespace
 
-void init(const Config &cfg) {
+void init(const Config& cfg) {
     g_cfg = cfg;
 
-    // Create and bind UDP socket
+    // Create UDP socket
     g_udp_sock = ::socket(AF_INET, SOCK_DGRAM, 0);
     if (g_udp_sock < 0) {
-        throw std::system_error(errno, std::generic_category(), "UDP socket");
+        throw std::system_error(errno, std::generic_category(), "net_driver: UDP socket");
     }
     sockaddr_in addr{};
     addr.sin_family      = AF_INET;
@@ -164,26 +162,24 @@ void init(const Config &cfg) {
     addr.sin_addr.s_addr = htonl(INADDR_ANY);
     if (::bind(g_udp_sock,
                reinterpret_cast<sockaddr*>(&addr),
-               sizeof(addr)) < 0)
-    {
-        throw std::system_error(errno, std::generic_category(), "UDP bind");
+               sizeof(addr)) < 0) {
+        throw std::system_error(errno, std::generic_category(), "net_driver: UDP bind");
     }
 
-    // Create and bind TCP listening socket
+    // Create TCP listening socket
     g_tcp_listen = ::socket(AF_INET, SOCK_STREAM, 0);
     if (g_tcp_listen < 0) {
-        throw std::system_error(errno, std::generic_category(), "TCP socket");
+        throw std::system_error(errno, std::generic_category(), "net_driver: TCP socket");
     }
     int opt = 1;
     ::setsockopt(g_tcp_listen, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
     if (::bind(g_tcp_listen,
                reinterpret_cast<sockaddr*>(&addr),
-               sizeof(addr)) < 0)
-    {
-        throw std::system_error(errno, std::generic_category(), "TCP bind");
+               sizeof(addr)) < 0) {
+        throw std::system_error(errno, std::generic_category(), "net_driver: TCP bind");
     }
 
-    // Start background I/O threads
+    // Launch background I/O threads
     g_running.store(true, std::memory_order_relaxed);
     g_udp_thread = std::jthread{udp_recv_loop};
     g_tcp_thread = std::jthread{tcp_accept_loop};
@@ -208,9 +204,9 @@ void shutdown() noexcept {
         std::lock_guard lock{g_mutex};
         g_queue.clear();
     }
-    for (auto & [_, r] : g_remotes) {
-        if (r.proto == Protocol::TCP && r.tcp_fd >= 0) {
-            ::close(r.tcp_fd);
+    for (auto& [_, rem] : g_remotes) {
+        if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
+            ::close(rem.tcp_fd);
         }
     }
     g_remotes.clear();
@@ -218,14 +214,13 @@ void shutdown() noexcept {
 }
 
 void add_remote(node_t node,
-                const std::string &host,
+                const std::string& host,
                 uint16_t port,
-                Protocol proto)
-{
+                Protocol proto) {
     Remote rem{};
-    rem.proto              = proto;
-    rem.addr.sin_family    = AF_INET;
-    rem.addr.sin_port      = htons(port);
+    rem.proto = proto;
+    rem.addr.sin_family = AF_INET;
+    rem.addr.sin_port   = htons(port);
     if (::inet_aton(host.c_str(), &rem.addr.sin_addr) == 0) {
         throw std::invalid_argument("net_driver: invalid host address");
     }
@@ -234,10 +229,9 @@ void add_remote(node_t node,
         if (rem.tcp_fd < 0 ||
             ::connect(rem.tcp_fd,
                       reinterpret_cast<sockaddr*>(&rem.addr),
-                      sizeof(rem.addr)) != 0)
-        {
+                      sizeof(rem.addr)) != 0) {
             if (rem.tcp_fd >= 0) ::close(rem.tcp_fd);
-            throw std::system_error(errno, std::generic_category(), "TCP connect");
+            throw std::system_error(errno, std::generic_category(), "net_driver: TCP connect");
         }
     }
     g_remotes[node] = rem;
@@ -258,13 +252,12 @@ node_t local_node() noexcept {
         socklen_t len = sizeof(sa);
         if (::getsockname(g_udp_sock,
                           reinterpret_cast<sockaddr*>(&sa),
-                          &len) == 0)
-        {
+                          &len) == 0) {
             node_t id = static_cast<node_t>(ntohl(sa.sin_addr.s_addr) & 0x7fffffff);
             return id != 0 ? id : 1;
         }
     }
-    // 3) Hash hostname
+    // 3) Fallback: hash hostname
     char host[256]{};
     if (::gethostname(host, sizeof(host)) == 0) {
         auto h = std::hash<std::string_view>{}(host) & 0x7fffffff;
@@ -276,23 +269,23 @@ node_t local_node() noexcept {
 bool send(node_t node, std::span<const std::byte> data) {
     auto it = g_remotes.find(node);
     if (it == g_remotes.end()) {
-        return false; // unknown node
+        return false; // unknown destination
     }
     auto buf = frame_payload(data);
-    auto &rem = it->second;
+    auto& rem = it->second;
     if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
         return ::send(rem.tcp_fd, buf.data(), buf.size(), 0) ==
                static_cast<ssize_t>(buf.size());
     }
     return ::sendto(g_udp_sock,
-                    buf.data(),
-                    buf.size(),
+                    buf.data(), buf.size(),
                     0,
                     reinterpret_cast<sockaddr*>(&rem.addr),
-                    sizeof(rem.addr)) == static_cast<ssize_t>(buf.size());
+                    sizeof(rem.addr)) ==
+           static_cast<ssize_t>(buf.size());
 }
 
-bool recv(Packet &out) {
+bool recv(Packet& out) {
     std::lock_guard lock{g_mutex};
     if (g_queue.empty()) {
         return false;
