@@ -155,7 +155,10 @@ void init(const Config &cfg) {
     if (g_cfg.node_id == 0) {
         std::ifstream idin{NODE_ID_FILE};
         if (idin) {
-            idin >> g_cfg.node_id;
+            node_t file_node_id = 0;
+            if (idin >> file_node_id) {
+                g_cfg.node_id = file_node_id;
+            }
         }
     }
 
