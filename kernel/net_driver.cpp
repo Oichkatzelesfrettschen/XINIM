@@ -284,13 +284,22 @@ node_t local_node() noexcept {
     return 0;
 }
 
-bool send(node_t node, std::span<const std::byte> data) {
+/**
+ * @brief Transmit a framed payload to a remote node.
+ *
+ * @param node Identifier of the destination peer.
+ * @param data Raw payload bytes excluding the local node prefix.
+ * @return ``std::errc::success`` on success or a descriptive ``std::errc``
+ *         when a logical error occurs. Socket failures throw
+ *         ``std::system_error``.
+ */
+std::errc send(node_t node, std::span<const std::byte> data) {
     Remote rem;
     {
         std::lock_guard lock{g_remotes_mutex};
         auto it = g_remotes.find(node);
         if (it == g_remotes.end()) {
-            return false; // unknown destination
+            return std::errc::host_unreachable; // unknown destination
         }
         rem = it->second;
     }
@@ -301,37 +310,45 @@ bool send(node_t node, std::span<const std::byte> data) {
         bool tmp = false;
         if (fd < 0) {
             fd = ::socket(AF_INET, SOCK_STREAM, 0);
-            if (fd < 0 ||
-                ::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr)) != 0) {
-                if (fd >= 0) {
-                    ::close(fd);
-                }
-                return false;
+            if (fd < 0) {
+                throw std::system_error(errno, std::generic_category(), "net_driver: socket");
+            }
+            if (::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr)) != 0) {
+                int err = errno;
+                ::close(fd);
+                throw std::system_error(err, std::generic_category(), "net_driver: connect");
             }
             tmp = true;
         }
         std::size_t sent = 0;
         while (sent < buf.size()) {
             ssize_t n = ::send(fd, buf.data() + sent, buf.size() - sent, 0);
-            if (n <= 0) {
+            if (n < 0) {
                 if (tmp) {
                     ::close(fd);
                 }
-                return false;
+                throw std::system_error(errno, std::generic_category(), "net_driver: send");
             }
             sent += static_cast<std::size_t>(n);
         }
         if (tmp) {
             ::close(fd);
         }
-        return true;
+        return std::errc{};
     }
 
     if (g_udp_sock < 0) {
-        return false;
+        return std::errc::not_connected;
     }
-    return ::sendto(g_udp_sock, buf.data(), buf.size(), 0, reinterpret_cast<sockaddr *>(&rem.addr),
-                    sizeof(rem.addr)) == static_cast<ssize_t>(buf.size());
+    ssize_t n = ::sendto(g_udp_sock, buf.data(), buf.size(), 0,
+                         reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr));
+    if (n < 0) {
+        throw std::system_error(errno, std::generic_category(), "net_driver: sendto");
+    }
+    if (n != static_cast<ssize_t>(buf.size())) {
+        return std::errc::no_buffer_space;
+    }
+    return std::errc{};
 }
 
 bool recv(Packet &out) {

@@ -21,7 +21,7 @@ int main() {
     net::add_remote(SELF, "127.0.0.1", PORT);
 
     std::array<std::byte, 2> payload{std::byte{0xAA}, std::byte{0x55}};
-    assert(net::send(SELF, payload));
+    assert(net::send(SELF, payload) == std::errc{});
 
     net::Packet pkt{};
     for (int i = 0; i < 100 && !net::recv(pkt); ++i) {

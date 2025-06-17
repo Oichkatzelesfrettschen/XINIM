@@ -65,7 +65,10 @@ The networking backend transports packets over UDP or TCP. Calling
 receives and TCP connection handling. Each remote node registers its address
 with :cpp:func:`net::add_remote`. Frames are transmitted by
 :cpp:func:`net::send`. For TCP peers the function establishes a transient
-connection when necessary. Incoming datagrams remain queued until
+connection when necessary. ``net::send`` now returns a ``std::errc`` value
+where ``std::errc::success`` indicates success. Socket failures such as
+``ECONNREFUSED`` propagate as ``std::system_error`` exceptions. Incoming
+datagrams remain queued until
 :cpp:func:`lattice::poll_network` decrypts and enqueues them for IPC.
 
 Example

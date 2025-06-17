@@ -28,7 +28,7 @@ int main() {
         net::node_t node = static_cast<net::node_t>(idx + 1);
         net::add_remote(node, "127.0.0.1", PORT);
         std::array<std::byte, 1> payload{std::byte{static_cast<unsigned char>(idx)}};
-        assert(net::send(node, payload));
+        assert(net::send(node, payload) == std::errc{});
     };
 
     std::vector<std::thread> threads;

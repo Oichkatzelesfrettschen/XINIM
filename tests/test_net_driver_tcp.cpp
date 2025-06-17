@@ -35,7 +35,7 @@ int parent_proc(pid_t child_pid) {
 
     // Send a 3-byte payload
     std::array<std::byte, 3> data{std::byte{1}, std::byte{2}, std::byte{3}};
-    net::send(CHILD_NODE, data);
+    assert(net::send(CHILD_NODE, data) == std::errc{});
 
     // Wait for reply
     do {
@@ -62,7 +62,7 @@ int child_proc() {
 
     // Signal readiness
     std::array<std::byte, 1> ready{std::byte{0}};
-    net::send(PARENT_NODE, ready);
+    assert(net::send(PARENT_NODE, ready) == std::errc{});
 
     // Wait for parent payload
     net::Packet pkt;
@@ -74,7 +74,7 @@ int child_proc() {
 
     // Send back reply [9,8,7]
     std::array<std::byte, 3> reply{std::byte{9}, std::byte{8}, std::byte{7}};
-    net::send(PARENT_NODE, reply);
+    assert(net::send(PARENT_NODE, reply) == std::errc{});
 
     // Allow time for delivery before shutdown
     std::this_thread::sleep_for(50ms);

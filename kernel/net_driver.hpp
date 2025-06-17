@@ -31,6 +31,7 @@
 #include <netinet/in.h>
 #include <span>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace net {
@@ -151,10 +152,11 @@ void shutdown() noexcept;
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
- * @return ``true`` on success; ``false`` if the peer is unknown or a socket
- *         error occurs.
+ * @return ``std::errc::success`` when successful. A specific ``std::errc``
+ *         value is returned for logical errors such as an unknown peer. Socket
+ *         failures raise ``std::system_error``.
  */
-[[nodiscard]] bool send(node_t node, std::span<const std::byte> data);
+[[nodiscard]] std::errc send(node_t node, std::span<const std::byte> data);
 
 /**
  * @brief Dequeue the next received packet, if any.
