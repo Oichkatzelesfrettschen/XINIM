@@ -5,6 +5,7 @@
  */
 
 #include "../include/xinim/core_types.hpp"
+#include "net_driver.hpp"
 #include <atomic>
 #include <ranges>
 #include <unordered_map>
@@ -49,7 +50,7 @@ class ServiceManager {
      * @param limit Automatic restart limit for liveness enforcement.
      */
     void register_service(xinim::pid_t pid, const std::vector<xinim::pid_t> &deps = {},
-                          std::uint32_t limit = 3);
+                          std::uint32_t limit = 3, net::node_t node = net::local_node());
 
     /**
      * @brief Declare an additional dependency after registration.
@@ -96,9 +97,10 @@ class ServiceManager {
      * @brief Metadata associated with each registered service.
      */
     struct ServiceInfo {
-        bool running{false};            ///< Whether the service is active
-        std::vector<xinim::pid_t> deps; ///< Services this one depends on
-        LivenessContract contract{};    ///< Liveness contract for restarts
+        bool running{false};                 ///< Whether the service is active
+        std::vector<xinim::pid_t> deps;      ///< Services this one depends on
+        net::node_t node{net::local_node()}; ///< Node hosting the service
+        LivenessContract contract{};         ///< Liveness contract for restarts
     };
 
     /**
@@ -127,6 +129,11 @@ class ServiceManager {
      * @param visited Set of services already restarted in this operation.
      */
     void restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pid_t> &visited);
+
+    /**
+     * @brief Broadcast a crash notification for @p pid to all remotes.
+     */
+    void notify_crash(xinim::pid_t pid) const;
 
     std::unordered_map<xinim::pid_t, ServiceInfo> services_{}; ///< Registered services
     static std::atomic_uint64_t next_contract_id_;             ///< Counter for contract IDs

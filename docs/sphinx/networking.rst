@@ -100,6 +100,15 @@ hostname. Set ``tcp=true`` to create a persistent TCP
 connection; otherwise UDP datagrams are used.  Packets are sent only to
 registered peers and looked up by ``node_id`` at transmission time.
 
+Crash Notifications
+-------------------
+When :cpp:func:`lattice_connect` links processes across nodes the driver
+installs a crash callback. Should a remote service terminate, its host
+broadcasts a control message. Nodes that added the peer via
+:cpp:func:`net::add_remote` automatically forward this event to
+:cpp:func:`svc::ServiceManager::handle_crash` ensuring all contracts
+reflect the restart.
+
 
 
 Typical Configuration Steps

@@ -76,6 +76,7 @@ set(FASTPATH_SOURCES
     ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
     ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
     ${CMAKE_SOURCE_DIR}/kernel/service.cpp
+    ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
     ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
 )
 
@@ -174,6 +175,12 @@ target_compile_definitions(minix_test_net_two_node PRIVATE EXTERN=extern)
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_poll_network test_poll_network.cpp ${CMAKE_SOURCE_DIR}/crypto)
 target_compile_definitions(minix_test_poll_network PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
+# minix_test_service_restart_remote
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_service_restart_remote test_service_restart_remote.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_service_restart_remote PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
 # minix_test_net_driver

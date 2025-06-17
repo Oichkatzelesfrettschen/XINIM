@@ -3,6 +3,7 @@
  * @brief Unit tests exercising service restart contracts.
  */
 
+#include "../kernel/net_driver.hpp"
 #include "../kernel/schedule.hpp"
 #include "../kernel/service.hpp"
 #include <cassert>
@@ -14,7 +15,7 @@ int main() {
     using sched::scheduler;
     using svc::service_manager;
 
-    service_manager.register_service(1, {}, 1);
+    service_manager.register_service(1, {}, 1, net::local_node());
 
     scheduler.preempt();
     scheduler.crash(1);

@@ -17,6 +17,10 @@
  * Thread Safety: All APIs are thread-safe and may be called from multiple threads.
  */
 
+#ifdef printf
+#undef printf
+#endif
+#include "../include/xinim/core_types.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -38,8 +42,8 @@ using node_t = int;
  * received as a Packet with the `src_node` field and a payload vector.
  */
 struct Packet {
-    node_t src_node;                  ///< Originating node ID
-    std::vector<std::byte> payload;  ///< Message payload (excluding prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
 };
 
 /**
@@ -65,14 +69,12 @@ enum class Protocol {
  * Use `node_id = 0` to auto-detect the ID and persist it to `/etc/xinim/node_id`.
  */
 struct Config {
-    node_t node_id;                 ///< Preferred node identifier (0 = auto-detect)
-    std::uint16_t port;            ///< Local port to bind UDP/TCP sockets
-    std::size_t max_queue_length;  ///< Maximum packets in the receive queue
-    OverflowPolicy overflow;       ///< Policy when the receive queue overflows
+    node_t node_id;               ///< Preferred node identifier (0 = auto-detect)
+    std::uint16_t port;           ///< Local port to bind UDP/TCP sockets
+    std::size_t max_queue_length; ///< Maximum packets in the receive queue
+    OverflowPolicy overflow;      ///< Policy when the receive queue overflows
 
-    constexpr Config(node_t node_id_ = 0,
-                     std::uint16_t port_ = 0,
-                     std::size_t max_len = 0,
+    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
                      OverflowPolicy policy = OverflowPolicy::DropNewest) noexcept
         : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy) {}
 };
@@ -119,6 +121,12 @@ void add_remote(node_t node, const std::string &host, uint16_t port,
  */
 void set_recv_callback(RecvCallback cb);
 
+/** Callback invoked when a remote crash notice arrives. */
+using CrashCallback = std::function<void(node_t, xinim::pid_t)>;
+
+/** Install callback for crash notifications. */
+void set_crash_callback(CrashCallback cb);
+
 /**
  * @brief Shutdown the network driver and clean up all resources.
  *
@@ -151,6 +159,12 @@ void shutdown() noexcept;
  * @throws std::system_error for POSIX socket failures (send, connect, etc)
  */
 [[nodiscard]] std::errc send(node_t node, std::span<const std::byte> data);
+
+/** Broadcast payload to all registered remotes. */
+void broadcast(std::span<const std::byte> data);
+
+/** Send a crash notice to a specific node. */
+void send_crash(node_t node, xinim::pid_t pid);
 
 /**
  * @brief Retrieve the next available incoming packet.

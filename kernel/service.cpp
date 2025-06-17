@@ -2,6 +2,8 @@
 #include "schedule.hpp"
 
 #include <algorithm>
+#include <array>
+#include <cstring>
 #include <ranges>
 
 namespace svc {
@@ -38,12 +40,13 @@ bool ServiceManager::has_path(xinim::pid_t start, xinim::pid_t target,
  * Contracts are created lazily for each service and track restart counts.
  */
 void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim::pid_t> &deps,
-                                      std::uint32_t limit) {
+                                      std::uint32_t limit, net::node_t node) {
     auto &info = services_[pid];
     if (info.contract.id == 0) {
         info.contract.id = next_contract_id_++;
     }
     info.contract.policy.limit = limit;
+    info.node = node;
 
     for (auto dep : deps) {
         std::unordered_set<xinim::pid_t> visited;
@@ -106,7 +109,9 @@ void ServiceManager::restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pi
 
     it->second.running = true;
     ++it->second.contract.restarts;
-    sched::scheduler.enqueue(pid);
+    if (it->second.node == net::local_node()) {
+        sched::scheduler.enqueue(pid);
+    }
 
     for (auto &[other_pid, info] : services_) {
         if (std::ranges::contains(info.deps, pid)) {
@@ -133,6 +138,10 @@ bool ServiceManager::handle_crash(xinim::pid_t pid) {
 
     std::unordered_set<xinim::pid_t> visited;
     restart_tree(pid, visited);
+
+    if (info.node == net::local_node()) {
+        notify_crash(pid);
+    }
     return true;
 }
 
@@ -164,6 +173,13 @@ bool ServiceManager::is_running(xinim::pid_t pid) const noexcept {
         return it->second.running;
     }
     return false;
+}
+
+void ServiceManager::notify_crash(xinim::pid_t pid) const {
+    std::array<std::byte, sizeof(xinim::pid_t) + 1> buf{};
+    buf[0] = std::byte{0xFF};
+    std::memcpy(buf.data() + 1, &pid, sizeof(pid));
+    net::broadcast(buf);
 }
 
 /// Global manager instance accessible throughout the kernel.

@@ -12,6 +12,7 @@
 #include "octonion.hpp"
 #include "octonion_math.hpp"
 #include "schedule.hpp"
+#include "service.hpp"
 
 #include <array>
 #include <cerrno>
@@ -118,6 +119,17 @@ int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
     auto &bwd = g_graph.connect(dst, src, node_id);
     fwd.secret = secret;
     bwd.secret = secret;
+
+    if (node_id != net::local_node()) {
+        static bool cb_installed = false;
+        if (!cb_installed) {
+            net::set_crash_callback(
+                [](net::node_t, xinim::pid_t pid) { svc::service_manager.handle_crash(pid); });
+            cb_installed = true;
+        }
+        svc::service_manager.register_service(dst, {}, 3, node_id);
+    }
+
     return OK;
 }
 
