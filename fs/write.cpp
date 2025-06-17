@@ -112,11 +112,11 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
         if (bp != NIL_BUF)      // NIL_BUF is (struct buf*)nullptr
             bp->b_dirt = DIRTY; /* if double ind, it is dirty */
         if (*zp == kNoZone) {
-            put_block(bp, INDIRECT_BLOCK); /* release dbl indirect blk */
-            return (err_code);             /* couldn't create single ind */
+            put_block(bp, BlockType::Indirect); /* release dbl indirect blk */
+            return (err_code);                  /* couldn't create single ind */
         }
     }
-    put_block(bp, INDIRECT_BLOCK); /* release double indirect blk */
+    put_block(bp, BlockType::Indirect); /* release double indirect blk */
 
     /* 'zp' now points to indirect block's zone number. */
     // *zp is uint16_t, b is uint16_t, scale is int
@@ -128,7 +128,7 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
     bp->b_ind[static_cast<std::size_t>(excess)] = new_zone;
     rip->i_modtime = clock_time(); // real_time (int64_t)
     bp->b_dirt = DIRTY;
-    put_block(bp, INDIRECT_BLOCK);
+    put_block(bp, BlockType::Indirect);
 
     return (OK);
 }
@@ -179,7 +179,7 @@ PUBLIC void clear_zone(struct inode *rip, int32_t pos, int flag) {
         // rip->i_dev is dev_nr (uint16_t)
         bp = get_block(rip->i_dev, b, NO_READ);
         zero_block(bp);
-        put_block(bp, FULL_DATA_BLOCK);
+        put_block(bp, BlockType::FullData);
     }
 }
 

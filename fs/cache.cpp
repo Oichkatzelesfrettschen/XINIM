@@ -112,7 +112,7 @@ int only_search;         /* if NO_READ, don't read, else act normal */
  *===========================================================================*/
 PUBLIC put_block(bp, block_type)
 register struct buf *bp; /* pointer to the buffer to be released */
-int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
+BlockType block_type;    /* BlockType classification for this buffer */
 {
     /* Return a block to the list of available blocks.   Depending on 'block_type'
      * it may be put on the front or rear of the LRU chain.  Blocks that are
@@ -146,12 +146,12 @@ int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
     else
         rear = prev_ptr; /* this block was at rear of chain */
 
-    /* Put this block back on the LRU chain.  If the ONE_SHOT bit is set in
+    /* Put this block back on the LRU chain.  If the BlockType::OneShot bit is set in
      * 'block_type', the block is not likely to be needed again shortly, so put
      * it on the front of the LRU chain where it will be the first one to be
      * taken when a free buffer is needed later.
      */
-    if (block_type & ONE_SHOT) {
+    if (static_cast<int>(block_type) & static_cast<int>(BlockType::OneShot)) {
         /* Block probably won't be needed quickly. Put it on front of chain.
          * It will be the next block to be evicted from the cache.
          */
@@ -179,11 +179,12 @@ int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
      * should be written to the disk immediately to avoid messing up the file
      * system in the event of a crash.
      */
-    if ((block_type & WRITE_IMMED) && bp->b_dirt == DIRTY && bp->b_dev != kNoDev)
+    if ((static_cast<int>(block_type) & static_cast<int>(BlockType::WriteImmediate)) &&
+        bp->b_dirt == DIRTY && bp->b_dev != kNoDev)
         rw_block(bp, WRITING);
 
     /* Super blocks must not be cached, lest mount use cached block. */
-    if (block_type == ZUPER_BLOCK)
+    if (block_type == BlockType::Zuper)
         bp->b_dev = kNoDev;
 }
 
