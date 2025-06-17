@@ -4,7 +4,7 @@ Networking Driver
 The networking driver transports Lattice IPC packets between nodes over UDP or, optionally, TCP.  Each node:
 
 - **Binds** to a local UDP port (and a TCP listen socket if TCP‐enabled).  
-- **Registers** peers via :cpp:func:`net::add_remote(node, host, port, tcp?)`.  
+- **Registers** peers via :cpp:func:`net::add_remote`.
 - **Spawns** background threads to receive UDP datagrams and accept TCP connections.  
 - **Queues** incoming packets internally and invokes an optional callback.  
 - **Delivers** packets via :cpp:func:`net::recv`, or via the registered callback.  
