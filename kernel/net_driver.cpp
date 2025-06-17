@@ -15,6 +15,7 @@
 
 #include <array>
 #include <atomic>
+#include <cerrno>
 #include <cstring>
 #include <deque>
 #include <filesystem>
@@ -29,8 +30,9 @@
 namespace net {
 namespace {
 
+constexpr char NODE_ID_FILE[] = "/etc/xinim/node_id";
+
 static Config g_cfg{};
-static constexpr char NODE_ID_FILE[] = "/etc/xinim/node_id";
 static int g_udp_sock = -1;
 static int g_tcp_listen = -1;
 
@@ -50,6 +52,22 @@ static RecvCallback g_callback;
 static std::atomic<bool> g_running{false};
 static std::jthread g_udp_thread, g_tcp_thread;
 
+[[nodiscard]] static bool connection_lost(int err) noexcept {
+    return err == EPIPE || err == ECONNRESET || err == ENOTCONN || err == ECONNABORTED;
+}
+
+static void reconnect_tcp(Remote &rem) {
+    if (rem.tcp_fd >= 0) ::close(rem.tcp_fd);
+    rem.tcp_fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
+    if (rem.tcp_fd < 0) throw std::system_error(errno, std::generic_category(), "net_driver: socket");
+    if (::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
+        int err = errno;
+        ::close(rem.tcp_fd);
+        rem.tcp_fd = -1;
+        throw std::system_error(err, std::generic_category(), "net_driver: connect");
+    }
+}
+
 [[nodiscard]] static std::vector<std::byte> frame_payload(std::span<const std::byte> data) {
     node_t nid = local_node();
     std::vector<std::byte> buf(sizeof(nid) + data.size());
@@ -61,8 +79,7 @@ static std::jthread g_udp_thread, g_tcp_thread;
 static void enqueue_packet(Packet &&pkt) {
     std::lock_guard lock{g_mutex};
     if (g_cfg.max_queue_length > 0 && g_queue.size() >= g_cfg.max_queue_length) {
-        if (g_cfg.overflow == OverflowPolicy::DropNewest)
-            return;
+        if (g_cfg.overflow == OverflowPolicy::DropNewest) return;
         g_queue.pop_front(); // DropOldest
     }
     g_queue.push_back(std::move(pkt));
@@ -106,7 +123,7 @@ static void tcp_accept_loop() {
     }
 }
 
-} // namespace
+} // anonymous namespace
 
 void init(const Config &cfg) {
     g_cfg = cfg;
@@ -186,12 +203,7 @@ void add_remote(node_t node, const std::string &host, uint16_t port, Protocol pr
     if (rem.addr_len == 0) throw std::invalid_argument("host address resolution failed");
 
     if (proto == Protocol::TCP) {
-        rem.tcp_fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
-        if (rem.tcp_fd < 0 ||
-            ::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
-            if (rem.tcp_fd >= 0) ::close(rem.tcp_fd);
-            throw std::system_error(errno, std::generic_category(), "TCP connect");
-        }
+        reconnect_tcp(rem);
     }
 
     std::lock_guard lock{g_remotes_mutex};
@@ -213,7 +225,6 @@ node_t local_node() noexcept {
 
     ifaddrs *ifa = nullptr;
     if (::getifaddrs(&ifa) == 0) {
-        node_t result = 0;
         for (auto *cur = ifa; cur != nullptr; cur = cur->ifa_next) {
             if (!(cur->ifa_flags & IFF_UP) || (cur->ifa_flags & IFF_LOOPBACK)) continue;
 
@@ -222,8 +233,12 @@ node_t local_node() noexcept {
                 std::size_t val = 0;
                 for (int i = 0; i < ll->sll_halen; ++i)
                     val = val * 131 + ll->sll_addr[i];
-                result = static_cast<node_t>(val & 0x7fffffff);
-                break;
+                ::freeifaddrs(ifa);
+                g_cfg.node_id = static_cast<node_t>(val & 0x7fffffff);
+                std::filesystem::create_directories("/etc/xinim");
+                std::ofstream out{NODE_ID_FILE};
+                out << g_cfg.node_id;
+                return g_cfg.node_id;
             }
 
             if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET) {
@@ -231,28 +246,24 @@ node_t local_node() noexcept {
                 const auto *b = reinterpret_cast<const uint8_t *>(&sin->sin_addr);
                 std::size_t val = 0;
                 for (int i = 0; i < 4; ++i) val = val * 131 + b[i];
-                result = static_cast<node_t>(val & 0x7fffffff);
-                break;
+                ::freeifaddrs(ifa);
+                g_cfg.node_id = static_cast<node_t>(val & 0x7fffffff);
+                std::filesystem::create_directories("/etc/xinim");
+                std::ofstream out{NODE_ID_FILE};
+                out << g_cfg.node_id;
+                return g_cfg.node_id;
             }
         }
         ::freeifaddrs(ifa);
-        if (result != 0) {
-            std::filesystem::create_directories("/etc/xinim");
-            std::ofstream out{NODE_ID_FILE};
-            out << result;
-            g_cfg.node_id = result;
-            return result;
-        }
     }
 
     char host[256]{};
     if (::gethostname(host, sizeof(host)) == 0) {
-        node_t id = static_cast<node_t>(std::hash<std::string_view>{}(host) & 0x7fffffff);
-        g_cfg.node_id = id;
+        g_cfg.node_id = static_cast<node_t>(std::hash<std::string_view>{}(host) & 0x7fffffff);
         std::filesystem::create_directories("/etc/xinim");
         std::ofstream out{NODE_ID_FILE};
-        out << id;
-        return id;
+        out << g_cfg.node_id;
+        return g_cfg.node_id;
     }
 
     return 1;
@@ -271,21 +282,20 @@ std::errc send(node_t node, std::span<const std::byte> data) {
 
     if (rem.proto == Protocol::TCP) {
         int fd = rem.tcp_fd;
-        bool transient = false;
-        if (fd < 0) {
+        bool transient = fd < 0;
+
+        if (transient) {
             fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
-            if (fd < 0) return std::errc::connection_refused;
-            if (::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
-                ::close(fd);
+            if (fd < 0 || ::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
+                if (fd >= 0) ::close(fd);
                 return std::errc::connection_refused;
             }
-            transient = true;
         }
 
         std::size_t sent = 0;
         while (sent < buf.size()) {
             ssize_t n = ::send(fd, buf.data() + sent, buf.size() - sent, 0);
-            if (n <= 0) {
+            if (n < 0) {
                 if (transient) ::close(fd);
                 return std::errc::io_error;
             }
@@ -298,9 +308,9 @@ std::errc send(node_t node, std::span<const std::byte> data) {
 
     ssize_t n = ::sendto(g_udp_sock, buf.data(), buf.size(), 0,
                          reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len);
-    if (n < 0 || static_cast<std::size_t>(n) != buf.size())
+    if (n < 0 || static_cast<std::size_t>(n) != buf.size()) {
         return std::errc::io_error;
-
+    }
     return std::errc{};
 }
 
