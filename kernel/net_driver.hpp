@@ -118,14 +118,18 @@ void shutdown() noexcept;
 /**
  * @brief Send raw bytes to a registered peer.
  *
+ * The payload is prefixed with the local node identifier before being
+ * transmitted to the remote host registered through ::add_remote. If the
+ * destination is unknown the function returns ``false``.
  * Frames the packet as [ local_node() | payload... ] and transmits
  * via UDP or TCP based on the peer's Protocol.
  * Unknown node IDs are silently ignored.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
+ * @return ``true`` on success, ``false`` on failure or unknown destination.
  */
-void send(node_t node, std::span<const std::byte> data);
+[[nodiscard]] bool send(node_t node, std::span<const std::byte> data);
 
 /**
  * @brief Dequeue the next received packet, if any.
