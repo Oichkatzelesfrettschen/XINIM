@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
 /* Buffer (block) cache.  To acquire a block, a routine calls get_block(),
  * telling which block it wants.  The block is then regarded as "in use"
  * and has its 'b_count' field incremented.  All the blocks, whether in use

@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
 /* Super block table.  The root file system and every mounted file system
  * has an entry here.  The entry holds information about the sizes of the bit
  * maps and inodes.  The s_ninodes field gives the number of inodes available
