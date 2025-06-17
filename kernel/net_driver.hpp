@@ -40,9 +40,9 @@ struct Config {
     OverflowPolicy overflow;      ///< Overflow behaviour when queue is full
 
     /// Construct a Config with sensible defaults.
-    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0,
-                     std::size_t max_queue_length_ = 0,
-                     OverflowPolicy overflow_ = OverflowPolicy::Drop) noexcept
+    explicit constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0,
+                              std::size_t max_queue_length_ = 0,
+                              OverflowPolicy overflow_ = OverflowPolicy::Drop) noexcept
         : node_id{node_id_}, port{port_}, max_queue_length{max_queue_length_}, overflow{overflow_} {
     }
 };
