@@ -2,6 +2,19 @@
 /**
  * @file net_driver.hpp
  * @brief UDP/TCP network driver interface for Lattice IPC.
+ *
+ * This driver binds a local UDP port (and TCP listen socket, if enabled)
+ * and provides asynchronous send/receive of framed, prefixed packets.
+ * Each packet is prefixed with the sender's node ID and delivered over
+ * UDP or a transient TCP connection based on peer configuration.
+ *
+ * Usage:
+ *   1. net::init({ node_id, udp_port });
+ *   2. net::add_remote(peer_id, "host", port, Protocol::UDP|TCP);
+ *   3. net::set_recv_callback(callback)   // optional
+ *   4. net::send(peer_id, data);
+ *   5. while (net::recv(pkt)) { ... }
+ *   6. net::shutdown();
  */
 
 #include <cstddef>
@@ -22,67 +35,111 @@ using node_t = int;
  */
 struct Packet {
     node_t                 src_node;  ///< Originating node ID
-    std::vector<std::byte> payload;   ///< Packet payload bytes
+    std::vector<std::byte> payload;   ///< Raw payload bytes (post‐prefix)
 };
 
-/** Configuration for ::init. */
+/** Configuration options for ::init(). */
 struct Config {
-    node_t      node_id;  ///< Local node identifier
+    node_t      node_id;  ///< Preferred local node identifier (0 to auto‐detect)
     uint16_t    port;     ///< UDP port to bind locally
 };
 
-/** Callback invoked whenever a packet is received. */
+/**
+ * @brief Supported transport protocols for remote peers.
+ */
+enum class Protocol { UDP, TCP };
+
+/**
+ * @brief Description of a remote peer.
+ *
+ * When proto==TCP, send() will establish a transient TCP connection.
+ * When proto==UDP, send() uses sendto() on the bound UDP socket.
+ */
+struct Remote {
+    sockaddr_in addr;     ///< IPv4 socket address of the peer
+    Protocol     proto;   ///< Protocol to use (UDP or TCP)
+    int          tcp_fd{-1}; ///< TCP socket FD (if persistent; optional)
+};
+
+/** Callback type invoked on packet arrival. */
 using RecvCallback = std::function<void(const Packet&)>;
 
 /**
  * @brief Initialize the network driver.
  *
- * Binds a UDP socket to cfg.port and starts background receiver threads.
+ * - Binds a UDP socket to cfg.port (INADDR_ANY).
+ * - Sets up a TCP listening socket on cfg.port.
+ * - Starts background threads for UDP recv and TCP accept.
+ *
+ * @param cfg Local node configuration.
+ * @throws std::system_error on socket/bind errors.
  */
 void init(const Config& cfg);
 
 /**
- * @brief Register a remote peer.
+ * @brief Register a remote peer for send().
  *
- * @param node Remote node identifier.
- * @param host IPv4 address or hostname of the peer.
- * @param port UDP/TCP port number.
- * @param tcp  When true, send() will use a transient TCP connection; otherwise UDP.
+ * @param node  Numeric identifier of the peer.
+ * @param host  IPv4 dotted‐decimal string or hostname.
+ * @param port  UDP/TCP port on which peer listens.
+ * @param proto Transport protocol to use.
  */
 void add_remote(node_t node,
                 const std::string& host,
                 uint16_t port,
-                bool tcp = false);
+                Protocol proto = Protocol::UDP);
 
-/** Install a packet receive callback. */
+/**
+ * @brief Install a receive callback.
+ *
+ * The callback is invoked from the background threads whenever
+ * a packet is enqueued. It is safe to call recv() instead.
+ *
+ * @param cb Function to call on packet arrival.
+ */
 void set_recv_callback(RecvCallback cb);
 
-/** Shutdown the network driver and stop all background threads. */
+/**
+ * @brief Shutdown the network driver and stop all threads.
+ *
+ * Closes sockets, joins threads, clears queues and peer list.
+ */
 void shutdown() noexcept;
 
 /**
- * @brief Derive a stable node ID from the local hostname.
+ * @brief Retrieve the local node identifier.
  *
- * Hashes gethostname() into a node_t. Returns 0 on failure.
+ * Returns cfg.node_id if nonzero; otherwise calls getsockname()
+ * on the bound UDP socket, converting the IPv4 address to host‐order.
+ * Returns 0 if detection fails.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send raw bytes to a remote node.
+ * @brief Send raw bytes to a registered peer.
  *
- * Prefixes the payload with the local node ID and transmits via UDP or TCP
- * depending on how the peer was registered. Unknown destinations are ignored.
+ * Frames the packet as [ local_node() | payload... ] and transmits
+ * via UDP or TCP based on the peer's Protocol.
+ * Unknown node IDs are silently ignored.
+ *
+ * @param node Destination node ID.
+ * @param data Span of bytes to transmit.
  */
 void send(node_t node, std::span<const std::byte> data);
 
 /**
- * @brief Retrieve the next pending packet for this node.
+ * @brief Dequeue the next received packet, if any.
  *
- * @return true if a packet was dequeued into out, false if none available.
+ * @param out Packet object to populate.
+ * @return true if a packet was dequeued into out, false otherwise.
  */
 [[nodiscard]] bool recv(Packet& out);
 
-/** Clear all queued packets across every node. */
+/**
+ * @brief Clear all pending packets across every node.
+ *
+ * Empties the internal receive queue.
+ */
 void reset() noexcept;
 
 } // namespace net
