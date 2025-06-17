@@ -1,12 +1,26 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP based network driver interface for Lattice IPC.
+ * @brief UDP/TCP network driver interface for Lattice IPC.
+ *
+ * This driver binds a local UDP port (and TCP listen socket, if enabled)
+ * and provides asynchronous send/receive of framed, prefixed packets.
+ * Each packet is prefixed with the sender's node ID and delivered over
+ * UDP or a transient TCP connection based on peer configuration.
+ *
+ * Usage:
+ *   1. net::init({ node_id, udp_port });
+ *   2. net::add_remote(peer_id, "host", port, Protocol::UDP|TCP);
+ *   3. net::set_recv_callback(callback)   // optional
+ *   4. net::send(peer_id, data);
+ *   5. while (net::recv(pkt)) { ... }
+ *   6. net::shutdown();
  */
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <netinet/in.h>
 #include <span>
 #include <string>
 #include <vector>
@@ -20,51 +34,93 @@ using node_t = int;
  * @brief In‐memory representation of a network packet.
  */
 struct Packet {
-    node_t src_node;                ///< Originating node ID
-    std::vector<std::byte> payload; ///< Packet payload bytes
+    node_t                 src_node;  ///< Originating node ID
+    std::vector<std::byte> payload;   ///< Raw payload bytes (post‐prefix)
 };
 
-/** Configuration options for ::init. */
+/** Configuration options for ::init(). */
 struct Config {
-    node_t node_id;     ///< Local node identifier
-    std::uint16_t port; ///< UDP port to bind locally
+    node_t      node_id;  ///< Preferred local node identifier (0 to auto‐detect)
+    uint16_t    port;     ///< UDP port to bind locally
 };
 
 /**
- * Callback invoked whenever a packet is received.
+ * @brief Supported transport protocols for remote peers.
  */
-using RecvCallback = std::function<void(const Packet &)>;
+enum class Protocol { UDP, TCP };
 
-/** Initialize the driver with @p cfg opening the UDP socket. */
-void init(const Config &cfg);
+/**
+ * @brief Description of a remote peer.
+ *
+ * When proto==TCP, send() will establish a transient TCP connection.
+ * When proto==UDP, send() uses sendto() on the bound UDP socket.
+ */
+struct Remote {
+    sockaddr_in addr;     ///< IPv4 socket address of the peer
+    Protocol     proto;   ///< Protocol to use (UDP or TCP)
+    int          tcp_fd{-1}; ///< TCP socket FD (if persistent; optional)
+};
 
-/** Register a remote @p node reachable at @p host:@p port. */
-void add_remote(node_t node, const std::string &host, std::uint16_t port);
+/** Callback type invoked on packet arrival. */
+using RecvCallback = std::function<void(const Packet&)>;
 
-/** Install a packet receive callback. */
+/**
+ * @brief Initialize the network driver.
+ *
+ * - Binds a UDP socket to cfg.port (INADDR_ANY).
+ * - Sets up a TCP listening socket on cfg.port.
+ * - Starts background threads for UDP recv and TCP accept.
+ *
+ * @param cfg Local node configuration.
+ * @throws std::system_error on socket/bind errors.
+ */
+void init(const Config& cfg);
+
+/**
+ * @brief Register a remote peer for send().
+ *
+ * @param node  Numeric identifier of the peer.
+ * @param host  IPv4 dotted‐decimal string or hostname.
+ * @param port  UDP/TCP port on which peer listens.
+ * @param proto Transport protocol to use.
+ */
+void add_remote(node_t node,
+                const std::string& host,
+                uint16_t port,
+                Protocol proto = Protocol::UDP);
+
+/**
+ * @brief Install a receive callback.
+ *
+ * The callback is invoked from the background threads whenever
+ * a packet is enqueued. It is safe to call recv() instead.
+ *
+ * @param cb Function to call on packet arrival.
+ */
 void set_recv_callback(RecvCallback cb);
 
-/** Stop background networking threads and reset state. */
+/**
+ * @brief Shutdown the network driver and stop all threads.
+ *
+ * Closes sockets, joins threads, clears queues and peer list.
+ */
 void shutdown() noexcept;
 
 /**
- * @brief Retrieve the configured or detected node identifier.
+ * @brief Retrieve the local node identifier.
  *
- * The driver prefers the identifier specified via ::Config::node_id.
- * When that value is zero, the bound UDP socket is queried through
- * <tt>getsockname</tt> to obtain the IPv4 address of the socket. The
- * address is converted to host byte order and returned. A value of
- * ``0`` denotes that no identifier was configured or detected.
+ * Returns cfg.node_id if nonzero; otherwise calls getsockname()
+ * on the bound UDP socket, converting the IPv4 address to host‐order.
+ * Returns 0 if detection fails.
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Transmit raw bytes to a remote node over UDP.
+ * @brief Send raw bytes to a registered peer.
  *
- * The payload is prefixed with the local identifier then sent via
- * <tt>sendto</tt> directly to the host registered through ::add_remote.
- * Unknown destinations result in silent packet drops. No queuing is
- * performed.
+ * Frames the packet as [ local_node() | payload... ] and transmits
+ * via UDP or TCP based on the peer's Protocol.
+ * Unknown node IDs are silently ignored.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
@@ -72,15 +128,17 @@ void shutdown() noexcept;
 void send(node_t node, std::span<const std::byte> data);
 
 /**
- * @brief Retrieve the next pending packet for the local node.
+ * @brief Dequeue the next received packet, if any.
  *
- * @param out Packet object to populate with received data.
- * @return `true` if a packet was dequeued, `false` if none available.
+ * @param out Packet object to populate.
+ * @return true if a packet was dequeued into out, false otherwise.
  */
-[[nodiscard]] bool recv(Packet &out);
+[[nodiscard]] bool recv(Packet& out);
 
 /**
- * @brief Clear all queued packets across every node.
+ * @brief Clear all pending packets across every node.
+ *
+ * Empties the internal receive queue.
  */
 void reset() noexcept;
 
