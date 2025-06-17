@@ -10,6 +10,7 @@
 #include "octonion_math.hpp"
 #include "pqcrypto.hpp"
 #include "proc.hpp"
+#include <deque>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -42,8 +43,11 @@ struct Channel {
      * @brief Identifier of the remote node or 0 for local delivery.
      */
     net::node_t node_id{0};
-    std::vector<message> queue; //!< Pending messages encrypted with @c secret
-    OctonionToken secret;       //!< Capability derived from PQ secret
+    /**
+     * @brief FIFO of pending messages encrypted with @c secret.
+     */
+    std::deque<message> queue;
+    OctonionToken secret; //!< Capability derived from PQ secret
 };
 
 /**

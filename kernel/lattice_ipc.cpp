@@ -6,7 +6,6 @@
 #include "lattice_ipc.hpp"
 
 #include "../h/const.hpp"
-#include "../h/error.hpp"
 #include "../include/xinim/core_types.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
@@ -15,6 +14,7 @@
 #include "schedule.hpp"
 
 #include <array>
+#include <cerrno>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -26,6 +26,8 @@
 #include <unordered_map>
 #include <vector>
 
+#include "../h/error.hpp"
+
 namespace {
 
 /**
@@ -33,8 +35,8 @@ namespace {
  *
  * Encryption and decryption are identical.
  */
-void xor_cipher(std::span<std::byte> buf, const OctonionToken &key) noexcept {
-    std::array<uint8_t, Octonion::ByteCount> mask{};
+void xor_cipher(std::span<std::byte> buf, const lattice::OctonionToken &key) noexcept {
+    std::array<uint8_t, 32> mask{};
     key.value.to_bytes(mask);
     for (size_t i = 0; i < buf.size(); ++i) {
         buf[i] ^= std::byte{mask[i % mask.size()]};
@@ -202,7 +204,7 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
         if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() && !ch.queue.empty()) {
             message copy = std::move(ch.queue.front());
             ch.queue.pop_front();
-            xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch->secret);
+            xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch.secret);
             *out = std::move(copy);
             return OK;
         }
