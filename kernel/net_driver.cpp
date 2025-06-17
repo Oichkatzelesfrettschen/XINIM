@@ -183,6 +183,14 @@ void send(node_t node, std::span<const std::byte> data) {
     std::memcpy(buf.data() + sizeof(node_t), data.data(), data.size());
 
     ::sendto(g_socket, buf.data(), buf.size(), 0, reinterpret_cast<const sockaddr *>(&it->second),
+#include <mutex>
+
+std::mutex g_remotes_mutex;
+
+void send(node_t node, std::span<const std::byte> data) {
+    std::lock_guard<std::mutex> lock(g_remotes_mutex);
+    auto it = g_remotes.find(node);
+    if (it == g_remotes.end()) {
              sizeof(sockaddr_in));
 }
 
