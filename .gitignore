@@ -34,3 +34,4 @@ docs/doxygen/
 /\.cache/
 *.DS_Store
 
+docs/sphinx/html/
