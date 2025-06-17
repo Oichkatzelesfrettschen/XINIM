@@ -158,6 +158,12 @@ add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encry
 target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_lattice_ipv6
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_ipv6 test_lattice_ipv6.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_lattice_ipv6 PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
 # minix_test_net_two_node
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${CMAKE_SOURCE_DIR}/crypto)
@@ -218,6 +224,19 @@ target_include_directories(minix_test_net_driver_tcp PUBLIC
 )
 target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_reconnect
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_reconnect
+  test_net_driver_reconnect.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_reconnect PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_reconnect PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_reconnect COMMAND minix_test_net_driver_reconnect)
 
 # -----------------------------------------------------------------------------
 # minix_test_net_driver_loopback

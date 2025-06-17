@@ -1,27 +1,20 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP and TCP/IP network driver interface built on Berkeley sockets.
+ * @brief UDP/TCP network driver interface for Lattice IPC (POSIX sockets).
  *
- * This driver binds a local UDP port (with an optional TCP listening
- * socket) and provides asynchronous send/receive of framed packets.
- * Each frame is prefixed with the sender's node identifier and is
- * transmitted over UDP or a transient TCP connection using standard
- * Berkeley socket calls.
+ * This interface provides asynchronous and multi-threaded UDP/TCP message transport
+ * between nodes in a Lattice IPC system. Messages are framed with the sender's
+ * node ID and routed using a mutex-protected peer registry.
  *
  * Usage:
- *   1. net::init({ node_id, udp_port });
- *   2. net::add_remote(peer_id, "host", port, Protocol::UDP|TCP);
- *   3. net::set_recv_callback(callback)   // optional
- *   4. net::send(peer_id, data);
- *   5. while (net::recv(pkt)) { ... }
- *   6. net::shutdown();
+ *   1. net::init({0, 12000}); // autodetect node_id
+ *   2. net::add_remote(2, "192.168.1.4", 12000, Protocol::TCP);
+ *   3. net::send(2, payload); // sends [local_node|payload]
+ *   4. while (net::recv(pkt)) { process(pkt); }
+ *   5. net::shutdown();
  *
- * @section thread_safety Thread Safety
- *
- * Calls to add_remote(), send() and recv() are safe to invoke from
- * multiple threads. The internal peer registry is protected by a
- * dedicated mutex separate from the receive queue lock.
+ * Thread Safety: All APIs are thread-safe and may be called from multiple threads.
  */
 
 #include <cstddef>
@@ -35,142 +28,140 @@
 
 namespace net {
 
-/** Identifier for a network node. */
+/** Integer identifier representing a logical network node. */
 using node_t = int;
 
 /**
- * @brief In‐memory representation of a network packet.
+ * @brief In-memory representation of a framed message.
+ *
+ * Messages sent using ::send() are prepended with the sender node ID and
+ * received as a Packet with the `src_node` field and a payload vector.
  */
 struct Packet {
-    node_t src_node;                ///< Originating node ID
-    std::vector<std::byte> payload; ///< Raw payload bytes (post‐prefix)
+    node_t src_node;                  ///< Originating node ID
+    std::vector<std::byte> payload;  ///< Message payload (excluding prefix)
 };
 
 /**
  * @brief Policy for handling packets when the receive queue is full.
  */
 enum class OverflowPolicy {
-    DropNewest, ///< Discard the newly received packet when the queue is full
-    DropOldest  ///< Replace the oldest queued packet when full
+    DropNewest, ///< Drop newest received packet when queue is full
+    DropOldest  ///< Drop oldest queued packet to make room
 };
 
 /**
- * @brief Network driver configuration for ::init.
+ * @brief Transport protocol used for a peer connection.
+ */
+enum class Protocol {
+    UDP, ///< Stateless datagram transport
+    TCP  ///< Stream transport (persistent or transient connection)
+};
+
+/**
+ * @brief Network driver configuration structure.
  *
- * Setting ``node_id`` to ``0`` instructs the driver to reuse the identifier
- * stored in ``/etc/xinim/node_id`` when available or derive a unique value by
- * hashing the primary network interface.  A non-zero value overrides the
- * automatic detection and is returned by ::local_node().
+ * This struct defines the initialization parameters for the network stack.
+ * Use `node_id = 0` to auto-detect the ID and persist it to `/etc/xinim/node_id`.
  */
 struct Config {
-    node_t node_id;               ///< Local node identifier
-    std::uint16_t port;           ///< UDP port to bind locally
-    std::size_t max_queue_length; ///< Maximum number of queued packets (0 = unlimited)
-    OverflowPolicy overflow;      ///< Overflow behaviour when queue is full
+    node_t node_id;                 ///< Preferred node identifier (0 = auto-detect)
+    std::uint16_t port;            ///< Local port to bind UDP/TCP sockets
+    std::size_t max_queue_length;  ///< Maximum packets in the receive queue
+    OverflowPolicy overflow;       ///< Policy when the receive queue overflows
 
-    /// Construct a Config with sensible defaults.
-    explicit constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0,
-                              std::size_t max_queue_length_ = 0,
-                              OverflowPolicy overflow_ = OverflowPolicy::DropNewest) noexcept
-        : node_id{node_id_}, port{port_}, max_queue_length{max_queue_length_}, overflow{overflow_} {
-    }
+    constexpr Config(node_t node_id_ = 0,
+                     std::uint16_t port_ = 0,
+                     std::size_t max_len = 0,
+                     OverflowPolicy policy = OverflowPolicy::DropNewest) noexcept
+        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy) {}
 };
 
 /**
- * @brief Supported transport protocols for remote peers.
+ * @brief Callback type invoked on packet arrival.
  */
-enum class Protocol { UDP, TCP };
-
-/** Callback type invoked on packet arrival. */
 using RecvCallback = std::function<void(const Packet &)>;
 
 /**
  * @brief Initialize the network driver.
  *
- * - Binds a dual-stack UDP socket to ``cfg.port``.
- * - Sets up a dual-stack TCP listening socket on ``cfg.port``.
- * - Starts background threads for UDP recv and TCP accept.
+ * Initializes dual-stack (IPv4/IPv6) UDP and TCP sockets and launches
+ * background receiver threads. The function binds to `cfg.port` for both protocols.
  *
- * @param cfg Local node configuration.
- * @throws std::system_error on socket/bind errors.
+ * @param cfg Driver configuration including port, node ID, and overflow policy.
+ * @throws std::system_error on socket failure, bind failure, or thread launch failure.
  */
 void init(const Config &cfg);
 
 /**
- * @brief Register a remote peer for send().
+ * @brief Add a remote peer for subsequent ::send calls.
  *
- * @param node  Numeric identifier of the peer.
- * @param host  IPv4 or IPv6 address literal or hostname.
- * @param port  UDP/TCP port on which peer listens.
- * @param proto Transport protocol to use.
+ * Resolves a host string (IPv4, IPv6, or hostname) and registers the remote node
+ * for sending framed messages. TCP peers can reuse persistent sockets.
+ *
+ * @param node Logical identifier of the remote peer.
+ * @param host Hostname or IP address to connect to.
+ * @param port Port to use when sending.
+ * @param proto Transport protocol (UDP or TCP).
+ * @throws std::invalid_argument if the address is invalid.
+ * @throws std::system_error if TCP socket or connect fails.
  */
 void add_remote(node_t node, const std::string &host, uint16_t port,
                 Protocol proto = Protocol::UDP);
 
 /**
- * @brief Install a receive callback.
+ * @brief Register a callback to be invoked on packet arrival.
  *
- * The callback is invoked from the background threads whenever
- * a packet is enqueued. It is safe to call recv() instead.
+ * If set, the callback runs in the context of the receiver thread.
+ * It is safe to omit this and instead poll with ::recv().
  *
- * @param cb Function to call on packet arrival.
+ * @param cb Callback function taking a const Packet&
  */
 void set_recv_callback(RecvCallback cb);
 
 /**
- * @brief Shutdown the network driver and stop all threads.
+ * @brief Shutdown the network driver and clean up all resources.
  *
- * Closes sockets, joins threads, clears queues and peer list.
+ * Closes all sockets, terminates background threads, clears peer state and queue.
  */
 void shutdown() noexcept;
 
 /**
- * @brief Report the configured node identifier.
+ * @brief Returns the local node identifier.
  *
- * After calling ::init the driver either returns the user-supplied value
- * or an automatically derived identifier when ``Config::node_id`` equals
- * zero. ``0`` is returned if initialization has not yet occurred.
+ * If a node ID was provided in Config, that value is returned.
+ * Otherwise, the following procedure is used:
+ *   1. Try reading `/etc/xinim/node_id`
+ *   2. Derive from first active non-loopback interface (MAC or IP)
+ *   3. Fallback to hash of hostname
  *
- * When no identifier is configured the driver loads ``/etc/xinim/node_id`` if
- * present.  Otherwise it enumerates active network interfaces via
- * ``getifaddrs(3)`` and hashes the first non-loopback MAC or IP address
- * found. If detection succeeds the identifier is saved back to the file so
- * future runs reuse it. Should detection fail, the hostname is hashed and also
- * written to the file.
-
+ * @return Stable integer node identifier (never 0 unless initialization failed).
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send raw bytes to a registered peer.
+ * @brief Send a framed message to the specified peer.
  *
- * The payload is prefixed with the local node identifier and transmitted to
- * the host registered with ::add_remote. Unknown destinations are rejected.
- * For ``Protocol::TCP`` the driver establishes a transient connection when no
- * persistent socket exists. Transmission loops until all bytes are sent.
- * Datagram mode uses ``sendto()`` on the UDP socket. No additional queuing
- * occurs in either case.
+ * Frames the payload as `[local_node | data...]` and transmits over UDP
+ * or TCP. For TCP, the function will establish a new socket if needed.
  *
- * @param node Destination node ID.
- * @param data Span of bytes to transmit.
- * @return ``std::errc::success`` when successful. A specific ``std::errc``
- *         value is returned for logical errors such as an unknown peer. Socket
- *         failures raise ``std::system_error``.
+ * @param node Destination node ID
+ * @param data Payload to send (without prefix)
+ * @return std::errc::success on success or a descriptive error code
+ * @throws std::system_error for POSIX socket failures (send, connect, etc)
  */
 [[nodiscard]] std::errc send(node_t node, std::span<const std::byte> data);
 
 /**
- * @brief Dequeue the next received packet, if any.
+ * @brief Retrieve the next available incoming packet.
  *
- * @param out Packet object to populate.
- * @return true if a packet was dequeued into out, false otherwise.
+ * @param out Packet structure to fill in.
+ * @return true if a packet was retrieved, false if queue is empty.
  */
 [[nodiscard]] bool recv(Packet &out);
 
 /**
- * @brief Clear all pending packets across every node.
- *
- * Empties the internal receive queue.
+ * @brief Clear all pending packets in the receive queue.
  */
 void reset() noexcept;
 

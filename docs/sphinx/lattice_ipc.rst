@@ -47,8 +47,12 @@ Implemented in `net_driver.hpp` / `.cpp`:
 - **init(cfg)**: bind UDP & TCP sockets, start background I/O threads  
 - **add_remote(node, host, port, proto)**: register peer (UDP or persistent TCP)  
 - **set_recv_callback(cb)**: optional callback on arrival  
-- **send(node, data)**: frame `[local_node|data]`, transmit via UDP/TCP  
-- **recv(out_pkt)**: dequeue next `Packet{src_node, payload}`  
+- **send(node, data)**: frame `[local_node|data]`, transmit via UDP/TCP
+- **reconnect**: persistent TCP sockets are reopened automatically when a write
+  fails with ``EPIPE`` or similar errors
+- **recv(out_pkt)**: dequeue next `Packet{
+    src_node, payload
+}`
 - **reset()**: clear internal queue  
 - **shutdown()**: stop threads, close sockets, clear state  
 
@@ -65,7 +69,9 @@ The networking backend transports packets over UDP or TCP. Calling
 receives and TCP connection handling. Each remote node registers its address
 with :cpp:func:`net::add_remote`. Frames are transmitted by
 :cpp:func:`net::send`. For TCP peers the function establishes a transient
-connection when necessary. ``net::send`` now returns a ``std::errc`` value
+connection when necessary and automatically reconnects persistent sockets
+when writes fail due to ``EPIPE`` or connection reset. ``net::send`` now
+returns a ``std::errc`` value
 where ``std::errc::success`` indicates success. Socket failures such as
 ``ECONNREFUSED`` propagate as ``std::system_error`` exceptions. Incoming
 datagrams remain queued until
@@ -76,26 +82,27 @@ Example
 .. code-block:: cpp
 
    net::init({0, 15000});
-   net::add_remote(1, "127.0.0.1", 15001);
-   lattice_connect(1, 1, 1);
+net::add_remote(1, "127.0.0.1", 15001);
+lattice_connect(1, 1, 1);
 
-   message ping{};
-   ping.m_type = 42;
-   lattice_send(1, 1, ping);
+message ping{};
+ping.m_type = 42;
+lattice_send(1, 1, ping);
 
-   for (;;) {
-       lattice::poll_network();
-       if (lattice_recv(1, &ping) == OK) {
-           break;
-       }
-   }
-   net::shutdown();
+for (;;) {
+    lattice::poll_network();
+    if (lattice_recv(1, &ping) == OK) {
+        break;
+    }
+}
+net::shutdown();
 
 Local Node Identification
 -------------------------
-The function ``net::local_node()`` returns, in order:
+The function `net::local_node()` returns, in order:
 1. the configured ``node_id`` if nonzero
-2. a hash of the first active, non-loopback network interface (MAC or IPv4)
+2. a deterministic hash of the first active non-loopback interface
+   (preferring the MAC address when available)
 3. a fallback hash of the local hostname
 
 Graph API
@@ -116,27 +123,29 @@ Remote Channel Setup
 .. code-block:: cpp
 
    constexpr net::node_t REMOTE = 1;
-   constexpr pid_t SRC = 5, DST = 10;
+constexpr pid_t SRC = 5, DST = 10;
 
-   int rc = lattice_connect(SRC, DST, REMOTE);
-   if (rc != OK) {
-       // handle error
-   }
+int rc = lattice_connect(SRC, DST, REMOTE);
+if (rc != OK) {
+    // handle error
+}
 
-Key Exchange
-------------
-Uses stubbed or real post‐quantum (e.g., Kyber) key exchange to derive an
+Key Exchange-- -- -- -- -- --Uses stubbed or real post‐quantum(e.g., Kyber) key exchange to derive an
 XOR‐stream secret for encryption/decryption.
 
 Security & Integrity
 -------------------
 - **Confidentiality**: XOR‐stream with PQ‐derived shared secret  
 - **Authentication**: sequence counters + per‐message HMAC tokens  
-- **Thread‐safety**: quaternion spinlock guards channel state; DAG prevents deadlock  
+- **Thread‐safety**: quaternion spinlock guards channel state;
+DAG prevents deadlock
 
-See Also
---------
-- `kernel/lattice_ipc.hpp` / `.cpp`  
-- `kernel/wormhole.hpp` / `.cpp`  
-- `kernel/net_driver.hpp` / `.cpp`  
-- `kernel/schedule.hpp` / `.cpp`  
+            See Also-- -- -- -- - `kernel /
+        lattice_ipc
+            .hpp` / `.cpp` - `kernel /
+                                 wormhole
+                                     .hpp` / `.cpp` - `kernel /
+                                                          net_driver
+                                                              .hpp` / `.cpp` - `kernel /
+                                                                                   schedule
+                                                                                       .hpp` / `.cpp`
