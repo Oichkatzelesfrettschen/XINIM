@@ -5,6 +5,44 @@
 // Modernized for C++23
 #include "../include/defs.hpp" // Added for consistency and potential common types
 
+// Avoid clashes with system errno macros
+#ifdef EPERM
+#undef EPERM
+#undef ENOENT
+#undef ESRCH
+#undef EINTR
+#undef EIO
+#undef ENXIO
+#undef E2BIG
+#undef ENOEXEC
+#undef EBADF
+#undef ECHILD
+#undef EAGAIN
+#undef ENOMEM
+#undef EACCES
+#undef EFAULT
+#undef ENOTBLK
+#undef EBUSY
+#undef EEXIST
+#undef EXDEV
+#undef ENODEV
+#undef ENOTDIR
+#undef EISDIR
+#undef EINVAL
+#undef ENFILE
+#undef EMFILE
+#undef ENOTTY
+#undef ETXTBSY
+#undef EFBIG
+#undef ENOSPC
+#undef ESPIPE
+#undef EROFS
+#undef EMLINK
+#undef EPIPE
+#undef EDOM
+#undef ERANGE
+#endif
+
 /* Error codes.  They are negative since a few system calls, such as READ, can
  * either return a positive number indicating success, or an error code.
  */
