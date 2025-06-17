@@ -220,6 +220,19 @@ target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
 
 # -----------------------------------------------------------------------------
+# minix_test_net_driver_concurrency
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_concurrency
+  test_net_driver_concurrency.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_concurrency PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_concurrency PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_concurrency COMMAND minix_test_net_driver_concurrency)
+
+# -----------------------------------------------------------------------------
 # Crypto library
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)

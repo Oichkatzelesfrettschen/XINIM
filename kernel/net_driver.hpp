@@ -17,6 +17,12 @@
  *   4. net::send(peer_id, data);
  *   5. while (net::recv(pkt)) { ... }
  *   6. net::shutdown();
+ *
+ * @section thread_safety Thread Safety
+ *
+ * Calls to add_remote(), send() and recv() are safe to invoke from
+ * multiple threads. The internal peer registry is protected by a
+ * dedicated mutex separate from the receive queue lock.
  */
 
 #include <cstddef>

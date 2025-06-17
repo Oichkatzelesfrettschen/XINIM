@@ -54,6 +54,8 @@ struct Remote {
 
 /** Map from node ID to remote peer info. */
 static std::unordered_map<node_t, Remote> g_remotes;
+/** Mutex guarding g_remotes. */
+static std::mutex g_remotes_mutex;
 /** Queue of received packets. */
 static std::deque<Packet> g_queue;
 /** Mutex guarding g_queue. */
@@ -198,12 +200,15 @@ void shutdown() noexcept {
         std::lock_guard lock{g_mutex};
         g_queue.clear();
     }
-    for (auto &[_, rem] : g_remotes) {
-        if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
-            ::close(rem.tcp_fd);
+    {
+        std::lock_guard lock{g_remotes_mutex};
+        for (auto &[_, rem] : g_remotes) {
+            if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
+                ::close(rem.tcp_fd);
+            }
         }
+        g_remotes.clear();
     }
-    g_remotes.clear();
     g_callback = nullptr;
 }
 
@@ -224,7 +229,10 @@ void add_remote(node_t node, const std::string &host, uint16_t port, Protocol pr
             throw std::system_error(errno, std::generic_category(), "net_driver: TCP connect");
         }
     }
-    g_remotes[node] = rem;
+    {
+        std::lock_guard lock{g_remotes_mutex};
+        g_remotes[node] = rem;
+    }
 }
 
 void set_recv_callback(RecvCallback cb) { g_callback = std::move(cb); }
@@ -277,12 +285,16 @@ node_t local_node() noexcept {
 }
 
 bool send(node_t node, std::span<const std::byte> data) {
-    auto it = g_remotes.find(node);
-    if (it == g_remotes.end()) {
-        return false; // unknown destination
+    Remote rem;
+    {
+        std::lock_guard lock{g_remotes_mutex};
+        auto it = g_remotes.find(node);
+        if (it == g_remotes.end()) {
+            return false; // unknown destination
+        }
+        rem = it->second;
     }
     auto buf = frame_payload(data);
-    auto &rem = it->second;
 
     if (rem.proto == Protocol::TCP) {
         int fd = rem.tcp_fd;
