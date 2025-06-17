@@ -184,7 +184,7 @@ register struct inode *rip; /* pointer to inode to be truncated */
         }
 
         /* Now free the double indirect zone itself. */
-        put_block(bp, INDIRECT_BLOCK);
+        put_block(bp, BlockType::Indirect);
         free_zone(dev, z);
     }
 

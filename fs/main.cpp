@@ -220,7 +220,7 @@ static void load_ram() {
         panic("RAM disk is too big. # blocks = ", static_cast<int>(count)); // panic takes int
     // count is uint32_t, BLOCK_SIZE/CLICK_SIZE are int. Result fits uint64_t.
     ram_clicks = static_cast<uint64_t>(count) * (BLOCK_SIZE / CLICK_SIZE);
-    put_block(bp, FULL_DATA_BLOCK);
+    put_block(bp, BlockType::FullData);
 
     /* Tell MM the origin and size of INIT, and the amount of memory used for the
      * system plus RAM disk combined, so it can remove all of it from the map.
@@ -254,8 +254,8 @@ static void load_ram() {
         bp1 = get_block(ROOT_DEV, i, NO_READ);
         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
         bp1->b_dirt = DIRTY;
-        put_block(bp, I_MAP_BLOCK);
-        put_block(bp1, I_MAP_BLOCK);
+        put_block(bp, BlockType::IMap);
+        put_block(bp1, BlockType::IMap);
         // i is uint16_t, BLOCK_SIZE is int. Result of mult fits int64_t.
         k_loaded = (static_cast<int64_t>(i) * BLOCK_SIZE) / 1024L; /* K loaded so far */
         if (k_loaded % 5 == 0)
