@@ -58,10 +58,10 @@ enum class OverflowPolicy {
 /**
  * @brief Network driver configuration for ::init.
  *
- * Setting ``node_id`` to ``0`` instructs the driver to derive a unique
- * identifier by hashing the primary network interface.  A non-zero value
- * overrides the automatic detection and is returned by
- * ::local_node().
+ * Setting ``node_id`` to ``0`` instructs the driver to reuse the identifier
+ * stored in ``/etc/xinim/node_id`` when available or derive a unique value by
+ * hashing the primary network interface.  A non-zero value overrides the
+ * automatic detection and is returned by ::local_node().
  */
 struct Config {
     node_t node_id;               ///< Local node identifier
@@ -132,10 +132,12 @@ void shutdown() noexcept;
  * or an automatically derived identifier when ``Config::node_id`` equals
  * zero. ``0`` is returned if initialization has not yet occurred.
  *
- * When no identifier is configured the driver enumerates active network
- * interfaces via ``getifaddrs(3)`` and hashes the first non-loopback MAC or
- * IPv4 address found. If detection fails the hostname is hashed as a
- * deterministic fallback.
+ * When no identifier is configured the driver loads ``/etc/xinim/node_id`` if
+ * present.  Otherwise it enumerates active network interfaces via
+ * ``getifaddrs(3)`` and hashes the first non-loopback MAC or IPv4 address
+ * found. If detection succeeds the identifier is saved back to the file so
+ * future runs reuse it. Should detection fail, the hostname is hashed and also
+ * written to the file.
 
  */
 [[nodiscard]] node_t local_node() noexcept;

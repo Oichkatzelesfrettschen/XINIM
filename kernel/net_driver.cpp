@@ -26,6 +26,8 @@
 #include <atomic>
 #include <cstring>
 #include <deque>
+#include <filesystem>
+#include <fstream>
 #include <mutex>
 #include <span>
 #include <system_error>
@@ -38,6 +40,8 @@ namespace {
 
 /** Active driver configuration. */
 static Config g_cfg{};
+/** Path storing persistent node identifier. */
+static constexpr char NODE_ID_FILE[] = "/etc/xinim/node_id";
 /** UDP socket descriptor. */
 static int g_udp_sock = -1;
 /** TCP listening socket descriptor. */
@@ -148,6 +152,15 @@ static void tcp_accept_loop() {
 
 void init(const Config &cfg) {
     g_cfg = cfg;
+    if (g_cfg.node_id == 0) {
+        std::ifstream idin{NODE_ID_FILE};
+        if (idin) {
+            node_t file_node_id = 0;
+            if (idin >> file_node_id) {
+                g_cfg.node_id = file_node_id;
+            }
+        }
+    }
 
     // Create UDP socket
     g_udp_sock = ::socket(AF_INET, SOCK_DGRAM, 0);
@@ -238,9 +251,18 @@ void add_remote(node_t node, const std::string &host, uint16_t port, Protocol pr
 void set_recv_callback(RecvCallback cb) { g_callback = std::move(cb); }
 
 node_t local_node() noexcept {
-    // 1) user-supplied identifier
+    // 1) user-supplied or loaded identifier
     if (g_cfg.node_id != 0) {
         return g_cfg.node_id;
+    }
+    {
+        std::ifstream idin{NODE_ID_FILE};
+        if (idin) {
+            idin >> g_cfg.node_id;
+            if (g_cfg.node_id != 0) {
+                return g_cfg.node_id;
+            }
+        }
     }
     // 2) derive from active network interface
     ifaddrs *ifa = nullptr;
@@ -272,6 +294,12 @@ node_t local_node() noexcept {
         }
         ::freeifaddrs(ifa);
         if (result != 0) {
+            g_cfg.node_id = result;
+            std::filesystem::create_directories("/etc/xinim");
+            std::ofstream out{NODE_ID_FILE, std::ios::trunc};
+            if (out) {
+                out << result;
+            }
             return result;
         }
     }
@@ -279,7 +307,13 @@ node_t local_node() noexcept {
     char host[256]{};
     if (::gethostname(host, sizeof(host)) == 0) {
         auto h = std::hash<std::string_view>{}(host) & 0x7fffffff;
-        return static_cast<node_t>(h);
+        g_cfg.node_id = static_cast<node_t>(h);
+        std::filesystem::create_directories("/etc/xinim");
+        std::ofstream out{NODE_ID_FILE, std::ios::trunc};
+        if (out) {
+            out << g_cfg.node_id;
+        }
+        return g_cfg.node_id;
     }
     return 0;
 }
