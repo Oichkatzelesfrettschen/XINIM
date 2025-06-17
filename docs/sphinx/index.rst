@@ -16,7 +16,6 @@ The documentation is divided into several sections:
    :caption: Contents
 
    lattice_ipc
-   lattice_ipc#remote-channel-setup
    pq_crypto
    scheduler
    wait_graph
