@@ -284,6 +284,12 @@ add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${CMAKE_SOURCE_DI
 target_compile_definitions(minix_test_net_two_node PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
+# minix_test_poll_network
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_poll_network test_poll_network.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_poll_network PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
 # minix_test_net_driver
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver
