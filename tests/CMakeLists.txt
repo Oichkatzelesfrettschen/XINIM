@@ -145,6 +145,23 @@ target_include_directories(minix_test_service_manager_updates PRIVATE
 add_test(NAME minix_test_service_manager_updates COMMAND minix_test_service_manager_updates)
 
 # -----------------------------------------------------------------------------
+# svcctl command tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_svcctl
+    test_svcctl.cpp
+    ${LATTICE_COMMON_SOURCES}
+    ${CMAKE_SOURCE_DIR}/commands/svcctl.cpp
+)
+target_include_directories(minix_test_svcctl PRIVATE
+    ${XINIM_INCLUDES}
+    ${CMAKE_SOURCE_DIR}/crypto
+    ${CMAKE_SOURCE_DIR}/commands
+)
+target_compile_definitions(minix_test_svcctl PRIVATE EXTERN=extern SVCCTL_NO_MAIN SVCCTL_NO_WAIT)
+target_link_libraries(minix_test_svcctl PRIVATE pqcrypto Threads::Threads)
+add_test(NAME minix_test_svcctl COMMAND minix_test_svcctl)
+
+# -----------------------------------------------------------------------------
 # Lattice IPC tests
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice_send_recv test_lattice_send_recv.cpp)
