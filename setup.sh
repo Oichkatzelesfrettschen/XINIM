@@ -5,6 +5,10 @@
 
 set -euo pipefail
 
+# Required packages:
+# - libsodium-dev/libsodium23 for encryption features used by unit tests and
+#   networking components.
+
 # Update package lists.
 sudo apt-get update
 
@@ -40,6 +44,7 @@ sudo apt-get install -y --no-install-recommends \
     python3-breathe \
     python3-sphinx-rtd-theme \
     python3-pip \
+    # libsodium provides crypto primitives required by lattice networking
     libsodium-dev \
     libsodium23 \
     qemu-system-x86 \
