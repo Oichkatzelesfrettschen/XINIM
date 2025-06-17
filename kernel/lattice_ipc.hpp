@@ -36,18 +36,28 @@ enum class IpcFlags : unsigned {
 /**
  * @brief Channel connecting two processes.
  */
+/** Size in bytes of the authentication tag appended to encrypted messages. */
+inline constexpr std::size_t AEAD_TAG_SIZE = 16;
+
+/**
+ * @brief Encrypted representation of a ::message.
+ */
+struct EncryptedMessage {
+    std::array<std::byte, sizeof(message)> data; ///< Ciphertext payload
+    std::array<std::byte, AEAD_TAG_SIZE> tag;    ///< ChaCha20-Poly1305 tag
+};
+
+/**
+ * @brief Channel connecting two processes.
+ */
 struct Channel {
-    xinim::pid_t src; //!< Source process identifier
-    xinim::pid_t dst; //!< Destination process identifier
-    /**
-     * @brief Identifier of the remote node or 0 for local delivery.
-     */
-    net::node_t node_id{0};
-    /**
-     * @brief FIFO of pending messages encrypted with @c secret.
-     */
-    std::deque<message> queue;
-    OctonionToken secret; //!< Capability derived from PQ secret
+    xinim::pid_t src;                   //!< Source process identifier
+    xinim::pid_t dst;                   //!< Destination process identifier
+    net::node_t node_id{0};             //!< Identifier of the remote node or 0 for local
+    std::deque<EncryptedMessage> queue; //!< FIFO of pending encrypted messages
+    OctonionToken secret;               //!< Capability derived from PQ secret
+    std::uint64_t tx_seq{0};            ///< Outgoing message sequence counter
+    std::uint64_t rx_seq{0};            ///< Incoming message sequence counter
 };
 
 /**

@@ -9,7 +9,7 @@ Overview
 --------
 - **Local Fastpath**: zero‐copy, per‐CPU L1/L2/L3 queues with spillover statistics  
 - **Tiered Caching**: L1 (per‐core), L2 (per‐socket), L3 (per‐node), then shared region  
-- **Distributed Messaging**: framed, XOR‐encrypted packets over UDP/TCP  
+- **Distributed Messaging**: framed, AEAD-encrypted packets over UDP/TCP
 - **Directed Graph API**: channels managed in a DAG with cycle‐free dependency tracking  
 
 Fastpath Overview
@@ -36,7 +36,7 @@ Each `message` is serialized as:
 
 **Pipeline**:
 1. **Frame**: prefix with `src_pid` and `dst_pid` (both ints)  
-2. **Encrypt**: XOR‐stream with the channel’s shared secret  
+2. **Encrypt**: ChaCha20-Poly1305 AEAD using the message sequence as nonce
 3. **Transmit**: `net::send()` (UDP or TCP)  
 4. **Receive**: `net::recv()`  
 5. **Reintegrate**: `lattice::poll_network()` decrypts and enqueues  
@@ -130,13 +130,13 @@ if (rc != OK) {
     // handle error
 }
 
-Key Exchange-- -- -- -- -- --Uses stubbed or real post‐quantum(e.g., Kyber) key exchange to derive an
-XOR‐stream secret for encryption/decryption.
+Key Exchange -- uses stubbed or real post‑quantum (e.g., Kyber) key exchange to derive an
+octonion capability which forms the ChaCha20 key for encryption.
 
 Security & Integrity
 -------------------
-- **Confidentiality**: XOR‐stream with PQ‐derived shared secret  
-- **Authentication**: sequence counters + per‐message HMAC tokens  
+- **Confidentiality**: ChaCha20-Poly1305 AEAD with PQ-derived shared secret
+- **Authentication**: AEAD tag validated with per-message sequence counters
 - **Thread‐safety**: quaternion spinlock guards channel state;
 DAG prevents deadlock
 
