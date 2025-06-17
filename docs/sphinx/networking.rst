@@ -46,22 +46,22 @@ API Overview
 
 Node Identity
 -------------
-Every node assigns itself a numeric ``node_t`` identifier during
-:cpp:func:`net::init`.  The configuration structure passed to
-``net::init`` specifies both the local node ID and the UDP port to bind.
-Once initialized, :cpp:func:`net::local_node()` returns this identifier
-and it becomes the source ID for all outgoing packets.  Peers use this
-value to authenticate who sent each message.
+Each node assigns itself a numeric ``node_t`` identifier when
+:cpp:func:`net::init` executes.  The ``node_id`` and UDP port are
+provided via the configuration structure.  After initialization,
+:cpp:func:`net::local_node` reports this identifier and all outgoing
+packets carry it as the source ID so peers can validate who originated
+each message.
 
 
 Local Node Identification
 -------------------------
 :cpp:func:`net::local_node` first checks whether ``net::init`` supplied a
 non-zero ``node_id``.  If so, the value is returned directly.  Otherwise the
-function calls ``getsockname()`` on the UDP socket and converts the bound IPv4
-address to host byte order.  If this lookup fails, the host name is hashed.  In
-all cases the identifier is guaranteed to be non-zero and remains stable for
-the life of the process.
+driver enumerates network interfaces using ``getifaddrs(3)`` and hashes the
+first active, non-loopback MAC address or IPv4 address.  If interface
+enumeration fails, the host name is hashed instead.  The resulting value is
+non-zero and remains stable for the life of the process.
 Registering Remote Peers
 ------------------------
 A node communicates only with peers explicitly added using
@@ -79,7 +79,8 @@ registered peers and looked up by ``node_id`` at transmission time.
 Typical Configuration Steps
 ---------------------------
 1. **Initialize** the driver.  Pass ``0`` as ``node_id`` to let
-   :cpp:func:`net::local_node` derive the identifier from the bound address:
+   :cpp:func:`net::local_node` derive the identifier from an active network
+   interface:
 
    .. code-block:: cpp
 
