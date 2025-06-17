@@ -62,7 +62,8 @@ Otherwise the driver calls ``getifaddrs()`` to list network interfaces and
 hashes the first active device that is not a loopback interface. Should this
 process fail, the driver falls back to hashing the local host name. The
 computed identifier is non-zero and remains constant for the lifetime of the
-process.
+process. When the identifier is computed it is written to ``/etc/xinim/node_id``
+so that subsequent invocations of :cpp:func:`net::init` reuse the same value.
 Registering Remote Peers
 ------------------------
 A node communicates only with peers explicitly added using
