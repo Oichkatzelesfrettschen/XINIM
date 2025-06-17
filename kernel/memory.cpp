@@ -33,6 +33,7 @@
 #include <array>   // for std::array
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
+#include <utility>
 
 /// Number of RAM-type devices managed by the driver
 constexpr std::size_t NR_RAMS = 4;
@@ -44,6 +45,27 @@ static message mess;
 static std::array<uint64_t, NR_RAMS> ram_origin{};
 /// Limit of RAM disk per minor device (phys_bytes -> uint64_t)
 static std::array<uint64_t, NR_RAMS> ram_limit{};
+
+/**
+ * @class MessageReply
+ * @brief RAII helper to send a reply message when leaving scope.
+ */
+class MessageReply {
+  public:
+    MessageReply(int caller, int proc) noexcept : caller_{caller}, proc_{proc} {}
+    ~MessageReply() noexcept {
+        mess.m_type = TASK_REPLY;
+        rep_proc_nr(mess) = proc_;
+        rep_status(mess) = result;
+        send(caller_, &mess);
+    }
+
+    int result{OK};
+
+  private:
+    int caller_;
+    int proc_;
+};
 
 /**
  * @brief Entry point for the memory driver task.
@@ -76,6 +98,7 @@ PUBLIC void mem_task() noexcept {
             panic("mem task got message from ", mess.m_source);
         caller = mess.m_source;
         proc_nr = proc_nr(mess);
+        MessageReply reply{caller, proc_nr};
 
         /* Now carry out the work.  It depends on the opcode. */
         switch (mess.m_type) {
@@ -93,11 +116,7 @@ PUBLIC void mem_task() noexcept {
             break;
         }
 
-        /* Finally, prepare and send the reply message. */
-        mess.m_type = TASK_REPLY;
-        rep_proc_nr(mess) = proc_nr;
-        rep_status(mess) = r;
-        send(caller, &mess);
+        reply.result = r;
     }
 }
 /**
