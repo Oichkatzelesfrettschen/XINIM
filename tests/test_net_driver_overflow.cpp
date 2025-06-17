@@ -1,6 +1,6 @@
 /**
  * @file test_net_driver_overflow.cpp
- * @brief Validate queue overflow handling for net::OverflowPolicy::Overwrite.
+ * @brief Validate queue overflow handling for net::OverflowPolicy::DropOldest.
  */
 
 #include "../kernel/net_driver.hpp"
@@ -26,7 +26,7 @@ constexpr std::uint16_t CHILD_PORT = 14101;
  * @return Exit status from the child.
  */
 int parent_proc(pid_t child) {
-    net::init({PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::Overwrite});
+    net::init({PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest});
     net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
 
     net::Packet pkt{};

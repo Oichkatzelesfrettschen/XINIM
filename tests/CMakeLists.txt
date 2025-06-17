@@ -204,6 +204,19 @@ target_include_directories(minix_test_net_driver_tcp PUBLIC
 )
 target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_loopback
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_loopback
+  test_net_driver_loopback.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_loopback PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
 add_lattice_test(minix_test_lattice                  test_lattice.cpp)
 add_lattice_test(minix_test_lattice_send_recv       test_lattice_send_recv.cpp)
 add_lattice_test(minix_test_lattice_send_error      test_lattice_send_error.cpp)
