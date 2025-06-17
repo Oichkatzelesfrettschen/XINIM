@@ -1,4 +1,9 @@
-/* Buffer (block) cache.  To acquire a block, a routine calls get_block(),
+#pragma once
+/**
+ * @file buf.hpp
+ * @brief Buffer (block) cache definitions.
+ *
+ * Buffer (block) cache.  To acquire a block, a routine calls get_block(),
  * telling which block it wants.  The block is then regarded as "in use"
  * and has its 'b_count' field incremented.  All the blocks, whether in use
  * or not, are chained together in an LRU list, with 'front' pointing
@@ -11,51 +16,73 @@
  * will eventually be rewritten to the disk.
  */
 
+/**
+ * @struct buf
+ * @brief Cache buffer for file system blocks.
+ */
 EXTERN struct buf {
-    /* Data portion of the buffer. */
+    /**
+     * @union data_u
+     * @brief Union view of the buffer's data portion.
+     */
     union {
-        char b__data[BLOCK_SIZE];           /* ordinary user data */
-        dir_struct b__dir[NR_DIR_ENTRIES];  /* directory block */
-        zone_nr b__ind[NR_INDIRECTS];       /* indirect block */
-        d_inode b__inode[INODES_PER_BLOCK]; /* inode block */
-        int b__int[INTS_PER_BLOCK];         /* block full of integers */
-    } b;
+        char b__data[BLOCK_SIZE];           /**< Ordinary user data. */
+        dir_struct b__dir[NR_DIR_ENTRIES];  /**< Directory block. */
+        zone_nr b__ind[NR_INDIRECTS];       /**< Indirect block. */
+        d_inode b__inode[INODES_PER_BLOCK]; /**< Inode block. */
+        int b__int[INTS_PER_BLOCK];         /**< Block full of integers. */
+    } b;                                    /**< Buffer data content. */
 
-    /* Header portion of the buffer. */
-    struct buf *b_next; /* used to link bufs in a chain */
-    struct buf *b_prev; /* used to link bufs the other way */
-    struct buf *b_hash; /* used to link bufs on hash chains */
-    block_nr b_blocknr; /* block number of its (minor) device */
-    dev_nr b_dev;       /* major | minor device where block resides */
-    char b_dirt;        /* CLEAN or DIRTY */
-    char b_count;       /* number of users of this buffer */
+    /** Pointer to next buffer in the LRU chain. */
+    struct buf *b_next;
+    /** Pointer to previous buffer in the LRU chain. */
+    struct buf *b_prev;
+    /** Pointer used in hash table chains. */
+    struct buf *b_hash;
+    /** Block number on the device. */
+    block_nr b_blocknr;
+    /** Device identifier where this block resides. */
+    dev_nr b_dev;
+    /** Dirty flag indicating whether the buffer needs writing. */
+    char b_dirt;
+    /** Number of active users holding this buffer. */
+    char b_count;
 } buf[NR_BUFS];
 
-/* A block is free if b_dev == NO_DEV. */
+/** A block is free if b_dev equals ::NO_DEV. */
 
-#define NIL_BUF (struct buf *)0 /* indicates absence of a buffer */
+/** Indicates absence of a buffer. */
+#define NIL_BUF (struct buf *)0
 
-/* These defs make it possible to use to bp->b_data instead of bp->b.b__data */
+/**
+ * Shorthand macros to access the union members directly from a ::buf pointer.
+ */
 #define b_data b.b__data
 #define b_dir b.b__dir
 #define b_ind b.b__ind
 #define b_inode b.b__inode
 #define b_int b.b__int
 
-EXTERN struct buf *buf_hash[NR_BUF_HASH]; /* the buffer hash table */
+/** The buffer hash table indexed by block number. */
+EXTERN struct buf *buf_hash[NR_BUF_HASH];
 
-EXTERN struct buf *front; /* points to least recently used free block */
-EXTERN struct buf *rear;  /* points to most recently used free block */
-EXTERN int bufs_in_use;   /* # bufs currently in use (not on free list) */
+/** Least recently used free block. */
+EXTERN struct buf *front;
+/** Most recently used free block. */
+EXTERN struct buf *rear;
+/** Number of buffers currently not on the free list. */
+EXTERN int bufs_in_use;
 
-/* When a block is released, the type of usage is passed to put_block(). */
-#define WRITE_IMMED 0100                       /* block should be written to disk now */
-#define ONE_SHOT 0200                          /* set if block not likely to be needed soon */
-#define INODE_BLOCK 0 + WRITE_IMMED            /* inode block */
-#define DIRECTORY_BLOCK 1 + WRITE_IMMED        /* directory block */
-#define INDIRECT_BLOCK 2 + WRITE_IMMED         /* pointer block */
-#define I_MAP_BLOCK 3 + WRITE_IMMED + ONE_SHOT /* inode bit map */
-#define ZMAP_BLOCK 4 + WRITE_IMMED + ONE_SHOT  /* free zone map */
-#define ZUPER_BLOCK 5 + WRITE_IMMED + ONE_SHOT /* super block */
-#define FULL_DATA_BLOCK 6                      /* data, fully used */
-#define PARTIAL_DATA_BLOCK 7                   /* data, partly used */
+/**
+ * Enumeration of possible block types and usage hints for ::put_block().
+ */
+#define WRITE_IMMED 0100                       /**< Block should be written immediately. */
+#define ONE_SHOT 0200                          /**< Block unlikely to be reused soon. */
+#define INODE_BLOCK 0 + WRITE_IMMED            /**< Inode block. */
+#define DIRECTORY_BLOCK 1 + WRITE_IMMED        /**< Directory block. */
+#define INDIRECT_BLOCK 2 + WRITE_IMMED         /**< Pointer block. */
+#define I_MAP_BLOCK 3 + WRITE_IMMED + ONE_SHOT /**< Inode bit map. */
+#define ZMAP_BLOCK 4 + WRITE_IMMED + ONE_SHOT  /**< Free zone map. */
+#define ZUPER_BLOCK 5 + WRITE_IMMED + ONE_SHOT /**< Super block. */
+#define FULL_DATA_BLOCK 6                      /**< Data, fully used. */
+#define PARTIAL_DATA_BLOCK 7                   /**< Data, partly used. */
