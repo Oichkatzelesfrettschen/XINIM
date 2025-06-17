@@ -58,13 +58,14 @@ Configuration (`net::Config`):
 - ``max_queue``: max queued packets  
 - ``overflow``: policy (`DROP_OLDEST` | `DROP_NEWEST`)
 
-UDP Network Driver
-------------------
-The default networking backend transports packets over UDP. Invoking
-:cpp:func:`net::init` binds the local UDP port and starts a background
-receiver thread. Each remote node registers its address via
-:cpp:func:`net::add_remote`. Outgoing payloads are framed and transmitted
-by :cpp:func:`net::send`. Received datagrams remain queued internally until
+Network Driver
+--------------
+The networking backend transports packets over UDP or TCP. Calling
+:cpp:func:`net::init` binds the UDP socket and spawns background threads for
+receives and TCP connection handling. Each remote node registers its address
+with :cpp:func:`net::add_remote`. Frames are transmitted by
+:cpp:func:`net::send`. For TCP peers the function establishes a transient
+connection when necessary. Incoming datagrams remain queued until
 :cpp:func:`lattice::poll_network` decrypts and enqueues them for IPC.
 
 Example
@@ -89,10 +90,10 @@ Example
 
 Local Node Identification
 -------------------------
-The function `net::local_node()` returns, in order:
-1. the configured `node_id` if nonzero  
-2. the IPv4 address bound to the UDP socket via `getsockname()`  
-3. a fallback hash of the local hostname  
+The function ``net::local_node()`` returns, in order:
+1. the configured ``node_id`` if nonzero
+2. a hash of the first active, non-loopback network interface (MAC or IPv4)
+3. a fallback hash of the local hostname
 
 Graph API
 ---------

@@ -44,8 +44,8 @@ struct Packet {
  * @brief Policy for handling packets when the receive queue is full.
  */
 enum class OverflowPolicy {
-    Drop,      ///< Discard the newest packet when the queue is full
-    Overwrite, ///< Replace the oldest packet when the queue is full
+    DropNewest, ///< Discard the newly received packet when the queue is full
+    DropOldest  ///< Replace the oldest queued packet when full
 };
 
 /**
@@ -65,7 +65,7 @@ struct Config {
     /// Construct a Config with sensible defaults.
     explicit constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0,
                               std::size_t max_queue_length_ = 0,
-                              OverflowPolicy overflow_ = OverflowPolicy::Drop) noexcept
+                              OverflowPolicy overflow_ = OverflowPolicy::DropNewest) noexcept
         : node_id{node_id_}, port{port_}, max_queue_length{max_queue_length_}, overflow{overflow_} {
     }
 };
@@ -74,18 +74,6 @@ struct Config {
  * @brief Supported transport protocols for remote peers.
  */
 enum class Protocol { UDP, TCP };
-
-/**
- * @brief Description of a remote peer.
- *
- * When proto==TCP, send() will establish a transient TCP connection.
- * When proto==UDP, send() uses sendto() on the bound UDP socket.
- */
-struct Remote {
-    sockaddr_in addr; ///< IPv4 socket address of the peer
-    Protocol proto;   ///< Protocol to use (UDP or TCP)
-    int tcp_fd{-1};   ///< TCP socket FD (if persistent; optional)
-};
 
 /** Callback type invoked on packet arrival. */
 using RecvCallback = std::function<void(const Packet &)>;
@@ -134,15 +122,13 @@ void shutdown() noexcept;
  * @brief Report the configured node identifier.
  *
  * After calling ::init the driver either returns the user-supplied value
- * or the automatically derived identifier when ``Config::node_id`` was
- * zero.  ``0`` is returned if initialization has not yet occurred.
-
- * @brief Retrieve the configured or detected node identifier.
+ * or an automatically derived identifier when ``Config::node_id`` equals
+ * zero. ``0`` is returned if initialization has not yet occurred.
  *
- * Returns ``cfg.node_id`` when it is non‑zero.  Otherwise the function
- * attempts to detect the identifier from the bound UDP socket via
- * ``getsockname()``.  If detection fails a deterministic fallback based on
- * the hostname is used.
+ * When no identifier is configured the driver enumerates active network
+ * interfaces via ``getifaddrs(3)`` and hashes the first non-loopback MAC or
+ * IPv4 address found. If detection fails the hostname is hashed as a
+ * deterministic fallback.
 
  */
 [[nodiscard]] node_t local_node() noexcept;
@@ -150,13 +136,12 @@ void shutdown() noexcept;
 /**
  * @brief Send raw bytes to a registered peer.
  *
- * The payload is prefixed with the local node identifier before being
- * transmitted to the remote host registered through ::add_remote. If the
- * destination is unknown the function returns ``false``.  Frames the packet
- * as ``[ local_node() | payload ... ]`` and immediately transmits it using
- * the ``sendto()`` syscall over the UDP or TCP/IP/IPv4/SNMP stack provided by
- * the Berkeley sockets implementation.  No additional queuing occurs and
- * unknown node IDs are silently ignored.
+ * The payload is prefixed with the local node identifier and transmitted to
+ * the host registered with ::add_remote. Unknown destinations are rejected.
+ * For ``Protocol::TCP`` the driver establishes a transient connection when no
+ * persistent socket exists. Transmission loops until all bytes are sent.
+ * Datagram mode uses ``sendto()`` on the UDP socket. No additional queuing
+ * occurs in either case.
  *
  * @param node Destination node ID.
  * @param data Span of bytes to transmit.
