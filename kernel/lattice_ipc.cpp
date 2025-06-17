@@ -6,7 +6,6 @@
 #include "lattice_ipc.hpp"
 
 #include "../h/const.hpp"
-#include "../h/error.hpp"
 #include "../include/xinim/core_types.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
@@ -15,13 +14,20 @@
 #include "schedule.hpp"
 
 #include <array>
+#include <cerrno>
+#include <chrono>
+#include <condition_variable>
 #include <cstddef>
 #include <cstring>
 #include <deque>
+#include <mutex>
 #include <span>
+#include <system_error>
 #include <tuple>
 #include <unordered_map>
 #include <vector>
+
+#include "../h/error.hpp"
 
 namespace {
 
@@ -30,8 +36,8 @@ namespace {
  *
  * Encryption and decryption are identical.
  */
-void xor_cipher(std::span<std::byte> buf, const OctonionToken &key) noexcept {
-    std::array<uint8_t, Octonion::ByteCount> mask{};
+void xor_cipher(std::span<std::byte> buf, const lattice::OctonionToken &key) noexcept {
+    std::array<uint8_t, 32> mask{};
     key.value.to_bytes(mask);
     for (size_t i = 0; i < buf.size(); ++i) {
         buf[i] ^= std::byte{mask[i % mask.size()]};
@@ -47,6 +53,11 @@ namespace lattice {
  *============================================================================*/
 
 Graph g_graph; ///< Singleton IPC graph
+
+/** Mutex guarding IPC wait state. */
+static std::mutex g_ipc_mutex;
+/** Condition variable to wake waiting receivers. */
+static std::condition_variable g_ipc_cv;
 
 /*==============================================================================
  *                            Graph Implementation
@@ -138,7 +149,7 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlag
         ids[1] = dst;
         std::memcpy(pkt.data() + sizeof(xinim::pid_t) * 2, &msg, sizeof(msg));
         xor_cipher({pkt.data(), pkt.size()}, ch->secret);
-        if (!net::send(ch->node_id, pkt)) {
+        if (net::send(ch->node_id, pkt) != std::errc{}) {
             return static_cast<int>(ErrorCode::EIO);
         }
         return OK;
@@ -146,9 +157,12 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlag
 
     // Local direct handoff
     if (g_graph.is_listening(dst)) {
+        std::lock_guard lk(g_ipc_mutex);
         g_graph.inbox_[dst] = msg;
         g_graph.set_listening(dst, false);
-        schedule::scheduler.yield_to(dst);
+        sched::scheduler.unblock(dst);
+        g_ipc_cv.notify_all();
+        sched::scheduler.yield_to(dst);
         return OK;
     }
 
@@ -161,6 +175,11 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlag
     message copy = msg;
     xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch->secret);
     ch->queue.push_back(std::move(copy));
+    if (g_graph.is_listening(dst)) {
+        g_graph.set_listening(dst, false);
+        sched::scheduler.unblock(dst);
+        g_ipc_cv.notify_all();
+    }
     return OK;
 }
 
@@ -186,7 +205,7 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
         if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() && !ch.queue.empty()) {
             message copy = std::move(ch.queue.front());
             ch.queue.pop_front();
-            xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch->secret);
+            xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch.secret);
             *out = std::move(copy);
             return OK;
         }
@@ -197,9 +216,39 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
         return static_cast<int>(ErrorCode::E_NO_MESSAGE);
     }
 
-    // 4) Blocking: register listener and block
+    // 4) Blocking: register listener and wait with timeout
+    using namespace std::chrono_literals;
+    std::unique_lock lk(g_ipc_mutex);
     lattice_listen(pid);
-    return static_cast<int>(ErrorCode::E_NO_MESSAGE);
+    sched::scheduler.block_on(pid, -1);
+    auto deadline = std::chrono::steady_clock::now() + 100ms;
+    for (;;) {
+        auto ib2 = g_graph.inbox_.find(pid);
+        if (ib2 != g_graph.inbox_.end()) {
+            *out = ib2->second;
+            g_graph.inbox_.erase(ib2);
+            sched::scheduler.unblock(pid);
+            g_graph.set_listening(pid, false);
+            return OK;
+        }
+        for (auto &[key, ch] : g_graph.edges_) {
+            if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() &&
+                !ch.queue.empty()) {
+                message copy = std::move(ch.queue.front());
+                ch.queue.pop_front();
+                xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch.secret);
+                *out = std::move(copy);
+                sched::scheduler.unblock(pid);
+                g_graph.set_listening(pid, false);
+                return OK;
+            }
+        }
+        if (g_ipc_cv.wait_until(lk, deadline) == std::cv_status::timeout) {
+            sched::scheduler.unblock(pid);
+            g_graph.set_listening(pid, false);
+            return static_cast<int>(ErrorCode::E_NO_MESSAGE);
+        }
+    }
 }
 
 /**
@@ -225,6 +274,11 @@ void poll_network() {
         }
         xor_cipher({reinterpret_cast<std::byte *>(&msg), sizeof(msg)}, ch->secret);
         ch->queue.push_back(std::move(msg));
+        if (g_graph.is_listening(dst)) {
+            g_graph.set_listening(dst, false);
+            sched::scheduler.unblock(dst);
+            g_ipc_cv.notify_all();
+        }
     }
 }
 

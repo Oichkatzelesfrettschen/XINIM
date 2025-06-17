@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
 /* This file manages the super block table and the related data structures,
  * namely, the bit maps that keep track of which zones and which inodes are
  * allocated and which are free.  When a new inode or zone is needed, the

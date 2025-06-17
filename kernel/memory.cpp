@@ -30,20 +30,50 @@
 #include "const.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include <array>   // for std::array
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
+#include <utility>
 
-#define NR_RAMS 4 /* number of RAM-type devices */
+/// Number of RAM-type devices managed by the driver
+constexpr std::size_t NR_RAMS = 4;
 
-static message mess;                 /* message buffer */
-static uint64_t ram_origin[NR_RAMS]; /* origin of each RAM disk (phys_bytes -> uint64_t) */
-static uint64_t ram_limit[NR_RAMS];  /* limit of RAM disk per minor dev. (phys_bytes -> uint64_t) */
+/// Message exchange buffer
+static message mess;
 
-/*===========================================================================*
- *				mem_task				     *
- *===========================================================================*/
-PUBLIC void mem_task() noexcept { // Added void return, noexcept
-    /* Main program of the disk driver task. */
+/// Origin of each RAM disk (phys_bytes -> uint64_t)
+static std::array<uint64_t, NR_RAMS> ram_origin{};
+/// Limit of RAM disk per minor device (phys_bytes -> uint64_t)
+static std::array<uint64_t, NR_RAMS> ram_limit{};
+
+/**
+ * @class MessageReply
+ * @brief RAII helper to send a reply message when leaving scope.
+ */
+class MessageReply {
+  public:
+    MessageReply(int caller, int proc) noexcept : caller_{caller}, proc_{proc} {}
+    ~MessageReply() noexcept {
+        mess.m_type = TASK_REPLY;
+        rep_proc_nr(mess) = proc_;
+        rep_status(mess) = result;
+        send(caller_, &mess);
+    }
+
+    int result{OK};
+
+  private:
+    int caller_;
+    int proc_;
+};
+
+/**
+ * @brief Entry point for the memory driver task.
+ *
+ * Waits for driver messages and services /dev/null, /dev/mem,
+ * /dev/kmem and /dev/ram requests.
+ */
+PUBLIC void mem_task() noexcept {
 
     int r, caller, proc_nr;
     extern unsigned int sizes[8]; // Explicitly unsigned int
@@ -68,6 +98,7 @@ PUBLIC void mem_task() noexcept { // Added void return, noexcept
             panic("mem task got message from ", mess.m_source);
         caller = mess.m_source;
         proc_nr = proc_nr(mess);
+        MessageReply reply{caller, proc_nr};
 
         /* Now carry out the work.  It depends on the opcode. */
         switch (mess.m_type) {
@@ -85,19 +116,16 @@ PUBLIC void mem_task() noexcept { // Added void return, noexcept
             break;
         }
 
-        /* Finally, prepare and send the reply message. */
-        mess.m_type = TASK_REPLY;
-        rep_proc_nr(mess) = proc_nr;
-        rep_status(mess) = r;
-        send(caller, &mess);
+        reply.result = r;
     }
 }
-
-/*===========================================================================*
- *				do_mem					     *
- *===========================================================================*/
-// Modernized signature
-static int do_mem(message *m_ptr) noexcept {
+/**
+ * @brief Handle a read or write request for the memory devices.
+ *
+ * @param m_ptr Message describing the operation.
+ * @return Number of bytes transferred or a negative ErrorCode.
+ */
+[[nodiscard]] static int do_mem(message *m_ptr) noexcept {
     /* Read or write /dev/null, /dev/mem, /dev/kmem, or /dev/ram. */
 
     int device;
@@ -146,14 +174,13 @@ static int do_mem(message *m_ptr) noexcept {
     }
     return static_cast<int>(count); // Return int count
 }
-
-/*===========================================================================*
- *				do_setup				     *
- *===========================================================================*/
-// Modernized signature
-static int do_setup(message *m_ptr) noexcept {
-    /* Set parameters for one of the disk RAMs. */
-
+/**
+ * @brief Configure parameters for a RAM disk.
+ *
+ * @param m_ptr Message describing the disk configuration.
+ * @return OK on success or a negative ErrorCode.
+ */
+[[nodiscard]] static int do_setup(message *m_ptr) noexcept {
     int device;
 
     device = device(*m_ptr);

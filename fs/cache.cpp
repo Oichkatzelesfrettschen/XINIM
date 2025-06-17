@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
 /* The file system maintains a buffer cache to reduce the number of disk
  * accesses needed.  Whenever a read or write to the disk is done, a check is
  * first made to see if the block is in the cache.  This file manages the

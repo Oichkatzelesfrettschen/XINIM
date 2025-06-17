@@ -7,7 +7,7 @@ The codebase is currently a **work in progress** focused on reproducing the
 original Minix simplicity on modern arm64 and x86_64 machines using C++23.
 
 ## Prerequisites
-A 64-bit x86 compiler toolchain supporting C++23 is required. Clang++ 18 with the matching LLVM 18 suite (including lld and lldb) is preferred. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
+A 64-bit x86 compiler toolchain supporting C++23 is required. Install Clang++ 18 and the full LLVM 18 suite—including lld and lldb—before building or running tests. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
 
 ## Building with Makefiles
 
@@ -98,3 +98,29 @@ A helper script `tools/modernize_cpp17.sh` automates renaming sources to
 `.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
 header into each file. Invoke it from the repository root when ready to move
 the codebase fully to C++23.
+
+## Development Tools
+
+Several optional utilities generate code metrics and perform static analysis.
+Install them using the package manager and Python's package installer:
+
+```sh
+sudo apt-get install -y cloc cppcheck cscope
+python3 -m pip install --user lizard
+```
+
+### Running the Tools
+
+Create a directory called `logs/` at the project root and store all reports
+there:
+
+```sh
+mkdir -p logs
+cloc . > logs/cloc.log
+lizard -o logs/lizard.log .
+cppcheck --enable=all --std=c++23 --output-file=logs/cppcheck.log .
+cscope -Rb -q
+```
+
+`cscope` writes its database to `cscope.out`. The other commands generate log
+files in the `logs/` directory for later review.

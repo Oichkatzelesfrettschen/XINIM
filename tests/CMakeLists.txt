@@ -137,6 +137,7 @@ add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
 # Lattice IPC tests
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice_send_recv test_lattice_send_recv.cpp)
+add_lattice_test(minix_test_lattice_blocking test_lattice_blocking.cpp)
 
 # -----------------------------------------------------------------------------
 # minix_test_lattice_ipc
@@ -155,6 +156,12 @@ target_compile_definitions(minix_test_lattice_network PRIVATE EXTERN=extern)
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encrypted.cpp ${CMAKE_SOURCE_DIR}/crypto)
 target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
+
+# -----------------------------------------------------------------------------
+# minix_test_lattice_ipv6
+# -----------------------------------------------------------------------------
+add_lattice_test(minix_test_lattice_ipv6 test_lattice_ipv6.cpp ${CMAKE_SOURCE_DIR}/crypto)
+target_compile_definitions(minix_test_lattice_ipv6 PRIVATE EXTERN=extern)
 
 # -----------------------------------------------------------------------------
 # minix_test_net_two_node
@@ -193,6 +200,19 @@ target_include_directories(minix_test_net_driver_overflow PUBLIC
 )
 target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_overflow COMMAND minix_test_net_driver_overflow)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_drop_newest
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_drop_newest
+  test_net_driver_drop_newest.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_drop_newest PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_drop_newest PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_drop_newest COMMAND minix_test_net_driver_drop_newest)
 # minix_test_net_driver_tcp
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver_tcp
@@ -204,17 +224,58 @@ target_include_directories(minix_test_net_driver_tcp PUBLIC
 )
 target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
-add_lattice_test(minix_test_lattice                  test_lattice.cpp)
-add_lattice_test(minix_test_lattice_send_recv       test_lattice_send_recv.cpp)
-add_lattice_test(minix_test_lattice_send_error      test_lattice_send_error.cpp)
-add_lattice_test(minix_test_lattice_ipc             test_lattice_ipc.cpp)
-add_lattice_test(minix_test_lattice_network         test_lattice_network.cpp)
-add_lattice_test(minix_test_lattice_network_encrypted
-                                         test_lattice_network_encrypted.cpp)
-add_lattice_test(minix_test_net_two_node            test_net_two_node.cpp)
-add_lattice_test(minix_test_net_driver              test_net_driver.cpp)
-add_lattice_test(minix_test_net_driver_overflow     test_net_driver_overflow.cpp)
-add_lattice_test(minix_test_net_driver_tcp          test_net_driver_tcp.cpp)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_loopback
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_loopback
+  test_net_driver_loopback.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_loopback PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_ipv6
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_ipv6
+  test_net_driver_ipv6.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_ipv6 PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_ipv6 PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_ipv6 COMMAND minix_test_net_driver_ipv6)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_concurrency
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_concurrency
+  test_net_driver_concurrency.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_concurrency PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_concurrency PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_concurrency COMMAND minix_test_net_driver_concurrency)
+
+# -----------------------------------------------------------------------------
+# minix_test_net_driver_persistent_id
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_persistent_id
+  test_net_driver_persistent_id.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_persistent_id PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_persistent_id COMMAND minix_test_net_driver_persistent_id)
 
 # -----------------------------------------------------------------------------
 # Crypto library

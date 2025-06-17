@@ -58,13 +58,17 @@ Configuration (`net::Config`):
 - ``max_queue``: max queued packets  
 - ``overflow``: policy (`DROP_OLDEST` | `DROP_NEWEST`)
 
-UDP Network Driver
-------------------
-The default networking backend transports packets over UDP. Invoking
-:cpp:func:`net::init` binds the local UDP port and starts a background
-receiver thread. Each remote node registers its address via
-:cpp:func:`net::add_remote`. Outgoing payloads are framed and transmitted
-by :cpp:func:`net::send`. Received datagrams remain queued internally until
+Network Driver
+--------------
+The networking backend transports packets over UDP or TCP. Calling
+:cpp:func:`net::init` binds the UDP socket and spawns background threads for
+receives and TCP connection handling. Each remote node registers its address
+with :cpp:func:`net::add_remote`. Frames are transmitted by
+:cpp:func:`net::send`. For TCP peers the function establishes a transient
+connection when necessary. ``net::send`` now returns a ``std::errc`` value
+where ``std::errc::success`` indicates success. Socket failures such as
+``ECONNREFUSED`` propagate as ``std::system_error`` exceptions. Incoming
+datagrams remain queued until
 :cpp:func:`lattice::poll_network` decrypts and enqueues them for IPC.
 
 Example
@@ -102,10 +106,11 @@ Channels live in a DAG managed by `lattice::Graph`:
 - `lattice_connect(src, dst, node_id)` → OK / error  
 - `lattice_listen(pid)`  
 - `lattice_send(src, dst, msg, flags)`  
-- `lattice_recv(pid, &msg, flags)`  
-- `lattice_channel_add_dep(parent, child)`  
-- `lattice_channel_submit(chan)`  
-- `lattice::poll_network()` integrates remote packets  
+- `lattice_recv(pid, &msg, flags)`
+- `lattice_channel_add_dep(parent, child)`
+- `lattice_channel_submit(chan)`
+- `lattice::poll_network()` integrates remote packets
+- Blocking `lattice_recv` waits up to 100ms for a message when `IpcFlags::NONE` is used
 
 Remote Channel Setup
 --------------------

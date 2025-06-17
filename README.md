@@ -62,7 +62,7 @@ users.
 
 ### Prerequisites
 
-- **Compiler**: GCC 13+ or Clang 16+ with C++23 support (MSVC 19.36+ supported)
+ - **Compiler**: GCC 13+ or Clang 18+ with the full LLVM 18 suite including lld and lldb (MSVC 19.36+ supported)
 - **Build System**: Make (GNU Make recommended)
 - **Optional**: Doxygen for documentation, Valgrind for debugging
 
@@ -103,7 +103,7 @@ only need to build a single component.
 Use **CMake** to build the entire system, enable optional drivers, or perform
 out-of-tree and cross-compilation builds.
 
-The CMake configuration defaults to the C++23 standard. Ensure GCC 13+ or Clang 16+ (or MSVC 19.36+) is available for successful compilation. A typical CMake workflow is:
+The CMake configuration defaults to the C++23 standard. Ensure GCC 13+ or Clang 18+ with the matching LLVM 18 suite (or MSVC 19.36+) is available for successful compilation. A typical CMake workflow is:
 
 ```bash
 cmake -B build
@@ -320,7 +320,7 @@ Typical performance improvements over original implementation:
 ### Compiler Support
 
 - **GCC**: 13.0+ (tested with 13.1)
-- **Clang**: 16.0+ (tested with 16.0)
+ - **Clang**: 18.0+ (tested with 18.0)
 - **MSVC**: 19.36+ (Visual Studio 2022)
 
 ## License

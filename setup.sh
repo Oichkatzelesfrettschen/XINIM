@@ -51,7 +51,8 @@ sudo apt-get install -y --no-install-recommends \
     qemu-utils \
     qemu-user \
     tmux \
-    cloc
+    cloc \
+    cscope
 
 # Ensure ack is installed for convenient searching
 if ! command -v ack >/dev/null 2>&1; then
@@ -63,6 +64,9 @@ fi
 
 # Install optional ack helpers for Python and Node
 # ack helpers are optional; skip if pip or npm are restricted
+
+# Install lizard via pip for complexity metrics
+python3 -m pip install --user lizard
 
 # Attempt to install libfuzzer development package if available.
 sudo apt-get install -y --no-install-recommends libfuzzer-dev || true

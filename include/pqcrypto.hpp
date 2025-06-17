@@ -19,7 +19,7 @@ struct KeyPair {
  * @brief Generate a new lattice-based key pair.
  *
  * The generated keys use the Kyber512 parameter set and are compatible
- * with the establish and compute routines provided by this header.
+ * with the compute routines provided by this header.
  *
  * @return Newly created key pair containing Kyber public and private data.
  */

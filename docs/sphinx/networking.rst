@@ -46,22 +46,45 @@ API Overview
 
 Node Identity
 -------------
-Every node assigns itself a numeric ``node_t`` identifier during
-:cpp:func:`net::init`.  The configuration structure passed to
-``net::init`` specifies both the local node ID and the UDP port to bind.
-Once initialized, :cpp:func:`net::local_node()` returns this identifier
-and it becomes the source ID for all outgoing packets.  Peers use this
-value to authenticate who sent each message.
+Each node assigns itself a numeric ``node_t`` identifier when
+:cpp:func:`net::init` executes.  The ``node_id`` and UDP port are
+provided via the configuration structure.  After initialization,
+:cpp:func:`net::local_node` reports this identifier and all outgoing
+packets carry it as the source ID so peers can validate who originated
+each message.
 
 
 Local Node Identification
 -------------------------
-:cpp:func:`net::local_node` first checks whether ``net::init`` supplied a
-non-zero ``node_id``.  If so, the value is returned directly.  Otherwise the
-function calls ``getsockname()`` on the UDP socket and converts the bound IPv4
-address to host byte order.  If this lookup fails, the host name is hashed.  In
-all cases the identifier is guaranteed to be non-zero and remains stable for
-the life of the process.
+:cpp:func:`net::local_node` first verifies that ``net::init`` provided a
+non-zero ``node_id``. If it did, the identifier is returned unchanged.
+Otherwise the driver calls ``getifaddrs()`` to list network interfaces and
+hashes the first active device that is not a loopback interface. Should this
+process fail, the driver falls back to hashing the local host name. The
+computed identifier is non-zero and remains constant for the lifetime of the
+process. When the identifier is computed it is written to ``/etc/xinim/node_id``
+so that subsequent invocations of :cpp:func:`net::init` reuse the same value.
+
+Implementation Steps
+~~~~~~~~~~~~~~~~~~~~
+The internal logic of :cpp:func:`net::local_node` unfolds in these steps:
+
+#. If ``Config::node_id`` is non-zero return it immediately.
+#. Invoke ``getifaddrs`` to enumerate interfaces.
+#. Iterate until the first device flagged ``IFF_UP`` and not ``IFF_LOOPBACK`` is
+   found.
+   * If a link-layer (MAC) address is present, hash its bytes.
+   * Otherwise hash the IPv4 address.
+#. Release the interface list.
+#. If a valid interface produced a hash, return it.
+#. As a fallback obtain the hostname via ``gethostname`` and hash that value.
+
+.. note::
+   IPv6 addresses are now supported for remote peers. When deriving the
+   local identifier the driver hashes the first non-loopback MAC, IPv4 or
+   IPv6 address. The identifier may still change when network hardware
+   changes.
+
 Registering Remote Peers
 ------------------------
 A node communicates only with peers explicitly added using
@@ -70,7 +93,8 @@ A node communicates only with peers explicitly added using
    net::add_remote(node_id, "hostname-or-ip", port, /*tcp=*/false);
 
 The ``node_id`` uniquely identifies the peer.  The ``host`` and ``port``
-parameters supply its address.  Set ``tcp=true`` to create a persistent TCP
+parameters supply its address. ``host`` accepts IPv4 or IPv6 literals or a
+hostname. Set ``tcp=true`` to create a persistent TCP
 connection; otherwise UDP datagrams are used.  Packets are sent only to
 registered peers and looked up by ``node_id`` at transmission time.
 
@@ -79,7 +103,8 @@ registered peers and looked up by ``node_id`` at transmission time.
 Typical Configuration Steps
 ---------------------------
 1. **Initialize** the driver.  Pass ``0`` as ``node_id`` to let
-   :cpp:func:`net::local_node` derive the identifier from the bound address:
+   :cpp:func:`net::local_node` derive the identifier from an active network
+   interface:
 
    .. code-block:: cpp
 
@@ -125,11 +150,13 @@ exchanging a greeting over UDP.
    // node A initialization
    net::init({1, 12000});  // bind port and assign ID 1
    net::add_remote(2, "127.0.0.1", 12001, /*tcp=*/false);  // register node B
+   net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::send(2, std::array<std::byte,3>{'h','i','!'});  // greet B
 
    // node B initialization
    net::init({2, 12001});  // bind port and assign ID 2
    net::add_remote(1, "127.0.0.1", 12000, /*tcp=*/false);  // register node A
+   net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::Packet pkt{};  // buffer for incoming packet
    while (!net::recv(pkt)) { /* wait for greeting */ }
    net::send(1, std::array<std::byte,3>{'o','k','!'});  // reply to A
