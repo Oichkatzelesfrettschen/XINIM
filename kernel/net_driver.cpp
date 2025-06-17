@@ -51,9 +51,10 @@ static int g_tcp_listen = -1;
  * Represents a remote peer: address, transport, and optional persistent TCP fd.
  */
 struct Remote {
-    sockaddr_in addr{}; ///< Destination IPv4 address
-    Protocol proto;     ///< UDP or TCP
-    int tcp_fd = -1;    ///< persistent TCP socket if proto==TCP
+    sockaddr_storage addr{}; ///< Destination IPv4/IPv6 address
+    socklen_t addr_len{};    ///< Length of addr
+    Protocol proto;          ///< UDP or TCP
+    int tcp_fd = -1;         ///< persistent TCP socket if proto==TCP
 };
 
 /** Map from node ID to remote peer info. */
@@ -107,7 +108,7 @@ static void enqueue_packet(Packet &&pkt) {
 static void udp_recv_loop() {
     std::array<std::byte, 2048> buf;
     while (g_running.load(std::memory_order_relaxed)) {
-        sockaddr_in peer{};
+        sockaddr_storage peer{};
         socklen_t len = sizeof(peer);
         ssize_t n = ::recvfrom(g_udp_sock, buf.data(), buf.size(), 0,
                                reinterpret_cast<sockaddr *>(&peer), &len);
@@ -127,7 +128,7 @@ static void udp_recv_loop() {
 static void tcp_accept_loop() {
     ::listen(g_tcp_listen, SOMAXCONN);
     while (g_running.load(std::memory_order_relaxed)) {
-        sockaddr_in peer{};
+        sockaddr_storage peer{};
         socklen_t len = sizeof(peer);
         int client = ::accept(g_tcp_listen, reinterpret_cast<sockaddr *>(&peer), &len);
         if (client < 0) {
@@ -162,27 +163,30 @@ void init(const Config &cfg) {
         }
     }
 
-    // Create UDP socket
-    g_udp_sock = ::socket(AF_INET, SOCK_DGRAM, 0);
+    // Create UDP socket (dual stack IPv6/IPv4)
+    g_udp_sock = ::socket(AF_INET6, SOCK_DGRAM, 0);
     if (g_udp_sock < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: UDP socket");
     }
-    sockaddr_in addr{};
-    addr.sin_family = AF_INET;
-    addr.sin_port = htons(cfg.port);
-    addr.sin_addr.s_addr = htonl(INADDR_ANY);
-    if (::bind(g_udp_sock, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
+    int off = 0;
+    ::setsockopt(g_udp_sock, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
+    sockaddr_in6 addr6{};
+    addr6.sin6_family = AF_INET6;
+    addr6.sin6_port = htons(cfg.port);
+    addr6.sin6_addr = in6addr_any;
+    if (::bind(g_udp_sock, reinterpret_cast<sockaddr *>(&addr6), sizeof(addr6)) < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: UDP bind");
     }
 
-    // Create TCP listening socket
-    g_tcp_listen = ::socket(AF_INET, SOCK_STREAM, 0);
+    // Create TCP listening socket (dual stack)
+    g_tcp_listen = ::socket(AF_INET6, SOCK_STREAM, 0);
     if (g_tcp_listen < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: TCP socket");
     }
     int opt = 1;
     ::setsockopt(g_tcp_listen, SOL_SOCKET, SO_REUSEADDR, &opt, sizeof(opt));
-    if (::bind(g_tcp_listen, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0) {
+    ::setsockopt(g_tcp_listen, IPPROTO_IPV6, IPV6_V6ONLY, &off, sizeof(off));
+    if (::bind(g_tcp_listen, reinterpret_cast<sockaddr *>(&addr6), sizeof(addr6)) < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: TCP bind");
     }
 
@@ -228,17 +232,37 @@ void shutdown() noexcept {
 void add_remote(node_t node, const std::string &host, uint16_t port, Protocol proto) {
     Remote rem{};
     rem.proto = proto;
-    rem.addr.sin_family = AF_INET;
-    rem.addr.sin_port = htons(port);
-    if (::inet_aton(host.c_str(), &rem.addr.sin_addr) == 0) {
+
+    addrinfo hints{};
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = (proto == Protocol::TCP) ? SOCK_STREAM : SOCK_DGRAM;
+    hints.ai_flags = AI_V4MAPPED | AI_ADDRCONFIG;
+
+    char port_str[16]{};
+    std::snprintf(port_str, sizeof(port_str), "%u", port);
+    addrinfo *res = nullptr;
+    if (::getaddrinfo(host.c_str(), port_str, &hints, &res) != 0) {
         throw std::invalid_argument("net_driver: invalid host address");
     }
+    for (auto *p = res; p; p = p->ai_next) {
+        if (p->ai_family == AF_INET || p->ai_family == AF_INET6) {
+            rem.addr_len = static_cast<socklen_t>(p->ai_addrlen);
+            std::memcpy(&rem.addr, p->ai_addr, p->ai_addrlen);
+            break;
+        }
+    }
+    ::freeaddrinfo(res);
+    if (rem.addr_len == 0) {
+        throw std::invalid_argument("net_driver: invalid host address");
+    }
+
     if (proto == Protocol::TCP) {
-        rem.tcp_fd = ::socket(AF_INET, SOCK_STREAM, 0);
+        rem.tcp_fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
         if (rem.tcp_fd < 0 ||
-            ::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr)) != 0) {
-            if (rem.tcp_fd >= 0)
+            ::connect(rem.tcp_fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
+            if (rem.tcp_fd >= 0) {
                 ::close(rem.tcp_fd);
+            }
             throw std::system_error(errno, std::generic_category(), "net_driver: TCP connect");
         }
     }
@@ -286,6 +310,16 @@ node_t local_node() noexcept {
                 std::size_t value = 0;
                 const auto *b = reinterpret_cast<const unsigned char *>(&sin->sin_addr);
                 for (unsigned i = 0; i < sizeof(sin->sin_addr); ++i) {
+                    value = value * 131 + b[i];
+                }
+                result = static_cast<node_t>(value & 0x7fffffff);
+                break;
+            }
+            if (cur->ifa_addr && cur->ifa_addr->sa_family == AF_INET6) {
+                auto *sin6 = reinterpret_cast<sockaddr_in6 *>(cur->ifa_addr);
+                std::size_t value = 0;
+                const auto *b = reinterpret_cast<const unsigned char *>(&sin6->sin6_addr);
+                for (unsigned i = 0; i < sizeof(sin6->sin6_addr); ++i) {
                     value = value * 131 + b[i];
                 }
                 result = static_cast<node_t>(value & 0x7fffffff);
@@ -343,11 +377,11 @@ std::errc send(node_t node, std::span<const std::byte> data) {
         int fd = rem.tcp_fd;
         bool tmp = false;
         if (fd < 0) {
-            fd = ::socket(AF_INET, SOCK_STREAM, 0);
+            fd = ::socket(rem.addr.ss_family, SOCK_STREAM, 0);
             if (fd < 0) {
                 throw std::system_error(errno, std::generic_category(), "net_driver: socket");
             }
-            if (::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr)) != 0) {
+            if (::connect(fd, reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len) != 0) {
                 int err = errno;
                 ::close(fd);
                 throw std::system_error(err, std::generic_category(), "net_driver: connect");
@@ -375,7 +409,7 @@ std::errc send(node_t node, std::span<const std::byte> data) {
         return std::errc::not_connected;
     }
     ssize_t n = ::sendto(g_udp_sock, buf.data(), buf.size(), 0,
-                         reinterpret_cast<sockaddr *>(&rem.addr), sizeof(rem.addr));
+                         reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len);
     if (n < 0) {
         throw std::system_error(errno, std::generic_category(), "net_driver: sendto");
     }
