@@ -1,8 +1,7 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP + TCP/IP + IPv4 + SNMP network driver interface built on
- *        Berkeley sockets for Lattice IPC.
+ * @brief UDP and TCP/IP network driver interface built on Berkeley sockets.
  *
  * This driver binds a local UDP port (with an optional TCP listening
  * socket) and provides asynchronous send/receive of framed packets.
@@ -88,8 +87,8 @@ using RecvCallback = std::function<void(const Packet &)>;
 /**
  * @brief Initialize the network driver.
  *
- * - Binds a UDP socket to cfg.port (INADDR_ANY).
- * - Sets up a TCP listening socket on cfg.port.
+ * - Binds a dual-stack UDP socket to ``cfg.port``.
+ * - Sets up a dual-stack TCP listening socket on ``cfg.port``.
  * - Starts background threads for UDP recv and TCP accept.
  *
  * @param cfg Local node configuration.
@@ -101,7 +100,7 @@ void init(const Config &cfg);
  * @brief Register a remote peer for send().
  *
  * @param node  Numeric identifier of the peer.
- * @param host  IPv4 dotted‐decimal string or hostname.
+ * @param host  IPv4 or IPv6 address literal or hostname.
  * @param port  UDP/TCP port on which peer listens.
  * @param proto Transport protocol to use.
  */
@@ -134,7 +133,7 @@ void shutdown() noexcept;
  *
  * When no identifier is configured the driver loads ``/etc/xinim/node_id`` if
  * present.  Otherwise it enumerates active network interfaces via
- * ``getifaddrs(3)`` and hashes the first non-loopback MAC or IPv4 address
+ * ``getifaddrs(3)`` and hashes the first non-loopback MAC or IP address
  * found. If detection succeeds the identifier is saved back to the file so
  * future runs reuse it. Should detection fail, the hostname is hashed and also
  * written to the file.

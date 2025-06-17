@@ -80,9 +80,10 @@ The internal logic of :cpp:func:`net::local_node` unfolds in these steps:
 #. As a fallback obtain the hostname via ``gethostname`` and hash that value.
 
 .. note::
-   IPv6 addresses are not yet considered, and the identifier may change when
-   network hardware changes.  Future enhancements are noted in
-   :file:`../../ROADMAP.md`.
+   IPv6 addresses are now supported for remote peers. When deriving the
+   local identifier the driver hashes the first non-loopback MAC, IPv4 or
+   IPv6 address. The identifier may still change when network hardware
+   changes.
 
 Registering Remote Peers
 ------------------------
@@ -92,7 +93,8 @@ A node communicates only with peers explicitly added using
    net::add_remote(node_id, "hostname-or-ip", port, /*tcp=*/false);
 
 The ``node_id`` uniquely identifies the peer.  The ``host`` and ``port``
-parameters supply its address.  Set ``tcp=true`` to create a persistent TCP
+parameters supply its address. ``host`` accepts IPv4 or IPv6 literals or a
+hostname. Set ``tcp=true`` to create a persistent TCP
 connection; otherwise UDP datagrams are used.  Packets are sent only to
 registered peers and looked up by ``node_id`` at transmission time.
 
@@ -148,11 +150,13 @@ exchanging a greeting over UDP.
    // node A initialization
    net::init({1, 12000});  // bind port and assign ID 1
    net::add_remote(2, "127.0.0.1", 12001, /*tcp=*/false);  // register node B
+   net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::send(2, std::array<std::byte,3>{'h','i','!'});  // greet B
 
    // node B initialization
    net::init({2, 12001});  // bind port and assign ID 2
    net::add_remote(1, "127.0.0.1", 12000, /*tcp=*/false);  // register node A
+   net::add_remote(3, "::1", 12002, /*tcp=*/false);        // IPv6 loopback
    net::Packet pkt{};  // buffer for incoming packet
    while (!net::recv(pkt)) { /* wait for greeting */ }
    net::send(1, std::array<std::byte,3>{'o','k','!'});  // reply to A
