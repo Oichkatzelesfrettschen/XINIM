@@ -26,6 +26,21 @@ manager. Contracts track how many times each service has been restarted via the
 ``RestartContract`` structure. Dependents of the crashed service are restarted in
 order to preserve required ordering.
 
+Querying Services
+-----------------
+
+The manager exposes helpers for inspection. Call
+:cpp:func:`svc::ServiceManager::list_services` to enumerate registered
+services and :cpp:func:`svc::ServiceManager::dependencies` to inspect a
+service's direct dependencies.
+
+.. code-block:: cpp
+
+   svc::service_manager.register_service(1);
+   svc::service_manager.register_service(2, {1});
+   auto ids = svc::service_manager.list_services();      // {1, 2}
+   auto deps = svc::service_manager.dependencies(2);     // {1}
+
 .. doxygenclass:: svc::ServiceManager
    :project: XINIM
    :members:

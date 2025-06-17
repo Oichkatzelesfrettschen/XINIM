@@ -166,6 +166,28 @@ bool ServiceManager::is_running(xinim::pid_t pid) const noexcept {
     return false;
 }
 
+/**
+ * @brief Enumerate all registered service identifiers.
+ */
+std::vector<xinim::pid_t> ServiceManager::list_services() const {
+    std::vector<xinim::pid_t> ids;
+    ids.reserve(services_.size());
+    for (const auto &[pid, _] : services_) {
+        ids.push_back(pid);
+    }
+    return ids;
+}
+
+/**
+ * @brief Return a copy of the dependency list for @p pid.
+ */
+std::vector<xinim::pid_t> ServiceManager::dependencies(xinim::pid_t pid) const {
+    if (auto it = services_.find(pid); it != services_.end()) {
+        return it->second.deps;
+    }
+    return {};
+}
+
 /// Global manager instance accessible throughout the kernel.
 ServiceManager service_manager{};
 

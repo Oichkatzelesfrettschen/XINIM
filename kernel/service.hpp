@@ -91,6 +91,25 @@ class ServiceManager {
      */
     [[nodiscard]] bool is_running(xinim::pid_t pid) const noexcept;
 
+    /**
+     * @brief Enumerate all registered services.
+     *
+     * @return Vector of service identifiers currently managed by the service
+     *         manager.
+     */
+    [[nodiscard]] std::vector<xinim::pid_t> list_services() const;
+
+    /**
+     * @brief Retrieve the dependency list for a service.
+     *
+     * The returned vector contains the services that @p pid directly depends
+     * on. If the service is unknown an empty vector is returned.
+     *
+     * @param pid Identifier of the service to query.
+     * @return Vector of dependencies for @p pid.
+     */
+    [[nodiscard]] std::vector<xinim::pid_t> dependencies(xinim::pid_t pid) const;
+
   private:
     /**
      * @brief Metadata associated with each registered service.
