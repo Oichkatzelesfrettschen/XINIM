@@ -38,8 +38,8 @@ using node_t = int;
  * received as a Packet with the `src_node` field and a payload vector.
  */
 struct Packet {
-    node_t src_node;                  ///< Originating node ID
-    std::vector<std::byte> payload;  ///< Message payload (excluding prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
 };
 
 /**
@@ -65,14 +65,12 @@ enum class Protocol {
  * Use `node_id = 0` to auto-detect the ID and persist it to `/etc/xinim/node_id`.
  */
 struct Config {
-    node_t node_id;                 ///< Preferred node identifier (0 = auto-detect)
-    std::uint16_t port;            ///< Local port to bind UDP/TCP sockets
-    std::size_t max_queue_length;  ///< Maximum packets in the receive queue
-    OverflowPolicy overflow;       ///< Policy when the receive queue overflows
+    node_t node_id;               ///< Preferred node identifier (0 = auto-detect)
+    std::uint16_t port;           ///< Local port to bind UDP/TCP sockets
+    std::size_t max_queue_length; ///< Maximum packets in the receive queue
+    OverflowPolicy overflow;      ///< Policy when the receive queue overflows
 
-    constexpr Config(node_t node_id_ = 0,
-                     std::uint16_t port_ = 0,
-                     std::size_t max_len = 0,
+    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
                      OverflowPolicy policy = OverflowPolicy::DropNewest) noexcept
         : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy) {}
 };
@@ -164,5 +162,12 @@ void shutdown() noexcept;
  * @brief Clear all pending packets in the receive queue.
  */
 void reset() noexcept;
+
+/**
+ * @brief Intentionally close all network sockets to simulate failure.
+ *
+ * Used only by unit tests to trigger error-handling paths.
+ */
+void simulate_socket_failure() noexcept;
 
 } // namespace net
