@@ -7,6 +7,7 @@
 #include "../include/xinim/core_types.hpp"
 #include <atomic>
 #include <ranges>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -25,6 +26,21 @@ namespace svc {
  */
 class ServiceManager {
   public:
+    /**
+     * @brief Construct the manager and load persisted state.
+     */
+    ServiceManager();
+
+    /**
+     * @brief Persist service state on destruction.
+     */
+    ~ServiceManager();
+
+    /**
+     * @brief Path of the persistent services configuration.
+     */
+    static constexpr std::string_view kDefaultPath{"/etc/xinim/services.json"};
+
     /**
      * @brief Restart policy describing allowed automatic restarts.
      */
@@ -109,6 +125,16 @@ class ServiceManager {
      * @return @c true if running.
      */
     [[nodiscard]] bool is_running(xinim::pid_t pid) const noexcept;
+
+    /**
+     * @brief Save the current service configuration to @p path.
+     */
+    void save(std::string_view path = kDefaultPath) const;
+
+    /**
+     * @brief Load a service configuration from @p path.
+     */
+    void load(std::string_view path = kDefaultPath);
 
   private:
     /**

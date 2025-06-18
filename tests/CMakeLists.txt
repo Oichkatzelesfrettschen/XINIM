@@ -134,6 +134,16 @@ target_include_directories(minix_test_service_contract PRIVATE
 )
 add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
 
+add_executable(minix_test_service_serialization
+    test_service_serialization.cpp
+    ${FASTPATH_SOURCES}
+)
+target_include_directories(minix_test_service_serialization PRIVATE
+    ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME minix_test_service_serialization COMMAND minix_test_service_serialization)
+
 add_executable(minix_test_service_manager_updates
     test_service_manager_updates.cpp
     ${FASTPATH_SOURCES}

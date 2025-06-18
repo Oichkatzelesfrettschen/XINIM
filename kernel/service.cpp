@@ -2,6 +2,8 @@
 #include "schedule.hpp"
 
 #include <algorithm>
+#include <fstream>
+#include <nlohmann/json.hpp>
 #include <ranges>
 
 namespace svc {
@@ -194,6 +196,65 @@ bool ServiceManager::is_running(xinim::pid_t pid) const noexcept {
         return it->second.running;
     }
     return false;
+}
+
+/**
+ * @brief Construct the service manager and restore persisted configuration.
+ */
+ServiceManager::ServiceManager() { load(); }
+
+/**
+ * @brief Persist configuration when the manager is destroyed.
+ */
+ServiceManager::~ServiceManager() { save(); }
+
+/**
+ * @brief Serialize the service map to a JSON file.
+ */
+void ServiceManager::save(std::string_view path) const {
+    nlohmann::json root;
+    for (const auto &[pid, info] : services_) {
+        root["services"].push_back({{"pid", pid},
+                                    {"running", info.running},
+                                    {"deps", info.deps},
+                                    {"contract",
+                                     {{"id", info.contract.id},
+                                      {"limit", info.contract.policy.limit},
+                                      {"restarts", info.contract.restarts}}}});
+    }
+    std::ofstream out{std::string{path}};
+    if (out) {
+        out << root.dump(2);
+    }
+}
+
+/**
+ * @brief Load a service map from a JSON file.
+ */
+void ServiceManager::load(std::string_view path) {
+    services_.clear();
+    std::ifstream in{std::string{path}};
+    if (!in) {
+        return;
+    }
+    nlohmann::json root;
+    in >> root;
+    for (const auto &svc : root["services"]) {
+        ServiceInfo info;
+        xinim::pid_t pid = svc["pid"].get<xinim::pid_t>();
+        info.running = svc["running"].get<bool>();
+        info.deps = svc["deps"].get<std::vector<xinim::pid_t>>();
+        info.contract.id = svc["contract"]["id"].get<std::uint64_t>();
+        info.contract.policy.limit = svc["contract"]["limit"].get<std::uint32_t>();
+        info.contract.restarts = svc["contract"]["restarts"].get<std::uint32_t>();
+        services_.emplace(pid, std::move(info));
+    }
+
+    next_contract_id_ = 1;
+    for (const auto &[_, info] : services_) {
+        auto next = info.contract.id + 1;
+        next_contract_id_ = std::max(next_contract_id_.load(), next);
+    }
 }
 
 /// Global manager instance accessible throughout the kernel.
