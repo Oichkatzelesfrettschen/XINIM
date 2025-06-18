@@ -10,6 +10,23 @@
 // Prentice-Hall is required.  In general, such permission will be granted,
 // subject to a few conditions.
 
+// Storage class macros used throughout the historical code base. Modern code
+// should prefer explicit C++ keywords, but many translation units still rely on
+// these identifiers. They are defined here to preserve compatibility.
+#ifndef EXTERN
+#define EXTERN extern
+#endif
+#ifndef PRIVATE
+#define PRIVATE static
+#endif
+#ifndef PUBLIC
+#define PUBLIC
+#endif
+
+// Boolean helpers retained for compatibility with historical code.
+inline constexpr bool TRUE = true;   ///< Boolean true
+inline constexpr bool FALSE = false; ///< Boolean false
+
 // Storage class macros have been removed in favor of standard C++ keywords.
 
 inline constexpr int HZ = 60;           // clock frequency
@@ -25,6 +42,7 @@ inline constexpr int D = 1;         // data segment index
 inline constexpr int S = 2;         // stack segment index
 
 inline constexpr std::int32_t kMaxPLong = 2147483647; // maximum positive signed 32-bit long
+inline constexpr std::int32_t MAX_P_LONG = kMaxPLong; // alias for legacy code
 // Note: Original was 2147483647L. Changed to std::int32_t for clarity.
 
 // Memory is allocated in clicks.
@@ -39,6 +57,7 @@ inline constexpr int LOW_USER = 2;     // first user not part of OS
 
 // Miscellaneous constants
 inline constexpr int BYTE_MASK = 0377; // mask for 8 bits (Original name: BYTE)
+inline constexpr int BYTE = BYTE_MASK; // alias for legacy code
 inline constexpr int TO_USER = 0;      // copy from fs to user
 inline constexpr int FROM_USER = 1;    // copy from user to fs
 inline constexpr int READING = 0;      // copy data to user

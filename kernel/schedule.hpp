@@ -78,6 +78,25 @@ class Scheduler {
     [[nodiscard]] bool is_blocked(xinim::pid_t pid) const noexcept;
 
     /**
+     * @brief Determine the next runnable thread without altering state.
+     *
+     * Returns the identifier at the front of the ready queue or @c -1 when
+     * no runnable threads exist.
+     */
+    [[nodiscard]] xinim::pid_t pick() const noexcept;
+
+    /**
+     * @brief Yield directly to @p receiver when available.
+     *
+     * The current thread is queued and @p receiver becomes current if found in
+     * the ready queue.  This mirrors a direct hand-off in message passing
+     * implementations.
+     *
+     * @param receiver Identifier of the thread to run next.
+     */
+    void direct_handoff(xinim::pid_t receiver);
+
+    /**
      * @brief Access the internal wait-for graph for inspection.
      */
     [[nodiscard]] const lattice::WaitForGraph &graph() const noexcept { return graph_; }

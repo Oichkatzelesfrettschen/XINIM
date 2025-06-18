@@ -15,7 +15,7 @@
  *   unpause:	check to see if process is suspended on anything
  */
 
-#include "../h/signal.h"
+#include "../h/signal.hpp"
 #include "../h/callnr.hpp"
 #include "../h/com.hpp"
 #include "../h/const.hpp"

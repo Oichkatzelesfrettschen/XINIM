@@ -29,14 +29,22 @@
 #include "../h/com.hpp"
 #include "../h/const.hpp"
 #include "../h/error.hpp"
-#include "../h/signal.h"
+#include "../h/signal.hpp"
 #include "../h/type.hpp"
+#include "../include/lib.hpp" // for send/receive primitives
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
 #include <cstddef> // For std::size_t, nullptr (though not directly used here for ptr)
 #include <cstdint> // For int64_t
+
+// External interfaces provided by other kernel modules
+extern "C" void panic(const char *msg, int code) noexcept;
+void sched();
+void pr_char();
+void port_out(unsigned port, unsigned value) noexcept;
+void cause_sig(int proc_nr, int sig_nr) noexcept;
 
 /* Constant definitions. */
 #define MILLISEC 100                      /* how often to call the scheduler (msec) */
@@ -130,19 +138,19 @@ PUBLIC void clock_task() noexcept {
 static void do_setalarm(message *m_ptr) noexcept {
 
     struct proc *rp{};
-    int proc_nr{};         /* which process wants the alarm */
-    int64_t delta_ticks{}; // interval in ticks
-    int (*function)(){};   /* function to call (tasks only) */
+    int proc_nr{};             /* which process wants the alarm */
+    int64_t delta_ticks_val{}; // interval in ticks
+    int (*function)(){};       /* function to call (tasks only) */
 
     /* Extract the parameters from the message. */
-    proc_nr = clock_proc_nr(*m_ptr);   /* process to interrupt later */
-    delta_ticks = delta_ticks(*m_ptr); /* how many ticks to wait */
-    function = func_to_call(*m_ptr);   /* function to call (tasks only) */
+    proc_nr = clock_proc_nr(*m_ptr);         /* process to interrupt later */
+    delta_ticks_val = ::delta_ticks(*m_ptr); /* how many ticks to wait */
+    function = func_to_call(*m_ptr);         /* function to call (tasks only) */
     rp = proc_addr(proc_nr);
     // mc is global message. SECONDS_LEFT (m2_l1) is int64_t. p_alarm, realtime are int64_t. HZ is
     // int.
     seconds_left(mc) = (rp->p_alarm == 0LL ? 0LL : (rp->p_alarm - realtime) / HZ);
-    rp->p_alarm = (delta_ticks == 0LL ? 0LL : realtime + delta_ticks); // p_alarm is int64_t
+    rp->p_alarm = (delta_ticks_val == 0LL ? 0LL : realtime + delta_ticks_val); // p_alarm is int64_t
     if (proc_nr < 0) // Assuming tasks are negative proc_nr
         watch_dog[-proc_nr] = function;
 

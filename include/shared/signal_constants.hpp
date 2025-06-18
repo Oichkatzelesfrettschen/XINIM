@@ -33,4 +33,4 @@ using sighandler_t = void (*)(int) noexcept;
 extern "C" sighandler_t signal(int signum, sighandler_t handler);
 
 inline constexpr sighandler_t SIG_DFL = nullptr;
-inline constexpr sighandler_t SIG_IGN = reinterpret_cast<sighandler_t>(1);
+inline const sighandler_t SIG_IGN = reinterpret_cast<sighandler_t>(1);

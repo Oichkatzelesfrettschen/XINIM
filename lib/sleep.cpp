@@ -1,5 +1,5 @@
 #include "../include/lib.hpp" // C++23 header
-#include "../include/signal.h"
+#include "../include/signal.hpp"
 
 static void alfun(int signum) { (void)signum; }
 void sleep(int n) {
