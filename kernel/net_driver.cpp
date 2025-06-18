@@ -158,10 +158,6 @@ void Driver::shutdown() noexcept {
         ::close(tcp_listen_);
         tcp_listen_ = -1;
     }
-    if (udp_thread_.joinable())
-        udp_thread_.join();
-    if (tcp_thread_.joinable())
-        tcp_thread_.join();
 
     {
         std::lock_guard lock{mutex_};
