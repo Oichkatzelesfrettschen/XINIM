@@ -5,20 +5,20 @@
  * Uses C++23, RAII, and platform‐adaptive types for 32- and 64-bit x86.
  */
 
-#include "platform_traits.hpp"   // defines phys_clicks_t, CLICK_SHIFT, etc.
-#include "spinlock.hpp"          // RAII SpinLock and LockGuard
-#include "paging.hpp"            // Paging::init()
-#include "idt.hpp"               // IDT::init()
-#include "process_table.hpp"     // ProcessTable::instance()
-#include "scheduler.hpp"         // Scheduler::pick(), restart()
-#include "console.hpp"           // Console::printf(), detect_color()
-#include "hardware.hpp"          // Hardware::enable_irqs(), reboot()
-#include "glo.hpp"               // extern proc_ptr, bill_ptr
+#include "console.hpp"             // Console::printf(), detect_color()
+#include "glo.hpp"                 // extern proc_ptr, bill_ptr
+#include "hardware.hpp"            // Hardware::enable_irqs(), reboot()
+#include "idt.hpp"                 // IDT::init()
+#include "paging.hpp"              // Paging::init()
+#include "platform_traits.hpp"     // defines phys_clicks_t, CLICK_SHIFT, etc.
+#include "process_table.hpp"       // ProcessTable::instance()
+#include "quaternion_spinlock.hpp" // RAII QuaternionSpinlock and QuaternionLockGuard
+#include "scheduler.hpp"           // Scheduler::pick(), restart()
 
-#include <cstdint>
-#include <cstddef>
 #include <array>
-#include <inttypes.h>            // PRIxPTR
+#include <cstddef>
+#include <cstdint>
+#include <inttypes.h> // PRIxPTR
 
 //-----------------------------------------------------------------------------
 // Architecture selector
@@ -35,10 +35,10 @@ enum class Architecture : uint8_t {
 #elif defined(__i386__)
     I386,
 #else
-#   error "Unsupported x86 architecture"
+#error "Unsupported x86 architecture"
 #endif
 };
-static constexpr Architecture arch = 
+static constexpr Architecture arch =
 #if defined(__x86_64__)
     Architecture::X86_64;
 #elif defined(__i686__)
@@ -55,20 +55,31 @@ static constexpr Architecture arch =
 extern "C" void init_syscall_msrs() noexcept;
 #endif
 
-using Traits          = PlatformTraits;
-using phys_clicks_t   = Traits::phys_clicks_t;
-using virt_clicks_t   = Traits::virt_clicks_t;
-static constexpr std::size_t STACK_SAFETY   = Traits::SAFETY;
-static constexpr phys_clicks_t KERNEL_BASE  = Traits::BASE >> Traits::CLICK_SHIFT;
+using Traits = PlatformTraits;
+using phys_clicks_t = Traits::phys_clicks_t;
+using virt_clicks_t = Traits::virt_clicks_t;
+static constexpr std::size_t STACK_SAFETY = Traits::SAFETY;
+static constexpr phys_clicks_t KERNEL_BASE = Traits::BASE >> Traits::CLICK_SHIFT;
 
 //-----------------------------------------------------------------------------
 // Kernel boot sequence
 //-----------------------------------------------------------------------------
+/**
+ * @brief Kernel entry function that initializes subsystems and starts the
+ *        scheduler.
+ *
+ * This function configures the CPU, paging, IDT and process table before
+ * enabling interrupts and handing control to the scheduler. The function is
+ * expected to never return under normal operation.
+ *
+ * @return Always returns 0 if control reaches the end.
+ */
 int main() noexcept {
-    // Block interrupts via RAII spinlock
-    SpinLock irq_lock;
+    // Block interrupts via RAII quaternion spinlock
+    hyper::QuaternionSpinlock irq_lock;
+    const hyper::Quaternion ticket = hyper::Quaternion::id();
     {
-        LockGuard lk{irq_lock};
+        hyper::QuaternionLockGuard lk{irq_lock, ticket};
         cpu::set_current_cpu(0);
         Paging::init();
         IDT::init();

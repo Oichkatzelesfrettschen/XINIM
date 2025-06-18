@@ -18,7 +18,7 @@
 
 #include "../h/const.hpp"
 #include "../h/error.hpp"
-#include "../h/signal.h"
+#include "../h/signal.hpp"
 #include "../h/type.hpp" // Defines vir_bytes, vir_clicks, CLICK_SIZE, CLICK_SHIFT
 #include "const.hpp"
 #include "glo.hpp"

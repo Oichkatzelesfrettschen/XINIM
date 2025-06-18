@@ -101,6 +101,28 @@ void Scheduler::unblock(xinim::pid_t pid) {
 bool Scheduler::is_blocked(xinim::pid_t pid) const noexcept { return blocked_.contains(pid); }
 
 /**
+ * @brief Inspect the next runnable thread without dequeuing.
+ */
+xinim::pid_t Scheduler::pick() const noexcept { return ready_.empty() ? -1 : ready_.front(); }
+
+/**
+ * @brief Perform a direct hand-off from the current thread to @p receiver.
+ *
+ * When @p receiver exists in the ready queue, the current thread is queued
+ * and execution transfers immediately.  This primitive facilitates tightly
+ * coupled message-passing patterns.
+ */
+void Scheduler::direct_handoff(xinim::pid_t receiver) {
+    if (!std::erase(ready_, receiver)) {
+        return; // receiver not runnable
+    }
+    if (current_ != -1) {
+        ready_.push_back(current_);
+    }
+    current_ = receiver;
+}
+
+/**
  * @brief Notify the service manager that a service crashed.
  *
  * @param pid Identifier of the failing service.
