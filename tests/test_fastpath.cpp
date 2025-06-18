@@ -56,7 +56,7 @@ int main() {
     assert(s.sender.status == ThreadStatus::Blocked);
     assert(s.receiver.badge == s.cap.badge);
     assert(s.sender.reply_to == s.receiver.tid);
-    assert(scheduler.current() == s.receiver.tid);
+    assert(static_cast<uint32_t>(scheduler.current()) == s.receiver.tid);
     assert(s.current_tid == s.receiver.tid);
     return 0;
 }

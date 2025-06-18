@@ -220,7 +220,7 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
     using namespace std::chrono_literals;
     std::unique_lock lk(g_ipc_mutex);
     lattice_listen(pid);
-    sched::scheduler.block_on(pid, -1);
+    [[maybe_unused]] bool res = sched::scheduler.block_on(pid, -1);
     auto deadline = std::chrono::steady_clock::now() + 100ms;
     for (;;) {
         auto ib2 = g_graph.inbox_.find(pid);

@@ -11,4 +11,4 @@
  * @param i Input integer.
  * @return Absolute value of @p i.
  */
-[[nodiscard]] constexpr int abs(int i) noexcept { return (i < 0) ? -i : i; }
+extern "C" int abs(int i) noexcept { return (i < 0) ? -i : i; }

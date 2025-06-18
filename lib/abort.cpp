@@ -11,4 +11,4 @@
  * Simply exits with status code 99 to indicate failure. In a full
  * implementation this would raise SIGABRT and generate a core dump.
  */
-[[noreturn]] void abort() { exit(99); }
+extern "C" void abort() noexcept { std::exit(99); }

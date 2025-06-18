@@ -11,22 +11,26 @@ set -euo pipefail
 
 # Update package lists.
 sudo apt-get update
+# Add the LLVM repository for the latest clang packages
+sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble main"
+sudo add-apt-repository -y "deb http://apt.llvm.org/noble/ llvm-toolchain-noble-20 main"
+sudo apt-get update
 
 # Install build utilities, analysis tools and documentation generators.
 sudo apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     nasm \
-    clang \
-    clang-tidy \
-    clang-format \
-    clang-tools \
-    clangd \
-    lld \
-    llvm \
-    llvm-dev \
-    libclang-dev \
-    libclang-cpp-dev \
+    clang-20 \
+    clang-tidy-20 \
+    clang-format-20 \
+    clang-tools-20 \
+    clangd-20 \
+    lld-20 \
+    llvm-20 \
+    llvm-20-dev \
+    libclang-20-dev \
+    libclang-cpp20-dev \
     cppcheck \
     valgrind \
     lcov \

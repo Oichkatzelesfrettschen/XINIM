@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstddef>
+#include <cstdio>
 #include <span>
 #include <string_view>
 #include <vector>
@@ -22,6 +23,9 @@
 #include "../h/error.hpp"
 #include "../h/type.hpp"
 #include "../kernel/const.hpp"
+#ifdef printf
+#undef printf
+#endif
 #include "../kernel/lattice_ipc.hpp"
 
 using namespace lattice;

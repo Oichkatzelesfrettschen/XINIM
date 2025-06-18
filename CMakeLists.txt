@@ -1,13 +1,24 @@
 cmake_minimum_required(VERSION 3.5)
-project(minix1 CXX C)
 
-# Default to clang when no explicit compiler is configured
+# Default to clang 20 when no explicit compiler is configured
 if(NOT CMAKE_C_COMPILER)
-  set(CMAKE_C_COMPILER clang)
+  find_program(CLANG20 clang-20)
+  if(CLANG20)
+    set(CMAKE_C_COMPILER ${CLANG20})
+  else()
+    set(CMAKE_C_COMPILER clang)
+  endif()
 endif()
 if(NOT CMAKE_CXX_COMPILER)
-  set(CMAKE_CXX_COMPILER clang++)
+  find_program(CLANGXX20 clang++-20)
+  if(CLANGXX20)
+    set(CMAKE_CXX_COMPILER ${CLANGXX20})
+  else()
+    set(CMAKE_CXX_COMPILER clang++)
+  endif()
 endif()
+
+project(minix1 CXX C)
 
 # Enforce a strict C++23 environment across the project
 set(CMAKE_C_STANDARD 17)
@@ -16,6 +27,9 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Enable warnings as errors and optimize builds
+add_compile_options(-Wall -Wextra -Wpedantic -Werror -O3)
 
 # Add global include directories
 include_directories(h)

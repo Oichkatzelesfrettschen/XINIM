@@ -1,11 +1,7 @@
 #pragma once
-define[^
-]*
-Modernized for C++23
+// Modernized for C++23
 
-#include "type.hpp" define[^
-]*
-Added include
+#include "type.hpp"
 
 /* System call function codes used with sendrec(). */
 inline constexpr int SEND = 1;             /* function code for sending messages */
