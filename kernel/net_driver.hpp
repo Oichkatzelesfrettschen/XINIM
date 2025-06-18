@@ -1,30 +1,32 @@
 #pragma once
 /**
  * @file net_driver.hpp
- * @brief UDP/TCP network driver interface for Lattice IPC (POSIX sockets).
+ * @brief UDP/TCP network driver interface for Lattice IPC (POSIX sockets, C++23).
  *
- * This interface provides asynchronous and multi-threaded UDP/TCP message transport
+ * This interface provides asynchronous, multi-threaded UDP/TCP message transport
  * between nodes in a Lattice IPC system. Messages are framed with the sender's
  * node ID and routed using a mutex-protected peer registry.
  *
  * Usage:
- *   1. net::init({0, 12000}); // autodetect node_id
- *   2. net::add_remote(2, "192.168.1.4", 12000, Protocol::TCP);
- *   3. net::send(2, payload); // sends [local_node|payload]
- *   4. while (net::recv(pkt)) { process(pkt); }
- *   5. net::shutdown();
+ *   net::init({0, 12000});                               // autodetect node_id
+ *   net::add_remote(2, "192.168.1.4", 12000, Protocol::TCP);
+ *   net::send(2, payload);                               // sends [local_node|payload]
+ *   while (net::recv(pkt)) { /* process pkt */ }
+ *   net::shutdown();
  *
  * Thread Safety: All APIs are thread-safe and may be called from multiple threads.
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <netinet/in.h>
 #include <span>
 #include <string>
 #include <system_error>
 #include <vector>
+#include <system_error> // for std::errc
 
 namespace net {
 
@@ -34,139 +36,150 @@ using node_t = int;
 /**
  * @brief In-memory representation of a framed message.
  *
- * Messages sent using ::send() are prepended with the sender node ID and
- * received as a Packet with the `src_node` field and a payload vector.
+ * Messages sent via send() are prepended with the sender node ID.  On receipt
+ * they appear as a Packet with src_node and payload.
  */
 struct Packet {
-    node_t src_node;                ///< Originating node ID
-    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
+    node_t                   src_node;  ///< Originating node ID
+    std::vector<std::byte>   payload;   ///< Message payload (excluding prefix)
 };
 
 /**
  * @brief Policy for handling packets when the receive queue is full.
  */
 enum class OverflowPolicy {
-    DropNewest, ///< Drop newest received packet when queue is full
-    DropOldest  ///< Drop oldest queued packet to make room
+    DropNewest, ///< Discard the newly-received packet
+    DropOldest  ///< Remove the oldest queued packet to make room
 };
 
 /**
- * @brief Transport protocol used for a peer connection.
+ * @brief Transport protocol used for a remote peer.
  */
 enum class Protocol {
-    UDP, ///< Stateless datagram transport
-    TCP  ///< Stream transport (persistent or transient connection)
+    UDP, ///< Datagram transport
+    TCP  ///< Stream transport (persistent or transient)
 };
 
 /**
- * @brief Network driver configuration structure.
+ * @brief Network driver configuration.
  *
- * This struct defines the initialization parameters for the network stack.
- * Use `node_id = 0` to auto-detect the ID and persist it to `/etc/xinim/node_id`.
+ * @param node_id_        Preferred node ID (0 = auto-detect & persist)
+ * @param port_           Local UDP/TCP port to bind
+ * @param max_len         Max packets in the receive queue (0 = unlimited)
+ * @param policy          Overflow policy
+ * @param node_id_dir_    Directory for persisting auto-detected node ID
  */
 struct Config {
-    node_t node_id;               ///< Preferred node identifier (0 = auto-detect)
-    std::uint16_t port;           ///< Local port to bind UDP/TCP sockets
-    std::size_t max_queue_length; ///< Maximum packets in the receive queue
-    OverflowPolicy overflow;      ///< Policy when the receive queue overflows
+    node_t                  node_id;
+    std::uint16_t           port;
+    std::size_t             max_queue_length;
+    OverflowPolicy          overflow;
+    std::filesystem::path   node_id_dir;
 
-    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
-                     OverflowPolicy policy = OverflowPolicy::DropNewest) noexcept
-        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy) {}
+    constexpr Config(node_t                  node_id_        = 0,
+                     std::uint16_t           port_           = 0,
+                     std::size_t             max_len         = 0,
+                     OverflowPolicy          policy          = OverflowPolicy::DropNewest,
+                     std::filesystem::path   node_id_dir_    = {}) noexcept
+      : node_id(node_id_),
+        port(port_),
+        max_queue_length(max_len),
+        overflow(policy),
+        node_id_dir(std::move(node_id_dir_))
+    {}
 };
 
-/**
- * @brief Callback type invoked on packet arrival.
- */
-using RecvCallback = std::function<void(const Packet &)>;
+/** Callback type invoked on packet arrival (from background thread). */
+using RecvCallback = std::function<void(const Packet&)>;
 
 /**
  * @brief Initialize the network driver.
  *
- * Initializes dual-stack (IPv4/IPv6) UDP and TCP sockets and launches
- * background receiver threads. The function binds to `cfg.port` for both protocols.
+ * Binds dual-stack UDP and TCP sockets on cfg.port and launches background
+ * receiver threads.
  *
- * @param cfg Driver configuration including port, node ID, and overflow policy.
- * @throws std::system_error on socket failure, bind failure, or thread launch failure.
+ * @param cfg Driver configuration
+ * @throws std::system_error on socket/bind/thread failures
  */
-void init(const Config &cfg);
+void init(const Config& cfg);
 
 /**
- * @brief Add a remote peer for subsequent ::send calls.
+ * @brief Register a remote peer for sending.
  *
- * Resolves a host string (IPv4, IPv6, or hostname) and registers the remote node
- * for sending framed messages. TCP peers can reuse persistent sockets.
+ * Resolves host (IPv4, IPv6, or DNS) and registers the peer.  For TCP, a
+ * persistent connection is established immediately.
  *
- * @param node Logical identifier of the remote peer.
- * @param host Hostname or IP address to connect to.
- * @param port Port to use when sending.
- * @param proto Transport protocol (UDP or TCP).
- * @throws std::invalid_argument if the address is invalid.
- * @throws std::system_error if TCP socket or connect fails.
+ * @param node  Logical peer ID
+ * @param host  Hostname or IP literal
+ * @param port  Port number
+ * @param proto Transport protocol
+ * @throws std::invalid_argument on name resolution failure
+ * @throws std::system_error on TCP socket/connect failure
  */
-void add_remote(node_t node, const std::string &host, uint16_t port,
+void add_remote(node_t node,
+                const std::string& host,
+                uint16_t port,
                 Protocol proto = Protocol::UDP);
 
 /**
- * @brief Register a callback to be invoked on packet arrival.
+ * @brief Install a receive callback.
  *
- * If set, the callback runs in the context of the receiver thread.
- * It is safe to omit this and instead poll with ::recv().
+ * Callback will be invoked from the background thread whenever a packet
+ * arrives.  Alternatively, applications may poll with recv().
  *
- * @param cb Callback function taking a const Packet&
+ * @param cb Function to call on packet arrival
  */
 void set_recv_callback(RecvCallback cb);
 
 /**
- * @brief Shutdown the network driver and clean up all resources.
+ * @brief Shutdown the network driver.
  *
- * Closes all sockets, terminates background threads, clears peer state and queue.
+ * Stops background threads, closes sockets, and clears internal state.
  */
 void shutdown() noexcept;
 
 /**
- * @brief Returns the local node identifier.
+ * @brief Retrieve the stable local node identifier.
  *
- * If a node ID was provided in Config, that value is returned.
- * Otherwise, the following procedure is used:
- *   1. Try reading `/etc/xinim/node_id`
- *   2. Derive from first active non-loopback interface (MAC or IP)
- *   3. Fallback to hash of hostname
+ * If cfg.node_id was non-zero, returns that.  Otherwise:
+ *   1. Reads node_id_dir/node_id if present
+ *   2. Derives from first active non-loopback interface (MAC or IP)
+ *   3. Falls back to a hash of hostname
  *
- * @return Stable integer node identifier (never 0 unless initialization failed).
+ * If auto-detected, the ID is written to node_id_dir/node_id.
+ *
+ * @return Stable non-zero node ID (0 only if uninitialized)
  */
 [[nodiscard]] node_t local_node() noexcept;
 
 /**
- * @brief Send a framed message to the specified peer.
+ * @brief Send a framed message to a peer.
  *
- * Frames the payload as `[local_node | data...]` and transmits over UDP
- * or TCP. For TCP, the function will establish a new socket if needed.
+ * Frames data as [local_node|payload] and transmits via UDP or TCP.
  *
  * @param node Destination node ID
- * @param data Payload to send (without prefix)
- * @return std::errc::success on success or a descriptive error code
- * @throws std::system_error for POSIX socket failures (send, connect, etc)
+ * @param data Payload bytes
+ * @return std::errc::success on success, or descriptive error code
+ * @throws std::system_error on underlying socket failures
  */
-[[nodiscard]] std::errc send(node_t node, std::span<const std::byte> data);
+[[nodiscard]] std::errc send(node_t node,
+                             std::span<const std::byte> data);
 
 /**
- * @brief Retrieve the next available incoming packet.
+ * @brief Dequeue the next received packet, if any.
  *
- * @param out Packet structure to fill in.
- * @return true if a packet was retrieved, false if queue is empty.
+ * @param out Packet to populate
+ * @return true if a packet was dequeued, false if queue was empty
  */
-[[nodiscard]] bool recv(Packet &out);
+[[nodiscard]] bool recv(Packet& out);
 
 /**
- * @brief Clear all pending packets in the receive queue.
+ * @brief Clear all pending packets from the receive queue.
  */
 void reset() noexcept;
 
 /**
- * @brief Intentionally close all network sockets to simulate failure.
- *
- * Used only by unit tests to trigger error-handling paths.
+ * @brief Close sockets to simulate failure (for unit tests).
  */
 void simulate_socket_failure() noexcept;
 

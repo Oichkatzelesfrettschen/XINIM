@@ -1,6 +1,7 @@
 #include "../include/vm.hpp"
 #include "const.hpp"
 #include "mproc.hpp"
+#include <vector>
 
 /*
  * Simple virtual memory subsystem used for demonstration.  Each process gets
@@ -8,11 +9,11 @@
  * management is omitted and only bookkeeping is performed.
  */
 
-/* Per-process virtual memory information. */
-PRIVATE struct vm_proc vm_proc_table[NR_PROCS];
+/* Per-process virtual memory information stored in a vector for RAII. */
+static std::vector<vm_proc> vm_proc_table(NR_PROCS);
 
 /* State for a very small pseudo random generator used for ASLR. */
-PRIVATE unsigned long rng_state = 1;
+static unsigned long rng_state = 1;
 
 /*===========================================================================*
  *                              next_rand                                   *
@@ -25,7 +26,7 @@ PRIVATE unsigned long rng_state = 1;
  *
  * @return Next pseudo random value.
  */
-PRIVATE unsigned long next_rand(void) {
+static unsigned long next_rand() {
     rng_state = rng_state * 1103515245 + 12345;
     return rng_state;
 }
@@ -39,10 +40,9 @@ PRIVATE unsigned long next_rand(void) {
 /**
  * @brief Initialise the virtual memory subsystem.
  */
-PUBLIC void vm_init(void) {
-    int i;
-    for (i = 0; i < NR_PROCS; i++) {
-        vm_proc_table[i].area_count = 0;
+void vm_init() noexcept {
+    for (auto &p : vm_proc_table) {
+        p.area_count = 0;
     }
     rng_state = 1;
 }
@@ -62,7 +62,7 @@ PUBLIC void vm_init(void) {
  *
  * @return Base address of the allocated region.
  */
-PUBLIC void *vm_alloc(u64_t bytes, VmFlags flags) {
+void *vm_alloc(u64_t bytes, VmFlags flags) noexcept {
     virt_addr64 base;
     unsigned long pages;
 
@@ -86,16 +86,16 @@ PUBLIC void *vm_alloc(u64_t bytes, VmFlags flags) {
  * @param proc Index of the faulting process.
  * @param addr Faulting virtual address.
  */
-PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
+void vm_handle_fault(int proc, virt_addr64 addr) noexcept {
     /* This routine would allocate a page frame and map it.  Here it is
      * recorded only for bookkeeping.
      */
-    struct vm_proc *p = &vm_proc_table[proc];
-    if (p->area_count < VM_MAX_AREAS) {
-        struct vm_area *a = &p->areas[p->area_count++];
-        a->start = addr & ~(PAGE_SIZE_4K - 1);
-        a->end = a->start + PAGE_SIZE_4K;
-        a->flags = VmFlags::VM_READ | VmFlags::VM_WRITE | VmFlags::VM_PRIVATE;
+    auto &p = vm_proc_table[proc];
+    if (p.area_count < VM_MAX_AREAS) {
+        auto &a = p.areas[p.area_count++];
+        a.start = addr & ~(PAGE_SIZE_4K - 1);
+        a.end = a.start + PAGE_SIZE_4K;
+        a.flags = VmFlags::VM_READ | VmFlags::VM_WRITE | VmFlags::VM_PRIVATE;
     }
 }
 
@@ -110,7 +110,7 @@ PUBLIC void vm_handle_fault(int proc, virt_addr64 addr) {
  *
  * @return ::OK on success.
  */
-PUBLIC int vm_fork(int parent, int child) {
+int vm_fork(int parent, int child) noexcept {
     vm_proc_table[child] = vm_proc_table[parent];
     return OK;
 }
@@ -128,19 +128,19 @@ PUBLIC int vm_fork(int parent, int child) {
  *
  * @return Base address of the mapped region.
  */
-PUBLIC void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) {
-    struct vm_proc *p = &vm_proc_table[proc];
+void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) noexcept {
+    auto &p = vm_proc_table[proc];
     virt_addr64 base = (virt_addr64)addr;
 
     if (!base) {
         base = (virt_addr64)vm_alloc(length, flags);
     }
 
-    if (p->area_count < VM_MAX_AREAS) {
-        struct vm_area *a = &p->areas[p->area_count++];
-        a->start = base;
-        a->end = base + length;
-        a->flags = flags;
+    if (p.area_count < VM_MAX_AREAS) {
+        auto &a = p.areas[p.area_count++];
+        a.start = base;
+        a.end = base + length;
+        a.flags = flags;
     }
 
     return (void *)base;

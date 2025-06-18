@@ -37,6 +37,7 @@ macro(add_lattice_test name test_src)
     target_include_directories(${name} PRIVATE
         ${XINIM_INCLUDES}
         ${CMAKE_SOURCE_DIR}/crypto
+        ${CMAKE_SOURCE_DIR}/tests
     )
     target_compile_definitions(${name} PRIVATE EXTERN=extern)
     target_link_libraries(${name} PRIVATE pqcrypto Threads::Threads)
@@ -132,6 +133,33 @@ target_include_directories(minix_test_service_contract PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
+
+add_executable(minix_test_service_manager_updates
+    test_service_manager_updates.cpp
+    ${FASTPATH_SOURCES}
+)
+target_include_directories(minix_test_service_manager_updates PRIVATE
+    ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/include
+)
+add_test(NAME minix_test_service_manager_updates COMMAND minix_test_service_manager_updates)
+
+# -----------------------------------------------------------------------------
+# svcctl command tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_svcctl
+    test_svcctl.cpp
+    ${LATTICE_COMMON_SOURCES}
+    ${CMAKE_SOURCE_DIR}/commands/svcctl.cpp
+)
+target_include_directories(minix_test_svcctl PRIVATE
+    ${XINIM_INCLUDES}
+    ${CMAKE_SOURCE_DIR}/crypto
+    ${CMAKE_SOURCE_DIR}/commands
+)
+target_compile_definitions(minix_test_svcctl PRIVATE EXTERN=extern SVCCTL_NO_MAIN SVCCTL_NO_WAIT)
+target_link_libraries(minix_test_svcctl PRIVATE pqcrypto Threads::Threads)
+add_test(NAME minix_test_svcctl COMMAND minix_test_svcctl)
 
 # -----------------------------------------------------------------------------
 # Lattice IPC tests
@@ -291,6 +319,7 @@ target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threa
 add_test(NAME minix_test_net_driver_persistent_id COMMAND minix_test_net_driver_persistent_id)
 
 # -----------------------------------------------------------------------------
+
 # minix_test_net_driver_socket_failure
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver_socket_failure
@@ -302,6 +331,27 @@ target_include_directories(minix_test_net_driver_socket_failure PUBLIC
 )
 target_link_libraries(minix_test_net_driver_socket_failure PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_socket_failure COMMAND minix_test_net_driver_socket_failure)
+
+# minix_test_net_driver_unpriv_id
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_unpriv_id
+  test_net_driver_unpriv_id.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_unpriv_id PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_unpriv_id PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_unpriv_id COMMAND minix_test_net_driver_unpriv_id)
+
+# -----------------------------------------------------------------------------
+# minix_test_hypercomplex
+# -----------------------------------------------------------------------------
+add_executable(minix_test_hypercomplex
+    test_hypercomplex.cpp
+)
+target_include_directories(minix_test_hypercomplex PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
+add_test(NAME minix_test_hypercomplex COMMAND minix_test_hypercomplex)
 
 # -----------------------------------------------------------------------------
 # Crypto library

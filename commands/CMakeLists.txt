@@ -1,6 +1,7 @@
 # This CMake file builds each userland command as a separate executable.
 
 file(GLOB CMD_SOURCES "*.cpp") # Use quotes and a more descriptive variable name
+# svcctl.cpp provides lattice-based service control
 
 foreach(CMD_SOURCE_FILE ${CMD_SOURCES})
   get_filename_component(COMMAND_NAME ${CMD_SOURCE_FILE} NAME_WE) # NAME_WE extracts name without extension

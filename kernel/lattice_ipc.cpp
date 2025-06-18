@@ -9,10 +9,10 @@
 #include "../include/xinim/core_types.hpp"
 #include "glo.hpp"
 #include "net_driver.hpp"
-#include "octonion.hpp"
-#include "octonion_math.hpp"
 #include "schedule.hpp"
+#include <sodium.h>
 
+#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <chrono>
@@ -22,6 +22,7 @@
 #include <deque>
 #include <mutex>
 #include <span>
+#include <stdexcept>
 #include <system_error>
 #include <tuple>
 #include <unordered_map>
@@ -31,17 +32,64 @@
 
 namespace {
 
+/** Size of the nonce used with XChaCha20-Poly1305. */
+constexpr std::size_t NONCE_SIZE = lattice::AEAD_NONCE_SIZE;
+
+/** Size of the authentication tag appended to ciphertext. */
+constexpr std::size_t TAG_SIZE = lattice::AEAD_TAG_SIZE;
+
 /**
- * @brief XOR‐stream cipher using an Octonion as key.
+ * @brief Encrypt a buffer using the channel key.
  *
- * Encryption and decryption are identical.
+ * @param plain  Plaintext input span.
+ * @param key    AEAD key.
+ * @param nonce  Output buffer receiving the generated nonce.
+ * @return Ciphertext with appended authentication tag.
  */
-void xor_cipher(std::span<std::byte> buf, const lattice::OctonionToken &key) noexcept {
-    std::array<uint8_t, 32> mask{};
-    key.value.to_bytes(mask);
-    for (size_t i = 0; i < buf.size(); ++i) {
-        buf[i] ^= std::byte{mask[i % mask.size()]};
+[[nodiscard]] std::vector<std::byte>
+aead_encrypt(std::span<const std::byte> plain,
+             std::span<const std::uint8_t, lattice::AEAD_KEY_SIZE> key,
+             std::array<std::byte, NONCE_SIZE> &nonce) {
+    if (sodium_init() < 0) {
+        throw std::runtime_error{"sodium_init failed"};
     }
+    randombytes_buf(nonce.data(), nonce.size());
+
+    std::vector<std::byte> cipher(plain.size() + TAG_SIZE);
+    unsigned long long out_len = 0U;
+    crypto_aead_xchacha20poly1305_ietf_encrypt(
+        reinterpret_cast<unsigned char *>(cipher.data()), &out_len,
+        reinterpret_cast<const unsigned char *>(plain.data()), plain.size(), nullptr, 0, nullptr,
+        reinterpret_cast<const unsigned char *>(nonce.data()), key.data());
+    cipher.resize(static_cast<std::size_t>(out_len));
+    return cipher;
+}
+
+/**
+ * @brief Decrypt a buffer using the channel key.
+ *
+ * @param cipher Ciphertext with authentication tag.
+ * @param key    AEAD key.
+ * @param nonce  Nonce that accompanied the ciphertext.
+ * @return Decrypted plaintext on success or empty vector on failure.
+ */
+[[nodiscard]] std::vector<std::byte>
+aead_decrypt(std::span<const std::byte> cipher,
+             std::span<const std::uint8_t, lattice::AEAD_KEY_SIZE> key,
+             std::span<const std::byte, NONCE_SIZE> nonce) {
+    if (sodium_init() < 0) {
+        throw std::runtime_error{"sodium_init failed"};
+    }
+    std::vector<std::byte> plain(cipher.size() - TAG_SIZE);
+    unsigned long long out_len = 0U;
+    if (crypto_aead_xchacha20poly1305_ietf_decrypt(
+            reinterpret_cast<unsigned char *>(plain.data()), &out_len, nullptr,
+            reinterpret_cast<const unsigned char *>(cipher.data()), cipher.size(), nullptr, 0,
+            reinterpret_cast<const unsigned char *>(nonce.data()), key.data()) != 0) {
+        return {};
+    }
+    plain.resize(static_cast<std::size_t>(out_len));
+    return plain;
 }
 
 } // anonymous namespace
@@ -112,12 +160,11 @@ int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
     auto kp_a = pqcrypto::generate_keypair();
     auto kp_b = pqcrypto::generate_keypair();
     auto secret_bytes = pqcrypto::compute_shared_secret(kp_a, kp_b);
-    OctonionToken secret{Octonion::from_bytes(secret_bytes)};
 
     auto &fwd = g_graph.connect(src, dst, node_id);
     auto &bwd = g_graph.connect(dst, src, node_id);
-    fwd.secret = secret;
-    bwd.secret = secret;
+    std::copy(secret_bytes.begin(), secret_bytes.end(), fwd.key.begin());
+    std::copy(secret_bytes.begin(), secret_bytes.end(), bwd.key.begin());
     return OK;
 }
 
@@ -143,12 +190,19 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlag
 
     // Remote‐node delivery
     if (ch->node_id != net::local_node()) {
-        std::vector<std::byte> pkt(sizeof(xinim::pid_t) * 2 + sizeof(msg));
+        std::array<std::byte, NONCE_SIZE> nonce{};
+        std::vector<std::byte> plain(sizeof(msg));
+        std::memcpy(plain.data(), &msg, sizeof(msg));
+        auto cipher = aead_encrypt(plain, ch->key, nonce);
+
+        std::vector<std::byte> pkt(sizeof(xinim::pid_t) * 2 + nonce.size() + cipher.size());
         auto *ids = reinterpret_cast<xinim::pid_t *>(pkt.data());
         ids[0] = src;
         ids[1] = dst;
-        std::memcpy(pkt.data() + sizeof(xinim::pid_t) * 2, &msg, sizeof(msg));
-        xor_cipher({pkt.data(), pkt.size()}, ch->secret);
+        std::memcpy(pkt.data() + sizeof(xinim::pid_t) * 2, nonce.data(), nonce.size());
+        std::memcpy(pkt.data() + sizeof(xinim::pid_t) * 2 + nonce.size(), cipher.data(),
+                    cipher.size());
+
         if (net::send(ch->node_id, pkt) != std::errc{}) {
             return static_cast<int>(ErrorCode::EIO);
         }
@@ -171,10 +225,8 @@ int lattice_send(xinim::pid_t src, xinim::pid_t dst, const message &msg, IpcFlag
         return static_cast<int>(ErrorCode::E_TRY_AGAIN);
     }
 
-    // Blocking: encrypt in-place and enqueue
-    message copy = msg;
-    xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch->secret);
-    ch->queue.push_back(std::move(copy));
+    // Blocking: enqueue plaintext message
+    ch->queue.push_back(msg);
     if (g_graph.is_listening(dst)) {
         g_graph.set_listening(dst, false);
         sched::scheduler.unblock(dst);
@@ -203,10 +255,8 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
     // 2) Dequeue from any matching channel
     for (auto &[key, ch] : g_graph.edges_) {
         if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() && !ch.queue.empty()) {
-            message copy = std::move(ch.queue.front());
+            *out = ch.queue.front();
             ch.queue.pop_front();
-            xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch.secret);
-            *out = std::move(copy);
             return OK;
         }
     }
@@ -234,10 +284,8 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
         for (auto &[key, ch] : g_graph.edges_) {
             if (std::get<1>(key) == pid && std::get<2>(key) == net::local_node() &&
                 !ch.queue.empty()) {
-                message copy = std::move(ch.queue.front());
+                *out = ch.queue.front();
                 ch.queue.pop_front();
-                xor_cipher({reinterpret_cast<std::byte *>(&copy), sizeof(copy)}, ch.secret);
-                *out = std::move(copy);
                 sched::scheduler.unblock(pid);
                 g_graph.set_listening(pid, false);
                 return OK;
@@ -260,19 +308,26 @@ void poll_network() {
     net::Packet pkt;
     while (net::recv(pkt)) {
         const auto &p = pkt.payload;
-        if (p.size() != sizeof(xinim::pid_t) * 2 + sizeof(message)) {
+        if (p.size() < sizeof(xinim::pid_t) * 2 + NONCE_SIZE + TAG_SIZE) {
             continue;
         }
         auto ids = reinterpret_cast<const xinim::pid_t *>(p.data());
         xinim::pid_t src = ids[0], dst = ids[1];
-        message msg;
-        std::memcpy(&msg, p.data() + sizeof(xinim::pid_t) * 2, sizeof(msg));
+        std::array<std::byte, NONCE_SIZE> nonce{};
+        std::memcpy(nonce.data(), p.data() + sizeof(xinim::pid_t) * 2, nonce.size());
+        std::span<const std::byte> cipher{p.data() + sizeof(xinim::pid_t) * 2 + nonce.size(),
+                                          p.size() - sizeof(xinim::pid_t) * 2 - nonce.size()};
 
         Channel *ch = g_graph.find(src, dst, pkt.src_node);
         if (!ch) {
             ch = &g_graph.connect(src, dst, pkt.src_node);
         }
-        xor_cipher({reinterpret_cast<std::byte *>(&msg), sizeof(msg)}, ch->secret);
+        auto plain = aead_decrypt(cipher, ch->key, nonce);
+        if (plain.size() != sizeof(message)) {
+            continue;
+        }
+        message msg;
+        std::memcpy(&msg, plain.data(), sizeof(msg));
         ch->queue.push_back(std::move(msg));
         if (g_graph.is_listening(dst)) {
             g_graph.set_listening(dst, false);
