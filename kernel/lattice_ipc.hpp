@@ -6,10 +6,9 @@
 
 #include "../include/xinim/core_types.hpp"
 #include "net_driver.hpp"
-#include "octonion.hpp"
-#include "octonion_math.hpp"
 #include "pqcrypto.hpp"
 #include "proc.hpp"
+#include <array>
 #include <deque>
 #include <map>
 #include <unordered_map>
@@ -24,6 +23,13 @@ inline constexpr net::node_t ANY_NODE = -1;
 
 /** Import the global ::message type into the lattice namespace. */
 using ::message;
+
+/// Size of the XChaCha20-Poly1305 key in bytes.
+inline constexpr std::size_t AEAD_KEY_SIZE = 32;
+/// Size of the XChaCha20-Poly1305 nonce in bytes.
+inline constexpr std::size_t AEAD_NONCE_SIZE = 24;
+/// Size of the XChaCha20-Poly1305 authentication tag in bytes.
+inline constexpr std::size_t AEAD_TAG_SIZE = 16;
 
 /**
  * @brief Flags controlling send and receive behavior.
@@ -44,10 +50,13 @@ struct Channel {
      */
     net::node_t node_id{0};
     /**
-     * @brief FIFO of pending messages encrypted with @c secret.
+     * @brief FIFO of pending plaintext messages.
      */
     std::deque<message> queue;
-    OctonionToken secret; //!< Capability derived from PQ secret
+    /**
+     * @brief Per-channel AEAD key derived from the post-quantum secret.
+     */
+    std::array<std::uint8_t, AEAD_KEY_SIZE> key{};
 };
 
 /**
@@ -82,8 +91,9 @@ extern Graph g_graph; //!< Global DAG instance
 /**
  * @brief Establish a channel between two processes.
  *
- * If absent a new channel is created. A capability token derived
- * from a Kyber secret is installed on both directions of the link.
+ * If absent a new channel is created. A key derived from a Kyber
+ * shared secret is installed on both directions of the link for
+ * XChaCha20-Poly1305 encryption.
  *
  * @param src Source process identifier.
  * @param dst Destination process identifier.

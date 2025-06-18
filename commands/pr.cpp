@@ -20,34 +20,45 @@
  */
 
 #include "stdio.hpp"
+#include <memory>
 
 char *colbuf;
 
-#define DEF_LENGTH 66
-#define DEF_WIDTH 72
+/// Default page length in lines.
+constexpr int kDefaultLength = 66;
 
-typedef char BOOL;
+/// Default page width in characters.
+constexpr int kDefaultWidth = 72;
 
-#define FALSE 0
-#define TRUE 1
+/// Alias for boolean values used by legacy code.
+using Bool = bool;
 
 #define NIL_PTR ((char *)0)
 
 char *header;
-BOOL no_header;
-BOOL number;
+Bool no_header;
+Bool number;
 short columns;
 short cwidth;
 short start_page = 1;
-short width = DEF_WIDTH;
-short length = DEF_LENGTH;
+short width = kDefaultWidth;
+short length = kDefaultLength;
 
 char output[1024];
 FILE *fopen();
 
-// Entry point with modern parameters
+/**
+ * @brief Program entry point.
+ *
+ * Parses command line arguments and prints the specified files with
+ * optional pagination and formatting.
+ *
+ * @param argc Argument count.
+ * @param argv Argument vector.
+ * @return Exit status code.
+ */
 int main(int argc, char *argv[]) {
-    FILE *file;
+    std::unique_ptr<FILE, decltype(&fclose)> file(nullptr, fclose);
     char *ptr;
     int index = 1;
 
@@ -68,10 +79,10 @@ int main(int argc, char *argv[]) {
         while (*ptr)
             switch (*ptr++) {
             case 't':
-                no_header = TRUE;
+                no_header = true;
                 break;
             case 'n':
-                number = TRUE;
+                number = true;
                 break;
             case 'h':
                 header = argv[index++];
@@ -97,7 +108,7 @@ int main(int argc, char *argv[]) {
         length -= 10;
 
     if (length <= 0)
-        length = DEF_LENGTH;
+        length = kDefaultLength;
 
     if (columns) {
         cwidth = width / columns + 1;
@@ -121,7 +132,8 @@ int main(int argc, char *argv[]) {
     }
 
     while (index != argc) {
-        if ((file = fopen(argv[index], "r")) == (FILE *)0) {
+        file.reset(fopen(argv[index], "r"));
+        if (!file) {
             fprintf(stderr, "Cannot open %s\n", argv[index++]);
             continue;
         }
@@ -130,7 +142,7 @@ int main(int argc, char *argv[]) {
             format(file);
         else
             print(file);
-        fclose(file);
+        file.reset();
         index++;
     }
 
@@ -145,27 +157,33 @@ int main(int argc, char *argv[]) {
     exit(0);
 }
 
-char skip_page(lines, filep)
-int lines;
-FILE *filep;
-{
-    short c;
-
+/**
+ * @brief Skip a number of lines in a file.
+ *
+ * @param lines Number of lines to skip.
+ * @param filep File pointer to read from.
+ * @return Last character read or EOF.
+ */
+static int skip_page(int lines, FILE *filep) {
+    int c{};
     do {
         while ((c = getc(filep)) != '\n' && c != EOF)
             ;
-        lines--;
+        --lines;
     } while (lines && c != EOF);
-
     return c;
 }
 
-format(filep) FILE *filep;
-{
-    short c = '\0';
-    short index, lines, i;
-    short page_number = 0;
-    short maxcol = columns;
+/**
+ * @brief Format and print a file using the configured column layout.
+ *
+ * @param filep File to read from.
+ */
+static void format(FILE *filep) {
+    int c = '\0';
+    int index, lines, i;
+    int page_number = 0;
+    int maxcol = columns;
 
     do {
         /* Check printing of page */
@@ -207,11 +225,16 @@ format(filep) FILE *filep;
     } while (c != EOF);
 }
 
-print_page(buf, pagenr, maxcol) char buf[];
-short pagenr, maxcol;
-{
-    short linenr = (pagenr - 1) * length + 1;
-    short pad, i, j, start;
+/**
+ * @brief Print a single formatted page.
+ *
+ * @param buf Buffer containing formatted lines.
+ * @param pagenr Current page number.
+ * @param maxcol Number of columns in the page.
+ */
+static void print_page(char buf[], int pagenr, int maxcol) {
+    int linenr = (pagenr - 1) * length + 1;
+    int pad, i, j, start;
 
     if (!no_header)
         out_header(pagenr);
@@ -232,12 +255,16 @@ short pagenr, maxcol;
         printf("\n\n\n\n\n");
 }
 
-print(filep) FILE *filep;
-{
-    short c = '\0';
-    short page_number = 0;
-    short linenr = 1;
-    short lines;
+/**
+ * @brief Print a file without column formatting.
+ *
+ * @param filep File to read from.
+ */
+static void print(FILE *filep) {
+    int c = '\0';
+    int page_number = 0;
+    int linenr = 1;
+    int lines;
 
     do {
         /* Check printing of page */
@@ -281,8 +308,12 @@ print(filep) FILE *filep;
     }
 }
 
-out_header(page) short page;
-{
+/**
+ * @brief Print the standard page header.
+ *
+ * @param page Page number to display.
+ */
+static void out_header(int page) {
     extern long time();
     long t;
 
@@ -291,27 +322,41 @@ out_header(page) short page;
     printf("  %s   Page %d\n\n\n", header, page);
 }
 
-#define MINUTE 60L
-#define HOUR (60L * MINUTE)
-#define DAY (24L * HOUR)
-#define YEAR (365L * DAY)
-#define LYEAR (366L * DAY)
+/// Number of seconds per minute.
+constexpr long kMinute = 60L;
+
+/// Number of seconds per hour.
+constexpr long kHour = 60L * kMinute;
+
+/// Number of seconds in a day.
+constexpr long kDay = 24L * kHour;
+
+/// Number of seconds in a common year.
+constexpr long kYear = 365L * kDay;
+
+/// Number of seconds in a leap year.
+constexpr long kLeapYear = 366L * kDay;
 
 int mo[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
 char *moname[] = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
                   "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-/* Print the date.  This only works from 1970 to 2099. */
-print_time(t) long t;
-{
+/**
+ * @brief Print the current date in a human readable form.
+ *
+ * This implementation only works for years 1970-2099.
+ *
+ * @param t Unix timestamp in seconds.
+ */
+static void print_time(long t) {
     int i, year, day, month, hour, minute;
     long length, time(), original;
 
     year = 1970;
     original = t;
     while (t > 0) {
-        length = (year % 4 == 0 ? LYEAR : YEAR);
+        length = (year % 4 == 0 ? kLeapYear : kYear);
         if (t < length)
             break;
         t -= length;
@@ -319,11 +364,11 @@ print_time(t) long t;
     }
 
     /* Year has now been determined.  Now the rest. */
-    day = (int)(t / DAY);
-    t -= (long)day * DAY;
-    hour = (int)(t / HOUR);
-    t -= (long)hour * HOUR;
-    minute = (int)(t / MINUTE);
+    day = static_cast<int>(t / kDay);
+    t -= static_cast<long>(day) * kDay;
+    hour = static_cast<int>(t / kHour);
+    t -= static_cast<long>(hour) * kHour;
+    minute = static_cast<int>(t / kMinute);
 
     /* Determine the month and day of the month. */
     mo[1] = (year % 4 == 0 ? 29 : 28);

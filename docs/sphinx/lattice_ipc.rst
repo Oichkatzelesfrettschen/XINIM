@@ -9,7 +9,7 @@ Overview
 --------
 - **Local Fastpath**: zero‐copy, per‐CPU L1/L2/L3 queues with spillover statistics  
 - **Tiered Caching**: L1 (per‐core), L2 (per‐socket), L3 (per‐node), then shared region  
-- **Distributed Messaging**: framed, XOR‐encrypted packets over UDP/TCP  
+- **Distributed Messaging**: framed, AEAD encrypted packets over UDP/TCP
 - **Directed Graph API**: channels managed in a DAG with cycle‐free dependency tracking  
 
 Fastpath Overview
@@ -36,7 +36,7 @@ Each `message` is serialized as:
 
 **Pipeline**:
 1. **Frame**: prefix with `src_pid` and `dst_pid` (both ints)  
-2. **Encrypt**: XOR‐stream with the channel’s shared secret  
+2. **Encrypt**: XChaCha20-Poly1305 with the channel key and fresh nonce
 3. **Transmit**: `net::send()` (UDP or TCP)  
 4. **Receive**: `net::recv()`  
 5. **Reintegrate**: `lattice::poll_network()` decrypts and enqueues  
@@ -49,7 +49,8 @@ Implemented in `net_driver.hpp` / `.cpp`:
 - **set_recv_callback(cb)**: optional callback on arrival  
 - **send(node, data)**: frame `[local_node|data]`, transmit via UDP/TCP
 - **reconnect**: persistent TCP sockets are reopened automatically when a write
-  fails with ``EPIPE`` or similar errors
+  fails with ``EPIPE``, ``ECONNRESET``, ``ENOTCONN`` or ``ECONNABORTED`` and the
+  send is retried once
 - **recv(out_pkt)**: dequeue next `Packet{
     src_node, payload
 }`
@@ -70,7 +71,9 @@ receives and TCP connection handling. Each remote node registers its address
 with :cpp:func:`net::add_remote`. Frames are transmitted by
 :cpp:func:`net::send`. For TCP peers the function establishes a transient
 connection when necessary and automatically reconnects persistent sockets
-when writes fail due to ``EPIPE`` or connection reset. ``net::send`` now
+when writes fail with ``EPIPE``, ``ECONNRESET``, ``ENOTCONN`` or
+``ECONNABORTED``. After reconnecting a persistent connection the send is
+retried once. ``net::send`` now
 returns a ``std::errc`` value
 where ``std::errc::success`` indicates success. Socket failures such as
 ``ECONNREFUSED`` propagate as ``std::system_error`` exceptions. Incoming
@@ -130,12 +133,14 @@ if (rc != OK) {
     // handle error
 }
 
-Key Exchange-- -- -- -- -- --Uses stubbed or real post‐quantum(e.g., Kyber) key exchange to derive an
-XOR‐stream secret for encryption/decryption.
+Key Exchange
+~~~~~~~~~~~~
+Uses stubbed or real post‐quantum (e.g., Kyber) key exchange to derive a
+per-channel key for XChaCha20-Poly1305 encryption/decryption.
 
 Security & Integrity
 -------------------
-- **Confidentiality**: XOR‐stream with PQ‐derived shared secret  
+- **Confidentiality**: AEAD with a PQ‑derived key and per-packet nonce
 - **Authentication**: sequence counters + per‐message HMAC tokens  
 - **Thread‐safety**: quaternion spinlock guards channel state;
 DAG prevents deadlock
