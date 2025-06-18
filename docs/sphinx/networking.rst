@@ -48,7 +48,8 @@ Node Identity
 -------------
 Each node assigns itself a numeric ``node_t`` identifier when
 :cpp:func:`net::init` executes.  The ``node_id`` and UDP port are
-provided via the configuration structure.  After initialization,
+provided via the configuration structure along with ``node_id_dir``
+which specifies where the identifier is persisted.  After initialization,
 :cpp:func:`net::local_node` reports this identifier and all outgoing
 packets carry it as the source ID so peers can validate who originated
 each message.
@@ -64,8 +65,10 @@ Windows—and hashes the first active device that is not a loopback interface.
 Should this process fail, the driver falls back to hashing the local host name.
 The computed identifier is non-zero and remains constant for the lifetime of
 the process. When the identifier is computed it is written to
-``/etc/xinim/node_id`` so that subsequent invocations of :cpp:func:`net::init`
-reuse the same value.
+``node_id_dir/node_id`` so that subsequent invocations of :cpp:func:`net::init`
+reuse the same value. If running without root privileges and
+``node_id_dir`` is unspecified, the driver defaults to
+``$XDG_STATE_HOME/xinim`` or ``$HOME/.xinim``.
 
 Implementation Steps
 ~~~~~~~~~~~~~~~~~~~~

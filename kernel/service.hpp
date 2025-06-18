@@ -60,12 +60,31 @@ class ServiceManager {
     void add_dependency(xinim::pid_t pid, xinim::pid_t dep);
 
     /**
+     * @brief Remove a dependency from a service.
+     *
+     * If the dependency does not exist the call is ignored.
+     *
+     * @param pid Service that originally depended on @p dep.
+     * @param dep Dependency to remove.
+     */
+    void remove_dependency(xinim::pid_t pid, xinim::pid_t dep);
+
+    /**
      * @brief Change the restart limit for a service.
      *
      * @param pid   Service to update.
      * @param limit New restart limit.
      */
     void set_restart_limit(xinim::pid_t pid, std::uint32_t limit);
+
+    /**
+     * @brief Unregister a service entirely.
+     *
+     * Any dependency edges pointing to @p pid are removed.
+     *
+     * @param pid Identifier of the service to unregister.
+     */
+    void unregister_service(xinim::pid_t pid);
 
     /**
      * @brief Restart a crashed service and its dependents if allowed.

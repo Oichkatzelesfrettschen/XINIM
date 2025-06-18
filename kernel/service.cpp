@@ -78,6 +78,19 @@ void ServiceManager::add_dependency(xinim::pid_t pid, xinim::pid_t dep) {
 }
 
 /**
+ * @brief Remove an existing dependency from a service.
+ *
+ * If either the service or dependency is unknown the call has no effect.
+ */
+void ServiceManager::remove_dependency(xinim::pid_t pid, xinim::pid_t dep) {
+    auto it = services_.find(pid);
+    if (it == services_.end()) {
+        return;
+    }
+    std::erase(it->second.deps, dep);
+}
+
+/**
  * @brief Update the automatic restart limit for a service.
  *
  * @param pid   Service identifier to update.
@@ -92,20 +105,37 @@ void ServiceManager::set_restart_limit(xinim::pid_t pid, std::uint32_t limit) {
 }
 
 /**
+ * @brief Unregister a service and clean dependency references.
+ *
+ * Any dependency edges pointing to the service are removed so the DAG remains
+ * consistent.
+ */
+void ServiceManager::unregister_service(xinim::pid_t pid) {
+    if (!services_.erase(pid)) {
+        return;
+    }
+
+    for (auto &[other_pid, info] : services_) {
+        std::erase(info.deps, pid);
+    }
+}
+
+/**
  * @brief Restart @p pid and recursively restart dependents.
  */
 void ServiceManager::restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pid_t> &visited) {
+    auto it = services_.find(pid);
+    if (it == services_.end()) {
+        return; // skip services removed from the manager
+    }
+
     if (!visited.insert(pid).second) {
         return;
     }
 
-    auto it = services_.find(pid);
-    if (it == services_.end()) {
-        return;
-    }
-
-    it->second.running = true;
-    ++it->second.contract.restarts;
+    auto &info = it->second;
+    info.running = true;
+    ++info.contract.restarts;
     sched::scheduler.enqueue(pid);
 
     for (auto &[other_pid, info] : services_) {

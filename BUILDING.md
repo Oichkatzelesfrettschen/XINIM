@@ -111,16 +111,12 @@ python3 -m pip install --user lizard
 
 ### Running the Tools
 
-Create a directory called `logs/` at the project root and store all reports
-there:
+Run the helper script `tools/run_cppcheck.sh` from the repository root to
+generate static analysis and metrics reports:
 
 ```sh
-mkdir -p logs
-cloc . > logs/cloc.log
-lizard -o logs/lizard.log .
-cppcheck --enable=all --std=c++23 --output-file=logs/cppcheck.log .
-cscope -Rb -q
+tools/run_cppcheck.sh
 ```
 
-`cscope` writes its database to `cscope.out`. The other commands generate log
-files in the `logs/` directory for later review.
+Reports are written to `build/reports/` in XML or JSON format. The cscope
+database is also generated in this directory.

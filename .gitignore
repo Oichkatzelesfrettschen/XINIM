@@ -35,3 +35,4 @@ docs/doxygen/
 *.DS_Store
 
 docs/sphinx/html/
+docs/sphinx/_build/

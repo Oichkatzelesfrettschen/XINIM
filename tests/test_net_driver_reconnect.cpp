@@ -21,14 +21,24 @@ constexpr net::node_t CHILD_NODE = 1;
 constexpr uint16_t PARENT_PORT = 15500;
 constexpr uint16_t CHILD_PORT = 15501;
 
-/** Child process: signal ready then exit to drop the connection. */
+/**
+ * @brief First child sends a ready byte then waits for a payload before
+ *        shutting down to drop the connection.
+ */
 int child_once() {
     net::init(net::Config{CHILD_NODE, CHILD_PORT});
     net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT, net::Protocol::TCP);
 
     std::array<std::byte, 1> ready{std::byte{0}};
     assert(net::send(PARENT_NODE, ready) == std::errc{});
-    std::this_thread::sleep_for(50ms);
+
+    net::Packet pkt;
+    while (!net::recv(pkt)) {
+        std::this_thread::sleep_for(10ms);
+    }
+    assert(pkt.src_node == PARENT_NODE);
+    assert(pkt.payload.size() == 3);
+
     net::shutdown();
     return 0;
 }
@@ -77,6 +87,10 @@ int parent_proc() {
         std::this_thread::sleep_for(10ms);
     }
     assert(pkt.src_node == CHILD_NODE);
+
+    std::array<std::byte, 3> initial{std::byte{1}, std::byte{2}, std::byte{3}};
+    assert(net::send(CHILD_NODE, initial) == std::errc{});
+
     int status = 0;
     waitpid(first_child, &status, 0);
     assert(status == 0);

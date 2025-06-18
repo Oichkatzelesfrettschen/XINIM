@@ -24,4 +24,5 @@ The documentation is divided into several sections:
    precommit
    networking
    libsodium_tests
+   hypercomplex
    api

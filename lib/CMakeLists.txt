@@ -12,6 +12,7 @@ file(GLOB LIB_SRC
 list(REMOVE_ITEM LIB_SRC
     "${CMAKE_CURRENT_LIST_DIR}/getc.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/putc.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/io/src/stdio_compat.cpp"
 )
 
 # Define the static library target as minix_libc
