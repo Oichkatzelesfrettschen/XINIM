@@ -20,9 +20,9 @@
     Author: Erik Baalbergen
 */
 
+#include "signal.hpp"
 #include <array>
 #include <errno.h>
-#include <signal.h>
 #include <string_view>
 
 constexpr int MAXARGC = 64;   /* maximum number of arguments allowed in a list */

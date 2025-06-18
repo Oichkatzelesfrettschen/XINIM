@@ -25,4 +25,5 @@ The documentation is divided into several sections:
    networking
    libsodium_tests
    hypercomplex
+   architecture
    api

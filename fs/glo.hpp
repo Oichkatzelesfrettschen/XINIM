@@ -1,3 +1,7 @@
+#ifndef EXTERN
+#define EXTERN extern
+#endif
+
 /* File System global variables */
 EXTERN struct fproc *fp;           /* pointer to caller's fproc struct */
 EXTERN int super_user;             /* 1 if caller is super_user, else 0 */

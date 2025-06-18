@@ -4,8 +4,8 @@
 #include "../h/error.hpp"
 #include "../h/type.hpp"
 #include "../include/lib.hpp" // for message structure and constants
+#include "../include/signal.hpp"
 #include <cstdint>
-#include <signal.h>
 
 #ifndef sighandler_t
 // Converted to a C++ using alias

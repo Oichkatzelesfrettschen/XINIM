@@ -1,6 +1,10 @@
 #pragma once
 // Modernized for C++23
 
+#ifndef EXTERN
+#define EXTERN extern
+#endif
+
 /* Global variables used in the kernel. */
 
 #include "../h/type.hpp" // For real_time, message, xinim::pid_t (via core_types.hpp)

@@ -58,7 +58,7 @@
 #include "../h/com.hpp"
 #include "../h/const.hpp"
 #include "../h/error.hpp"
-#include "../h/signal.h"
+#include "../h/signal.hpp"
 #include "../h/type.hpp" // Defines phys_bytes, vir_bytes etc.
 #include "const.hpp"
 #include "glo.hpp"

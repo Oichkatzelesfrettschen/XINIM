@@ -1,11 +1,11 @@
 #pragma once
-define[^
-]*
-Modernized for C++23
+/**
+ * @file com.hpp
+ * @brief Common constants for message passing and system call numbers.
+ */
 
-#include "type.hpp" define[^
-]*
-Added include
+#include "const.hpp"
+#include "type.hpp"
 
 /* System call function codes used with sendrec(). */
 inline constexpr int SEND = 1;             /* function code for sending messages */

@@ -47,6 +47,8 @@ sudo apt-get install -y --no-install-recommends \
     # libsodium provides crypto primitives required by lattice networking
     libsodium-dev \
     libsodium23 \
+    # JSON parser required by service manager
+    nlohmann-json3-dev \
     qemu-system-x86 \
     qemu-utils \
     qemu-user \
@@ -56,10 +58,7 @@ sudo apt-get install -y --no-install-recommends \
 
 # Ensure ack is installed for convenient searching
 if ! command -v ack >/dev/null 2>&1; then
-    # Install the ACK compiler suite along with development headers
-    sudo apt-get install -y --no-install-recommends \
-        ack \
-        ack-grep
+    sudo apt-get install -y --no-install-recommends ack
 fi
 
 # Install optional ack helpers for Python and Node
