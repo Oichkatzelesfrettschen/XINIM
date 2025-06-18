@@ -1,14 +1,15 @@
-#include "minix/io/stdio_compat.hpp"
-#include "../../../include/stdio.hpp"
-#include "minix/io/file_stream.hpp"
-#include "minix/io/standard_streams.hpp"
 #include <cstdarg>
 #include <cstdio>
-#include <expected> // For std::expected if not implicitly via stream.hpp
+#include <cerrno>
+#include <expected>
 #include <mutex>
 #include <span>
-#include <system_error> // For std::error_code, std::errc
+#include <system_error>
 #include <unordered_map>
+#include "minix/io/file_stream.hpp"
+#include "minix/io/standard_streams.hpp"
+#include "minix/io/file_operations.hpp"
+#include "minix/io/stdio_compat.hpp"
 
 namespace minix::io::compat {
 
@@ -31,11 +32,11 @@ void register_file_stream(FILE *file, Stream *stream) {
 /// \param file The FILE* to look up.
 /// \return     Pointer to the corresponding Stream or nullptr.
 Stream *get_stream(FILE *file) {
-    if (file == ::stdin)
+    if (file == stdin)
         return &minix::io::stdin();
-    if (file == ::stdout)
+    if (file == stdout)
         return &minix::io::stdout();
-    if (file == ::stderr)
+    if (file == stderr)
         return &minix::io::stderr();
     std::lock_guard<std::mutex> lock(map_mutex);
     auto it = file_to_stream_map.find(file);
@@ -84,9 +85,9 @@ FILE *fopen_compat(const char *path, const char *mode) {
     if (!result)
         return nullptr;
     FILE *fake = new FILE{};
-    fake->_fd = (*result.value)->descriptor();
+    fake->_fd = (*result)->descriptor();
     fake->_flags = (read ? READMODE : 0) | (write ? WRITEMODE : 0);
-    register_file_stream(fake, result.value->get());
+    register_file_stream(fake, result->get());
     return fake;
 }
 
@@ -103,7 +104,7 @@ int fclose_compat(FILE *fp) {
         std::lock_guard<std::mutex> lock(map_mutex);
         file_to_stream_map.erase(fp);
     }
-    if (fp != ::stdin && fp != ::stdout && fp != ::stderr) {
+    if (fp != stdin && fp != stdout && fp != stderr) {
         delete fp;
     }
     return err ? STDIO_EOF : 0;

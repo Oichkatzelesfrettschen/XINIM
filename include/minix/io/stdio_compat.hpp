@@ -5,10 +5,9 @@
  * @brief C stdio compatibility shims using Streams.
  */
 
-#include "../../stdio.hpp"
 #include "file_operations.hpp"
 #include "standard_streams.hpp"
-#include <cstdio>
+#include "../../stdio.hpp"
 #include <span>
 
 namespace minix::io::compat {

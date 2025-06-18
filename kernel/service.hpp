@@ -7,6 +7,7 @@
 #include "../include/xinim/core_types.hpp"
 #include <atomic>
 #include <ranges>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -25,6 +26,21 @@ namespace svc {
  */
 class ServiceManager {
   public:
+    /**
+     * @brief Construct the manager and load persisted state.
+     */
+    ServiceManager();
+
+    /**
+     * @brief Persist service state on destruction.
+     */
+    ~ServiceManager();
+
+    /**
+     * @brief Path of the persistent services configuration.
+     */
+    static constexpr std::string_view kDefaultPath{"/etc/xinim/services.json"};
+
     /**
      * @brief Restart policy describing allowed automatic restarts.
      */
@@ -60,12 +76,31 @@ class ServiceManager {
     void add_dependency(xinim::pid_t pid, xinim::pid_t dep);
 
     /**
+     * @brief Remove a dependency from a service.
+     *
+     * If the dependency does not exist the call is ignored.
+     *
+     * @param pid Service that originally depended on @p dep.
+     * @param dep Dependency to remove.
+     */
+    void remove_dependency(xinim::pid_t pid, xinim::pid_t dep);
+
+    /**
      * @brief Change the restart limit for a service.
      *
      * @param pid   Service to update.
      * @param limit New restart limit.
      */
     void set_restart_limit(xinim::pid_t pid, std::uint32_t limit);
+
+    /**
+     * @brief Unregister a service entirely.
+     *
+     * Any dependency edges pointing to @p pid are removed.
+     *
+     * @param pid Identifier of the service to unregister.
+     */
+    void unregister_service(xinim::pid_t pid);
 
     /**
      * @brief Restart a crashed service and its dependents if allowed.
@@ -90,6 +125,16 @@ class ServiceManager {
      * @return @c true if running.
      */
     [[nodiscard]] bool is_running(xinim::pid_t pid) const noexcept;
+
+    /**
+     * @brief Save the current service configuration to @p path.
+     */
+    void save(std::string_view path = kDefaultPath) const;
+
+    /**
+     * @brief Load a service configuration from @p path.
+     */
+    void load(std::string_view path = kDefaultPath);
 
   private:
     /**
