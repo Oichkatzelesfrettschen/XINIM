@@ -18,9 +18,15 @@ struct Quaternion {
     float y{0.0F}; ///< j component
     float z{0.0F}; ///< k component
 
+    /// Default to the identity element.
     constexpr Quaternion() = default;
+
+    /// Initialize all components explicitly.
     constexpr Quaternion(float sw, float sx, float sy, float sz) noexcept
         : w(sw), x(sx), y(sy), z(sz) {}
+
+    /// Obtain the identity quaternion.
+    [[nodiscard]] static constexpr Quaternion id() noexcept { return {}; }
 
     /**
      * @brief Quaternion multiplication.
@@ -50,22 +56,21 @@ class QuaternionSpinlock {
     QuaternionSpinlock() noexcept = default;
 
     /// Acquire the lock spinning until available.
-    void lock() noexcept {
+    void lock(const Quaternion &ticket) noexcept {
         while (flag.test_and_set(std::memory_order_acquire)) {
         }
-        orientation = orientation * locked_quat;
+        orientation = orientation * ticket;
     }
 
     /// Release the lock.
-    void unlock() noexcept {
-        orientation = orientation.conjugate();
+    void unlock(const Quaternion &ticket) noexcept {
+        orientation = orientation * ticket.conjugate();
         flag.clear(std::memory_order_release);
     }
 
   private:
     std::atomic_flag flag{};  ///< Lock flag
     Quaternion orientation{}; ///< Orientation state
-    static constexpr Quaternion locked_quat{0.0F, 1.0F, 0.0F, 0.0F};
 };
 
 /**
@@ -73,12 +78,15 @@ class QuaternionSpinlock {
  */
 class QuaternionLockGuard {
   public:
-    explicit QuaternionLockGuard(QuaternionSpinlock &spin) noexcept : lock(spin) { lock.lock(); }
-
-    ~QuaternionLockGuard() { lock.unlock(); }
+    QuaternionLockGuard(QuaternionSpinlock &spin, const Quaternion &t) noexcept
+        : lock(spin), ticket(t) {
+        lock.lock(ticket);
+    }
+    ~QuaternionLockGuard() { lock.unlock(ticket); }
 
   private:
     QuaternionSpinlock &lock; ///< Referenced spinlock
+    Quaternion ticket{};      ///< Ticket quaternion
 };
 
 } // namespace hyper

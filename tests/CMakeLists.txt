@@ -332,6 +332,15 @@ target_link_libraries(minix_test_net_driver_unpriv_id PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_unpriv_id COMMAND minix_test_net_driver_unpriv_id)
 
 # -----------------------------------------------------------------------------
+# minix_test_hypercomplex
+# -----------------------------------------------------------------------------
+add_executable(minix_test_hypercomplex
+    test_hypercomplex.cpp
+)
+target_include_directories(minix_test_hypercomplex PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
+add_test(NAME minix_test_hypercomplex COMMAND minix_test_hypercomplex)
+
+# -----------------------------------------------------------------------------
 # Crypto library
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)
