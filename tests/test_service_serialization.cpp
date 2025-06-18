@@ -25,6 +25,19 @@ int main() {
     assert(loaded.contract(1).policy.limit == 2);
     assert(loaded.contract(2).policy.limit == 1);
 
+    // Assert contract.id is correct
+    assert(loaded.contract(1).id == 1);
+    assert(loaded.contract(2).id == 2);
+
+    // Assert contract.restarts is zero after load
+    assert(loaded.contract(1).restarts == 0);
+    assert(loaded.contract(2).restarts == 0);
+
+    // Assert deps are correct
+    assert(loaded.contract(1).deps.empty());
+    assert(loaded.contract(2).deps.size() == 1);
+    assert(loaded.contract(2).deps[0] == 1);
+
     // Crash service 1 and ensure dependent service 2 also restarts
     loaded.handle_crash(1);
     assert(loaded.contract(1).restarts == 1);
