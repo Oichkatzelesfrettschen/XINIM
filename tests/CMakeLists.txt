@@ -319,6 +319,19 @@ target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threa
 add_test(NAME minix_test_net_driver_persistent_id COMMAND minix_test_net_driver_persistent_id)
 
 # -----------------------------------------------------------------------------
+
+# minix_test_net_driver_socket_failure
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_socket_failure
+  test_net_driver_socket_failure.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_socket_failure PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_socket_failure PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_socket_failure COMMAND minix_test_net_driver_socket_failure)
+
 # minix_test_net_driver_unpriv_id
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver_unpriv_id
