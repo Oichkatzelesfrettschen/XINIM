@@ -19,6 +19,29 @@ int main() {
     mgr.register_service(2, {1}, 1);
     mgr.save(path);
 
+    // Test loading from a non-existent file
+    {
+        ServiceManager mgr2;
+        const std::string missing_path{"nonexistent_services.json"};
+        bool load_result = mgr2.load(missing_path);
+        assert(!load_result && "Loading from a non-existent file should fail");
+    }
+
+    // Test loading from a malformed file
+    {
+        const std::string malformed_path{"malformed_services.json"};
+        // Write malformed JSON to file
+        std::ofstream ofs(malformed_path);
+        ofs << "{ this is not valid JSON! ";
+        ofs.close();
+
+        ServiceManager mgr3;
+        bool load_result = mgr3.load(malformed_path);
+        assert(!load_result && "Loading from a malformed file should fail");
+
+        // Clean up
+        std::filesystem::remove(malformed_path);
+    }
     ServiceManager loaded;
     loaded.load(path);
 
