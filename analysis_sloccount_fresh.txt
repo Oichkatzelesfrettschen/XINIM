@@ -1,0 +1,107 @@
+Have a non-directory at the top, so creating directory top_dir
+Adding /workspaces/XINIM/./CMakeLists.txt to top_dir
+Adding /workspaces/XINIM/./LICENSE to top_dir
+Adding /workspaces/XINIM/./analysis_cloc.txt to top_dir
+Adding /workspaces/XINIM/./analysis_cloc_detailed.txt to top_dir
+Adding /workspaces/XINIM/./analysis_cloc_detailed_fresh.txt to top_dir
+Adding /workspaces/XINIM/./analysis_cloc_fresh.txt to top_dir
+Adding /workspaces/XINIM/./analysis_cloc_fresh_detailed.txt to top_dir
+Adding /workspaces/XINIM/./analysis_cppcheck.txt to top_dir
+Adding /workspaces/XINIM/./analysis_cppcheck_fresh.xml to top_dir
+Adding /workspaces/XINIM/./analysis_cscope_summary.txt to top_dir
+Adding /workspaces/XINIM/./analysis_ctags_summary.txt to top_dir
+Adding /workspaces/XINIM/./analysis_flawfinder.txt to top_dir
+Adding /workspaces/XINIM/./analysis_flawfinder_fresh.txt to top_dir
+Adding /workspaces/XINIM/./analysis_inline_asm.txt to top_dir
+Adding /workspaces/XINIM/./analysis_inline_asm_fresh.txt to top_dir
+Adding /workspaces/XINIM/./analysis_lizard.txt to top_dir
+Adding /workspaces/XINIM/./analysis_lizard_fresh.txt to top_dir
+Adding /workspaces/XINIM/./analysis_lizard_fresh_detailed.txt to top_dir
+Adding /workspaces/XINIM/./analysis_pmccabe.txt to top_dir
+Adding /workspaces/XINIM/./analysis_pmccabe_fresh.txt to top_dir
+Adding /workspaces/XINIM/./analysis_radon_cc.txt to top_dir
+Adding /workspaces/XINIM/./analysis_radon_mi.txt to top_dir
+Adding /workspaces/XINIM/./analysis_sloccount.txt to top_dir
+Adding /workspaces/XINIM/./analysis_sloccount_fresh.txt to top_dir
+Adding /workspaces/XINIM/./boot.S to top_dir
+Creating filelist for commands
+Creating filelist for common
+Adding /workspaces/XINIM/./console.cpp to top_dir
+Adding /workspaces/XINIM/./console.h to top_dir
+Creating filelist for crypto
+Adding /workspaces/XINIM/./cscope.files to top_dir
+Adding /workspaces/XINIM/./cscope.in.out to top_dir
+Adding /workspaces/XINIM/./cscope.out to top_dir
+Adding /workspaces/XINIM/./cscope.po.out to top_dir
+Creating filelist for docs
+Creating filelist for fs
+Adding /workspaces/XINIM/./grub.cfg to top_dir
+Creating filelist for h
+Creating filelist for include
+Creating filelist for kernel
+Adding /workspaces/XINIM/./kernel.cpp to top_dir
+Adding /workspaces/XINIM/./kr_cpp_summary.json to top_dir
+Creating filelist for lib
+Creating filelist for limine
+Adding /workspaces/XINIM/./linker.ld to top_dir
+Creating filelist for microwindows
+Creating filelist for mm
+Adding /workspaces/XINIM/./multiboot.h to top_dir
+Adding /workspaces/XINIM/./pmm.cpp to top_dir
+Adding /workspaces/XINIM/./pmm.h to top_dir
+Adding /workspaces/XINIM/./tags to top_dir
+Creating filelist for test
+Creating filelist for tests
+Creating filelist for tools
+Adding /workspaces/XINIM/./vmm.cpp to top_dir
+Adding /workspaces/XINIM/./vmm.h to top_dir
+Categorizing files.
+Finding a working MD5 command....
+Found a working MD5 command.
+Computing results.
+
+
+SLOC	Directory	SLOC-by-Language (Sorted)
+17722   commands        cpp=17722
+5979    kernel          cpp=5979
+5629    top_dir         xml=4913,cpp=690,asm=26
+4059    tools           cpp=3492,python=343,sh=224
+3161    lib             cpp=3161
+2842    fs              cpp=2842
+2144    tests           cpp=2100,ansic=44
+1886    crypto          ansic=1666,cpp=220
+1794    include         cpp=1794
+1716    test            cpp=1716
+1318    mm              cpp=1318
+573     common          cpp=573
+469     h               cpp=467,ansic=2
+14      docs            python=14
+0       limine          (none)
+0       microwindows    (none)
+
+
+Totals grouped by language (dominant language first):
+cpp:          42074 (85.33%)
+xml:           4913 (9.96%)
+ansic:         1712 (3.47%)
+python:         357 (0.72%)
+sh:             224 (0.45%)
+asm:             26 (0.05%)
+
+
+
+
+Total Physical Source Lines of Code (SLOC)                = 49,306
+Development Effort Estimate, Person-Years (Person-Months) = 11.98 (143.80)
+ (Basic COCOMO model, Person-Months = 2.4 * (KSLOC**1.05))
+Schedule Estimate, Years (Months)                         = 1.38 (16.52)
+ (Basic COCOMO model, Months = 2.5 * (person-months**0.38))
+Estimated Average Number of Developers (Effort/Schedule)  = 8.71
+Total Estimated Cost to Develop                           = $ 1,618,775
+ (average salary = $56,286/year, overhead = 2.40).
+SLOCCount, Copyright (C) 2001-2004 David A. Wheeler
+SLOCCount is Open Source Software/Free Software, licensed under the GNU GPL.
+SLOCCount comes with ABSOLUTELY NO WARRANTY, and you are welcome to
+redistribute it under certain conditions as specified by the GNU GPL license;
+see the documentation for details.
+Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."

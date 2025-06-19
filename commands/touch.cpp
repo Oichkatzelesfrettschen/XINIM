@@ -1,76 +1,86 @@
-// Modernized for C++23
+#include <iostream>
+#include <filesystem>
+#include <chrono>
+#include <vector>
+#include <string_view>
+#include <system_error>
+#include <cstring>
+#include <fcntl.h>
+#include <unistd.h>
+#include <utime.h>
 
-#include "errno.hpp"
-#include "stat.hpp"
-int no_creat = 0;
+namespace fs = std::filesystem;
 
-int main(int argc, char *argv[]) {
-    char *path;
-    int i = 1;
-
-    if (argc == 1)
-        usage();
-    while (i < argc) {
-        if (argv[i][0] == '-') {
-            if (argv[i][1] == 'f') {
-                i += 1;
-            } else if (argv[i][1] == 'c') {
-                no_creat = 1;
-                i += 1;
-            } else {
-                usage();
-            }
-        } else {
-            path = argv[i];
-            i += 1;
-            if (doit(path) > 0) {
-                std_err("touch: cannot touch ");
-                std_err(path);
-                std_err("\n");
-            }
-        }
-    }
-    exit(0);
+void print_usage_and_exit() {
+    std::cerr << "Usage: touch [-c] file...\n";
+    std::exit(1);
 }
 
-static int doit(const char *name) {
-    int fd;
-    long *t, tim;
-    struct stat buf;
-    unsigned short tmp;
-    long tvp[2];
-    extern long time();
+void print_error(const std::string_view msg, const std::string_view file = {}) {
+    std::cerr << "touch: " << msg;
+    if (!file.empty()) std::cerr << " '" << file << "'";
+    std::cerr << '\n';
+}
 
-    if (!access(name, 0)) { /* change date if possible */
-        stat(name, &buf);
-        tmp = (buf.st_mode & S_IFREG);
-        if (tmp != S_IFREG)
-            return (1);
-
-        tim = time(0L);
-        tvp[0] = tim;
-        tvp[1] = tim;
-        if (!utime(name, tvp))
-            return (0);
-        else
-            return (1);
-
+bool touch_file(const std::string_view path, bool no_create) {
+    // Try to update timestamps if file exists
+    if (fs::exists(path)) {
+        struct stat st{};
+        if (::stat(std::string(path).c_str(), &st) != 0) {
+            print_error("cannot stat", path);
+            return false;
+        }
+        if (!S_ISREG(st.st_mode)) {
+            print_error("not a regular file", path);
+            return false;
+        }
+        // Set both access and modification times to now
+        struct utimbuf new_times;
+        new_times.actime = new_times.modtime = std::time(nullptr);
+        if (::utime(std::string(path).c_str(), &new_times) != 0) {
+            print_error(std::strerror(errno), path);
+            return false;
+        }
+        return true;
     } else {
-        /* file does not exist */
-        if (no_creat == 1)
-            return (0);
-        else if ((fd = creat(name, 0777)) < 0) {
-            return (1);
-        } else {
-            close(fd);
-            return (0);
+        // File does not exist
+        if (no_create) return true;
+        int fd = ::creat(std::string(path).c_str(), 0666);
+        if (fd < 0) {
+            print_error(std::strerror(errno), path);
+            return false;
         }
+        ::close(fd);
+        return true;
     }
 }
 
-static void usage() {
-    std_err("Usage: touch [-c] file...\n");
-    exit(1);
-}
+int main(int argc, char* argv[]) {
+    bool no_create = false;
+    std::vector<std::string_view> files;
 
-static void std_err(const char *s) { prints("%s", s); }
+    for (int i = 1; i < argc; ++i) {
+        std::string_view arg = argv[i];
+        if (arg.starts_with('-') && arg.size() > 1) {
+            for (size_t j = 1; j < arg.size(); ++j) {
+                switch (arg[j]) {
+                    case 'c': no_create = true; break;
+                    case 'f': /* ignore for compatibility */ break;
+                    default: print_usage_and_exit();
+                }
+            }
+        } else {
+            files.push_back(arg);
+        }
+    }
+
+    if (files.empty()) print_usage_and_exit();
+
+    int exit_code = 0;
+    for (const auto& file : files) {
+        if (!touch_file(file, no_create)) {
+            exit_code = 1;
+        }
+    }
+    return exit_code;
+}

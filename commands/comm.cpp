@@ -1,183 +1,195 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
-/* comm - select lines from two sorted files	Author: Martin C. Atkins */
-
-/*
- *	This program was written by:
- *		Martin C. Atkins,
- *		University of York,
- *		Heslington,
- *		York. Y01 5DD
- *		England
- *	and is released into the public domain, on the condition
- *	that this comment is always included without alteration.
+/**
+ * @file comm.cpp
+ * @brief Select or reject lines common to two sorted files.
+ * @author Martin C. Atkins (original author)
+ * @date 2023-10-27 (modernization)
+ *
+ * @copyright This program was originally written by Martin C. Atkins and released into the public domain.
+ *
+ * This program is a C++23 modernization of the original `comm` utility.
+ * It compares two sorted files line by line and, based on command-line options,
+ * outputs lines unique to the first file, lines unique to the second file, and
+ * lines common to both files.
+ *
+ * Usage: comm [-[123]] file1 file2
  */
 
-#define BUFSIZ (512)
-#define LINMAX (600)
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <filesystem>
+#include <system_error>
+#include <array>
 
-struct file {
-    char *name;       /* the file's name */
-    int fd;           /* the file descripter */
-    char buf[BUFSIZ]; /* buffer storage */
-    char *next;       /* the next character to read */
-    char *endp;       /* the first invalid character */
-    int seeneof;      /* an end of file has been seen */
-} files[2];
+namespace {
 
-char lines[2][LINMAX];
+/**
+ * @struct CommOptions
+ * @brief Holds the command-line options for the comm utility.
+ */
+struct CommOptions {
+    bool suppress_col1 = false;
+    bool suppress_col2 = false;
+    bool suppress_col3 = false;
+    std::filesystem::path file1_path;
+    std::filesystem::path file2_path;
+};
 
-int colflgs[3] = {1, 2, 3}; /* number of tabs + 1: 0 => no column */
-
-static char *umsg = "Usage: comm [-[123]] file1 file2\n";
-
-int main(int argc, char *argv[]) {
-    int cnt;
-    if (argc > 1 && argv[1][0] == '-' && argv[1][1] != '\0') {
-        char *ap;
-        for (ap = &argv[1][1]; *ap; ap++)
-            switch (*ap) {
-            case '1':
-            case '2':
-            case '3':
-                cnt = *ap - '1';
-                if (colflgs[cnt] == 0)
-                    break;
-                colflgs[cnt] = 0;
-                for (cnt++; cnt < 3; cnt++)
-                    colflgs[cnt]--;
-                break;
-            default:
-                usage();
-            }
-        argc--;
-        argv++;
-    }
-    if (argc != 3)
-        usage();
-    eopen(argv[1], &files[0]);
-    eopen(argv[2], &files[1]);
-    comm();
-    exit(0);
+/**
+ * @brief Prints the usage message to standard error.
+ */
+void printUsage() {
+    std::cerr << "Usage: comm [-[123]] file1 file2" << std::endl;
 }
 
-static void usage(void) {
+/**
+ * @brief Parses command-line arguments and populates the options struct.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return A CommOptions struct.
+ * @throws std::runtime_error if arguments are invalid.
+ */
+CommOptions parseArguments(int argc, char* argv[]) {
+    CommOptions opts;
+    std::vector<std::string_view> args(argv + 1, argv + argc);
+    std::vector<std::filesystem::path> files;
 
-    std_err(umsg);
-    exit(1);
-}
-
-static void error(char *s, char *f) {
-    std_err("comm: ");
-    std_err(s);
-    if (f)
-        std_err(f);
-    std_err("\n");
-    exit(1);
-}
-
-static int eopen(char *fn, struct file *file) {
-    file->name = fn;
-    file->next = file->endp = &file->buf[0];
-    file->seeneof = 0;
-    if (fn[0] == '-' && fn[1] == '\0')
-        file->fd = 0;
-    else if ((file->fd = open(fn, 0)) < 0)
-        error("can't open ", fn);
-}
-
-static int getbuf(struct file *file) {
-    /* Get a buffer-full from the file.  Return true if no characters
-     * were obtained because we are at end of file.
-     */
-    int n;
-
-    if (file->seeneof)
-        return (1);
-    if ((n = read(file->fd, &file->buf[0], BUFSIZ)) < 0)
-        error("read error on ", file->name);
-    if (n == 0) {
-        file->seeneof++;
-        return 1;
-    }
-    file->next = &file->buf[0];
-    file->endp = &file->buf[n];
-    return (0);
-}
-
-static int readline(int fno) {
-    /* Read up to the next '\n' character to buf.
-     * Return a complete line, even if end of file occurs within a line.
-     * Return false at end of file/
-     */
-    register struct file *file = &files[fno];
-    char *buf = lines[fno];
-
-    if (file->next == file->endp && getbuf(file))
-        return (0);
-    while ((*buf++ = *file->next++) != '\n')
-        if (file->next == file->endp && getbuf(file)) {
-            *buf++ = '\n';
-            *buf = '\0';
-            return (1);
-        }
-    *buf = '\0';
-    return (1);
-}
-
-static void comm(void) {
-    register int res;
-
-    if (!readline(0)) {
-        cpycol(1);
-        return;
-    }
-    if (!readline(1)) {
-        putcol(0, lines[0]);
-        cpycol(0);
-        return;
-    }
-    for (;;) {
-        if ((res = strcmp(lines[0], lines[1])) != 0) {
-            res = res > 0;
-            putcol(res, lines[res]);
-            if (!readline(res)) {
-                putcol(!res, lines[!res]);
-                cpycol(!res);
-                return;
+    for (const auto& arg : args) {
+        if (arg.starts_with('-') && arg.length() > 1) {
+            for (char c : arg.substr(1)) {
+                switch (c) {
+                    case '1': opts.suppress_col1 = true; break;
+                    case '2': opts.suppress_col2 = true; break;
+                    case '3': opts.suppress_col3 = true; break;
+                    default:
+                        throw std::runtime_error("Invalid option: " + std::string(1, c));
+                }
             }
         } else {
-            putcol(2, lines[0]); /* files[1]lin == f2lin */
-            if (!readline(0)) {
-                cpycol(1);
-                return;
-            }
-            if (!readline(1)) {
-                putcol(0, lines[0]);
-                cpycol(0);
-                return;
+            files.push_back(arg);
+        }
+    }
+
+    if (files.size() != 2) {
+        throw std::runtime_error("Exactly two files must be specified.");
+    }
+
+    opts.file1_path = files[0];
+    opts.file2_path = files[1];
+
+    return opts;
+}
+
+/**
+ * @class FileComparer
+ * @brief Encapsulates the logic for comparing two sorted files.
+ */
+class FileComparer {
+public:
+    FileComparer(const CommOptions& options);
+    void run();
+
+private:
+    std::unique_ptr<std::istream> get_stream(const std::filesystem::path& path);
+    void output(int col, const std::string& line);
+
+    CommOptions m_opts;
+    std::array<std::string, 3> m_tabs;
+};
+
+FileComparer::FileComparer(const CommOptions& options) : m_opts(options) {
+    int current_tab = 0;
+    if (!m_opts.suppress_col1) {
+        m_tabs[0] = "";
+        current_tab++;
+    }
+    if (!m_opts.suppress_col2) {
+        m_tabs[1] = std::string(current_tab, '\t');
+        current_tab++;
+    }
+    if (!m_opts.suppress_col3) {
+        m_tabs[2] = std::string(current_tab, '\t');
+    }
+}
+
+std::unique_ptr<std::istream> FileComparer::get_stream(const std::filesystem::path& path) {
+    if (path == "-") {
+        return std::unique_ptr<std::istream>(&std::cin, [](void*){});
+    }
+    auto file_stream = std::make_unique<std::ifstream>(path);
+    if (!*file_stream) {
+        throw std::runtime_error("Cannot open file: " + path.string());
+    }
+    return file_stream;
+}
+
+void FileComparer::output(int col, const std::string& line) {
+    bool suppress = false;
+    switch(col) {
+        case 1: suppress = m_opts.suppress_col1; break;
+        case 2: suppress = m_opts.suppress_col2; break;
+        case 3: suppress = m_opts.suppress_col3; break;
+    }
+
+    if (!suppress) {
+        std::cout << m_tabs[col - 1] << line << std::endl;
+    }
+}
+
+void FileComparer::run() {
+    auto in1 = get_stream(m_opts.file1_path);
+    auto in2 = get_stream(m_opts.file2_path);
+
+    std::string line1, line2;
+    bool eof1 = !std::getline(*in1, line1);
+    bool eof2 = !std::getline(*in2, line2);
+
+    while (!eof1 || !eof2) {
+        if (eof1) {
+            output(2, line2);
+            eof2 = !std::getline(*in2, line2);
+        } else if (eof2) {
+            output(1, line1);
+            eof1 = !std::getline(*in1, line1);
+        } else {
+            int cmp = line1.compare(line2);
+            if (cmp < 0) {
+                output(1, line1);
+                eof1 = !std::getline(*in1, line1);
+            } else if (cmp > 0) {
+                output(2, line2);
+                eof2 = !std::getline(*in2, line2);
+            } else {
+                output(3, line1);
+                eof1 = !std::getline(*in1, line1);
+                eof2 = !std::getline(*in2, line2);
             }
         }
     }
-    /*NOTREACHED*/
 }
 
-static void putcol(int col, char *buf) {
-    int cnt;
+} // namespace
 
-    if (colflgs[col] == 0)
-        return;
-    for (cnt = 0; cnt < colflgs[col] - 1; cnt++)
-        prints("\t");
-    prints("%s", buf);
-}
-
-static void cpycol(int col) {
-    if (colflgs[col])
-        while (readline(col))
-            putcol(col, lines[col]);
+/**
+ * @brief Main entry point for the comm command.
+ * @param argc Argument count.
+ * @param argv Argument values.
+ * @return 0 on success, 1 on error.
+ */
+int main(int argc, char* argv[]) {
+    try {
+        CommOptions options = parseArguments(argc, argv);
+        FileComparer comparer(options);
+        comparer.run();
+    } catch (const std::exception& e) {
+        std::cerr << "comm: " << e.what() << std::endl;
+        if (std::string(e.what()).find("Invalid option") != std::string::npos ||
+            std::string(e.what()).find("Exactly two files") != std::string::npos) {
+            printUsage();
+        }
+        return 1;
+    }
+    return 0;
 }

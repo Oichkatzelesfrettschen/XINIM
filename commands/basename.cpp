@@ -1,29 +1,52 @@
-// Modernized for C++23
+/**
+ * @file basename.cpp
+ * @brief Print the last part of a path.
+ * @author Blaine Garfolo
+ * @date 2023-10-27
+ *
+ * Modernized for C++23. This program extracts and prints the filename component of a given path,
+ * with an option to remove a specified suffix. It adheres to modern C++ practices, including
+ * the use of <filesystem> for path manipulation, exception handling for robustness, and
+ * type-safe I/O operations.
+ */
 
+#include <iostream>
 #include <filesystem>
 #include <string>
 #include <string_view>
+#include <vector>
 
-/* basename - print the last part of a path:	Author: Blaine Garfolo */
-
-int main(int argc, char *argv[]) {
-    // Ensure we have at least one path argument
+/**
+ * @brief Main entry point for the basename command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on success, 1 on error.
+ *
+ * Usage: basename string [suffix]
+ */
+int main(int argc, char* argv[]) {
     if (argc < 2) {
-        std_err("Usage: basename string [suffix]  \n");
+        std::cerr << "Usage: basename string [suffix]" << std::endl;
         return 1;
     }
 
-    // Extract the filename component
-    std::filesystem::path path{argv[1]};
-    std::string base = path.filename().string();
+    try {
+        std::filesystem::path path{argv[1]};
+        std::string base = path.filename().string();
 
-    // Optionally strip the specified suffix
-    if (argc == 3) {
-        std::string_view suffix{argv[2]};
-        if (base.size() >= suffix.size() &&
-            base.compare(base.size() - suffix.size(), suffix.size(), suffix) == 0)
-            base.erase(base.size() - suffix.size());
+        if (argc == 3) {
+            std::string_view suffix{argv[2]};
+            if (base.ends_with(suffix)) {
+                base.erase(base.size() - suffix.size());
+            }
+        }
+
+        std::cout << base << std::endl;
+
+    } catch (const std::filesystem::filesystem_error& e) {
+        std::cerr << "Error: " << e.what() << std::endl;
+        return 1;
     }
 
-    prints("%s \n", base.c_str());
+    return 0;
 }

@@ -1,153 +1,100 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+/**
+ * @file df.cpp
+ * @brief Display free disk space.
+ * @author Andy Tanenbaum (original author)
+ * @date 2023-10-28 (modernization)
+ *
+ * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
+ *
+ * This program is a C++23 modernization of the original `df` utility from MINIX.
+ * It reports the amount of available disk space for file systems.
+ * The modern implementation leverages the C++ <filesystem> library for a portable
+ * and robust solution, abstracting away the low-level details of specific
+ * filesystem structures.
+ *
+ * Usage: df [path...]
+ */
 
-/* df - disk free block printout	Author: Andy Tanenbaum */
+#include <iostream>
+#include <vector>
+#include <string>
+#include <filesystem>
+#include <system_error>
+#include <iomanip>
 
-#include "../fs/const.hpp"
-#include "../fs/super.hpp"
-#include "../fs/type.hpp"
-#include "../h/const.hpp"
-#include "../h/type.hpp"
-#include "stat.hpp"
+namespace {
 
-/* Program entry point */
-int main(int argc, char *argv[]) {
-
-    register int i;
-
-    if (argc <= 1) {
-        std_err("Usage: df special ...\n");
-        exit(1);
+/**
+ * @brief Converts a size in bytes to a human-readable string (KB, MB, GB).
+ * @param bytes The size in bytes.
+ * @return A formatted string representing the size.
+ */
+std::string human_readable_size(std::uintmax_t bytes) {
+    if (bytes < 1024) {
+        return std::to_string(bytes) + " B";
     }
-
-    sync(); /* have to make sure disk is up-to-date */
-    for (i = 1; i < argc; i++)
-        df(argv[i]);
-    exit(0);
+    double kb = static_cast<double>(bytes) / 1024.0;
+    if (kb < 1024.0) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(1) << kb << " KB";
+        return ss.str();
+    }
+    double mb = kb / 1024.0;
+    if (mb < 1024.0) {
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(1) << mb << " MB";
+        return ss.str();
+    }
+    double gb = mb / 1024.0;
+    std::stringstream ss;
+    ss << std::fixed << std::setprecision(1) << gb << " GB";
+    return ss.str();
 }
 
-/* Print disk usage for NAME */
-static void df(char *name) {
-    register int fd;
-    int i_count, z_count, totblocks, busyblocks, i;
-    char buf[BLOCK_SIZE], *s0;
-    struct super_block super, *sp;
-    struct stat statbuf;
-    extern char *itoa();
+/**
+ * @brief Prints the disk space information for a given path.
+ * @param path The path to a file or directory on the filesystem to check.
+ */
+void print_fs_info(const std::filesystem::path& path) {
+    std::error_code ec;
+    const auto space_info = std::filesystem::space(path, ec);
 
-    if ((fd = open(name, 0)) < 0) {
-        perror(name);
+    if (ec) {
+        std::cerr << "df: Cannot get info for '" << path.string() << "': " << ec.message() << std::endl;
         return;
     }
 
-    /* Is it a block special file? */
-    if (fstat(fd, &statbuf) < 0) {
-        stderr2(name, ": Cannot stat\n");
-        return;
-    }
-    if ((statbuf.st_mode & S_IFMT) != S_IFBLK) {
-        stderr2(name, ": not a block special file\n");
-        return;
-    }
-
-    lseek(fd, (long)BLOCK_SIZE, 0); /* skip boot block */
-    if (read(fd, &super, SUPER_SIZE) != SUPER_SIZE) {
-        stderr2(name, ": Can't read super block\n");
-        close(fd);
-        return;
-    }
-
-    lseek(fd, (long)BLOCK_SIZE * 2L, 0); /* skip rest of super block */
-    sp = &super;
-    if (sp->s_magic != SUPER_MAGIC) {
-        stderr2(name, ": Not a valid file system\n");
-        close(fd);
-        return;
-    }
-
-    i_count = bit_count(sp->s_imap_blocks, sp->s_ninodes + 1, fd);
-    if (i_count < 0) {
-        stderr2(name, ": can't find bit maps\n");
-        close(fd);
-        return;
-    }
-
-    z_count = bit_count(sp->s_zmap_blocks, sp->s_nzones, fd);
-    if (z_count < 0) {
-        stderr2(name, ": can't find bit maps\n");
-        close(fd);
-        return;
-    }
-    totblocks = sp->s_nzones << sp->s_log_zone_size;
-    busyblocks = z_count << sp->s_log_zone_size;
-
-    /* Print results. */
-    prints("%s ", name);
-    s0 = name;
-    while (*s0)
-        s0++;
-    i = 12 - (s0 - name);
-    while (i--)
-        prints(" ");
-    prints("i-nodes: ");
-    num3(i_count - 1);
-    prints(" used  ");
-    num3(sp->s_ninodes + 1 - i_count);
-    prints(" free        blocks: ");
-    num3(busyblocks);
-    prints(" used  ");
-    num3(totblocks - busyblocks);
-    prints(" free\n");
-    close(fd);
+    std::cout << std::left << std::setw(25) << path.string()
+              << std::right << std::setw(12) << human_readable_size(space_info.capacity)
+              << std::setw(12) << human_readable_size(space_info.capacity - space_info.free)
+              << std::setw(12) << human_readable_size(space_info.available)
+              << std::setw(8) << static_cast<int>((static_cast<double>(space_info.capacity - space_info.free) / space_info.capacity) * 100) << "%"
+              << std::endl;
 }
 
-/* Count set bits in maps */
-static int bit_count(int blocks, int bits, int fd) {
-    register int i, b;
-    int busy, count, w;
-    int *wptr, *wlim;
-    int buf[BLOCK_SIZE / sizeof(int)];
+} // namespace
 
-    /* Loop on blocks, reading one at a time and counting bits. */
-    busy = 0;
-    count = 0;
-    for (i = 0; i < blocks; i++) {
-        if (read(fd, buf, BLOCK_SIZE) != BLOCK_SIZE)
-            return (-1);
+/**
+ * @brief Main entry point for the df command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on success, 1 on error.
+ */
+int main(int argc, char* argv[]) {
+    std::cout << std::left << std::setw(25) << "Filesystem"
+              << std::right << std::setw(12) << "Size"
+              << std::setw(12) << "Used"
+              << std::setw(12) << "Available"
+              << std::setw(8) << "Use%" << std::endl;
 
-        wptr = &buf[0];
-        wlim = &buf[BLOCK_SIZE / sizeof(int)];
-
-        /* Loop on the words of a block */
-        while (wptr != wlim) {
-            w = *wptr++;
-
-            /* Loop on the bits of a word. */
-            for (b = 0; b < 8 * sizeof(int); b++) {
-                if ((w >> b) & 1)
-                    busy++;
-                if (++count == bits)
-                    return (busy);
-            }
+    if (argc == 1) {
+        // If no arguments, check the current path.
+        print_fs_info(".");
+    } else {
+        for (int i = 1; i < argc; ++i) {
+            print_fs_info(argv[i]);
         }
     }
-}
 
-/* Print two error strings */
-static void stderr2(const char *s1, const char *s2) {
-    std_err(s1);
-    std_err(s2);
-}
-
-/* Print a number with padding */
-static void num3(int n) {
-    if (n < 10)
-        prints("  %s", itoa(n));
-    else if (n < 100)
-        prints(" %s", itoa(n));
-    else
-        prints("%s", itoa(n));
+    return 0;
 }

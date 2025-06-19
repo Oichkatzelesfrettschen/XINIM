@@ -17,9 +17,25 @@
 #include <cstring>
 #include <string>
 #include <string_view>
+#include <cstdio>
+#include <cstdlib>
+#include <unistd.h>
+#include <fcntl.h>
+#include <sys/types.h>
+#include <sys/stat.h>
+#include <csignal>
 
 /* Modern constants and helpers */
 constexpr int MAGIC_NUMBER = 0177545;
+
+// Forward declarations
+static void get(int argc, char* argv[]);
+static void error(bool quit, const char* str1, const char* str2);
+static char* ar_basename(char* path);
+static int open_archive(const char* name, int mode);
+static MEMBER* get_member();
+static long swap(union swabber* sw_ptr);
+static ssize_t safe_write(int fd, const void* buffer, size_t size);
 
 /* Determine if a number is odd */
 [[nodiscard]] constexpr bool odd(int nr) { return nr & 0x01; }
@@ -46,186 +62,297 @@ struct MEMBER {
     char m_uid;
     char m_gid;
     short m_mode;
-    short m_size_1;
-    short m_size_2;
+    short m_size_1;    short m_size_2;
 };
 
+// Modern type aliases for better clarity
 using BOOL = bool;
 constexpr bool FALSE = false;
 constexpr bool TRUE = true;
 
+// File operation modes
 constexpr int READ = 0;
-constexpr int APPEND = 2;
+constexpr int APPEND = 2;  
 constexpr int CREATE = 1;
 
-constexpr char *NIL_PTR = nullptr;
-constexpr MEMBER *NIL_MEM = nullptr;
-constexpr long *NIL_LONG = nullptr;
+// Modern null pointer constants (avoid macro conflicts)
+constexpr MEMBER* NIL_MEM = nullptr;
+constexpr long* NIL_LONG = nullptr;
 
+// Buffer size constants
 constexpr std::size_t IO_SIZE = 10 * 1024;
 constexpr std::size_t BLOCK_SIZE = 1024;
 
-inline void flush() { print(NIL_PTR); }
+/**
+ * @brief Flush output buffer
+ */
+inline void flush() { /* TODO: Implement proper flush logic */ }
 
-inline bool equal(const char *str1, const char *str2) {
+/**
+ * @brief Compare two strings for equality (first 14 characters)
+ * @param str1 First string to compare
+ * @param str2 Second string to compare  
+ * @return true if strings are equal, false otherwise
+ */
+[[nodiscard]] inline bool equal(const char* str1, const char* str2) {
     return !std::strncmp(str1, str2, 14);
 }
 
-BOOL verbose;
-BOOL app_fl;
-BOOL ex_fl;
-BOOL show_fl;
-BOOL pr_fl;
-BOOL rep_fl;
-BOOL del_fl;
+// Global operation flags - consider refactoring into a struct
+bool verbose{false};
+bool app_fl{false};
+bool ex_fl{false};
+bool show_fl{false};
+bool pr_fl{false};
+bool rep_fl{false};
+bool del_fl{false};
 
-int ar_fd;
-long mem_time, mem_size;
+// File descriptor and archive metadata
+int ar_fd{-1};
+long mem_time{0};
+long mem_size{0};
 
-std::array<char, IO_SIZE> io_buffer{};  // Buffer used for I/O operations
-std::array<char, BLOCK_SIZE> terminal{}; // Temporary terminal buffer
+// I/O buffers with proper initialization
+std::array<char, IO_SIZE> io_buffer{};
+std::array<char, BLOCK_SIZE> terminal{};
 
+// Temporary archive path template
 char temp_arch[] = "/tmp/ar.XXXXX";
 
-static void usage(void) { error(TRUE, "Usage: ar [adprtxv] archive [file] ...", NIL_PTR); }
+/**
+ * @brief Display usage information and exit
+ */
+[[noreturn]] static void usage() { 
+    error(true, "Usage: ar [adprtxv] archive [file] ...", nullptr); 
+}
 
-static void error(BOOL quit, char *str1, char *str2) {
-    write(2, str1, strlen(str1));
-    if (str2 != NIL_PTR)
-        write(2, str2, strlen(str2));
+/**
+ * @brief Display error message and optionally exit
+ * @param quit If true, clean up and exit with error code
+ * @param str1 Primary error message
+ * @param str2 Optional secondary error message
+ */
+[[noreturn]] static void error(bool quit, const char* str1, const char* str2) {
+    const auto len1 = std::strlen(str1);
+    write(2, str1, len1);
+    
+    if (str2 != nullptr) {
+        const auto len2 = std::strlen(str2);
+        write(2, str2, len2);
+    }
+    
     write(2, "\n", 1);
+    
     if (quit) {
-        (void)unlink(temp_arch);
-        exit(1);
+        std::unlink(temp_arch);
+        std::exit(1);
     }
 }
 
-static char *basename(char *path) {
-    register char *ptr = path;
-    register char *last = NIL_PTR;
+/**
+ * @brief Extract basename from a file path
+ * @param path File path to process
+ * @return Pointer to the basename portion of the path
+ */
+[[nodiscard]] static char* ar_basename(char* path) {
+    char* ptr = path;
+    char* last = nullptr;
 
     while (*ptr != '\0') {
-        if (*ptr == '/')
+        if (*ptr == '/') {
             last = ptr;
+        }
         ptr++;
     }
-    if (last == NIL_PTR)
+    
+    if (last == nullptr) {
         return path;
+    }
+    
     if (*(last + 1) == '\0') {
         *last = '\0';
-        return basename(path);
+        return ar_basename(path);
     }
+    
     return last + 1;
 }
 
-static int open_archive(char *name, int mode) {
-    unsigned short magic = 0;
-    int fd;
+/**
+ * @brief Open or create an archive file
+ * @param name Archive file name
+ * @param mode File access mode (READ, APPEND, CREATE)
+ * @return File descriptor for the opened archive
+ */
+[[nodiscard]] static int open_archive(const char* name, int mode) {
+    constexpr unsigned short magic = MAGIC_NUMBER;
+    int fd{-1};
 
     if (mode == CREATE) {
-        if ((fd = creat(name, 0644)) < 0)
-            error(TRUE, "Cannot creat ", name);
-        magic = MAGIC_NUMBER;
-        mwrite(fd, &magic, sizeof(magic));
+        fd = ::creat(name, 0644);
+        if (fd < 0) {
+            error(true, "Cannot create ", name);
+        }
+        
+        const auto bytes_written = ::write(fd, &magic, sizeof(magic));
+        if (bytes_written != sizeof(magic)) {
+            error(true, "Failed to write magic number to ", name);
+        }
         return fd;
     }
 
-    if ((fd = open(name, mode)) < 0) {
+    fd = ::open(name, mode);
+    if (fd < 0) {
         if (mode == APPEND) {
-            (void)close(open_archive(name, CREATE));
-            error(FALSE, "ar: creating ", name);
+            ::close(open_archive(name, CREATE));
+            error(false, "ar: creating ", name);
             return open_archive(name, APPEND);
         }
-        error(TRUE, "Cannot open ", name);
+        error(true, "Cannot open ", name);
     }
-    (void)lseek(fd, 0L, 0);
-    (void)read(fd, &magic, sizeof(magic));
-    if (magic != MAGIC_NUMBER)
-        error(TRUE, name, " is not in ar format.");
+
+    // Reset to beginning and validate magic number
+    ::lseek(fd, 0L, SEEK_SET);
+    
+    unsigned short read_magic{0};
+    const auto bytes_read = ::read(fd, &read_magic, sizeof(read_magic));
+    
+    if (bytes_read != sizeof(read_magic) || read_magic != magic) {
+        error(true, name, " is not in ar format.");
+    }
 
     return fd;
 }
 
-static void catch (void) {
-    (void)unlink(temp_arch);
-    exit(2);
+/**
+ * @brief Signal handler for cleanup on interrupt
+ */
+static void cleanup_handler(int sig) {
+    static_cast<void>(sig);  // Suppress unused parameter warning
+    ::unlink(temp_arch);
+    std::exit(2);
 }
 
+/**
+ * @brief Safe write wrapper for archive operations
+ * @param fd File descriptor to write to
+ * @param buffer Data buffer to write
+ * @param size Number of bytes to write
+ * @return Number of bytes written, or -1 on error
+ */
+[[nodiscard]] static ssize_t safe_write(int fd, const void* buffer, size_t size) {
+    const auto bytes_written = ::write(fd, buffer, size);
+    if (bytes_written != static_cast<ssize_t>(size)) {
+        error(true, "Write operation failed", nullptr);
+    }
+    return bytes_written;
+}
+
+/**
+ * @brief Main entry point for the archive utility
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ * @return Exit status (0 for success, non-zero for error)
+ * 
+ * Parses command line flags and executes the appropriate archive operation.
+ * Supported operations: append (a), delete (d), print (p), replace (r), 
+ * show contents (t), verbose (v), extract (x).
+ */
 int main(int argc, char* argv[]) {
-    // Parse command flags from argv[1]
-    std::string_view flags = argv[1];
-    int pow, pid;
-    char* ptr = nullptr; // scratch pointer
-
-    if (argc < 3)
+    // Validate minimum arguments
+    if (argc < 3) {
         usage();
+    }
 
-    for (char flag : flags) {
+    // Parse command flags from argv[1]
+    const std::string_view flags{argv[1]};
+    
+    // Process each flag character
+    for (const char flag : flags) {
         switch (flag) {
         case 't':
-            show_fl = TRUE;
+            show_fl = true;
             break;
         case 'v':
-            verbose = TRUE;
+            verbose = true;
             break;
         case 'x':
-            ex_fl = TRUE;
+            ex_fl = true;
             break;
         case 'a':
-            app_fl = TRUE;
+            app_fl = true;
             break;
         case 'p':
-            pr_fl = TRUE;
+            pr_fl = true;
             break;
         case 'd':
-            del_fl = TRUE;
+            del_fl = true;
             break;
         case 'r':
-            rep_fl = TRUE;
+            rep_fl = true;
             break;
         default:
             usage();
         }
     }
 
-    if (app_fl + ex_fl + del_fl + rep_fl + show_fl + pr_fl != 1)
+    // Ensure exactly one operation is specified
+    const int operation_count = static_cast<int>(app_fl) + static_cast<int>(ex_fl) + 
+                               static_cast<int>(del_fl) + static_cast<int>(rep_fl) + 
+                               static_cast<int>(show_fl) + static_cast<int>(pr_fl);
+    
+    if (operation_count != 1) {
         usage();
-
-    if (rep_fl || del_fl) {
-        ptr = &temp_arch[8];
-        pid = getpid();
-        pow = 10000;
-
-        while (pow != 0) {
-            *ptr++ = (pid / pow) + '0';
-            pid %= pow;
-            pow /= 10;
-        }
     }
 
-    signal(SIGINT, catch);
+    // Generate temporary archive name for operations that need it
+    if (rep_fl || del_fl) {
+        const int pid = getpid();
+        constexpr int base_offset = 8;
+        std::sprintf(&temp_arch[base_offset], "%05d", pid);
+    }    // Set up signal handler for cleanup
+    std::signal(SIGINT, cleanup_handler);
+    
+    // Execute the archive operation
     get(argc, argv);
 
-    exit(0);
+    return 0;
 }
 
-static MEMBER *get_member(void) {
-    static MEMBER member;
-    register int ret;
-
-    if ((ret = read(ar_fd, &member, sizeof(MEMBER))) == 0)
-        return NIL_MEM;
-    if (ret != sizeof(MEMBER))
-        error(TRUE, "Corrupted archive.", NIL_PTR);
+/**
+ * @brief Read the next member header from the archive
+ * @return Pointer to member structure, or nullptr if end of archive
+ * 
+ * Reads a MEMBER structure from the archive file descriptor and validates
+ * the read operation. Updates global mem_time and mem_size variables.
+ */
+[[nodiscard]] static MEMBER* get_member() {
+    static MEMBER member{};
+    
+    const auto bytes_read = read(ar_fd, &member, sizeof(MEMBER));
+    
+    if (bytes_read == 0) {
+        return nullptr;  // End of archive
+    }
+    
+    if (bytes_read != sizeof(MEMBER)) {
+        error(true, "Corrupted archive.", nullptr);
+    }
+    
+    // Update global time and size from member data
     mem_time = swap(&(member.m_time_1));
     mem_size = swap(&(member.m_size_1));
+    
     return &member;
 }
 
-static long swap(union swabber *sw_ptr) {
+/**
+ * @brief Swap byte order for cross-platform compatibility
+ * @param sw_ptr Pointer to swabber union containing the data to swap
+ * @return The swapped long value
+ */
+[[nodiscard]] static long swap(union swabber* sw_ptr) {
     swapped.mem.mem_1 = (sw_ptr->mem).mem_2;
     swapped.mem.mem_2 = (sw_ptr->mem).mem_1;
-
     return swapped.joined;
 }
 

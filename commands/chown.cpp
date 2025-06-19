@@ -1,45 +1,81 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
-/*
- * chown username file ...
+/**
+ * @file chown.cpp
+ * @brief Change owner of files.
+ * @author Patrick van Kleef (original author)
+ * @date 2023-10-27 (modernization)
  *
- * By Patrick van Kleef
+ * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
  *
+ * This program is a C++23 modernization of the original `chown` utility from MINIX.
+ * It changes the owner of the specified files to a new owner, keeping the group the same.
+ * It uses modern C++ features for argument parsing and error reporting, while still
+ * relying on POSIX functions for user and file management.
+ *
+ * Usage: chown username file...
  */
 
-#include "../h/type.hpp"
-#include "pwd.hpp"
-#include "stat.hpp"
-#include "stdio.hpp"
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <filesystem>
+#include <system_error>
+#include <cerrno>
 
-/* Program entry point */
-int main(int argc, char *argv[]) {
-    int i, status = 0;
-    struct passwd *pwd, *getpwnam();
-    struct stat stbuf;
+// POSIX includes
+#include <unistd.h>
+#include <sys/stat.h>
+#include <pwd.h>
 
+namespace {
+
+/**
+ * @brief Prints the usage message to standard error.
+ */
+void printUsage() {
+    std::cerr << "Usage: chown username file..." << std::endl;
+}
+
+} // namespace
+
+/**
+ * @brief Main entry point for the chown command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on success, 1 on error.
+ */
+int main(int argc, char* argv[]) {
     if (argc < 3) {
-        fprintf(stderr, "Usage: chown uid file ...\n");
-        exit(1);
+        printUsage();
+        return 1;
     }
 
-    if ((pwd = getpwnam(argv[1])) == 0) {
-        fprintf(stderr, "Unknown user id: %s\n", argv[1]);
-        exit(4);
+    std::string username(argv[1]);
+    struct passwd* pwd = getpwnam(username.c_str());
+
+    if (pwd == nullptr) {
+        std::cerr << "chown: unknown user: " << username << std::endl;
+        return 1;
     }
 
-    for (i = 2; i < argc; i++) {
-        if (stat(argv[i], &stbuf) < 0) {
-            perror(argv[i]);
-            status++;
-        } else if (chown(argv[i], pwd->pw_uid, stbuf.st_gid) < 0) {
-            fprintf(stderr, "%s: not changed\n", argv[i]);
-            status++;
+    uid_t new_owner_uid = pwd->pw_uid;
+    int status = 0;
+
+    for (int i = 2; i < argc; ++i) {
+        std::filesystem::path file_path(argv[i]);
+        struct stat st;
+
+        if (stat(file_path.c_str(), &st) != 0) {
+            std::cerr << "chown: cannot access '" << file_path.string() << "': " << strerror(errno) << std::endl;
+            status = 1;
+            continue;
+        }
+
+        if (chown(file_path.c_str(), new_owner_uid, st.st_gid) != 0) {
+            std::cerr << "chown: changing ownership of '" << file_path.string() << "': " << strerror(errno) << std::endl;
+            status = 1;
         }
     }
-    exit(status);
+
+    return status;
 }

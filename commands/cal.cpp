@@ -1,10 +1,14 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+/**
+ * @file cal.cpp
+ * @brief Modern C++23 calendar utility
+ * @author Martin Minow (original), modernized for XINIM
+ * 
+ * A calendar printing utility that displays monthly or yearly calendars.
+ * Fully modernized with C++23 features including constexpr, strong typing,
+ * and static assertions for compile-time validation.
+ */
 
-/* cal - print a calendar		Author: Maritn Minow */
+/* cal - print a calendar		Author: Martin Minow */
 
 #include <array>
 #include <cstdio>
@@ -12,19 +16,21 @@
 #include <string>
 #include <string_view>
 
-#define do3months domonth
+// Modern constants with clear semantic naming
 constexpr int IO_SUCCESS = 0;
 constexpr int IO_ERROR = 1;
-constexpr char EOS = 0;
+constexpr char EOS = '\0';
 
-constexpr int ENTRY_SIZE = 3;      /* 3 bytes per value		*/
-constexpr int DAYS_PER_WEEK = 7;   /* Sunday, etc.			*/
-constexpr int WEEKS_PER_MONTH = 6; /* Max. weeks in a month	*/
-constexpr int MONTHS_PER_LINE = 3; /* Three months across		*/
-constexpr int MONTH_SPACE = 3;     /* Between each month		*/
+// Calendar layout constants
+constexpr int ENTRY_SIZE = 3;      /**< Bytes per calendar entry */
+constexpr int DAYS_PER_WEEK = 7;   /**< Days in a week */
+constexpr int WEEKS_PER_MONTH = 6; /**< Maximum weeks in a month */
+constexpr int MONTHS_PER_LINE = 3; /**< Months displayed horizontally */
+constexpr int MONTH_SPACE = 3;     /**< Spacing between months */
 
-char *badarg = {"Bad argument\n"};
-char *how = {"Usage: cal [month] year\n"};
+// Error messages as string literals
+constexpr auto badarg = "Bad argument\n";
+constexpr auto usage_msg = "Usage: cal [month] year\n";
 
 /*
  * calendar() stuffs data into layout[],
@@ -41,41 +47,54 @@ constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
 constexpr std::array<std::string_view, 13> monthname = {
     "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
-int main(int argc, char *argv[]) {
-    int month = 0;
-    int year = 0;
-
-    int arg1val = 0;
-    int arg1len = 0;
-    int arg2val = 0;
-
+/**
+ * @brief Main entry point for the calendar utility
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ * @return IO_SUCCESS on success, IO_ERROR on failure
+ * 
+ * Parses command line arguments to determine whether to display a month,
+ * year, or specific month within a year. Handles argument ambiguity
+ * intelligently based on value ranges.
+ */
+int main(int argc, char* argv[]) {
     if (argc <= 1) {
-        usage(how);
-    } else {
-        arg1val = std::stoi(argv[1]);
-        arg1len = std::strlen(argv[1]);
-        if (argc == 2) {
-            /*
-             * Only one argument, if small, it's a month.  If
-             * large, it's a year.  Note:
-             *	cal	0082	Year 0082
-             *	cal	82	Year 0082
-             */
-            if (arg1len <= 2 && arg1val <= 12)
-                do3months(year, arg1val);
-            else
-                doyear(arg1val);
-        } else {
-            /*
-             * Two arguments, allow 1980 12 or 12 1980
-             */
-            arg2val = std::stoi(argv[2]);
-            if (arg1len > 2)
-                do3months(arg1val, arg2val);
-            else
-                do3months(arg2val, arg1val);
-        }
+        usage(usage_msg);
+        return IO_ERROR;
     }
+
+    try {
+        const int arg1val = std::stoi(argv[1]);
+        const auto arg1len = std::strlen(argv[1]);
+        
+        if (argc == 2) {
+            // Single argument: small values (≤12) with ≤2 digits are months,
+            // larger values are years
+            if (arg1len <= 2 && arg1val <= 12) {
+                domonth_current_year(arg1val);
+            } else {
+                doyear(arg1val);
+            }
+        } else if (argc == 3) {
+            // Two arguments: handle both "month year" and "year month" formats
+            const int arg2val = std::stoi(argv[2]);
+            
+            if (arg1len > 2) {
+                // First argument is likely the year (more than 2 digits)
+                domonth(arg1val, arg2val);
+            } else {
+                // First argument is likely the month (≤2 digits)
+                domonth(arg2val, arg1val);
+            }
+        } else {
+            usage(usage_msg);
+            return IO_ERROR;
+        }
+    } catch (const std::exception& e) {
+        usage(badarg);
+        return IO_ERROR;
+    }
+    
     return IO_SUCCESS;
 }
 
@@ -96,12 +115,10 @@ static void doyear(int year)
         printf("%12s%23s%23s\n", monthname[month], monthname[month + 1], monthname[month + 2]);
         printf("%s   %s   %s\n", weekday, weekday, weekday);
         calendar(year, month + 0, 0);
-        calendar(year, month + 1, 1);
-        calendar(year, month + 2, 2);
+        calendar(year, month + 1, 1);        calendar(year, month + 2, 2);
         output(3);
-#if MONTHS_PER_LINE != 3
-        << error, the above won't work >>
-#endif
+        // Static assertion ensures MONTHS_PER_LINE is 3 for the above logic
+        static_assert(MONTHS_PER_LINE == 3, "MONTHS_PER_LINE must be 3 for quarterly display");
     }
     printf("\n\n\n");
 }

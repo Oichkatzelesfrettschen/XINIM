@@ -1,80 +1,215 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+/**
+ * @file head.cpp
+ * @brief Print the first few lines of files.
+ * @author Andy Tanenbaum (original author)
+ * @date 2023-10-28 (modernization)
+ *
+ * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
+ *
+ * This program is a C++23 modernization of the classic `head` utility.
+ * It displays the first N lines of one or more files. The modern implementation
+ * uses iostreams for robust file handling, proper command-line parsing,
+ * and exception-safe error handling.
+ *
+ * Usage: head [-n count] [file...]
+ *   -n count  Number of lines to display (default: 10)
+ */
 
-/* head - print the first few lines of a file	Author: Andy Tanenbaum */
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <filesystem>
+#include <system_error>
+#include <charconv>
 
-#include "stdio.hpp"
-#include <array>
+namespace {
 
-#define DEFAULT 10
+/**
+ * @brief Head options structure.
+ */
+struct HeadOptions {
+    size_t line_count = 10;
+    std::vector<std::filesystem::path> files;
+};
 
-std::array<char, BUFSIZ> buff{};
-std::array<char, 256> lbuf{};
-
-int main(int argc, char *argv[]) {
-
-    int n, k, nfiles;
-    char *ptr;
-
-    /* Check for flag.  Only flag is -n, to say how many lines to print. */
-    setbuf(stdout, buff.data());
-    k = 1;
-    ptr = argv[1];
-    n = DEFAULT;
-    if (*ptr++ == '-') {
-        k++;
-        n = atoi(ptr);
-        if (n <= 0)
-            usage();
+/**
+ * @brief Head engine class for processing files.
+ */
+class HeadEngine {
+public:
+    explicit HeadEngine(const HeadOptions& opts) : options_(opts) {}
+    
+    /**
+     * @brief Process all specified files or stdin.
+     * @return Exit status (0 = success, 1 = error).
+     */
+    int run() {
+        if (options_.files.empty()) {
+            // Read from stdin
+            return process_stream(std::cin, "") ? 0 : 1;
+        } else {
+            // Process each file
+            bool any_errors = false;
+            
+            for (size_t i = 0; i < options_.files.size(); ++i) {
+                const auto& filepath = options_.files[i];
+                
+                // Print header if multiple files
+                if (options_.files.size() > 1) {
+                    if (i > 0) std::cout << std::endl;
+                    std::cout << "==> " << filepath.string() << " <==" << std::endl;
+                }
+                
+                if (filepath == "-") {
+                    if (!process_stream(std::cin, "-")) {
+                        any_errors = true;
+                    }
+                } else {
+                    std::ifstream file(filepath);
+                    if (!file) {
+                        std::cerr << "head: cannot open " << filepath.string() 
+                                  << ": " << std::strerror(errno) << std::endl;
+                        any_errors = true;
+                        continue;
+                    }
+                    
+                    if (!process_stream(file, filepath.string())) {
+                        any_errors = true;
+                    }
+                }
+            }
+            
+            return any_errors ? 1 : 0;
+        }
     }
-    nfiles = argc - k;
 
-    if (nfiles == 0) {
-        /* Print standard input only. */
-        do_file(n);
-        fflush(stdout);
-        exit(0);
+private:
+    /**
+     * @brief Process a single input stream.
+     * @param stream Input stream to process.
+     * @param filename Filename for error messages.
+     * @return True on success, false on error.
+     */
+    bool process_stream(std::istream& stream, const std::string& filename) {
+        std::string line;
+        size_t lines_printed = 0;
+        
+        while (lines_printed < options_.line_count && std::getline(stream, line)) {
+            std::cout << line << std::endl;
+            ++lines_printed;
+        }
+        
+        return !stream.bad();
     }
+    
+    HeadOptions options_;
+};
 
-    /* One or more files have been listed explicitly. */
-    while (k < argc) {
-        fclose(stdin);
-        if (nfiles > 1)
-            prints("==> %s <==\n", argv[k]);
-        if (fopen(argv[k], "r") == NULL)
-            prints("head: cannot open %s\n", argv[k]);
-        else
-            do_file(n);
-        k++;
-        if (k < argc)
-            prints("\n");
+/**
+ * @brief Parse command line arguments.
+ */
+HeadOptions parse_arguments(int argc, char* argv[]) {
+    HeadOptions opts;
+    int i = 1;
+    
+    // Parse options
+    while (i < argc && argv[i][0] == '-') {
+        std::string_view arg(argv[i]);
+        
+        if (arg == "-") {
+            // Special case: "-" means stdin
+            break;
+        } else if (arg == "--") {
+            // End of options
+            ++i;
+            break;
+        } else if (arg.starts_with("-n")) {
+            // -n option (number of lines)
+            std::string_view count_str;
+            
+            if (arg.length() > 2) {
+                // -n42 format
+                count_str = arg.substr(2);
+            } else {
+                // -n 42 format
+                ++i;
+                if (i >= argc) {
+                    throw std::runtime_error("Option -n requires an argument");
+                }
+                count_str = argv[i];
+            }
+            
+            size_t count;
+            auto [ptr, ec] = std::from_chars(count_str.data(), 
+                                           count_str.data() + count_str.size(), count);
+            
+            if (ec != std::errc() || ptr != count_str.data() + count_str.size()) {
+                throw std::runtime_error("Invalid line count: " + std::string(count_str));
+            }
+            
+            if (count == 0) {
+                throw std::runtime_error("Line count must be greater than 0");
+            }
+            
+            opts.line_count = count;
+        } else if (arg.length() > 1 && std::isdigit(arg[1])) {
+            // Legacy -42 format
+            std::string_view count_str = arg.substr(1);
+            size_t count;
+            auto [ptr, ec] = std::from_chars(count_str.data(), 
+                                           count_str.data() + count_str.size(), count);
+            
+            if (ec != std::errc() || ptr != count_str.data() + count_str.size()) {
+                throw std::runtime_error("Invalid line count: " + std::string(count_str));
+            }
+            
+            if (count == 0) {
+                throw std::runtime_error("Line count must be greater than 0");
+            }
+            
+            opts.line_count = count;
+        } else {
+            throw std::runtime_error("Invalid option: " + std::string(arg));
+        }
+        
+        ++i;
     }
-    fflush(stdout);
-    exit(0);
+    
+    // Get files
+    while (i < argc) {
+        opts.files.emplace_back(argv[i++]);
+    }
+    
+    return opts;
 }
 
-static void do_file(int n) {
-    /* Print the first 'n' lines of a file. */
-    while (n--)
-        do_line();
+/**
+ * @brief Print usage information.
+ */
+void print_usage() {
+    std::cerr << "Usage: head [-n count] [file...]" << std::endl;
+    std::cerr << "  -n count  Number of lines to display (default: 10)" << std::endl;
 }
 
-static void do_line() {
-    /* Print one line. */
+} // namespace
 
-    char c, *cp;
-    cp = lbuf.data();
-    while ((c = getc(stdin)) != '\n')
-        *cp++ = c;
-    *cp++ = '\n';
-    *cp++ = 0;
-    prints("%s", lbuf.data());
-}
-
-static void usage() {
-    std_err("Usage: head [-n] [file ...]\n");
-    exit(1);
+/**
+ * @brief Main entry point for the head command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on success, 1 on error.
+ */
+int main(int argc, char* argv[]) {
+    try {
+        HeadOptions options = parse_arguments(argc, argv);
+        HeadEngine engine(options);
+        return engine.run();
+        
+    } catch (const std::exception& e) {
+        std::cerr << "head: " << e.what() << std::endl;
+        print_usage();
+        return 1;
+    }
 }

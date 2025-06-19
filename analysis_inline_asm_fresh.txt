@@ -1,0 +1,31 @@
+./kernel/mpx64.cpp:    __asm__ volatile("push %%rax\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("movq _proc_ptr(%%rip), %%r15\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/mpx64.cpp:    __asm__ volatile("call save\n\t"
+./kernel/syscall.cpp:    __asm__ volatile("call save\n\t"
+./lib/crt0.cpp:  __asm__ volatile("mov %%rsp, %0" : "=r"(stack));
+./lib/crtso.cpp:  __asm__ volatile("mov %%rsp, %0" : "=r"(stack));
+./lib/head.cpp:    __asm__ volatile("movq _stackpt(%%rip), %%rsp" ::: "rsp");
+./lib/minix/crtso.cpp:  __asm__ volatile("mov %%rsp, %0" : "=r"(stack));
+./lib/minix/head.cpp:  __asm__ volatile("movq _stackpt(%%rip), %%rsp" ::: "rsp");
+./lib/syscall_x86_64.cpp:    register long rax __asm__("rax") = 0;
+./lib/syscall_x86_64.cpp:    register long rdi __asm__("rdi") = dst;
+./lib/syscall_x86_64.cpp:    register message *rsi __asm__("rsi") = m_ptr;
+./lib/syscall_x86_64.cpp:    register long rdx __asm__("rdx") = SEND;
+./lib/syscall_x86_64.cpp:    __asm__ volatile("syscall"
+./lib/syscall_x86_64.cpp:    register long rax __asm__("rax") = 0;
+./lib/syscall_x86_64.cpp:    register long rdi __asm__("rdi") = src;
+./lib/syscall_x86_64.cpp:    register message *rsi __asm__("rsi") = m_ptr;
+./lib/syscall_x86_64.cpp:    register long rdx __asm__("rdx") = RECEIVE;
+./lib/syscall_x86_64.cpp:    __asm__ volatile("syscall"
+./lib/syscall_x86_64.cpp:    register long rax __asm__("rax") = 0;
+./lib/syscall_x86_64.cpp:    register long rdi __asm__("rdi") = srcdest;
+./lib/syscall_x86_64.cpp:    register message *rsi __asm__("rsi") = m_ptr;
+./lib/syscall_x86_64.cpp:    register long rdx __asm__("rdx") = BOTH;
+./lib/syscall_x86_64.cpp:    __asm__ volatile("syscall"

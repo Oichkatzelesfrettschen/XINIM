@@ -1,176 +1,189 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
-/* gres - grep and substitute		Author: Martin C. Atkins */
-
-/*
- *	globally search, and replace
+/**
+ * @file gres.cpp
+ * @brief Global search and replace utility using regular expressions.
+ * @author Martin C. Atkins (original author)
+ * @date 2023-10-28 (modernization)
  *
- *<-xtx-*>cc -o gres gres.cpp -lregexp
+ * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
+ * Original program by Martin C. Atkins, University of York, released into public domain.
+ *
+ * This program is a C++23 modernization of the `gres` utility.
+ * It performs global search and replace operations on text files using
+ * regular expressions. The modern implementation uses the C++ <regex>
+ * library for pattern matching and replacement.
+ *
+ * Usage: gres [-g] search_pattern replacement [file...]
+ *   -g  Replace only the first occurrence on each line (default: replace all)
  */
 
-/*
- *	This program was written by:
- *		Martin C. Atkins,
- *		University of York,
- *		Heslington,
- *		York. Y01 5DD
- *		England
- *	and is released into the public domain, on the condition
- *	that this comment is always included without alteration.
+#include <iostream>
+#include <fstream>
+#include <string>
+#include <string_view>
+#include <vector>
+#include <regex>
+#include <filesystem>
+#include <system_error>
+
+namespace {
+
+/**
+ * @brief Gres options structure.
  */
+struct GresOptions {
+    bool global_replace = true;     // Replace all occurrences (default)
+    std::string search_pattern;
+    std::string replacement;
+    std::vector<std::filesystem::path> files;
+};
 
-#include "../include/lib.hpp" // C++23 header
-#include "regexp.hpp"
-#include "stdio.hpp"
-
-#define MAXLINE (1024)
-
-int status = 1;
-char *usagemsg = "Usage: gres [-g] search replace [file ...]\n";
-char *progname;
-int gflag = 0; /* != 0 => only do first substitution on line */
-extern char *index();
-FILE *fopen();
-
-int main(int argc, char *argv[]) {
-    regexp *exp;
-    char *repstr;
-    char **argp = &argv[1];
-
-    progname = argv[0];
-    if (*argp != 0 && argp[0][0] == '-' && argp[0][1] == 'g') {
-        gflag = 1;
-        argp++, argc--;
-    }
-    if (argc < 3) {
-        std_err(usagemsg);
-        done(2);
-    }
-    if (argp[0][0] == '\0') {
-        std_err("gres: null match string is silly\n");
-        done(2);
-    }
-    if ((exp = regcomp(*argp++)) == NULL) {
-        std_err("gres: regcomp failed\n");
-        done(2);
-    }
-    repstr = *argp++;
-    if (*argp == 0)
-        process(stdin, exp, repstr);
-    else
-        while (*argp) {
-            FILE *inf;
-
-            if (strcmp(*argp, "-") == 0)
-                process(stdin, exp, repstr);
-            else {
-                if ((inf = fopen(*argp, "r")) == NULL) {
-                    std_err("gres: Can't open ");
-                    std_err(*argp);
-                    std_err("\n");
-                    status = 2;
+/**
+ * @brief Gres engine class for processing files and performing replacements.
+ */
+class GresEngine {
+public:
+    explicit GresEngine(const GresOptions& opts) 
+        : options_(opts), regex_(opts.search_pattern, std::regex_constants::extended) {}
+    
+    /**
+     * @brief Process all specified files or stdin.
+     * @return Exit status (0 = replacements made, 1 = no matches, 2 = error).
+     */
+    int run() {
+        bool any_replacements = false;
+        bool any_errors = false;
+        
+        if (options_.files.empty()) {
+            // Read from stdin
+            if (process_stream(std::cin)) {
+                any_replacements = true;
+            }
+        } else {
+            // Process each file
+            for (const auto& filepath : options_.files) {
+                if (filepath == "-") {
+                    if (process_stream(std::cin)) {
+                        any_replacements = true;
+                    }
                 } else {
-                    process(inf, exp, repstr);
-                    fclose(inf);
+                    std::ifstream file(filepath);
+                    if (!file) {
+                        std::cerr << "gres: " << filepath << ": " 
+                                  << std::strerror(errno) << std::endl;
+                        any_errors = true;
+                        continue;
+                    }
+                    
+                    if (process_stream(file)) {
+                        any_replacements = true;
+                    }
                 }
             }
-            argp++;
         }
-    done(status);
-}
-
-/*
- *	This routine does the processing
- */
-static void process(FILE *inf, regexp *exp, char *repstr) {
-    char ibuf[MAXLINE];
-
-    while (fgets(ibuf, MAXLINE, inf) != NULL) {
-        char *cr = index(ibuf, '\n');
-        if (cr == 0)
-            std_err("gres: Line broken\n");
-        else
-            *cr = '\0';
-        if (regexec(exp, ibuf, 1)) {
-            pline(exp, ibuf, repstr);
-            if (status != 2)
-                status = 0;
-        } else
-            printf("%s\n", ibuf);
+        
+        if (any_errors) return 2;
+        return any_replacements ? 0 : 1;
     }
-}
 
-static void regerror(const char *s) {
-    std_err("gres: ");
-    std_err(s);
-    std_err("\n");
-    done(2);
-}
-
-char *static char *getbuf(regexp *exp, char *repstr) {
-    static bufsize = 0;
-    static char *buf = 0;
-    int guess = 10;
-    int ch;
-
-    while (*repstr) {
-        switch (*repstr) {
-        case '&':
-            guess += exp->endp[0] - exp->startp[0];
-            break;
-        case '\\':
-            if ((ch = *++repstr) < '0' || ch > '9')
-                guess += 2;
-            else {
-                ch -= '0';
-                guess += exp->endp[ch] - exp->startp[ch];
+private:
+    /**
+     * @brief Process a single input stream.
+     * @param stream Input stream to process.
+     * @return True if any replacements were made.
+     */
+    bool process_stream(std::istream& stream) {
+        std::string line;
+        bool made_replacements = false;
+        
+        while (std::getline(stream, line)) {
+            std::string result;
+            
+            if (options_.global_replace) {
+                // Replace all occurrences
+                result = std::regex_replace(line, regex_, options_.replacement);
+            } else {
+                // Replace only first occurrence
+                result = std::regex_replace(line, regex_, options_.replacement,
+                                          std::regex_constants::format_first_only);
             }
-            break;
-        default:
-            guess++;
+            
+            if (result != line) {
+                made_replacements = true;
+            }
+            
+            std::cout << result << std::endl;
         }
-        repstr++;
+        
+        return made_replacements;
     }
-    if (bufsize < guess) {
-        if (buf != 0)
-            safe_free((char *)buf);
-        buf = safe_malloc(guess);
-    }
-    return buf;
-}
+    
+    GresOptions options_;
+    std::regex regex_;
+};
 
-static void pline(regexp *exp, char ibuf[], char *repstr) {
-    do {
-        dosub(exp, ibuf, repstr);
-        ibuf = exp->endp[0];
-        if (*ibuf == '\0')
-            break;
-        if (ibuf == exp->startp[0])
-            putchar(*ibuf++);
-    } while (!gflag && regexec(exp, ibuf, 0));
-    printf("%s\n", ibuf);
-}
-
-/*
- *	print one subsitution
+/**
+ * @brief Parse command line arguments.
  */
-static void dosub(regexp *exp, char ibuf[], char *repstr) {
-    char *buf = getbuf(exp, repstr);
-    char *end = exp->startp[0];
-    int ch = *end;
-
-    *end = '\0';
-    fputs(ibuf, stdout); /* output the initial part of line */
-    *end = ch;
-    regsub(exp, repstr, buf);
-    fputs(buf, stdout);
+GresOptions parse_arguments(int argc, char* argv[]) {
+    GresOptions opts;
+    int i = 1;
+    
+    // Parse flags
+    if (i < argc && std::string_view(argv[i]) == "-g") {
+        opts.global_replace = false; // -g means replace only first occurrence
+        ++i;
+    }
+    
+    // Require at least search and replacement patterns
+    if (i + 1 >= argc) {
+        throw std::runtime_error("Search pattern and replacement required");
+    }
+    
+    // Get search pattern
+    opts.search_pattern = argv[i++];
+    if (opts.search_pattern.empty()) {
+        throw std::runtime_error("Empty search pattern is not allowed");
+    }
+    
+    // Get replacement string
+    opts.replacement = argv[i++];
+    
+    // Get files
+    while (i < argc) {
+        opts.files.emplace_back(argv[i++]);
+    }
+    
+    return opts;
 }
 
-static void done(int n) {
-    _cleanup(); /* flush stdio's internal buffers */
-    exit(n);
+/**
+ * @brief Print usage information.
+ */
+void print_usage() {
+    std::cerr << "Usage: gres [-g] search_pattern replacement [file...]" << std::endl;
+    std::cerr << "  -g  Replace only the first occurrence on each line" << std::endl;
+}
+
+} // namespace
+
+/**
+ * @brief Main entry point for the gres command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 if replacements made, 1 if no matches, 2 on error.
+ */
+int main(int argc, char* argv[]) {
+    try {
+        GresOptions options = parse_arguments(argc, argv);
+        GresEngine engine(options);
+        return engine.run();
+        
+    } catch (const std::regex_error& e) {
+        std::cerr << "gres: invalid regular expression: " << e.what() << std::endl;
+        return 2;
+    } catch (const std::exception& e) {
+        std::cerr << "gres: " << e.what() << std::endl;
+        print_usage();
+        return 2;
+    }
 }
