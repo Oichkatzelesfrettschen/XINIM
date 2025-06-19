@@ -3,7 +3,7 @@ Architecture Overview
 
 This document summarises the layered design of XINIM.  The kernel is
 organised into clearly separated components ranging from mathematical
-models to user facing libraries.
+models to user-facing libraries.
 
 Layers
 ------
