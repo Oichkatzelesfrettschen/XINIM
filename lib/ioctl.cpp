@@ -2,13 +2,14 @@
 #include "../include/lib.hpp" // C++23 header
 #include "../include/sgtty.hpp"
 
+// Helper union type encapsulating the possible ioctl argument structures.
+union IoctlArg {
+    sgttyb *argp; ///< Pointer to sgttyb parameters
+    tchars *argt; ///< Pointer to terminal control characters
+};
+
 // Perform an I/O control operation on a terminal device.
-int ioctl(
-    int fd, int request,
-    union {
-        struct sgttyb *argp;
-        struct tchars *argt;
-    } u)
+int ioctl(int fd, int request, IoctlArg u)
 
 {
     int n;

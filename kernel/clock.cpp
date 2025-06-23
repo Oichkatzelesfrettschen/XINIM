@@ -32,6 +32,7 @@
 #include "../h/signal.hpp"
 #include "../h/type.hpp"
 #include "../include/lib.hpp" // for send/receive primitives
+#include "../include/shared/signal_constants.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"

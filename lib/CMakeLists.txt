@@ -13,6 +13,14 @@ list(REMOVE_ITEM LIB_SRC
     "${CMAKE_CURRENT_LIST_DIR}/getc.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/putc.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/io/src/stdio_compat.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/regexp.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/regsub.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/signal.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/sleep.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/sprintf.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/stb.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/syslib.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/ungetc.cpp"
 )
 
 # Define the static library target as minix_libc

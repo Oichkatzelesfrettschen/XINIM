@@ -1,5 +1,5 @@
-#include "minix/io/standard_streams.hpp"
-#include "minix/io/file_stream.hpp"
+#include "xinim/io/standard_streams.hpp"
+#include "xinim/io/file_stream.hpp"
 
 #include <unistd.h>
 
