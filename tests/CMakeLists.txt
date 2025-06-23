@@ -6,6 +6,12 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
+# Recommended build flags
+set(CMAKE_CXX_FLAGS_DEBUG "-g3 -O0 -fsanitize=address,undefined")
+set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -flto -march=native")
+set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
+add_compile_options(-Wall -Wextra -Wpedantic)
+
 enable_testing()
 find_package(Threads REQUIRED)
 

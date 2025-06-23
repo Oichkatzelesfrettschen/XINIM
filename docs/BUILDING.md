@@ -1,151 +1,172 @@
+Below is the **fully-merged and expanded “Building and Testing” guide**.
+All conflict markers have been removed, duplicate passages deduplicated, and the two alternative sections (“Recommended Compiler Flags” and the richer “Build Modes” table) have been fused into one cohesive chapter.
+
+````markdown
 # Building and Testing
 
-This document describes how to build the Minix 1 sources and verify that the
-build environment works on a Unix-like host.
+This document explains how to build the Minix 1 sources and verify that the
+tool-chain works on a Unix-like host.
 
-The codebase is currently a **work in progress** focused on reproducing the
-original Minix simplicity on modern arm64 and x86_64 machines using C++23.
+The codebase is **work-in-progress**, aiming to reproduce classic Minix
+simplicity on modern **arm64** and **x86-64** machines using **C++23**.
 
-## Prerequisites
-A 64-bit x86 compiler toolchain supporting C++23 is required. Install Clang++ 18 and the full LLVM 18 suite—including lld and lldb—before building or running tests. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
+---
 
-### Installing Dependencies
-Execute `tools/setup.sh` to install Clang, LLVM and additional build tools. The script expects an unrestricted network connection to Ubuntu repositories. If downloads fail the script gracefully falls back to any preinstalled Clang, lld and lldb. Verify the detected version with `clang++ --version` after running the script.
+## 1 · Prerequisites
 
-## Building with Makefiles
+* **C++23 tool-chain** – Clang 18 ✚ LLVM 18 (lld, lldb) is recommended; GCC 13+
+  also works.
+* **Assemblers** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
+* **CMake** ≥ 3.5 if you prefer that build system.
+* **Make** / POSIX shell for the traditional Makefiles.
 
-Each top level component (for example `kernel`, `lib` and `mm`) contains a
-traditional `Makefile`.  Change into the directory and run `make` to build the
-component.  For example:
+All packages can be installed automatically:
+
+```sh
+tools/setup.sh            # installs clang/lld/lldb, nasm, cmake …
+clang++ --version         # check detected version
+````
+
+The script falls back to existing Clang/Llvm if the network is offline.
+
+---
+
+## 2 · Building with Makefiles
+
+Every top-level component (`kernel`, `lib`, `mm`, …) has a classic
+`Makefile`. Compile in place:
 
 ```sh
 cd lib
 make
 ```
 
-The Makefiles use relative paths to locate headers and the C library.
-Headers are taken from `../include` and the library defaults to
-`../lib/lib.a`.  Override `CC`, `CFLAGS`, or `LDFLAGS` on the command
-line to adjust the build.
+* Headers are read from `../include`.
+* The default library path is `../lib/lib.a`.
 
-## Building with CMake
+Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line when tuning.
 
-A more convenient option is to use CMake from the repository root:
+---
+
+## 3 · Building with CMake
+
+From the repository root:
 
 ```sh
 cmake -B build
 cmake --build build
 ```
 
-You can select the AT or PC/XT wini driver using the options described in the
-`README.md` file.
+Driver variants (AT vs PC/XT) can be selected via CMake options (see
+`README.md`).
 
-## Cross Compiling for x86_64
+---
 
-The build can target a bare x86\_64 system using a cross toolchain.  Specify the
-tool prefix through the `CROSS_PREFIX` variable.  When invoking CMake directly
-pass `-DCROSS_COMPILE_X86_64=ON` along with the prefix.  Clang will be invoked
-with that prefix for cross compiling:
+## 4 · Cross-compiling for x86-64
+
+Specify a **cross prefix**:
 
 ```sh
 cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
 cmake --build build
 ```
 
-These commands will call `${CROSS_PREFIX}clang++` for compilation.
-
-The top-level `Makefile` accepts the same variable so the above commands can be
-simplified to:
+or
 
 ```sh
 make CROSS_PREFIX=x86_64-elf-
 ```
 
-The Makefile passes the prefix to clang++ automatically.
+The build system then invokes `${CROSS_PREFIX}clang++`.
 
-## Recommended Compiler Flags
+---
 
-The project targets both x86_64 and arm64 hosts using Clang. The
-following flags give good diagnostics and performance during development:
+## 5 · Build Modes & Recommended Flags
 
-```sh
-clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native
-```
+The project provides three canonical modes; each mode is reproducible by
+setting `BUILD_MODE=<mode>` when using `make`, or the equivalent CMake
+`-DCMAKE_BUILD_TYPE=` flag.
 
-These options are suitable for compiling the small example programs in
-`test/` and mirror the flags used in CI.  Adjust `-O2` to `-O3` when
-benchmarking.
+| Mode        | Purpose                        | Representative flags                   |
+| ----------- | ------------------------------ | -------------------------------------- |
+| **debug**   | Heavy diagnostics + sanitizers | `-g3 -O0 -fsanitize=address,undefined` |
+| **release** | Maximum performance / size     | `-O3 -DNDEBUG -flto -march=native`     |
+| **profile** | gprof / perf instrumentation   | `-O2 -g -pg`                           |
 
-Advanced builds may enable link-time optimization (LTO) and profile guided
-optimization (PGO). The LLVM toolchain also ships with the Polly optimizer
-for loop transformations which can be toggled via `-mllvm -polly`.
-
-## Testing the Build
-
-To quickly check that the toolchain works you can compile one of the sample
-programs in the `test` directory.  For instance:
-
-```sh
-make -C test f=t10a LIB=
-```
-
-Passing `LIB=` avoids linking against the project library, letting the example
-compile even if the rest of the system has not been built yet.  Successful
-compilation confirms the compiler and assembler are functioning correctly.
-
-Alternatively invoke `clang++` directly with the standard flags used during
-development:
+Typical ad-hoc compilation during development:
 
 ```sh
 clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native \
-    tests/t10a.cpp -o tests/t10a
-./tests/t10a
+        example.cpp -o example
 ```
 
-### Running the Example Programs
+Advanced builds may add **LTO**, **PGO**, or LLVM **Polly** (`-mllvm -polly`).
 
-Execute the newly built program directly from the `test/` directory:
+---
+
+## 6 · Testing the Tool-chain
+
+Quick smoke test:
+
+```sh
+make -C test f=t10a LIB=       # skips lib.a linkage
+```
+
+Or compile directly:
+
+```sh
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native \
+        tests/t10a.cpp -o tests/t10a
+./tests/t10a && echo "✓ tool-chain OK"
+```
+
+---
+
+## 7 · Running Example Programs
 
 ```sh
 ./test/t10a
 echo $?
 ```
 
-The `t10a.cpp` program simply returns `0`, so `echo $?` prints `0` when the
-toolchain is working properly.
+Expected exit status is **0**.
 
-## Historical DOS Build Scripts
+---
 
-The `tools/c86` directory stores batch files and legacy utilities once used with
-an MS-DOS cross compiler. They are kept for reference but are not executed by
-the current build. Modern equivalents written in C (for example `bootblok.cpp`)
-provide the needed functionality and are built automatically.
+## 8 · Historical DOS Build Scripts
 
-## Modernization Script
+Legacy MS-DOS batch files live in `tools/c86`. They are retained for
+archaeology only; modern C++ replacements (e.g. `bootblok.cpp`) are built
+automatically.
 
-A helper script `tools/modernize_cpp17.sh` automates renaming sources to
-`.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
-header into each file. Invoke it from the repository root when ready to move
-the codebase fully to C++23.
+---
 
-## Development Tools
+## 9 · Modernization Helper
 
-Several optional utilities generate code metrics and perform static analysis.
-Install them using the package manager and Python's package installer:
+`tools/modernize_cpp17.sh` converts `.c`/`.h` to modern `.cpp`/`.hpp`,
+updates include paths, and drops a temporary header banner. Run it when
+switching fully to C++23.
+
+---
+
+## 10 · Development Utilities
 
 ```sh
 sudo apt-get install -y cloc cppcheck cscope
 python3 -m pip install --user lizard
 ```
 
-### Running the Tools
-
-Run the helper script `tools/run_cppcheck.sh` from the repository root to
-generate static analysis and metrics reports:
+Generate reports:
 
 ```sh
 tools/run_cppcheck.sh
 ```
 
-Reports are written to `build/reports/` in XML or JSON format. The cscope
-database is also generated in this directory.
+Outputs land in `build/reports/` (XML / JSON) along with a `cscope` DB.
+
+---
+
+```
+
+*File is now conflict-free, consistently formatted, and combines the best of both original branches.*
+```

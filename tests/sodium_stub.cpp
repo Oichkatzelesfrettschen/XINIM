@@ -1,4 +1,4 @@
-#include "sodium.h"
+#include "sodium.hpp"
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
