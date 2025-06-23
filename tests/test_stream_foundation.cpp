@@ -1,9 +1,9 @@
 // tests/test_stream_foundation.cpp
 // Minimal Stream architecture verification
 
-#include "minix/io/file_operations.hpp" // open_stream declarations
-#include "minix/io/file_stream.hpp"     // FileStream definition
-#include "minix/io/standard_streams.hpp"
+#include "xinim/io/file_operations.hpp" // open_stream declarations
+#include "xinim/io/file_stream.hpp"     // FileStream definition
+#include "xinim/io/standard_streams.hpp"
 #include <array>
 #include <cassert>
 #include <cstring>

@@ -1,12 +1,35 @@
 cmake_minimum_required(VERSION 3.5)
 project(minix1 CXX C)
 
-# Default to clang when no explicit compiler is configured
+# Default to clang-18 when no explicit compiler is configured.
+# Fall back to clang-20 if available and finally to the generic clang
+# wrapper.
 if(NOT CMAKE_C_COMPILER)
-  set(CMAKE_C_COMPILER clang)
+  find_program(CLANG_18 clang-18)
+  if(CLANG_18)
+    set(CMAKE_C_COMPILER ${CLANG_18})
+  else()
+    find_program(CLANG_20 clang-20)
+    if(CLANG_20)
+      set(CMAKE_C_COMPILER ${CLANG_20})
+    else()
+      set(CMAKE_C_COMPILER clang)
+    endif()
+  endif()
 endif()
+
 if(NOT CMAKE_CXX_COMPILER)
-  set(CMAKE_CXX_COMPILER clang++)
+  find_program(CLANGXX_18 clang++-18)
+  if(CLANGXX_18)
+    set(CMAKE_CXX_COMPILER ${CLANGXX_18})
+  else()
+    find_program(CLANGXX_20 clang++-20)
+    if(CLANGXX_20)
+      set(CMAKE_CXX_COMPILER ${CLANGXX_20})
+    else()
+      set(CMAKE_CXX_COMPILER clang++)
+    endif()
+  endif()
 endif()
 
 # Enforce a strict C++23 environment across the project

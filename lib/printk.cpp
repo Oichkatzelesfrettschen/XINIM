@@ -7,6 +7,7 @@
 #define MAXDIGITS 12
 
 #include "../include/shared/number_to_ascii.hpp"
+#include <cstdio>
 
 static int bintoascii(long num, int radix, char a[MAXDIGITS]);
 
@@ -19,7 +20,7 @@ void printk(char *s, int *arglist) {
     valp = (int *)&arglist;
     while (*s != '\0') {
         if (*s != '%') {
-            putc(*s++);
+            std::putchar(*s++);
             continue;
         }
 
@@ -67,31 +68,31 @@ void printk(char *s, int *arglist) {
             break;
         case 'c':
             k = *valp++;
-            putc(k);
+            std::putchar(k);
             s++;
             continue;
         case 's':
             p = (char *)*valp++;
             p1 = p;
             while ((c = *p++) != '\0')
-                putc(c);
+                std::putchar(c);
             s++;
             if ((k = w - (p - p1 - 1)) > 0)
                 while (k--)
-                    putc(' ');
+                    std::putchar(' ');
             continue;
         default:
-            putc('%');
-            putc(*s++);
+            std::putchar('%');
+            std::putchar(*s++);
             continue;
         }
 
         k = bintoascii(l, r, a);
         if ((r = w - k) > 0)
             while (r--)
-                putc(' ');
+                std::putchar(' ');
         for (r = k - 1; r >= 0; r--)
-            putc(a[r]);
+            std::putchar(a[r]);
         s++;
     }
 }

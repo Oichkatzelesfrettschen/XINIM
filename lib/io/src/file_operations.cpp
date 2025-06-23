@@ -1,6 +1,6 @@
-#include "minix/io/file_operations.hpp"
-#include "minix/io/file_stream.hpp"
-#include "minix/io/standard_streams.hpp"
+#include "xinim/io/file_operations.hpp"
+#include "xinim/io/file_stream.hpp"
+#include "xinim/io/standard_streams.hpp"
 
 #include <array>
 #include <cstring>
