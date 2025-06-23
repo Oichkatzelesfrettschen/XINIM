@@ -1,9 +1,7 @@
 #include "../include/lib.hpp" // C++23 header
 #include "../include/stdio.hpp"
 
-setbuf(iop, buffer) FILE *iop;
-char *buffer;
-{
+void setbuf(FILE *iop, char *buffer) {
     if (iop->_buf && testflag(iop, IOMYBUF))
         safe_free(iop->_buf);
 

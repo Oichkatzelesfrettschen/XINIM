@@ -16,15 +16,9 @@
 
 #include <csetjmp>
 
-using jmp_buf = std::jmp_buf; /* expose the standard buffer type */
+using jmp_buf = ::jmp_buf; /* expose the standard buffer type */
 
-/*
- * Delegate to the standard versions.  These are inline so calls are
- * forwarded directly without additional overhead.
- */
-inline int setjmp(jmp_buf env) { return std::setjmp(env); } // std::setjmp is not noexcept
-[[noreturn]] inline void longjmp(jmp_buf env, int val) noexcept {
-    std::longjmp(env, val);
-} // std::longjmp is [[noreturn]]
+extern "C" int setjmp(jmp_buf env);
+extern "C" [[noreturn]] void longjmp(jmp_buf env, int val);
 
 #endif /* SETJMP_H */

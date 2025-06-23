@@ -13,16 +13,19 @@ set -euo pipefail
 sudo apt-get update
 
 # Install build utilities, analysis tools and documentation generators.
+# Prefer clang-11 if available; otherwise fall back to clang-14.
+if ! sudo apt-get install -y --no-install-recommends clang-11 lld-11; then
+    sudo apt-get install -y --no-install-recommends clang-14 lld-14
+fi
+
 sudo apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
     nasm \
-    clang \
     clang-tidy \
     clang-format \
     clang-tools \
     clangd \
-    lld \
     llvm \
     llvm-dev \
     libclang-dev \
@@ -54,7 +57,10 @@ sudo apt-get install -y --no-install-recommends \
     qemu-user \
     tmux \
     cloc \
-    cscope
+    cscope \
+    gcc-x86-64-linux-gnu \
+    g++-x86-64-linux-gnu \
+    binutils-x86-64-linux-gnu
 
 # Ensure ack is installed for convenient searching
 if ! command -v ack >/dev/null 2>&1; then

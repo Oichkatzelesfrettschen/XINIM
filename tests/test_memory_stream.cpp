@@ -1,6 +1,6 @@
 // Simple MemoryStream unit test
 
-#include "minix/io/memory_stream.hpp"
+#include "xinim/io/memory_stream.hpp"
 
 #include <array>
 #include <cstddef>

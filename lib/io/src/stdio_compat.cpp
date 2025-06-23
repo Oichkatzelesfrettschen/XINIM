@@ -1,15 +1,15 @@
+#include "xinim/io/stdio_compat.hpp"
+#include "xinim/io/file_operations.hpp"
+#include "xinim/io/file_stream.hpp"
+#include "xinim/io/standard_streams.hpp"
+#include <cerrno>
 #include <cstdarg>
 #include <cstdio>
-#include <cerrno>
 #include <expected>
 #include <mutex>
 #include <span>
 #include <system_error>
 #include <unordered_map>
-#include "minix/io/file_stream.hpp"
-#include "minix/io/standard_streams.hpp"
-#include "minix/io/file_operations.hpp"
-#include "minix/io/stdio_compat.hpp"
 
 namespace minix::io::compat {
 
