@@ -116,6 +116,8 @@ static void enqueue_packet(Packet &&pkt) {
             g_callback(g_queue.back());
         } catch (const std::exception &e) {
             std::cerr << "net_driver: callback error: " << e.what() << std::endl;
+        } catch (...) {
+            std::cerr << "net_driver: callback error: unknown exception" << std::endl;
         }
     }
 }
