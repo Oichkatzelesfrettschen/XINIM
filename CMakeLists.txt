@@ -85,7 +85,7 @@ else()
   set(WINI_DRIVER pc)
 endif()
 
-option(BUILD_SYSTEM "Build Minix system components" ON)
+option(BUILD_SYSTEM "Build Minix system components" OFF)
 
 if(BUILD_SYSTEM)
   add_subdirectory(lib)
@@ -98,6 +98,8 @@ endif()
 
 add_subdirectory(crypto)
 
-# Enable unit testing and add the tests directory
-enable_testing()
-add_subdirectory(tests)
+option(ENABLE_UNIT_TESTS "Build unit tests" OFF)
+if(ENABLE_UNIT_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()

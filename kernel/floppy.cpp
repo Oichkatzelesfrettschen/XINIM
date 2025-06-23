@@ -23,13 +23,37 @@
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../h/type.hpp"
+#include "../include/lib.hpp" // for send/receive primitives
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
-#include <cstdint>   // For uint64_t, uint16_t etc.
-#include <cstddef>   // For std::size_t, nullptr
 #include <algorithm> // For std::min if used
+#include <cstddef>   // For std::size_t, nullptr
+#include <cstdint>   // For uint64_t, uint16_t etc.
+#include <cstdio>    // for printf
+
+// Interfaces provided by other kernel modules
+extern "C" void panic(const char *msg, int code) noexcept;
+void lock() noexcept;
+void unlock() noexcept;
+void port_out(unsigned port, unsigned value) noexcept;
+void port_in(unsigned port, unsigned *val) noexcept;
+uint64_t umap(struct proc *rp, int seg, std::size_t vir, std::size_t count);
+
+// Forward declarations of internal helpers
+static int do_rdwt(message *m_ptr) noexcept;
+static void dma_setup(struct floppy *fp) noexcept;
+static void start_motor(struct floppy *fp) noexcept;
+static void stop_motor() noexcept;
+static int seek(struct floppy *fp) noexcept;
+static int transfer(struct floppy *fp) noexcept;
+static int recalibrate(struct floppy *fp) noexcept;
+static void reset() noexcept;
+static void fdc_out(int val) noexcept;
+static int fdc_results(struct floppy *fp) noexcept;
+static void clock_mess(int ticks, void (*func)()) noexcept;
+static void send_mess() noexcept;
 
 /* I/O Ports used by floppy disk task. */
 #define DOR 0x3F2        /* motor drive control bits */
@@ -138,7 +162,7 @@ PRIVATE int d;            /* diskette/drive combination */
 
 PRIVATE message mess; /* message buffer for in and out */
 
-PRIVATE char len[] = {-1, 0, 1, -1, 2, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, 4};
+PRIVATE char sector_len[] = {-1, 0, 1, -1, 2, -1, -1, 3, -1, -1, -1, -1, -1, -1, -1, 4};
 PRIVATE char interleave[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15};
 
 /* Four combinations of diskette/drive are supported:
@@ -161,7 +185,7 @@ PRIVATE int mtr_setup[NT] = {HZ / 4, HZ / 4, 3 * HZ / 4, 3 * HZ / 4}; /* in tick
 PUBLIC void floppy_task() noexcept { // Added void return, noexcept
     /* Main program of the floppy disk driver task. */
 
-    int r, caller, proc_nr;
+    int r, caller, caller_proc;
 
     /* Here is the main loop of the disk task.  It waits for a message, carries
      * it out, and sends a reply.
@@ -172,7 +196,7 @@ PUBLIC void floppy_task() noexcept { // Added void return, noexcept
         if (mess.m_source < 0)
             panic("disk task got message from ", mess.m_source);
         caller = mess.m_source;
-        proc_nr = proc_nr(mess);
+        caller_proc = ::proc_nr(mess);
 
         /* Now carry out the work. */
         switch (mess.m_type) {
@@ -183,13 +207,13 @@ PUBLIC void floppy_task() noexcept { // Added void return, noexcept
             r = do_rdwt(&mess);
             break;
         default:
-            r = ErrorCode::EINVAL;
+            r = static_cast<int>(ErrorCode::EINVAL);
             break;
         }
 
         /* Finally, prepare and send the reply message. */
         mess.m_type = TASK_REPLY;
-        rep_proc_nr(mess) = proc_nr;
+        rep_proc_nr(mess) = caller_proc;
         rep_status(mess) = r; /* # of bytes transferred or error code */
         send(caller, &mess);  /* send reply to caller */
     }
@@ -198,29 +222,29 @@ PUBLIC void floppy_task() noexcept { // Added void return, noexcept
 /*===========================================================================*
  *				do_rdwt					     *
  *===========================================================================*/
-static int f_do_rdwt(message *m_ptr) noexcept { // PRIVATE -> static, renamed, noexcept
+static int do_rdwt(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Carry out a read or write request from the disk. */
     register struct floppy *fp;
     int r, drive, errors;
-    void stop_motor() noexcept; // Forward declaration for modernized stop_motor
     int64_t block; // Was long, for m_ptr->POSITION (int64_t)
 
     /* Decode the message parameters. */
-    drive = m_ptr->DEVICE; // DEVICE from message is int
+    drive = device(*m_ptr); // DEVICE from message is int
     if (drive < 0 || drive >= NR_DRIVES)
-        return (ErrorCode::EIO);
+        return static_cast<int>(ErrorCode::EIO);
     fp = &floppy[drive];           /* 'fp' points to entry for this drive */
     fp->fl_drive = drive;          /* save drive number explicitly */
     fp->fl_opcode = m_ptr->m_type; /* DISK_READ or DISK_WRITE */
     // m_ptr->POSITION (m2_l1) is int64_t. BLOCK_SIZE is int.
-    if (m_ptr->POSITION % BLOCK_SIZE != 0)
-        return (ErrorCode::EINVAL);
-    block = m_ptr->POSITION / SECTOR_SIZE; // SECTOR_SIZE is int
-    if (block >= HC_SIZE) // HC_SIZE is int
-        return (EOF);   /* sector is beyond end of 1.2M disk */
-    d = fp->fl_density; /* diskette/drive combination */
+    if (position(*m_ptr) % BLOCK_SIZE != 0)
+        return static_cast<int>(ErrorCode::EINVAL);
+    block = position(*m_ptr) / SECTOR_SIZE; // SECTOR_SIZE is int
+    if (block >= HC_SIZE)                   // HC_SIZE is int
+        return EOF;                         /* sector is beyond end of 1.2M disk */
+    d = fp->fl_density;                     /* diskette/drive combination */
     fp->fl_cylinder = static_cast<int>(block / (NR_HEADS * nr_sectors[d]));
-    fp->fl_sector = static_cast<int>(interleave[static_cast<std::size_t>(block % nr_sectors[d])]); // Array index must be size_t
+    fp->fl_sector = static_cast<int>(
+        interleave[static_cast<std::size_t>(block % nr_sectors[d])]); // Array index must be size_t
     fp->fl_head = static_cast<int>((block % (NR_HEADS * nr_sectors[d])) / nr_sectors[d]);
     // count(*m_ptr) gets m2_i1 (int). fp->fl_count is std::size_t.
     fp->fl_count = static_cast<std::size_t>(count(*m_ptr));
@@ -228,7 +252,7 @@ static int f_do_rdwt(message *m_ptr) noexcept { // PRIVATE -> static, renamed, n
     fp->fl_address = reinterpret_cast<std::size_t>(address(*m_ptr));
     fp->fl_procnr = proc_nr(*m_ptr); // proc_nr gets m2_i2 (int). fp->fl_procnr is int.
     if (fp->fl_count != static_cast<std::size_t>(BLOCK_SIZE)) // BLOCK_SIZE is int
-        return (ErrorCode::EINVAL);
+        return static_cast<int>(ErrorCode::EINVAL);
 
     errors = 0;
 
@@ -276,13 +300,14 @@ static int f_do_rdwt(message *m_ptr) noexcept { // PRIVATE -> static, renamed, n
     clock_mess(MOTOR_OFF, stop_motor);
     if (r == OK && fp->fl_cylinder > 0)
         initialized = 1; /* seek works */
-    return (r == OK ? BLOCK_SIZE : ErrorCode::EIO);
+    return (r == OK ? BLOCK_SIZE : static_cast<int>(ErrorCode::EIO));
 }
 
 /*===========================================================================*
  *				dma_setup				     *
  *===========================================================================*/
-static void dma_setup(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void
+dma_setup(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
      * the DMA (Direct Memory Access) chip is loaded with the 20-bit memory address
      * to be read from or written to, the byte count minus 1, and a read or write
@@ -292,19 +317,20 @@ static void dma_setup(struct floppy *fp) noexcept { // PRIVATE -> static, modern
      */
 
     int mode, low_addr, high_addr, top_addr, low_ct, high_ct, top_end;
-    std::size_t vir, ct;      // vir_bytes -> std::size_t
-    uint64_t user_phys;       // phys_bytes -> uint64_t
+    std::size_t vir, ct; // vir_bytes -> std::size_t
+    uint64_t user_phys;  // phys_bytes -> uint64_t
     // extern phys_bytes umap(); // umap returns uint64_t
 
     mode = (fp->fl_opcode == DISK_READ ? DMA_READ : DMA_WRITE);
     vir = fp->fl_address; // fl_address is std::size_t
-    ct = fp->fl_count;   // fl_count is std::size_t
+    ct = fp->fl_count;    // fl_count is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     user_phys = umap(proc_addr(fp->fl_procnr), D, vir, ct);
     // BYTE is int (0377). user_phys is uint64_t.
     low_addr = static_cast<int>(user_phys & BYTE);
     high_addr = static_cast<int>((user_phys >> 8) & BYTE);
-    top_addr = static_cast<int>((user_phys >> 16) & BYTE); // Assumes physical addresses are <= 20 bits for DMA
+    top_addr = static_cast<int>((user_phys >> 16) &
+                                BYTE);          // Assumes physical addresses are <= 20 bits for DMA
     low_ct = static_cast<int>((ct - 1) & BYTE); // ct is std::size_t
     high_ct = static_cast<int>(((ct - 1) >> 8) & BYTE);
 
@@ -335,7 +361,8 @@ static void dma_setup(struct floppy *fp) noexcept { // PRIVATE -> static, modern
 /*===========================================================================*
  *				start_motor				     *
  *===========================================================================*/
-static void start_motor(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void
+start_motor(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Control of the floppy disk motors is a big pain.  If a motor is off, you
      * have to turn it on first, which takes 1/2 second.  You can't leave it on
      * all the time, since that would wear out the diskette.  However, if you turn
@@ -349,18 +376,17 @@ static void start_motor(struct floppy *fp) noexcept { // PRIVATE -> static, mode
      */
 
     int motor_bit, running;
-    void send_mess() noexcept; // Forward declaration for modernized send_mess
 
-    lock(); // noexcept
+    lock();                              // noexcept
     motor_bit = 1 << (fp->fl_drive + 4); /* bit mask for this drive */
     motor_goal = motor_bit | ENABLE_INT | fp->fl_drive;
     if (motor_status & prev_motor)
         motor_goal |= prev_motor;
     running = motor_status & motor_bit; /* nonzero if this motor is running */
-    port_out(DOR, motor_goal); // noexcept
+    port_out(DOR, motor_goal);          // noexcept
     motor_status = motor_goal;
     prev_motor = motor_bit; /* record motor started for next time */
-    unlock(); // noexcept
+    unlock();               // noexcept
 
     /* If the motor was already running, we don't have to wait for it. */
     if (running)
@@ -402,8 +428,8 @@ static int seek(struct floppy *fp) noexcept { // PRIVATE -> static, noexcept
         return (OK);
 
     /* No.  Wrong cylinder.  Issue a SEEK and wait for interrupt. */
-    fdc_out(FDC_SEEK); // noexcept
-    fdc_out((fp->fl_head << 2) | fp->fl_drive); // noexcept
+    fdc_out(FDC_SEEK);                           // noexcept
+    fdc_out((fp->fl_head << 2) | fp->fl_drive);  // noexcept
     fdc_out(fp->fl_cylinder * steps_per_cyl[d]); // noexcept
     if (need_reset)
         return (ERR_SEEK); /* if controller is sick, abort seek */
@@ -429,7 +455,6 @@ static int transfer(struct floppy *fp) noexcept { // PRIVATE -> static, moderniz
     /* The drive is now on the proper cylinder.  Read or write 1 block. */
 
     int r, s, op;
-    extern int olivetti;
 
     /* Never attempt a transfer if the drive is uncalibrated or motor is off. */
     if (fp->fl_calibration == UNCALIBRATED)
@@ -443,15 +468,15 @@ static int transfer(struct floppy *fp) noexcept { // PRIVATE -> static, moderniz
 
     /* The command is issued by outputing 9 bytes to the controller chip. */
     op = (fp->fl_opcode == DISK_READ ? FDC_READ : FDC_WRITE);
-    fdc_out(op); // noexcept
-    fdc_out((fp->fl_head << 2) | fp->fl_drive); // noexcept
-    fdc_out(fp->fl_cylinder);                 /* tell controller which cylinder */ // noexcept
-    fdc_out(fp->fl_head);                     /* tell controller which head */ // noexcept
-    fdc_out(fp->fl_sector);                   /* tell controller which sector */ // noexcept
-    fdc_out(static_cast<int>(len[SECTOR_SIZE / DIVISOR])); /* sector size */ // noexcept
-    fdc_out(nr_sectors[d]);                   /* tell controller how big a track is */ // noexcept
-    fdc_out(gap[d]);                          /* tell controller how big sector gap is */ // noexcept
-    fdc_out(DTL);                             /* tell controller about data length */ // noexcept
+    fdc_out(op);                                                                    // noexcept
+    fdc_out((fp->fl_head << 2) | fp->fl_drive);                                     // noexcept
+    fdc_out(fp->fl_cylinder); /* tell controller which cylinder */                  // noexcept
+    fdc_out(fp->fl_head); /* tell controller which head */                          // noexcept
+    fdc_out(fp->fl_sector); /* tell controller which sector */                      // noexcept
+    fdc_out(static_cast<int>(sector_len[SECTOR_SIZE / DIVISOR])); /* sector size */ // noexcept
+    fdc_out(nr_sectors[d]); /* tell controller how big a track is */                // noexcept
+    fdc_out(gap[d]); /* tell controller how big sector gap is */                    // noexcept
+    fdc_out(DTL); /* tell controller about data length */                           // noexcept
 
     /* Block, waiting for disk interrupt. */
     if (need_reset)
@@ -486,10 +511,12 @@ static int transfer(struct floppy *fp) noexcept { // PRIVATE -> static, moderniz
 /*===========================================================================*
  *				fdc_results				     *
  *===========================================================================*/
-static int fdc_results(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
+static int
+fdc_results(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
     /* Extract results from the controller after an operation. */
 
-    int i, j, status, ready;
+    int i, j, ready;
+    unsigned status;
 
     /* Loop, extracting bytes from FDC until it says it has no more. */
     for (i = 0; i < MAX_RESULTS; i++) {
@@ -508,7 +535,7 @@ static int fdc_results(struct floppy *fp) noexcept { // PRIVATE -> static, moder
             return (OK);
         if ((status & DIRECTION) == 0)
             return (ERR_STATUS);
-        port_in(FDC_DATA, &status); // noexcept
+        port_in(FDC_DATA, &status);                           // noexcept
         fp->fl_results[i] = static_cast<char>(status & BYTE); // BYTE is int
     }
 
@@ -526,7 +553,8 @@ static void fdc_out(int val) noexcept { // PRIVATE -> static, modernized signatu
      * If the controller refuses to listen, the FDC chip is given a hard reset.
      */
 
-    int retries, r;
+    int retries;
+    unsigned r;
 
     if (need_reset)
         return; /* if controller is not listening, return */
@@ -534,10 +562,10 @@ static void fdc_out(int val) noexcept { // PRIVATE -> static, modernized signatu
 
     /* It may take several tries to get the FDC to accept a command. */
     while (retries-- > 0) {
-        port_in(FDC_STATUS, &r); // noexcept
+        port_in(FDC_STATUS, &r);   // noexcept
         r &= (MASTER | DIRECTION); /* just look at bits 2 and 3 */
         if (r != CTL_ACCEPTING)
-            continue; /* FDC is not listening */
+            continue;            /* FDC is not listening */
         port_out(FDC_DATA, val); // noexcept
         return;
     }
@@ -549,7 +577,8 @@ static void fdc_out(int val) noexcept { // PRIVATE -> static, modernized signatu
 /*===========================================================================*
  *				recalibrate				     *
  *===========================================================================*/
-static int recalibrate(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
+static int
+recalibrate(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
     /* The floppy disk controller has no way of determining its absolute arm
      * position (cylinder).  Instead, it steps the arm a cylinder at a time and
      * keeps track of where it thinks it is (in software).  However, after a
@@ -624,13 +653,14 @@ static void reset() noexcept { // PRIVATE -> static, modernized signature, noexc
 /*===========================================================================*
  *				clock_mess				     *
  *===========================================================================*/
-static void clock_mess(int ticks, void (*func)()) noexcept { // PRIVATE -> static, (void)->(), noexcept
+static void clock_mess(int ticks,
+                       void (*func)()) noexcept { // PRIVATE -> static, (void)->(), noexcept
     /* Send the clock task a message. */
     // mess is global. DELTA_TICKS (m6_l1) is int64_t. ticks is int.
     mess.m_type = SET_ALARM;
     clock_proc_nr(mess) = FLOPPY; // clock_proc_nr (m6_i1) is int
     delta_ticks(mess) = static_cast<int64_t>(ticks);
-    func_to_call(mess) = func; // func_to_call (m6_f1) is func ptr
+    func_to_call(mess) = reinterpret_cast<int (*)()>(func); // func_to_call expects int(*)()
     sendrec(CLOCK, &mess);
 }
 
