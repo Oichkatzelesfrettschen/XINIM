@@ -25,6 +25,7 @@ if ! sudo apt-get install -y --no-install-recommends clang-18 lld-18; then
 
 fi
 
+# Core build and analysis tools
 sudo apt-get install -y --no-install-recommends \
     build-essential \
     cmake \
@@ -54,10 +55,8 @@ sudo apt-get install -y --no-install-recommends \
     python3-breathe \
     python3-sphinx-rtd-theme \
     python3-pip \
-    # libsodium provides crypto primitives required by lattice networking
     libsodium-dev \
     libsodium23 \
-    # JSON parser required by service manager
     nlohmann-json3-dev \
     qemu-system-x86 \
     qemu-utils \

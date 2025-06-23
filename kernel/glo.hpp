@@ -7,9 +7,9 @@
 
 /* Global variables used in the kernel. */
 
-#include "../h/type.hpp" // For real_time, message, xinim::pid_t (via core_types.hpp)
-#include "./const.hpp"   // For TASK_STACK_BYTES, K_STACK_BYTES
-// NR_TASKS is expected to be included via a general config header (e.g. h/const.hpp or defs.hpp)
+#include "../h/const.hpp" // For NR_TASKS and other global constants
+#include "../h/type.hpp"  // For real_time, message, xinim::pid_t (via core_types.hpp)
+#include "./const.hpp"    // For TASK_STACK_BYTES, K_STACK_BYTES
 
 /* Clocks and timers */
 EXTERN real_time realtime; /* real time clock (real_time -> xinim::time_t) */

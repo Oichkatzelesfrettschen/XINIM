@@ -10,7 +10,6 @@ set(KERNEL_SRC
     table.cpp tty.cpp idt64.cpp mpx64.cpp klib64.cpp klib88.cpp mpx88.cpp paging.cpp
     wormhole.cpp lattice_ipc.cpp net_driver.cpp wait_graph.cpp pqcrypto.cpp syscall.cpp service.cpp ${WINI_SRC})
 
-
 #Note : klib88.cpp and mpx88.cpp were added as they appear to be kernel related sources.
 #wini.cpp is a generic name, might be a common file or superseded by at_wini / xt_wini.
 #For now, including specific at_wini / xt_wini based on WINI_DRIVER.
@@ -33,4 +32,5 @@ target_include_directories(minix_kernel PUBLIC
     "."     # For headers in kernel/ itself like proc.h, const.h, glo.h, type.h
     "${CMAKE_SOURCE_DIR}/include" # For global includes like "errno.h"
     "${CMAKE_SOURCE_DIR}/h"       # For global includes from h/
+    "${CMAKE_SOURCE_DIR}/kernel/minix" # For console.hpp and related headers
 )
