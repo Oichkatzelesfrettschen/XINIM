@@ -9,6 +9,9 @@ original Minix simplicity on modern arm64 and x86_64 machines using C++23.
 ## Prerequisites
 A 64-bit x86 compiler toolchain supporting C++23 is required. Install Clang++ 18 and the full LLVM 18 suite—including lld and lldb—before building or running tests. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
 
+### Installing Dependencies
+Execute `tools/setup.sh` to install Clang, LLVM and additional build tools. The script expects an unrestricted network connection to Ubuntu repositories. If downloads fail the script gracefully falls back to any preinstalled Clang, lld and lldb. Verify the detected version with `clang++ --version` after running the script.
+
 ## Building with Makefiles
 
 Each top level component (for example `kernel`, `lib` and `mm`) contains a
@@ -60,6 +63,23 @@ make CROSS_PREFIX=x86_64-elf-
 
 The Makefile passes the prefix to clang++ automatically.
 
+## Recommended Compiler Flags
+
+The project targets both x86_64 and arm64 hosts using Clang. The
+following flags give good diagnostics and performance during development:
+
+```sh
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native
+```
+
+These options are suitable for compiling the small example programs in
+`test/` and mirror the flags used in CI.  Adjust `-O2` to `-O3` when
+benchmarking.
+
+Advanced builds may enable link-time optimization (LTO) and profile guided
+optimization (PGO). The LLVM toolchain also ships with the Polly optimizer
+for loop transformations which can be toggled via `-mllvm -polly`.
+
 ## Testing the Build
 
 To quickly check that the toolchain works you can compile one of the sample
@@ -72,6 +92,15 @@ make -C test f=t10a LIB=
 Passing `LIB=` avoids linking against the project library, letting the example
 compile even if the rest of the system has not been built yet.  Successful
 compilation confirms the compiler and assembler are functioning correctly.
+
+Alternatively invoke `clang++` directly with the standard flags used during
+development:
+
+```sh
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native \
+    tests/t10a.cpp -o tests/t10a
+./tests/t10a
+```
 
 ### Running the Example Programs
 

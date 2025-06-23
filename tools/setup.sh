@@ -5,27 +5,38 @@
 
 set -euo pipefail
 
+# Helper function for optional package installation. It will attempt to
+# install the requested packages and continue even if the operation fails.
+opt_install() {
+    if ! sudo apt-get install -y --no-install-recommends "$@"; then
+        echo "setup.sh: warning: failed to install $*" >&2
+        return 1
+    fi
+    return 0
+}
+
 # Required packages:
 # - libsodium-dev/libsodium23 for encryption features used by unit tests and
 #   networking components.
 
 # Update package lists.
-sudo apt-get update
+if ! sudo apt-get update; then
+    echo "setup.sh: warning: apt-get update failed; using existing package lists" >&2
+fi
 
 # Install build utilities, analysis tools and documentation generators.
 # Prefer clang-18. If unavailable try clang-20 from the LLVM apt repository
 # and finally fall back to the distro default clang package.
-if ! sudo apt-get install -y --no-install-recommends clang-18 lld-18; then
+if ! opt_install clang-18 lld-18 lldb-18; then
     # Attempt to use the official LLVM installer for clang-20.
     if curl -fsSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 20; then
-        sudo apt-get install -y --no-install-recommends clang-20 lld-20
+        opt_install clang-20 lld-20 lldb-20
     else
-        sudo apt-get install -y --no-install-recommends clang lld
+        opt_install clang lld lldb
     fi
-
 fi
 
-sudo apt-get install -y --no-install-recommends \
+opt_install \
     build-essential \
     cmake \
     nasm \
@@ -54,10 +65,8 @@ sudo apt-get install -y --no-install-recommends \
     python3-breathe \
     python3-sphinx-rtd-theme \
     python3-pip \
-    # libsodium provides crypto primitives required by lattice networking
     libsodium-dev \
     libsodium23 \
-    # JSON parser required by service manager
     nlohmann-json3-dev \
     qemu-system-x86 \
     qemu-utils \
@@ -71,7 +80,7 @@ sudo apt-get install -y --no-install-recommends \
 
 # Ensure ack is installed for convenient searching
 if ! command -v ack >/dev/null 2>&1; then
-    sudo apt-get install -y --no-install-recommends ack
+    opt_install ack
 fi
 
 # Install optional ack helpers for Python and Node
@@ -81,5 +90,16 @@ fi
 python3 -m pip install --user lizard
 
 # Attempt to install libfuzzer development package if available.
-sudo apt-get install -y --no-install-recommends libfuzzer-dev || true
+opt_install libfuzzer-dev || true
+
+# Display the detected toolchain versions for reference.
+if command -v clang++ >/dev/null 2>&1; then
+    echo "Using clang: $(clang++ --version | head -n 1)"
+fi
+if command -v ld.lld >/dev/null 2>&1; then
+    echo "Using lld: $(ld.lld --version | head -n 1)"
+fi
+if command -v lldb >/dev/null 2>&1; then
+    echo "Using lldb: $(lldb --version | head -n 1)"
+fi
 
