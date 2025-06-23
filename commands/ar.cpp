@@ -14,35 +14,34 @@
 #include "signal.hpp"
 #include "stat.hpp"
 #include <array>
-#include <cstring>
-#include <string>
-#include <string_view>
+#include <csignal>
 #include <cstdio>
 #include <cstdlib>
-#include <unistd.h>
+#include <cstring>
 #include <fcntl.h>
-#include <sys/types.h>
+#include <string>
+#include <string_view>
 #include <sys/stat.h>
-#include <csignal>
+#include <sys/types.h>
+#include <unistd.h>
 
 /* Modern constants and helpers */
 constexpr int MAGIC_NUMBER = 0177545;
 
 // Forward declarations
-static void get(int argc, char* argv[]);
-static void error(bool quit, const char* str1, const char* str2);
-static char* ar_basename(char* path);
-static int open_archive(const char* name, int mode);
-static MEMBER* get_member();
-static long swap(union swabber* sw_ptr);
-static ssize_t safe_write(int fd, const void* buffer, size_t size);
+static void get(int argc, char *argv[]);
+static void error(bool quit, const char *str1, const char *str2);
+static char *ar_basename(char *path);
+static int open_archive(const char *name, int mode);
+static MEMBER *get_member();
+static long swap(union swabber *sw_ptr);
+static ssize_t safe_write(int fd, const void *buffer, size_t size);
 
 /* Determine if a number is odd */
 [[nodiscard]] constexpr bool odd(int nr) { return nr & 0x01; }
 
 /* Round a number up to the next even value */
 [[nodiscard]] constexpr int even(int nr) { return odd(nr) ? nr + 1 : nr; }
-
 
 union swabber {
     struct sw {
@@ -62,7 +61,8 @@ struct MEMBER {
     char m_uid;
     char m_gid;
     short m_mode;
-    short m_size_1;    short m_size_2;
+    short m_size_1;
+    short m_size_2;
 };
 
 // Modern type aliases for better clarity
@@ -72,29 +72,44 @@ constexpr bool TRUE = true;
 
 // File operation modes
 constexpr int READ = 0;
-constexpr int APPEND = 2;  
+constexpr int APPEND = 2;
 constexpr int CREATE = 1;
 
 // Modern null pointer constants (avoid macro conflicts)
-constexpr MEMBER* NIL_MEM = nullptr;
-constexpr long* NIL_LONG = nullptr;
+constexpr MEMBER *NIL_MEM = nullptr;
+constexpr long *NIL_LONG = nullptr;
 
 // Buffer size constants
 constexpr std::size_t IO_SIZE = 10 * 1024;
 constexpr std::size_t BLOCK_SIZE = 1024;
 
+namespace {
 /**
- * @brief Flush output buffer
+     * @brief Index into the @ref terminal buffer.
+     *
+     * Tracks the number of characters
+ * currently stored in the buffer
+     * awaiting output.
+     */
+std::size_t terminal_index{0};
+} // namespace
+
+/**
+ * @brief Flush the terminal output buffer.
+ *
+ * Writes the buffered data to standard output
+ * using ::safe_write
+ * and resets the internal index used by ::print.
  */
-inline void flush() { /* TODO: Implement proper flush logic */ }
+inline void flush();
 
 /**
  * @brief Compare two strings for equality (first 14 characters)
  * @param str1 First string to compare
- * @param str2 Second string to compare  
+ * @param str2 Second string to compare
  * @return true if strings are equal, false otherwise
  */
-[[nodiscard]] inline bool equal(const char* str1, const char* str2) {
+[[nodiscard]] inline bool equal(const char *str1, const char *str2) {
     return !std::strncmp(str1, str2, 14);
 }
 
@@ -122,9 +137,7 @@ char temp_arch[] = "/tmp/ar.XXXXX";
 /**
  * @brief Display usage information and exit
  */
-[[noreturn]] static void usage() { 
-    error(true, "Usage: ar [adprtxv] archive [file] ...", nullptr); 
-}
+[[noreturn]] static void usage() { error(true, "Usage: ar [adprtxv] archive [file] ...", nullptr); }
 
 /**
  * @brief Display error message and optionally exit
@@ -132,17 +145,17 @@ char temp_arch[] = "/tmp/ar.XXXXX";
  * @param str1 Primary error message
  * @param str2 Optional secondary error message
  */
-[[noreturn]] static void error(bool quit, const char* str1, const char* str2) {
+[[noreturn]] static void error(bool quit, const char *str1, const char *str2) {
     const auto len1 = std::strlen(str1);
     write(2, str1, len1);
-    
+
     if (str2 != nullptr) {
         const auto len2 = std::strlen(str2);
         write(2, str2, len2);
     }
-    
+
     write(2, "\n", 1);
-    
+
     if (quit) {
         std::unlink(temp_arch);
         std::exit(1);
@@ -154,9 +167,9 @@ char temp_arch[] = "/tmp/ar.XXXXX";
  * @param path File path to process
  * @return Pointer to the basename portion of the path
  */
-[[nodiscard]] static char* ar_basename(char* path) {
-    char* ptr = path;
-    char* last = nullptr;
+[[nodiscard]] static char *ar_basename(char *path) {
+    char *ptr = path;
+    char *last = nullptr;
 
     while (*ptr != '\0') {
         if (*ptr == '/') {
@@ -164,16 +177,16 @@ char temp_arch[] = "/tmp/ar.XXXXX";
         }
         ptr++;
     }
-    
+
     if (last == nullptr) {
         return path;
     }
-    
+
     if (*(last + 1) == '\0') {
         *last = '\0';
         return ar_basename(path);
     }
-    
+
     return last + 1;
 }
 
@@ -183,7 +196,7 @@ char temp_arch[] = "/tmp/ar.XXXXX";
  * @param mode File access mode (READ, APPEND, CREATE)
  * @return File descriptor for the opened archive
  */
-[[nodiscard]] static int open_archive(const char* name, int mode) {
+[[nodiscard]] static int open_archive(const char *name, int mode) {
     constexpr unsigned short magic = MAGIC_NUMBER;
     int fd{-1};
 
@@ -192,7 +205,7 @@ char temp_arch[] = "/tmp/ar.XXXXX";
         if (fd < 0) {
             error(true, "Cannot create ", name);
         }
-        
+
         const auto bytes_written = ::write(fd, &magic, sizeof(magic));
         if (bytes_written != sizeof(magic)) {
             error(true, "Failed to write magic number to ", name);
@@ -212,10 +225,10 @@ char temp_arch[] = "/tmp/ar.XXXXX";
 
     // Reset to beginning and validate magic number
     ::lseek(fd, 0L, SEEK_SET);
-    
+
     unsigned short read_magic{0};
     const auto bytes_read = ::read(fd, &read_magic, sizeof(read_magic));
-    
+
     if (bytes_read != sizeof(read_magic) || read_magic != magic) {
         error(true, name, " is not in ar format.");
     }
@@ -227,7 +240,7 @@ char temp_arch[] = "/tmp/ar.XXXXX";
  * @brief Signal handler for cleanup on interrupt
  */
 static void cleanup_handler(int sig) {
-    static_cast<void>(sig);  // Suppress unused parameter warning
+    static_cast<void>(sig); // Suppress unused parameter warning
     ::unlink(temp_arch);
     std::exit(2);
 }
@@ -239,7 +252,7 @@ static void cleanup_handler(int sig) {
  * @param size Number of bytes to write
  * @return Number of bytes written, or -1 on error
  */
-[[nodiscard]] static ssize_t safe_write(int fd, const void* buffer, size_t size) {
+[[nodiscard]] static ssize_t safe_write(int fd, const void *buffer, size_t size) {
     const auto bytes_written = ::write(fd, buffer, size);
     if (bytes_written != static_cast<ssize_t>(size)) {
         error(true, "Write operation failed", nullptr);
@@ -252,12 +265,12 @@ static void cleanup_handler(int sig) {
  * @param argc Number of command line arguments
  * @param argv Array of command line argument strings
  * @return Exit status (0 for success, non-zero for error)
- * 
+ *
  * Parses command line flags and executes the appropriate archive operation.
- * Supported operations: append (a), delete (d), print (p), replace (r), 
+ * Supported operations: append (a), delete (d), print (p), replace (r),
  * show contents (t), verbose (v), extract (x).
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     // Validate minimum arguments
     if (argc < 3) {
         usage();
@@ -265,7 +278,7 @@ int main(int argc, char* argv[]) {
 
     // Parse command flags from argv[1]
     const std::string_view flags{argv[1]};
-    
+
     // Process each flag character
     for (const char flag : flags) {
         switch (flag) {
@@ -296,10 +309,10 @@ int main(int argc, char* argv[]) {
     }
 
     // Ensure exactly one operation is specified
-    const int operation_count = static_cast<int>(app_fl) + static_cast<int>(ex_fl) + 
-                               static_cast<int>(del_fl) + static_cast<int>(rep_fl) + 
-                               static_cast<int>(show_fl) + static_cast<int>(pr_fl);
-    
+    const int operation_count = static_cast<int>(app_fl) + static_cast<int>(ex_fl) +
+                                static_cast<int>(del_fl) + static_cast<int>(rep_fl) +
+                                static_cast<int>(show_fl) + static_cast<int>(pr_fl);
+
     if (operation_count != 1) {
         usage();
     }
@@ -309,9 +322,9 @@ int main(int argc, char* argv[]) {
         const int pid = getpid();
         constexpr int base_offset = 8;
         std::sprintf(&temp_arch[base_offset], "%05d", pid);
-    }    // Set up signal handler for cleanup
+    } // Set up signal handler for cleanup
     std::signal(SIGINT, cleanup_handler);
-    
+
     // Execute the archive operation
     get(argc, argv);
 
@@ -321,27 +334,27 @@ int main(int argc, char* argv[]) {
 /**
  * @brief Read the next member header from the archive
  * @return Pointer to member structure, or nullptr if end of archive
- * 
+ *
  * Reads a MEMBER structure from the archive file descriptor and validates
  * the read operation. Updates global mem_time and mem_size variables.
  */
-[[nodiscard]] static MEMBER* get_member() {
+[[nodiscard]] static MEMBER *get_member() {
     static MEMBER member{};
-    
+
     const auto bytes_read = read(ar_fd, &member, sizeof(MEMBER));
-    
+
     if (bytes_read == 0) {
-        return nullptr;  // End of archive
+        return nullptr; // End of archive
     }
-    
+
     if (bytes_read != sizeof(MEMBER)) {
         error(true, "Corrupted archive.", nullptr);
     }
-    
+
     // Update global time and size from member data
     mem_time = swap(&(member.m_time_1));
     mem_size = swap(&(member.m_size_1));
-    
+
     return &member;
 }
 
@@ -350,7 +363,7 @@ int main(int argc, char* argv[]) {
  * @param sw_ptr Pointer to swabber union containing the data to swap
  * @return The swapped long value
  */
-[[nodiscard]] static long swap(union swabber* sw_ptr) {
+[[nodiscard]] static long swap(union swabber *sw_ptr) {
     swapped.mem.mem_1 = (sw_ptr->mem).mem_2;
     swapped.mem.mem_2 = (sw_ptr->mem).mem_1;
     return swapped.joined;
@@ -513,19 +526,46 @@ static void copy_member(MEMBER *member, int from, int to) {
     }
 }
 
+/**
+ * @brief Write buffered output.
+ *
+ * When called with @c nullptr the buffer contents are
+ * flushed
+ * immediately using ::safe_write. Otherwise the characters are
+ * appended to the buffer
+ * and written out once the buffer becomes
+ * full.
+ *
+ * @param str Null-terminated string or @c
+ * nullptr to flush the buffer.
+ */
 static void print(char *str) {
-    static index = 0;
-
     if (str == NIL_PTR) {
-        write(1, terminal.data(), index);
-        index = 0;
+        safe_write(1, terminal.data(), terminal_index);
+        terminal_index = 0;
         return;
     }
 
     while (*str != '\0') {
-        terminal.data()[index++] = *str++;
-        if (index == BLOCK_SIZE)
+        terminal[terminal_index++] = *str++;
+        if (terminal_index == BLOCK_SIZE) {
             flush();
+        }
+    }
+}
+/**
+ * @brief Flush buffered output to the terminal.
+ *
+ * Writes the accumulated characters using
+ * @ref safe_write and
+ * resets the @c terminal_index so that subsequent calls to
+ * ::print begin
+ * writing at the start of the buffer.
+ */
+inline void flush() {
+    if (terminal_index != 0) {
+        safe_write(1, terminal.data(), terminal_index);
+        terminal_index = 0;
     }
 }
 
