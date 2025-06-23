@@ -13,9 +13,16 @@ set -euo pipefail
 sudo apt-get update
 
 # Install build utilities, analysis tools and documentation generators.
-# Prefer clang-11 if available; otherwise fall back to clang-14.
-if ! sudo apt-get install -y --no-install-recommends clang-11 lld-11; then
-    sudo apt-get install -y --no-install-recommends clang-14 lld-14
+# Prefer clang-18. If unavailable try clang-20 from the LLVM apt repository
+# and finally fall back to the distro default clang package.
+if ! sudo apt-get install -y --no-install-recommends clang-18 lld-18; then
+    # Attempt to use the official LLVM installer for clang-20.
+    if curl -fsSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 20; then
+        sudo apt-get install -y --no-install-recommends clang-20 lld-20
+    else
+        sudo apt-get install -y --no-install-recommends clang lld
+    fi
+
 fi
 
 sudo apt-get install -y --no-install-recommends \
