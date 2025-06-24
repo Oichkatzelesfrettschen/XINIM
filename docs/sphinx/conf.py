@@ -26,7 +26,8 @@ extensions = [
     "breathe",  # Integrates Doxygen XML output for API reference
 ]
 
-# Mapping of projects for the Breathe extension.
+# Mapping of projects for the Breathe extension.  The path is relative to this
+# configuration file and matches the ``OUTPUT_DIRECTORY`` from ``Doxyfile``.
 breathe_projects = {
     "XINIM": str(Path("..") / "doxygen" / "xml"),
 }
