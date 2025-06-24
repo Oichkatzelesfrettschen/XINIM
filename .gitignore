@@ -1,6 +1,14 @@
-# Ignore build artifacts
+# Ignore build artifacts and directories
 build/
 */build/
+
+# Ignore compiled executables and binaries
+*.exe
+*.out
+*.elf
+*.bin
+ls_test
+*/ls_test
 
 # Ignore binary output directories
 bin/
