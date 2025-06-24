@@ -52,7 +52,7 @@ PUBLIC int do_brk() {
      * separate I & D space have the SEPARATE bit in mp_flags set.
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     int r;
     std::size_t v, new_sp;  // vir_bytes -> std::size_t
     std::size_t new_clicks; // vir_clicks -> std::size_t
@@ -91,7 +91,7 @@ PUBLIC int do_brk() {
      * negative, the adjustment of data or stack fails and ErrorCode::ENOMEM is returned.
      */
 
-    register struct mem_map *mem_sp, *mem_dp;
+    struct mem_map *mem_sp, *mem_dp;
     std::size_t sp_click, gap_base, lower, old_clicks; // vir_clicks -> std::size_t
     int changed, r, ft;
     int64_t base_of_stack, delta; // Changed from long for clarity and defined width
@@ -218,7 +218,7 @@ PRIVATE void stack_fault(int proc_nr) {
      * If this is impossible because data segment is in the way, kill the process.
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     int r;
     std::size_t new_sp; // vir_bytes -> std::size_t
 

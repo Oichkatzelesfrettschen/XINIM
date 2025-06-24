@@ -37,10 +37,13 @@ int vargv;               // Used in set_name, seems to hold a virtual address te
 /*===========================================================================*
  *				DEBUG routines here			     *
  *===========================================================================*/
+/**
+ * @brief Dump the process table for debugging.
+ */
 void p_dmp() noexcept { // K&R -> modern C++, added noexcept
     /* Proc table dump */
 
-    register struct proc *rp;
+    struct proc *rp;
     char *np;
     std::size_t base, limit; // vir_bytes -> std::size_t
     uint64_t first, last;    // Used for physical click addresses
@@ -109,8 +112,11 @@ void p_dmp() noexcept { // K&R -> modern C++, added noexcept
     printf("\n");
 }
 
+/**
+ * @brief Dump process memory mappings.
+ */
 void map_dmp() noexcept { // K&R -> modern C++, added noexcept
-    register struct proc *rp;
+    struct proc *rp;
     std::size_t base_k, size_k; // For K calculations, was vir_bytes
 
     printf("\nPROC   -----TEXT-----  -----DATA-----  ----STACK-----  BASE SIZE\n");
@@ -144,7 +150,9 @@ void map_dmp() noexcept { // K&R -> modern C++, added noexcept
 char *nayme[] = {"PRINTR", "TTY   ", "WINCHE", "FLOPPY", "RAMDSK", "CLOCK ",
                  "SYS   ", "HARDWR", "MM    ", "FS    ", "INIT  "}; // Assuming INIT is at index
                                                                     // NR_TASKS + 0 for user procs
-/* Print process name by index */
+/**
+ * @brief Print a process name given its index.
+ */
 static void prname(int i) noexcept { // Added noexcept
     if (i == ANY + NR_TASKS)
         printf("ANY   ");
@@ -154,7 +162,9 @@ static void prname(int i) noexcept { // Added noexcept
         printf("%4d  ", i - NR_TASKS);
 }
 
-/* Store command name for dumping */
+/**
+ * @brief Store command name for dumping.
+ */
 static void set_name(int proc_nr, char *ptr) noexcept { // Added noexcept
     /* When an EXEC call is done, the kernel is told about the stack pointer.
      * It uses the stack pointer to find the command line, for dumping

@@ -222,9 +222,15 @@ PUBLIC void floppy_task() noexcept { // Added void return, noexcept
 /*===========================================================================*
  *				do_rdwt					     *
  *===========================================================================*/
+/**
+ * @brief Perform a single read or write request.
+ *
+ * @param m_ptr Message describing the
+ * operation.
+ * @return ::OK on success or an error code.
+ */
 static int do_rdwt(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
-    /* Carry out a read or write request from the disk. */
-    register struct floppy *fp;
+    struct floppy *fp;
     int r, drive, errors;
     int64_t block; // Was long, for m_ptr->POSITION (int64_t)
 
@@ -306,6 +312,11 @@ static int do_rdwt(message *m_ptr) noexcept { // PRIVATE -> static, modernized s
 /*===========================================================================*
  *				dma_setup				     *
  *===========================================================================*/
+/**
+ * @brief Program the DMA controller for a transfer.
+ *
+ * @param fp Drive descriptor.
+ */
 static void
 dma_setup(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
@@ -361,6 +372,11 @@ dma_setup(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signatu
 /*===========================================================================*
  *				start_motor				     *
  *===========================================================================*/
+/**
+ * @brief Turn on the floppy drive motor if necessary.
+ *
+ * @param fp Drive descriptor.
+ */
 static void
 start_motor(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Control of the floppy disk motors is a big pain.  If a motor is off, you
@@ -398,10 +414,15 @@ start_motor(struct floppy *fp) noexcept { // PRIVATE -> static, modernized signa
 /*===========================================================================*
  *				stop_motor				     *
  *===========================================================================*/
+/**
+ * @brief Callback to stop the floppy drive motor.
+ */
 static void stop_motor() noexcept { // Changed (void) to (), PRIVATE -> static, noexcept
     /* This routine is called by the clock interrupt after several seconds have
-     * elapsed with no floppy disk activity.  It checks to see if any drives are
-     * supposed to be turned off, and if so, turns them off.
+     * elapsed with
+     * no floppy disk activity.  It checks to see if any drives are
+     * supposed to be turned
+     * off, and if so, turns them off.
      */
 
     if ((motor_goal & MOTOR_MASK) != (motor_status & MOTOR_MASK)) {
@@ -413,6 +434,13 @@ static void stop_motor() noexcept { // Changed (void) to (), PRIVATE -> static, 
 /*===========================================================================*
  *				seek					     *
  *===========================================================================*/
+/**
+ * @brief Move the head to the desired cylinder.
+ *
+ * @param fp Drive descriptor.
+ * @return
+ * ::OK on success or an error code.
+ */
 static int seek(struct floppy *fp) noexcept { // PRIVATE -> static, noexcept
     /* Issue a SEEK command on the indicated drive unless the arm is already
      * positioned on the correct cylinder.
@@ -451,6 +479,13 @@ static int seek(struct floppy *fp) noexcept { // PRIVATE -> static, noexcept
 /*===========================================================================*
  *				transfer				     *
  *===========================================================================*/
+/**
+ * @brief Execute a single block data transfer.
+ *
+ * @param fp Drive descriptor.
+ * @return
+ * ::OK on success or an error code.
+ */
 static int transfer(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
     /* The drive is now on the proper cylinder.  Read or write 1 block. */
 
@@ -511,6 +546,13 @@ static int transfer(struct floppy *fp) noexcept { // PRIVATE -> static, moderniz
 /*===========================================================================*
  *				fdc_results				     *
  *===========================================================================*/
+/**
+ * @brief Retrieve result bytes from the floppy controller.
+ *
+ * @param fp Drive descriptor.
+ *
+ * @return ::OK on success or an error code.
+ */
 static int
 fdc_results(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
     /* Extract results from the controller after an operation. */
@@ -547,6 +589,11 @@ fdc_results(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param
 /*===========================================================================*
  *				fdc_out					     *
  *===========================================================================*/
+/**
+ * @brief Output a command byte to the floppy controller.
+ *
+ * @param val Value to send.
+ */
 static void fdc_out(int val) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Output a byte to the controller.  This is not entirely trivial, since you
      * can only write to it when it is listening, and it decides when to listen.
@@ -577,6 +624,13 @@ static void fdc_out(int val) noexcept { // PRIVATE -> static, modernized signatu
 /*===========================================================================*
  *				recalibrate				     *
  *===========================================================================*/
+/**
+ * @brief Recalibrate the drive to cylinder zero.
+ *
+ * @param fp Drive descriptor.
+ * @return
+ * ::OK on success or an error code.
+ */
 static int
 recalibrate(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param, noexcept
     /* The floppy disk controller has no way of determining its absolute arm
@@ -617,13 +671,16 @@ recalibrate(struct floppy *fp) noexcept { // PRIVATE -> static, modernized param
 /*===========================================================================*
  *				reset					     *
  *===========================================================================*/
+/**
+ * @brief Reset the floppy controller after an error.
+ */
 static void reset() noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Issue a reset to the controller.  This is done after any catastrophe,
      * like the controller refusing to respond.
      */
 
     int i, r, status;
-    register struct floppy *fp;
+    struct floppy *fp;
     /* Disable interrupts and strobe reset bit low. */
     need_reset = FALSE;
     lock();
@@ -653,6 +710,13 @@ static void reset() noexcept { // PRIVATE -> static, modernized signature, noexc
 /*===========================================================================*
  *				clock_mess				     *
  *===========================================================================*/
+/**
+ * @brief Schedule a callback with the clock task.
+ *
+ * @param ticks Number of ticks until the
+ * callback.
+ * @param func  Function to call when the time expires.
+ */
 static void clock_mess(int ticks,
                        void (*func)()) noexcept { // PRIVATE -> static, (void)->(), noexcept
     /* Send the clock task a message. */
@@ -667,6 +731,9 @@ static void clock_mess(int ticks,
 /*===========================================================================*
  *				send_mess				     *
  *===========================================================================*/
+/**
+ * @brief Notify the floppy task that the motor has started.
+ */
 static void send_mess() noexcept { // PRIVATE -> static, (void)->(), noexcept
     /* This routine is called when the clock task has timed out on motor startup.*/
 
