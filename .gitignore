@@ -1,6 +1,5 @@
 # Ignore build artifacts
-build/
-*/build/
+**/build/
 
 # Ignore binary output directories
 bin/
@@ -20,6 +19,10 @@ cmake_install.cppmake
 *.tmp
 *.d
 __pycache__/
+
+# Ignore analysis reports
+analysis_*.txt
+analysis_*_fresh.*
 
 # Ignore user cache directories and OS metadata
 /.cache/
