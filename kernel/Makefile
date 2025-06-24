@@ -1,98 +1,93 @@
-#The kernel directory contains PC / XT and AT wini driver sources.Set the
-# `WINI_DRIVER` variable to `pc` or `at` when invoking `make` to select the
-#correct driver.If not specified the PC / XT driver is used.
-#Use clang to compile the kernel
-CC ? = clang CFLAGS
-           ? = -O INC
-                   ? =../ include LIB
-                          ? =../ lib / lib.a LDFLAGS
-                                 ? = CFLAGS += -I$(INC) h =
-                                       ../
-                                       h l =../ lib
+# The kernel directory contains PC/XT and AT wini driver sources.
+# Set the WINI_DRIVER variable to 'pc' or 'at' when invoking make to
+# select the correct driver. If not specified the PC/XT driver is used.
+# Use clang to compile the kernel
 
-#Determine which driver source file to use
-                                                        WINI_DRIVER
-                                                ? = pc ifeq(
-                                                      $(DRIVER_AT),
-                                                      ON) ifeq($(DRIVER_PC), ON)
-                                                      $(error Select only one of DRIVER_AT or
-                                                        DRIVER_PC) endif WINI_DRIVER =
-                                                          at else ifeq($(DRIVER_PC),
-                                                                       ON) WINI_DRIVER = pc endif
+CC ?= clang
+CFLAGS ?= -O2
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
 
-                                                              ifeq($(WINI_DRIVER), at) WINI_SRC =
-                                                                  at_wini.cpp else WINI_SRC =
-                                                                      xt_wini.cpp endif
+CFLAGS += -I$(INC)
+h=../h
+l=../lib
 
-                                                                          obj =
-                                                                          mpx64.o idt64
-                                       .o main.o proc.o system.o tty.o clock.o memory.o floppy
-                                       .o wini.o printer.o table.o klib64.o dmp.o paging.o syscall.o
+# Determine which driver source file to use
+WINI_DRIVER ?= pc
+ifeq ($(DRIVER_AT),ON)
+	ifeq ($(DRIVER_PC),ON)
+		$(error Select only one of DRIVER_AT or DRIVER_PC)
+	endif
+	WINI_DRIVER = at
+else ifeq ($(DRIVER_PC),ON)
+	WINI_DRIVER = pc
+endif
 
-                                                                              kernel
-                                                : Makefile $(obj) $(LIB) @echo
-                                                      "Start linking Kernel" @ld $(LDFLAGS) -
-                                                      o kernel $(obj) $(LIB) $l / end
-                                       .o @echo "Kernel done"
+ifeq ($(WINI_DRIVER),at)
+WINI_SRC = at_wini.cpp
+else
+WINI_SRC = xt_wini.cpp
+endif
 
-#Compile klib64 from its C source
-                                                                                  klib64.o
-                                 : klib64.cpp $(CC) $(CFLAGS) - c - o $ @$ <
+obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o \
+	wini.o printer.o table.o klib64.o dmp.o paging.o syscall.o
 
-                                       mpx64.o
-                          : mpx64.cpp $(CC) $(CFLAGS) - c - o $ @$ <
+kernel: Makefile $(obj) $(LIB)
+	@echo "Start linking Kernel"
+	@ld $(LDFLAGS) -o kernel $(obj) $(LIB) $(l)/end.o
+	@echo "Kernel done"
 
-                                idt64.o
-                   : idt64.cpp $(CC) $(CFLAGS) - c -
-                         o idt64.o idt64
-                             .cpp
+# Compile klib64 from its C++ source
+klib64.o: klib64.cpp
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-                                 clock.o
-           : const.hpp type.hpp $h / const.hpp $h / type.hpp clock.o
-   : $h / callnr.hpp clock.o : $h / com.hpp clock.o : $h / error.hpp clock.o : $h /
-             signal.h clock.o : glo.h clock.o : proc.h
+mpx64.o: mpx64.cpp
+	$(CC) $(CFLAGS) -c -o $@ $<
 
-                                                    floppy.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp floppy.o : $h / callnr.hpp floppy.o : $h / com.hpp floppy.o : $h /
-             error.hpp floppy.o : glo.h floppy.o : proc.h
+idt64.o: idt64.cpp
+	$(CC) $(CFLAGS) -c -o idt64.o idt64.cpp
 
-                                                       dmp.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp dmp.o : $h / callnr.hpp dmp.o : $h / com.hpp dmp.o : $h /
-             error.hpp dmp.o : glo.h dmp.o : proc.h
+clock.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp $(h)/signal.hpp \
+	glo.hpp proc.hpp
 
-                                                 paging.o : const.hpp type.hpp../
-             include / paging.h main.o : const.hpp type.hpp $h / const.hpp $h / type.hpp main.o : $h /
-             callnr.hpp main.o : $h / com.hpp main.o : $h /
-             error.hpp main.o : glo.h main.o : proc.h
+floppy.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
+	glo.hpp proc.hpp
 
-                                                   memory.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp memory.o : $h / callnr.hpp memory.o : $h / com.hpp memory.o : $h /
-             error.hpp memory.o : proc.h
+dmp.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
+	glo.hpp proc.hpp
 
-                                      printer.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp printer.o : $h / callnr.hpp printer.o : $h / com.hpp printer.o : $h /
-             error
-                 .hpp
+paging.o: const.hpp type.hpp ../include/paging.hpp
 
-                     proc.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp proc.o : $h / callnr.hpp proc.o : $h / com.hpp proc.o : $h /
-             error.hpp proc.o : glo.h proc.o : proc.h
+main.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
+	glo.hpp proc.hpp
 
-                                                   system.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp system.o : $h / callnr.hpp system.o : $h / com.hpp system.o : $h /
-             error.hpp system.o : $h /
-             signal.h system.o : glo.h system.o : proc.h
+memory.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
+	proc.hpp
 
-                                                      table.o : const.hpp type.hpp $h /
-             const.hpp $h /
-             type.hpp table.o : glo.h table.o : proc.h
+printer.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp
 
-                                                  tty.o : const.hpp type.hpp $h /
-             const.hpp $h / type.hpp tty.o : $h / callnr.hpp tty.o : $h / com.hpp tty.o : $h /
-             error.hpp tty.o : $(INC) / sgtty.hpp tty.o : $h /
-             signal.h tty.o : glo.h tty.o : proc.h
+proc.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
+	glo.hpp proc.hpp
 
-                                                wini.o : $(WINI_SRC) const.hpp type.hpp $h /
-             const.hpp $h / type.hpp wini.o : $h / callnr.hpp wini.o : $h / com.hpp wini.o : $h /
-             error.hpp wini.o : proc.h $(CC) $(CFLAGS) -
-         c $(WINI_SRC) - o $ @
+system.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp $(h)/signal.hpp \
+	glo.hpp proc.hpp
+
+table.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	glo.hpp proc.hpp
+
+tty.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
+	$(INC)/sgtty.hpp $(h)/signal.hpp glo.hpp proc.hpp
+
+wini.o: $(WINI_SRC) const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
+	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp proc.hpp
+	$(CC) $(CFLAGS) -c $(WINI_SRC) -o $@
