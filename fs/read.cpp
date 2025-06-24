@@ -42,16 +42,26 @@ PUBLIC int rdwt_err;   /* set to ErrorCode::EIO if disk error occurs */
 /*===========================================================================*
  *				do_read					     *
  *===========================================================================*/
+/**
+ * @brief Perform the READ system call.
+ */
 PUBLIC int do_read() { return (read_write(READING)); }
 
 /*===========================================================================*
  *				read_write				     *
  *===========================================================================*/
+/**
+ * @brief Core routine for reading and writing files.
+ *
+ * @param rw_flag READING or WRITING.
+
+ * * @return Bytes transferred or error code.
+ */
 PUBLIC int read_write(int rw_flag) { // Modernized signature
     /* Perform read(fd, buffer, nbytes) or write(fd, buffer, nbytes) call. */
 
-    register struct inode *rip;
-    register struct filp *f;
+    struct inode *rip;
+    struct filp *f;
     int32_t bytes_left;      // file_pos -> int32_t
     int64_t f_size;          // To match compat_get_size, was file_pos
     std::size_t off, cum_io; // Was unsigned
@@ -211,12 +221,29 @@ PUBLIC int read_write(int rw_flag) { // Modernized signature
  *				rw_chunk				     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Transfer a partial block between user space and the buffer cache.
+ *
+ * @param rip
+ * Inode representing the file.
+ * @param position Starting byte position.
+ * @param off Offset
+ * within the block.
+ * @param chunk Number of bytes to transfer.
+ * @param rw_flag Direction of
+ * transfer.
+ * @param buff User buffer.
+ * @param seg  Segment for copy.
+ * @param usr  Process
+ * number.
+ * @return ::OK or error code.
+ */
 static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::size_t chunk,
                     int rw_flag, char *buff, int seg, int usr) {
     /* Read or write (part of) a block. */
 
-    register struct buf *bp;
-    register int r;
+    struct buf *bp;
+    int r;
     int dir, n, block_spec;
     uint16_t b;   // block_nr -> uint16_t
     uint16_t dev; // dev_nr -> uint16_t
@@ -282,6 +309,14 @@ static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::s
  *				read_map				     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Map a file position to a disk block.
+ *
+ * @param rip Inode pointer.
+ * @param
+ * position Byte offset within the file.
+ * @return Block number or kNoBlock.
+ */
 PUBLIC uint16_t read_map(struct inode *rip,
                          int32_t position) { // block_nr -> uint16_t, file_pos -> int32_t
     /* Given an inode and a position within the corresponding file, locate the
@@ -289,7 +324,7 @@ PUBLIC uint16_t read_map(struct inode *rip,
      * it.
      */
 
-    register struct buf *bp;
+    struct buf *bp;
     uint16_t z;                      // zone_nr -> uint16_t
     uint16_t b;                      // block_nr -> uint16_t
     int32_t excess, zone, block_pos; // Were long, but derived from file_pos (int32_t)
@@ -352,6 +387,20 @@ PUBLIC uint16_t read_map(struct inode *rip,
  *				rw_user					     *
  *===========================================================================*/
 // Modernized signature
+/**
+ * @brief Copy data between user space and the file system.
+ *
+ * @param s Source segment.
+ *
+ * @param u Source process.
+ * @param vir Virtual address.
+ * @param bytes Number of bytes.
+ *
+ * @param buff Buffer pointer.
+ * @param direction TO_USER or FROM_USER.
+ * @return Result of
+ * sys_copy.
+ */
 PUBLIC int rw_user(int s, int u, std::size_t vir, std::size_t bytes, char *buff, int direction) {
     // s, u, direction are int. vir, bytes are std::size_t (vir_bytes). buff is char*.
     /* Transfer a block of data.  Two options exist, depending on 'direction':
@@ -390,10 +439,13 @@ PUBLIC int rw_user(int s, int u, std::size_t vir, std::size_t bytes, char *buff,
 /*===========================================================================*
  *				read_ahead				     *
  *===========================================================================*/
+/**
+ * @brief Prefetch the next block for sequential reads.
+ */
 PUBLIC void read_ahead() { // Modernized signature (was already using ())
     /* Read a block into the cache before it is needed. */
 
-    register struct inode *rip;
+    struct inode *rip;
     struct buf *bp;
     uint16_t b; // block_nr -> uint16_t
     extern struct buf *get_block();

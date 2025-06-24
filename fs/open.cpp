@@ -32,12 +32,15 @@ PRIVATE char mode_map[] = {R_BIT, W_BIT, R_BIT | W_BIT, 0};
 /*===========================================================================*
  *				do_creat				     *
  *===========================================================================*/
+/**
+ * @brief Handle the CREAT system call.
+ */
 int do_creat() {
     /* Perform the creat(name, mode) system call. */
 
-    register struct inode *rip;
-    register int r;
-    register mask_bits bits;
+    struct inode *rip;
+    int r;
+    mask_bits bits;
     struct filp *fil_ptr;
     int file_d;
     extern struct inode *new_node();
@@ -103,10 +106,13 @@ int do_creat() {
 /*===========================================================================*
  *				do_mknod				     *
  *===========================================================================*/
+/**
+ * @brief Handle the MKNOD system call.
+ */
 int do_mknod() {
     /* Perform the mknod(name, mode, addr) system call. */
 
-    register mask_bits bits;
+    mask_bits bits;
 
     if (!super_user)
         return (ErrorCode::EPERM);                 /* only super_user may make nodes */
@@ -123,6 +129,15 @@ int do_mknod() {
  *				new_node				     *
  *===========================================================================*/
 // Changed to modern C++ signature, PRIVATE becomes static
+/**
+ * @brief Create a fresh inode on disk.
+ *
+ * @param path Path to the new node.
+ * @param bits
+ * Mode bits.
+ * @param z0 Initial zone.
+ * @return Pointer to inode or nullptr.
+ */
 static struct inode *new_node(char *path, uint16_t bits, uint16_t z0) {
     // path is char*
     // bits is mask_bits (uint16_t)
@@ -134,8 +149,8 @@ static struct inode *new_node(char *path, uint16_t bits, uint16_t z0) {
      * 'err_code' contains the appropriate message.
      */
 
-    register struct inode *rlast_dir_ptr, *rip;
-    register int r;
+    struct inode *rlast_dir_ptr, *rip;
+    int r;
     char string[NAME_SIZE]; // NAME_SIZE is std::size_t (was int)
     extern struct inode *alloc_inode(uint16_t,
                                      uint16_t); // Ensure this matches modernized alloc_inode
@@ -193,13 +208,16 @@ static struct inode *new_node(char *path, uint16_t bits, uint16_t z0) {
 /*===========================================================================*
  *				do_open					     *
  *===========================================================================*/
+/**
+ * @brief Handle the OPEN system call.
+ */
 int do_open() {
     /* Perform the open(name, mode) system call. */
 
-    register struct inode *rip;
+    struct inode *rip;
     struct filp *fil_ptr;
-    register int r;
-    register mask_bits bits;
+    int r;
+    mask_bits bits;
     int file_d;
     extern struct inode *eat_path();
 
@@ -260,11 +278,14 @@ int do_open() {
 /*===========================================================================*
  *				do_close				     *
  *===========================================================================*/
+/**
+ * @brief Handle the CLOSE system call.
+ */
 int do_close() {
     /* Perform the close(fd) system call. */
 
-    register struct filp *rfilp;
-    register struct inode *rip;
+    struct filp *rfilp;
+    struct inode *rip;
     int rw;
     int mode_word;
     extern struct filp *get_filp();
@@ -305,11 +326,14 @@ int do_close() {
 /*===========================================================================*
  *				do_lseek				     *
  *===========================================================================*/
+/**
+ * @brief Handle the LSEEK system call.
+ */
 int do_lseek() {
     /* Perform the lseek(ls_fd, offset, whence) system call. */
 
-    register struct filp *rfilp;
-    register file_pos64 pos;
+    struct filp *rfilp;
+    file_pos64 pos;
     extern struct filp *get_filp();
 
     /* Check to see if the file descriptor is valid. */

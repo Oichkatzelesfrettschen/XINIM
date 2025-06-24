@@ -1,46 +1,60 @@
-# Ignore build artifacts and directories
-build/
-*/build/
+###############################################################################
+#  Project-wide .gitignore — reconciled 2025-06-23
+#
+#  Ordering & precedence
+#  • Directory rules (trailing “/”) come first.
+#  • Generic glob patterns follow next.
+#  • More specific overrides can follow later.
+#  • Later rules override earlier ones.
+###############################################################################
 
-# Ignore compiled executables and binaries
-*.exe
-*.out
-*.elf
-*.bin
-ls_test
-*/ls_test
+# ── 1. Build & tool-chain artefacts ──────────────────────────────────────────
+**/build/                     # any “build” dir (out-of-source CMake, Meson…)
+build/                        # top-level build tree
+bin/                          # root-level binaries
+*/bin/                        # per-module bin/
 
-# Ignore binary output directories
-bin/
-*/bin/
+# ── 2. Compiler outputs & binaries ──────────────────────────────────────────
+*.o                           # object files
+*.a                           # static archives
+*.s~                          # assembly backups
+*.exe                         # Windows executables
+*.out                         # Unix executables
+*.elf                         # ELF binaries
+*.bin                         # raw binaries
 
-# Ignore object files and assembly backups
-*.o
-*.s~
-
-# Ignore CMake generated files
+# ── 3. CMake generated files ────────────────────────────────────────────────
 CMakeFiles/
 CMakeCache.txt
-cmake_install.cppmake
+cmake_install.cmake           # install script generator
 
-# Ignore other temporary files
+# ── 4. Documentation generators ─────────────────────────────────────────────
+docs/doxygen/                 # Doxygen HTML/LaTeX output
+docs/sphinx/html/
+docs/sphinx/_build/
+
+# ── 5. Logs, reports & temporary files ──────────────────────────────────────
 *.log
 *.tmp
 *.d
-__pycache__/
+analysis_*.txt                # analysis reports
+analysis_*_fresh.*
+perf.csv
+output.txt
+*_output.txt
+*.txt
 
-# Ignore user cache directories and OS metadata
-/.cache/
-*.DS_Store
+# ── 6. Language & tool caches ───────────────────────────────────────────────
+__pycache__/                  # Python byte-code cache
+.cache/                       # user-level build caches
+*.DS_Store                    # macOS metadata
 
-# Ignore editor backup files
+# ── 7. Editor & IDE backups ─────────────────────────────────────────────────
 *.idx
-*~
 *.swp
 *.bak
-docs/doxygen/
-/\.cache/
-*.DS_Store
+*~                            # generic “tilde” backups
 
-docs/sphinx/html/
-docs/sphinx/_build/
+# ── 8. Local test artefacts ─────────────────────────────────────────────────
+ls_test                       # ad-hoc test binary
+**/ls_test                    # ignore in subdirectories

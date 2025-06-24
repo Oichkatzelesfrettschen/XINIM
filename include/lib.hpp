@@ -46,22 +46,26 @@ extern "C" int begsig() noexcept; /* interrupts all vector here, (void) -> () */
 extern "C" void *safe_malloc(size_t size) noexcept;
 extern "C" void safe_free(void *ptr) noexcept;
 
-// RAII helper managing memory obtained through safe_malloc.
-// Automatically frees the memory when going out of scope.
+/**
+ * @brief RAII helper managing memory obtained through safe_malloc.
+ *
+ * Automatically frees
+ * the memory when going out of scope.
+ */
 template <typename Type> class SafeBuffer {
   public:
-    // Allocate space for 'count' objects of the given type using safe_malloc.
+    /** Allocate space for @p count objects of the given type. */
     explicit SafeBuffer(std::size_t count = 1)
         : size_(count), ptr_(static_cast<Type *>(safe_malloc(sizeof(Type) * count))) {}
 
-    // Free the owned memory.
+    /// Free the owned memory.
     ~SafeBuffer() { safe_free(ptr_); }
 
     // Non-copyable to avoid double free.
     SafeBuffer(const SafeBuffer &) = delete;
     SafeBuffer &operator=(const SafeBuffer &) = delete;
 
-    // Move support for flexibility.
+    /// Move support for flexibility.
     SafeBuffer(SafeBuffer &&other) noexcept : size_(other.size_), ptr_(other.ptr_) {
         other.ptr_ = nullptr;
         other.size_ = 0;
@@ -77,15 +81,16 @@ template <typename Type> class SafeBuffer {
         return *this;
     }
 
-    // Access the underlying pointer.
+    /// Access the underlying pointer.
     [[nodiscard]] Type *get() noexcept { return ptr_; }
+    /// Access the underlying pointer (const overload).
     [[nodiscard]] const Type *get() const noexcept { return ptr_; }
 
-    // Array-style element access.
+    /// Array-style element access.
     Type &operator[](std::size_t idx) noexcept { return ptr_[idx]; }
     const Type &operator[](std::size_t idx) const noexcept { return ptr_[idx]; }
 
-    // Release ownership without freeing.
+    /// Release ownership without freeing.
     [[nodiscard]] Type *release() noexcept {
         Type *tmp = ptr_;
         ptr_ = nullptr;
