@@ -1,93 +1,76 @@
-# The kernel directory contains PC/XT and AT wini driver sources.
-# Set the WINI_DRIVER variable to 'pc' or 'at' when invoking make to
-# select the correct driver. If not specified the PC/XT driver is used.
-# Use clang to compile the kernel
+# SPDX-License-Identifier: MIT
+# ---------------------------------------------------------------------------
+#  Kernel Makefile (reconciled 2025-06-23)
+#
+#  • Default driver: PC/XT  (xt_wini.cpp)
+#  • Override with:   make WINI_DRIVER=at
+#                     make WINI_DRIVER=pc
+#  • Legacy knobs     DRIVER_AT=ON / DRIVER_PC=ON are still honoured.
+# ---------------------------------------------------------------------------
 
-CC ?= clang
-CFLAGS ?= -O2
-INC ?= ../include
-LIB ?= ../lib/lib.a
-LDFLAGS ?=
+# ---------------------------------------------------------------------------
+# 1. Tool-chain
+# ---------------------------------------------------------------------------
+CXX      ?= clang++
+CXXFLAGS ?= -O2 -std=c++23 -ffreestanding -fno-exceptions -fno-rtti \
+            -Wall -Wextra -Werror -I../include -I../h -I.
+LDFLAGS  ?= -static -nostdlib -T ../linker.ld
+LIB       = ../lib/lib.a
 
-CFLAGS += -I$(INC)
-h=../h
-l=../lib
-
-# Determine which driver source file to use
-WINI_DRIVER ?= pc
+# ---------------------------------------------------------------------------
+# 2. Driver selection logic
+# ---------------------------------------------------------------------------
+WINI_DRIVER ?= pc          # default
 ifeq ($(DRIVER_AT),ON)
-	ifeq ($(DRIVER_PC),ON)
-		$(error Select only one of DRIVER_AT or DRIVER_PC)
-	endif
-	WINI_DRIVER = at
+  ifeq ($(DRIVER_PC),ON)
+    $(error Select only one of DRIVER_AT or DRIVER_PC)
+  endif
+  WINI_DRIVER := at
 else ifeq ($(DRIVER_PC),ON)
-	WINI_DRIVER = pc
+  WINI_DRIVER := pc
 endif
 
 ifeq ($(WINI_DRIVER),at)
-WINI_SRC = at_wini.cpp
+  WINI_SRC := at_wini.cpp
+else ifeq ($(WINI_DRIVER),pc)
+  WINI_SRC := xt_wini.cpp
 else
-WINI_SRC = xt_wini.cpp
+  $(error Invalid WINI_DRIVER '$(WINI_DRIVER)'; use 'pc' or 'at')
 endif
 
-obj = mpx64.o idt64.o main.o proc.o system.o tty.o clock.o memory.o floppy.o \
-	wini.o printer.o table.o klib64.o dmp.o paging.o syscall.o
+# ---------------------------------------------------------------------------
+# 3. Source lists
+# ---------------------------------------------------------------------------
+SRCS := \
+  clock.cpp dmp.cpp floppy.cpp main.cpp memory.cpp printer.cpp proc.cpp \
+  system.cpp table.cpp tty.cpp idt64.cpp mpx64.cpp klib64.cpp klib88.cpp \
+  mpx88.cpp paging.cpp wormhole.cpp lattice_ipc.cpp net_driver.cpp \
+  wait_graph.cpp pqcrypto.cpp syscall.cpp service.cpp $(WINI_SRC)
 
-kernel: Makefile $(obj) $(LIB)
-	@echo "Start linking Kernel"
-	@ld $(LDFLAGS) -o kernel $(obj) $(LIB) $(l)/end.o
-	@echo "Kernel done"
+OBJS := $(SRCS:.cpp=.o)
+DEPS := $(OBJS:.o=.d)
 
-# Compile klib64 from its C++ source
-klib64.o: klib64.cpp
-	$(CC) $(CFLAGS) -c -o $@ $<
+# ---------------------------------------------------------------------------
+# 4. Targets
+# ---------------------------------------------------------------------------
+.PHONY: all clean
+all: kernel
 
-mpx64.o: mpx64.cpp
-	$(CC) $(CFLAGS) -c -o $@ $<
+kernel: $(OBJS) $(LIB)
+	@echo "[LD]  $@"
+	$(CXX) $(LDFLAGS) $(OBJS) $(LIB) -o $@
 
-idt64.o: idt64.cpp
-	$(CC) $(CFLAGS) -c -o idt64.o idt64.cpp
+-include $(DEPS)
 
-clock.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp $(h)/signal.hpp \
-	glo.hpp proc.hpp
+# ---------------------------------------------------------------------------
+# 5. Pattern rule (C++ → object + depfile)
+# ---------------------------------------------------------------------------
+%.o: %.cpp
+	@echo "[CXX] $<"
+	$(CXX) $(CXXFLAGS) -MMD -MP -c $< -o $@
 
-floppy.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
-	glo.hpp proc.hpp
-
-dmp.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
-	glo.hpp proc.hpp
-
-paging.o: const.hpp type.hpp ../include/paging.hpp
-
-main.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
-	glo.hpp proc.hpp
-
-memory.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
-	proc.hpp
-
-printer.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp
-
-proc.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
-	glo.hpp proc.hpp
-
-system.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp $(h)/signal.hpp \
-	glo.hpp proc.hpp
-
-table.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	glo.hpp proc.hpp
-
-tty.o: const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp \
-	$(INC)/sgtty.hpp $(h)/signal.hpp glo.hpp proc.hpp
-
-wini.o: $(WINI_SRC) const.hpp type.hpp $(h)/const.hpp $(h)/type.hpp \
-	$(h)/callnr.hpp $(h)/com.hpp $(h)/error.hpp proc.hpp
-	$(CC) $(CFLAGS) -c $(WINI_SRC) -o $@
+# ---------------------------------------------------------------------------
+# 6. Maintenance
+# ---------------------------------------------------------------------------
+clean:
+	rm -f $(OBJS) $(DEPS) kernel
