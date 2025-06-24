@@ -5,6 +5,7 @@ INC ?= ../include
 LIB ?= ../lib/lib.a
 LDFLAGS ?=
 CFLAGS ?= -F
+CFLAGS += -march=x86-64-v1 -mtune=generic
 CFLAGS += -I$(INC)
 
 all:

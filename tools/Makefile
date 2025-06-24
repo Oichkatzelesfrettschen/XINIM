@@ -3,7 +3,8 @@
 
 # Compiler configuration
 CXX := clang++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -Werror -O2
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -Werror -O2 \
+    -march=x86-64-v1 -mtune=generic
 CXXFLAGS += -Wno-unused-parameter -Wno-missing-field-initializers
 
 # Debug configuration
