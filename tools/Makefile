@@ -2,8 +2,9 @@
 # Modern C++23 implementation with comprehensive build options
 
 # Compiler configuration
-CXX := clang++
-CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -Werror -O2
+CXX := clang++-18
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -Werror -O2 \
+    -march=x86-64-v1 -msse2 -msse3 -mssse3 -msse4.1 -msse4.2
 CXXFLAGS += -Wno-unused-parameter -Wno-missing-field-initializers
 
 # Debug configuration

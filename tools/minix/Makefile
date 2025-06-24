@@ -1,11 +1,11 @@
-# Use clang for the legacy tooling
-CC ?= clang
+# Use clang-18 for the legacy tooling
+CC ?= clang-18
 l=../lib
 INC ?= ../include
 LIB ?= ../lib/lib.a
 LDFLAGS ?=
 CFLAGS ?= -F
-CFLAGS += -I$(INC)
+CFLAGS += -I$(INC) -march=x86-64-v1 -msse2 -msse3 -mssse3 -msse4.1 -msse4.2
 
 all:
 	make init

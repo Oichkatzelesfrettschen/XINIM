@@ -1,36 +1,28 @@
 cmake_minimum_required(VERSION 3.5)
 project(minix1 CXX C)
 
-# Default to clang-18 when no explicit compiler is configured.
-# Fall back to clang-20 if available and finally to the generic clang
-# wrapper.
+# ------------------------------------------------------------------------------
+# Compiler configuration
+# ------------------------------------------------------------------------------
+
+# Require Clang 18 when no explicit compiler is provided.  Fail early if the
+# tool chain is missing so users know to run tools/setup.sh first.
 if(NOT CMAKE_C_COMPILER)
   find_program(CLANG_18 clang-18)
-  if(CLANG_18)
-    set(CMAKE_C_COMPILER ${CLANG_18})
-  else()
-    find_program(CLANG_20 clang-20)
-    if(CLANG_20)
-      set(CMAKE_C_COMPILER ${CLANG_20})
-    else()
-      set(CMAKE_C_COMPILER clang)
-    endif()
+  if(NOT CLANG_18)
+    message(FATAL_ERROR "clang-18 is required but was not found. Run tools/setup.sh")
   endif()
+  set(CMAKE_C_COMPILER ${CLANG_18})
 endif()
 
 if(NOT CMAKE_CXX_COMPILER)
   find_program(CLANGXX_18 clang++-18)
-  if(CLANGXX_18)
-    set(CMAKE_CXX_COMPILER ${CLANGXX_18})
-  else()
-    find_program(CLANGXX_20 clang++-20)
-    if(CLANGXX_20)
-      set(CMAKE_CXX_COMPILER ${CLANGXX_20})
-    else()
-      set(CMAKE_CXX_COMPILER clang++)
-    endif()
+  if(NOT CLANGXX_18)
+    message(FATAL_ERROR "clang++-18 is required but was not found. Run tools/setup.sh")
   endif()
+  set(CMAKE_CXX_COMPILER ${CLANGXX_18})
 endif()
+
 
 # Enforce a strict C++23 environment across the project
 set(CMAKE_C_STANDARD 17)
@@ -39,6 +31,17 @@ set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Global optimisation flags tuned for modern x86-64 CPUs.  These are applied to
+# every target built in this project, including the kernel, libraries and tools.
+add_compile_options(
+  -march=x86-64-v1
+  -msse2
+  -msse3
+  -mssse3
+  -msse4.1
+  -msse4.2
+)
 
 # Add global include directories
 include_directories(h)
@@ -61,9 +64,9 @@ if(CROSS_COMPILE_X86_64)
   endif()
   set(CMAKE_SYSTEM_NAME Generic)
   set(CMAKE_SYSTEM_PROCESSOR x86_64)
-  # Use clang for cross compilation as well
-  set(CMAKE_C_COMPILER "${CROSS_PREFIX}clang")
-  set(CMAKE_CXX_COMPILER "${CROSS_PREFIX}clang++")
+  # Use clang-18 for cross compilation as well
+  set(CMAKE_C_COMPILER "${CROSS_PREFIX}clang-18")
+  set(CMAKE_CXX_COMPILER "${CROSS_PREFIX}clang++-18")
   set(CMAKE_AR "${CROSS_PREFIX}ar")
   set(CMAKE_RANLIB "${CROSS_PREFIX}ranlib")
   set(CMAKE_LINKER "${CROSS_PREFIX}ld")

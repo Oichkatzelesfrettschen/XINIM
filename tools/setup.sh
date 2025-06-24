@@ -2,7 +2,7 @@
 # ===========================================================================
 #  setup.sh — Dependency bootstrap for the Minix-1 C++23 revival
 # ---------------------------------------------------------------------------
-#  * Installs Clang/LLVM tool-chain (prefers 18, falls back to 20, then distro)
+#  * Installs the Clang/LLVM 18 tool-chain (required)
 #  * Pulls in analysis and doc tools (clang-tidy, cppcheck, doxygen, Sphinx…)
 #  * Works on Ubuntu ≥ 22.04; warns but continues on partial failures
 # ===========================================================================
@@ -24,14 +24,10 @@ if ! sudo apt-get update; then
 fi
 
 # ─────────────────────── clang / LLVM stack ─────────────────────────
+# clang-18 is mandatory for building the project.  Abort if installation fails.
 if ! opt_install clang-18 lld-18 lldb-18; then
-  # Try the official LLVM script for clang-20
-  if curl -fsSL https://apt.llvm.org/llvm.sh | sudo bash -s -- 20; then
-    opt_install clang-20 lld-20 lldb-20
-  else
-    # Fall back to distro default
-    opt_install clang lld lldb
-  fi
+  echo "setup.sh: error: clang-18 toolchain required" >&2
+  exit 1
 fi
 
 # ───────────────────── core build / analysis pkgs ───────────────────

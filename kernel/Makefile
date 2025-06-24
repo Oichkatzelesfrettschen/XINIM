@@ -1,14 +1,13 @@
 #The kernel directory contains PC / XT and AT wini driver sources.Set the
 # `WINI_DRIVER` variable to `pc` or `at` when invoking `make` to select the
 #correct driver.If not specified the PC / XT driver is used.
-#Use clang to compile the kernel
-CC ? = clang CFLAGS
-           ? = -O INC
-                   ? =../ include LIB
-                          ? =../ lib / lib.a LDFLAGS
-                                 ? = CFLAGS += -I$(INC) h =
-                                       ../
-                                       h l =../ lib
+# Use clang-18 to compile the kernel
+CC ?= clang-18
+CFLAGS ?= -O
+INC ?= ../include
+LIB ?= ../lib/lib.a
+LDFLAGS ?=
+CFLAGS += -I$(INC) -march=x86-64-v1 -msse2 -msse3 -mssse3 -msse4.1 -msse4.2
 
 #Determine which driver source file to use
                                                         WINI_DRIVER

@@ -1,8 +1,10 @@
 # Makefile for math libraries (Quaternion, Octonion, Sedenion)
 
-CXX := g++
+# Use clang++-18 to build the algebra libraries
+CXX := clang++-18
 # Use C++23 standard, enable warnings, optimization, and position-independent code for library
-CXXFLAGS := -std=c++23 -Wall -Wextra -pedantic -O2 -fPIC -I.
+CXXFLAGS := -std=c++23 -Wall -Wextra -pedantic -O2 -fPIC -I. \
+    -march=x86-64-v1 -msse2 -msse3 -mssse3 -msse4.1 -msse4.2
 AR := ar
 ARFLAGS := rcs
 
