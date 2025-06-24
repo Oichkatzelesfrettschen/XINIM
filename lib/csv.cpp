@@ -1,7 +1,9 @@
 #include "../include/lib.hpp" // C++23 header
 
-/*
- * Empty csv stub for compatibility.
+/**
+ * @file csv.cpp
+ * @brief Placeholder implementation for the csv utility.
  */
-// Empty csv stub for compatibility.
+
+/// Placeholder csv function used during early bootstrapping.
 void csv() {}
