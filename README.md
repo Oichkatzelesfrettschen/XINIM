@@ -1,29 +1,113 @@
+````markdown
 # XINIM
 
-XINIM is a modern C++23 reimplementation of the classic MINIX 1 operating system. It bundles the kernel, memory manager, file system and userland utilities into one educational codebase.
+**XINIM** is a clean-room C++ 23 re-implementation of the original MINIX 1 educational operating system.  
+The repository contains the full kernel, memory manager, file-system, classic user-land utilities, and supporting build scripts.
 
-Consult [docs/BUILDING.md](docs/BUILDING.md) for the detailed build and testing guide.
+---
 
-## Quick start
+## Table of Contents
 
-1. **Install dependencies** on Ubuntu:
-   ```bash
-   sudo apt-get update
-   sudo apt-get install -y <packages from docs/TOOL_INSTALL.md>
-   ```
-   The full list of required packages is maintained in [docs/TOOL_INSTALL.md](docs/TOOL_INSTALL.md).
-2. **Build** using Clang (default):
-   ```bash
-   cmake -B build
-   cmake --build build
-   ```
-   Use `BUILD_MODE=release` or `-DCMAKE_BUILD_TYPE=Release` for optimized builds.
+1. [Prerequisites](#prerequisites)  
+2. [Native Build (Quick Start)](#native-build-quick-start)  
+3. [Cross-Compilation](#cross-compilation)  
+4. [Cleaning the Workspace](#cleaning-the-workspace)  
+5. [Documentation](#documentation)  
+6. [License](#license)
 
-## Cross compilation
+---
 
-To produce a bare x86-64 image enable the cross‑compile options:
+## Prerequisites
+
+Install the tool-chain and host packages listed in **`docs/TOOL_INSTALL.md`**.  
+Example for Ubuntu 24.04 LTS:
+
 ```bash
-cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
+sudo apt-get update
+sudo apt-get install -y $(tr '\n' ' ' < docs/TOOL_INSTALL.md)
+````
+
+---
+
+## Native Build (Quick Start)
+
+```bash
+# Configure (Debug build by default)
+cmake -B build
+
+# Compile everything
+cmake --build build -j$(nproc)
+
+# Boot the resulting disk image under QEMU
+./tools/run_qemu.sh build/xinim.img
+```
+
+To build an optimised image add:
+
+```bash
+cmake -B build -DCMAKE_BUILD_TYPE=Release
+```
+
+---
+
+## Cross-Compilation
+
+Building a freestanding x86-64 image on any host:
+
+```bash
+cmake -B build \
+      -DCROSS_COMPILE_X86_64=ON \
+      -DCROSS_PREFIX=x86_64-elf-
+
 cmake --build build
 ```
-The Makefiles accept `CROSS_PREFIX=x86_64-elf-` for the same effect.
+
+The legacy Makefiles accept the same triplet:
+
+```bash
+make CROSS_PREFIX=x86_64-elf- all
+```
+
+The generated `xinim.img` boots via GRUB 2, Limine, or directly with:
+
+```bash
+qemu-system-x86_64 -drive file=xinim.img,if=none,format=raw
+```
+
+For additional architectures (AArch64, RISC-V) see **`docs/BUILDING.md`**.
+
+---
+
+## Cleaning the Workspace
+
+```bash
+# Remove all build artefacts and test outputs
+./tools/clean.sh
+```
+
+or, if using CMake directly:
+
+```bash
+cmake --build build --target clean
+rm -rf build/
+```
+
+---
+
+## Documentation
+
+| Document                      | Description                         |
+| ----------------------------- | ----------------------------------- |
+| `docs/BUILDING.md`            | Full build and flashing guide       |
+| `docs/ARCHITECTURE.md`        | Subsystem overview and design notes |
+| `docs/TOOL_INSTALL.md`        | OS-specific dependency list         |
+| `docs/sphinx/html/index.html` | Generated developer manual in HTML  |
+
+---
+
+## License
+
+Dual-licensed under **Apache-2.0** or **MIT**.  See `LICENSE` for details.
+
+```
+```
