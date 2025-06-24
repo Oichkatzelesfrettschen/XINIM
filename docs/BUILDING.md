@@ -14,16 +14,16 @@ simplicity on modern **arm64** and **x86-64** machines using **C++23**.
 
 ## 1 · Prerequisites
 
-* **C++23 tool-chain** – Clang 18 ✚ LLVM 18 (lld, lldb) is recommended; GCC 13+
-  also works.
+* **C++23 tool-chain** – Clang 18 ✚ LLVM 18 (lld, lldb) is recommended; GCC 13+ also works.
 * **Assemblers** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
 * **CMake** ≥ 3.5 if you prefer that build system.
 * **Make** / POSIX shell for the traditional Makefiles.
+* **libsodium** – development headers for the crypto subsystem (`libsodium-dev`).
 
 All packages can be installed automatically:
 
 ```sh
-tools/setup.sh            # installs clang/lld/lldb, nasm, cmake …
+tools/setup.sh            # installs clang-18, lld-18, lldb-18, nasm, cmake …
 clang++ --version         # check detected version
 ````
 
@@ -90,13 +90,13 @@ setting `BUILD_MODE=<mode>` when using `make`, or the equivalent CMake
 | Mode        | Purpose                        | Representative flags                   |
 | ----------- | ------------------------------ | -------------------------------------- |
 | **debug**   | Heavy diagnostics + sanitizers | `-g3 -O0 -fsanitize=address,undefined` |
-| **release** | Maximum performance / size     | `-O3 -DNDEBUG -flto -march=native`     |
+| **release** | Maximum performance / size     | `-O3 -DNDEBUG -flto -march=x86-64-v1`     |
 | **profile** | gprof / perf instrumentation   | `-O2 -g -pg`                           |
 
 Typical ad-hoc compilation during development:
 
 ```sh
-clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native \
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=x86-64-v1 \
         example.cpp -o example
 ```
 
@@ -115,7 +115,7 @@ make -C test f=t10a LIB=       # skips lib.a linkage
 Or compile directly:
 
 ```sh
-clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=native \
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=x86-64-v1 \
         tests/t10a.cpp -o tests/t10a
 ./tests/t10a && echo "✓ tool-chain OK"
 ```
@@ -163,6 +163,20 @@ tools/run_cppcheck.sh
 ```
 
 Outputs land in `build/reports/` (XML / JSON) along with a `cscope` DB.
+
+---
+
+## 11 · Documentation Generation
+
+Build the API documentation via **Doxygen** and **Sphinx** using the
+**Breathe** extension:
+
+```sh
+doxygen Doxyfile
+sphinx-build -b html docs/sphinx docs/sphinx/html
+```
+
+HTML output appears in `docs/sphinx/html`.
 
 ---
 
