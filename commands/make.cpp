@@ -928,8 +928,8 @@ public:
         // Initialize default macros
         macro_processor_.define_macro("CC", "clang++");
         macro_processor_.define_macro("CXX", "clang++");
-        macro_processor_.define_macro("CFLAGS", "-std=c++23 -O3 -march=native");
-        macro_processor_.define_macro("CXXFLAGS", "-std=c++23 -O3 -march=native");
+        macro_processor_.define_macro("CFLAGS", "-std=c++23 -O3 -march=x86-64-v1 -mtune=generic");
+        macro_processor_.define_macro("CXXFLAGS", "-std=c++23 -O3 -march=x86-64-v1 -mtune=generic");
         macro_processor_.define_macro("AS", "as");
         macro_processor_.define_macro("AFLAGS", "");
         

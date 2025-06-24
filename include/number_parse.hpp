@@ -1,5 +1,6 @@
 #pragma once
 
+#include <bit>    // for std::bit_cast
 #include <cctype> // for std::isspace
 
 /**
@@ -12,8 +13,9 @@
  * @return Resulting numeric value as a long.
  */
 [[nodiscard]] constexpr long parse_signed_decimal(const char *str) noexcept {
-    // Convert to unsigned char pointer for safe character math.
-    const unsigned char *s = reinterpret_cast<const unsigned char *>(str);
+    // Convert to unsigned char pointer for safe character math using
+    // std::bit_cast so the function remains constexpr compliant.
+    const unsigned char *s = std::bit_cast<const unsigned char *>(str);
 
     long total = 0; // running value computed from the digits
     int minus = 0;  // track whether a leading minus was present
