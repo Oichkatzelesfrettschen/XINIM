@@ -3,12 +3,17 @@
  * @brief Minimal stub for the C @c abort function.
  */
 
-#include <stdlib.h>
+#include <cstdlib>
+
+namespace xinim {
 
 /**
  * @brief Terminate the program abnormally.
  *
- * Simply exits with status code 99 to indicate failure. In a full
- * implementation this would raise SIGABRT and generate a core dump.
+ * The implementation simply exits with status code 99 rather than
+ * raising @c SIGABRT. This mirrors the behaviour of the historical
+ * MINIX implementation where generating a core dump was not required.
  */
-[[noreturn]] void abort() { exit(99); }
+[[noreturn]] void abort() { std::exit(99); }
+
+} // namespace xinim
