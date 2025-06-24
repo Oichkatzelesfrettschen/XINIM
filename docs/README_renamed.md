@@ -63,8 +63,9 @@ users.
 ### Prerequisites
 
  - **Compiler**: GCC 13+ or Clang 18+ with the full LLVM 18 suite including lld and lldb (MSVC 19.36+ supported)
-- **Build System**: Make (GNU Make recommended)
-- **Optional**: Doxygen for documentation, Valgrind for debugging
+ - **Setup**: Run `tools/setup.sh` to install clang-18, lld-18, lldb-18, and related packages
+ - **Build System**: Make (GNU Make recommended)
+ - **Optional**: Doxygen for documentation, Valgrind for debugging
 
 ### Quick Start
 
@@ -72,6 +73,9 @@ users.
 # Clone the repository
 git clone <repository-url>
 cd XINIM
+
+# Install dependencies (LLVM 18, lld, etc.)
+tools/setup.sh
 
 # Build debug version (default)
 make
@@ -88,7 +92,7 @@ sudo make install
 | Mode | Description | Flags |
 |------|-------------|-------|
 | `debug` | Development build with sanitizers | `-g3 -O0 -fsanitize=address,undefined` |
-| `release` | Optimized production build | `-O3 -DNDEBUG -flto -march=native` |
+| `release` | Optimized production build | `-O3 -DNDEBUG -flto -march=x86-64-v1` |
 | `profile` | Profiling build | `-O2 -g -pg` |
 
 ### Make vs CMake
@@ -277,6 +281,8 @@ make gdb
 5. **Safety**: Use sanitizers during development
 
 ## Documentation
+
+Documentation is produced through a **Sphinx** + **Breathe** workflow driven by **Doxygen**.
 
 Generate comprehensive API documentation:
 
