@@ -70,6 +70,13 @@ if(CROSS_COMPILE_X86_64)
   set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
 endif()
 
+# Use a consistent baseline for generated binaries regardless of
+# cross-compilation settings. The x86‑64‑v1 microarchitecture provides
+# the most widely supported instruction set on modern 64‑bit hardware
+# while still enabling SSE and MMX optimizations.
+set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS} -march=x86-64-v1 -msse -mmmx")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=x86-64-v1 -msse -mmmx")
+
 # Options for wini driver selection
 option(DRIVER_AT "Use AT wini driver" OFF)
 option(DRIVER_PC "Use PC/XT wini driver" OFF)
