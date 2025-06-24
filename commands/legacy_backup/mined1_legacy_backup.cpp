@@ -422,6 +422,10 @@
 
 extern int errno;
 
+namespace xinim {
+[[noreturn]] void abort();
+}
+
 /*
  * Print file status.
  */
@@ -1046,7 +1050,7 @@ abort_mined() {
     putchar('\n');
     flush();
 #ifdef UNIX
-    abort();
+    xinim::abort();
 #else
     exit(1);
 #endif UNIX
@@ -1123,7 +1127,7 @@ panic(message) register char *message;
     raw_mode(OFF);
 
 #ifdef UNIX
-    abort();
+    xinim::abort();
 #else
     exit(1);
 #endif UNIX

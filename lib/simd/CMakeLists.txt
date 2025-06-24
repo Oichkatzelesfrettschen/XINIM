@@ -35,8 +35,8 @@ target_compile_features(${SIMD_MATH_LIB} PUBLIC cxx_std_23)
 if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
     target_compile_options(${SIMD_MATH_LIB} PRIVATE
         -O3
-        -march=native
-        -mtune=native
+        -march=x86-64-v1
+        -mtune=generic
         -ffast-math
         -funroll-loops
         -fomit-frame-pointer
