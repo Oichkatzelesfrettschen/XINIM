@@ -170,3 +170,26 @@ Outputs land in `build/reports/` (XML / JSON) along with a `cscope` DB.
 
 *File is now conflict-free, consistently formatted, and combines the best of both original branches.*
 ```
+
+---
+
+## 11 · Generating Documentation
+
+The API reference and architecture guide are built from a combination of
+Doxygen and Sphinx.  The `breathe` extension is configured in
+`docs/sphinx/conf.py` under the ``breathe_projects`` mapping:
+
+```
+"XINIM": "../doxygen/xml"
+```
+
+To produce the HTML documentation:
+
+```bash
+python3 -m pip install --user sphinx breathe
+doxygen docs/Doxyfile                # generates docs/doxygen/xml
+sphinx-build -b html docs/sphinx docs/sphinx/html
+```
+
+The resulting site in `docs/sphinx/html` merges Doxygen output via Breathe,
+providing a unified set of manuals for Read the Docs.
