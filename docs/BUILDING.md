@@ -18,6 +18,7 @@ simplicity on modern **arm64** and **x86-64** machines using **C++23**.
 * **Assemblers** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
 * **CMake** ≥ 3.5 if you prefer that build system.
 * **Make** / POSIX shell for the traditional Makefiles.
+* **libsodium** – development headers for the crypto subsystem (`libsodium-dev`).
 
 All packages can be installed automatically:
 

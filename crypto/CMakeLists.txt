@@ -14,18 +14,17 @@ set(KYBER_IMPL_SOURCES
 
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBSODIUM libsodium)
+pkg_check_modules(SODIUM libsodium)
 
-if(LIBSODIUM_FOUND)
-  set(SODIUM_LIB ${LIBSODIUM_LIBRARIES})
-  set(SODIUM_INCLUDE ${LIBSODIUM_INCLUDE_DIRS})
+if(SODIUM_FOUND)
+  # libsodium detected via pkg-config; use provided variables
 else()
   message(WARNING "libsodium not found; building with local stubs")
   add_library(sodium_stub STATIC ${CMAKE_SOURCE_DIR}/tests/sodium_stub.cpp)
   list(REMOVE_ITEM KYBER_IMPL_SOURCES kyber_impl/randombytes.c)
   list(APPEND KYBER_IMPL_SOURCES ${CMAKE_SOURCE_DIR}/tests/randombytes_stub.c)
-  set(SODIUM_LIB sodium_stub)
-  set(SODIUM_INCLUDE ${CMAKE_SOURCE_DIR}/tests)
+  set(SODIUM_LIBRARIES sodium_stub)
+  set(SODIUM_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/tests)
 endif()
 
 add_library(pqcrypto STATIC kyber.cpp pqcrypto_shared.cpp ${KYBER_IMPL_SOURCES})
@@ -43,5 +42,5 @@ target_include_directories(pqcrypto PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/kyber_impl)
 
-target_link_libraries(pqcrypto PUBLIC OpenSSL::Crypto ${SODIUM_LIB})
-target_include_directories(pqcrypto PRIVATE ${SODIUM_INCLUDE})
+target_link_libraries(pqcrypto PUBLIC OpenSSL::Crypto ${SODIUM_LIBRARIES})
+target_include_directories(pqcrypto PRIVATE ${SODIUM_INCLUDE_DIRS})
