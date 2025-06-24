@@ -1,14 +1,8 @@
 /**
  * @file abort.cpp
- * @brief Minimal stub for the C @c abort function.
+ * @brief Implementation of the xinim_abort wrapper.
  */
 
-#include <stdlib.h>
+#include "../include/xinim/abort.h"
 
-/**
- * @brief Terminate the program abnormally.
- *
- * Simply exits with status code 99 to indicate failure. In a full
- * implementation this would raise SIGABRT and generate a core dump.
- */
-[[noreturn]] void abort() { exit(99); }
+extern "C" [[noreturn]] void xinim_abort() noexcept { std::exit(99); }

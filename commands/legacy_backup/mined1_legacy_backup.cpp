@@ -411,6 +411,7 @@
  *  ========================================================================  */
 
 #include "../include/lib.hpp" // C++23 header
+#include "../include/xinim/abort.h"
 #include "mined.hpp"
 #include "sgtty.hpp"
 #include "signal.hpp"
@@ -1046,7 +1047,7 @@ abort_mined() {
     putchar('\n');
     flush();
 #ifdef UNIX
-    abort();
+    xinim_abort();
 #else
     exit(1);
 #endif UNIX
@@ -1123,7 +1124,7 @@ panic(message) register char *message;
     raw_mode(OFF);
 
 #ifdef UNIX
-    abort();
+    xinim_abort();
 #else
     exit(1);
 #endif UNIX
