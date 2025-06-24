@@ -1,8 +1,9 @@
 # Makefile for math libraries (Quaternion, Octonion, Sedenion)
 
-CXX := g++
+CXX := clang++
 # Use C++23 standard, enable warnings, optimization, and position-independent code for library
-CXXFLAGS := -std=c++23 -Wall -Wextra -pedantic -O2 -fPIC -I.
+CXXFLAGS := -std=c++23 -Wall -Wextra -pedantic -O2 -fPIC -I. \
+    -march=x86-64-v1 -mtune=generic
 AR := ar
 ARFLAGS := rcs
 

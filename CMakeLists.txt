@@ -67,8 +67,12 @@ if(CROSS_COMPILE_X86_64)
   set(CMAKE_AR "${CROSS_PREFIX}ar")
   set(CMAKE_RANLIB "${CROSS_PREFIX}ranlib")
   set(CMAKE_LINKER "${CROSS_PREFIX}ld")
-  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
+  set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64 -march=x86-64-v1 -mtune=generic")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64 -march=x86-64-v1 -mtune=generic")
 endif()
+
+# Default tuning for native builds
+add_compile_options(-march=x86-64-v1 -mtune=generic)
 
 # Options for wini driver selection
 option(DRIVER_AT "Use AT wini driver" OFF)
