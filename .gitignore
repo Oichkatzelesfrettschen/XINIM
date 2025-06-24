@@ -36,3 +36,6 @@ docs/doxygen/
 
 docs/sphinx/html/
 docs/sphinx/_build/
+
+# Ignore local test output
+ls_test
