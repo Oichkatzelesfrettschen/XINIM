@@ -1,3 +1,8 @@
+#ifdef __linux__
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+#endif
 #include "randombytes.h"
 #include "../../include/xinim/abort.h"
 #include <stddef.h>
@@ -11,7 +16,6 @@
 #include <errno.h>
 #include <fcntl.h>
 #ifdef __linux__
-#define _GNU_SOURCE
 #include <sys/syscall.h>
 #include <unistd.h>
 #elif __NetBSD__

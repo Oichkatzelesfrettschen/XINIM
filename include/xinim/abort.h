@@ -14,10 +14,10 @@
  * returns. It is provided both as a C linkage declaration and an
  * inline C++ helper.
  */
-extern "C" [[noreturn]] void xinim_abort() noexcept;
-inline void xinim_abort() noexcept { std::exit(99); }
+extern "C" _Noreturn void xinim_abort(void) noexcept;
+inline _Noreturn void xinim_abort(void) noexcept { std::exit(99); }
 #else
-[[noreturn]] void xinim_abort(void) noexcept;
+_Noreturn void xinim_abort(void);
 #endif
 
 #endif // XINIM_ABORT_H
