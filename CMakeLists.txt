@@ -72,7 +72,12 @@ endif()
 # 5. Baseline optimisation flags (native or cross)
 #    x86-64-v1: MMX + SSE + SSE2, widest deployable subset.
 # ─────────────────────────────────────────────────────────────────────────────
-set(BASE_CPU_FLAGS "-march=x86-64-v1 -mtune=generic -msse -mmmx")
+set(BASE_CPU_FLAGS
+    -march=x86-64
+    -mtune=generic
+    -msse
+    -mmmx
+)
 add_compile_options(${BASE_CPU_FLAGS})
 
 # ─────────────────────────────────────────────────────────────────────────────

@@ -17,7 +17,7 @@
 extern "C" [[noreturn]] void xinim_abort() noexcept;
 inline void xinim_abort() noexcept { std::exit(99); }
 #else
-[[noreturn]] void xinim_abort(void) noexcept;
+_Noreturn void xinim_abort(void);
 #endif
 
 #endif // XINIM_ABORT_H

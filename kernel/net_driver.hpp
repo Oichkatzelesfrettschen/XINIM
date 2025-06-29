@@ -11,7 +11,7 @@
  *   net::init({0, 12000});                               // autodetect node_id
  *   net::add_remote(2, "192.168.1.4", 12000, Protocol::TCP);
  *   net::send(2, payload);                               // sends [local_node|payload]
- *   while (net::recv(pkt)) { /* process pkt */ }
+ *   while (net::recv(pkt)) { // process pkt }
  *   net::shutdown();
  *
  * Thread Safety: All APIs are thread-safe and may be called from multiple threads.
@@ -25,8 +25,8 @@
 #include <span>
 #include <string>
 #include <system_error>
-#include <vector>
 #include <system_error> // for std::errc
+#include <vector>
 
 namespace net {
 
@@ -40,8 +40,8 @@ using node_t = int;
  * they appear as a Packet with src_node and payload.
  */
 struct Packet {
-    node_t                   src_node;  ///< Originating node ID
-    std::vector<std::byte>   payload;   ///< Message payload (excluding prefix)
+    node_t src_node;                ///< Originating node ID
+    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
 };
 
 /**
@@ -70,27 +70,21 @@ enum class Protocol {
  * @param node_id_dir_    Directory for persisting auto-detected node ID
  */
 struct Config {
-    node_t                  node_id;
-    std::uint16_t           port;
-    std::size_t             max_queue_length;
-    OverflowPolicy          overflow;
-    std::filesystem::path   node_id_dir;
+    node_t node_id;
+    std::uint16_t port;
+    std::size_t max_queue_length;
+    OverflowPolicy overflow;
+    std::filesystem::path node_id_dir;
 
-    constexpr Config(node_t                  node_id_        = 0,
-                     std::uint16_t           port_           = 0,
-                     std::size_t             max_len         = 0,
-                     OverflowPolicy          policy          = OverflowPolicy::DropNewest,
-                     std::filesystem::path   node_id_dir_    = {}) noexcept
-      : node_id(node_id_),
-        port(port_),
-        max_queue_length(max_len),
-        overflow(policy),
-        node_id_dir(std::move(node_id_dir_))
-    {}
+    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
+                     OverflowPolicy policy = OverflowPolicy::DropNewest,
+                     std::filesystem::path node_id_dir_ = {}) noexcept
+        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy),
+          node_id_dir(std::move(node_id_dir_)) {}
 };
 
 /** Callback type invoked on packet arrival (from background thread). */
-using RecvCallback = std::function<void(const Packet&)>;
+using RecvCallback = std::function<void(const Packet &)>;
 
 /**
  * @brief Initialize the network driver.
@@ -101,7 +95,7 @@ using RecvCallback = std::function<void(const Packet&)>;
  * @param cfg Driver configuration
  * @throws std::system_error on socket/bind/thread failures
  */
-void init(const Config& cfg);
+void init(const Config &cfg);
 
 /**
  * @brief Register a remote peer for sending.
@@ -116,9 +110,7 @@ void init(const Config& cfg);
  * @throws std::invalid_argument on name resolution failure
  * @throws std::system_error on TCP socket/connect failure
  */
-void add_remote(node_t node,
-                const std::string& host,
-                uint16_t port,
+void add_remote(node_t node, const std::string &host, uint16_t port,
                 Protocol proto = Protocol::UDP);
 
 /**
@@ -162,8 +154,7 @@ void shutdown() noexcept;
  * @return std::errc::success on success, or descriptive error code
  * @throws std::system_error on underlying socket failures
  */
-[[nodiscard]] std::errc send(node_t node,
-                             std::span<const std::byte> data);
+[[nodiscard]] std::errc send(node_t node, std::span<const std::byte> data);
 
 /**
  * @brief Dequeue the next received packet, if any.
@@ -171,7 +162,7 @@ void shutdown() noexcept;
  * @param out Packet to populate
  * @return true if a packet was dequeued, false if queue was empty
  */
-[[nodiscard]] bool recv(Packet& out);
+[[nodiscard]] bool recv(Packet &out);
 
 /**
  * @brief Clear all pending packets from the receive queue.

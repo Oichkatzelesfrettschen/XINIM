@@ -21,4 +21,6 @@ inline constexpr std::size_t MAX_PAGES = 1048576;
 inline constexpr std::size_t HDR_SIZE = 32;
 inline constexpr phys_clicks NO_MEM = 0; /* returned by alloc_mem() when mem is up */
 
+#ifndef __cplusplus
 #define printf printk
+#endif

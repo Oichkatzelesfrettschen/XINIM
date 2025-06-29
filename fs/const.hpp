@@ -66,4 +66,6 @@ inline constexpr std::size_t PIPE_SIZE =
     static_cast<std::size_t>(NR_DZONE_NUM) * BLOCK_SIZE; /* pipe size in bytes*/
 inline constexpr std::size_t MAX_ZONES = NR_DZONE_NUM + NR_INDIRECTS + NR_INDIRECTS * NR_INDIRECTS;
 /* max # of zones in a file */
+#ifndef __cplusplus
 #define printf printk
+#endif

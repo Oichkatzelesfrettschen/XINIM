@@ -16,6 +16,8 @@
  * traditional abort(3) and is used as the canonical fatal-termination
  * endpoint for the XINIM kernel, tests, and userland.
  */
-_Noreturn void xinim_abort(void) {
-    _Exit(99);  // Fast, async-signal-safe, no flushing or unwinding.
+extern "C" {
+[[noreturn]] void xinim_abort(void) {
+    _Exit(99); // Fast, async-signal-safe, no flushing or unwinding.
+}
 }
