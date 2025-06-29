@@ -27,7 +27,8 @@ else()
   set(SODIUM_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/tests)
 endif()
 
-add_library(pqcrypto STATIC kyber.cpp pqcrypto_shared.cpp ${KYBER_IMPL_SOURCES})
+add_library(pqcrypto STATIC kyber.cpp pqcrypto_shared.cpp ${KYBER_IMPL_SOURCES}
+    ${CMAKE_SOURCE_DIR}/lib/abort.cpp)
 
 set_target_properties(pqcrypto PROPERTIES
     CXX_STANDARD 23

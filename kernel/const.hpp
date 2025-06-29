@@ -57,4 +57,6 @@ inline constexpr int PRI_USER = 8;         /* default user process priority */
 inline constexpr int SCHED_QUEUES = NR_SCHED_QUEUES;
 #endif
 
+#ifndef __cplusplus
 #define printf printk /* the kernel really uses printk, not printf */
+#endif
