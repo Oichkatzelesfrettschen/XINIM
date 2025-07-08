@@ -3,6 +3,7 @@
 #define _GNU_SOURCE
 #endif
 #endif
+
 #include "randombytes.h"
 #include "../../include/xinim/abort.h"
 #include <stddef.h>
