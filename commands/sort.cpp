@@ -197,54 +197,69 @@ concept FieldExtractor = requires(T extractor, std::string_view line, FieldSpec 
 
 /// Modern field extraction engine
 class ModernFieldExtractor {
-private:
+  private:
     char separator_;
     std::vector<std::string_view> field_cache_;
-    
-public:
+    std::string concat_buffer_; /**< Buffer for concatenated fields */
+
+  public:
     explicit ModernFieldExtractor(char sep = '\t') : separator_{sep} {
         field_cache_.reserve(64); // Common case optimization
     }
-    
+
     /// Extract field based on specification
-    [[nodiscard]] auto extract_field(std::string_view line, const FieldSpec& spec) -> std::string_view {
+    [[nodiscard]] auto extract_field(std::string_view line, const FieldSpec &spec)
+        -> std::string_view {
         split_fields(line);
-        
+
         if (spec.start_field.value >= field_cache_.size()) {
             return {};
         }
-        
+
         auto start_field = field_cache_[spec.start_field.value];
-        
+
         // Apply start offset
         if (spec.start_offset.value < start_field.size()) {
             start_field = start_field.substr(spec.start_offset.value);
         } else {
             return {};
         }
-        
+
         // Handle end field if specified
         if (spec.end_field) {
-            std::string_view result;
-            for (std::size_t i = spec.start_field.value; 
+            concat_buffer_.clear();
+            for (std::size_t i = spec.start_field.value;
                  i < field_cache_.size() && i <= spec.end_field->value; ++i) {
-                if (i > spec.start_field.value) {
-                    // TODO: Concatenate fields with separator
+                std::string_view field = field_cache_[i];
+                if (i == spec.start_field.value) {
+                    if (spec.start_offset.value < field.size()) {
+                        field = field.substr(spec.start_offset.value);
+                    } else {
+                        return {};
+                    }
                 }
+                if (spec.end_offset && i == spec.end_field.value &&
+                    spec.end_offset->value < field.size()) {
+                    field = field.substr(0, spec.end_offset->value);
+                }
+                if (!concat_buffer_.empty()) {
+                    concat_buffer_.push_back(separator_);
+                }
+                concat_buffer_.append(field);
             }
-            return result;
+            return std::string_view{concat_buffer_};
         }
-        
+
         return start_field;
     }
-    
+
     /// Get all fields for a line
     [[nodiscard]] auto get_fields(std::string_view line) -> std::span<const std::string_view> {
         split_fields(line);
         return field_cache_;
     }
-    
-private:
+
+  private:
     /// Split line into fields using separator
     void split_fields(std::string_view line) {
         field_cache_.clear();
