@@ -23,11 +23,13 @@ static void send_simple(Message type, xinim::pid_t pid) {
     lattice_send(CLIENT_PID, MANAGER_PID, msg);
 }
 
+#ifndef SVCCTL_NO_WAIT
 /** Receive a message into @p out using blocking semantics. */
-static void recv_blocking(message &out) {
+[[maybe_unused]] static void recv_blocking(message &out) {
     while (lattice_recv(CLIENT_PID, &out) != xinim::OK) {
     }
 }
+#endif
 
 int run(std::span<char *> args) {
     if (args.size() < 2) {

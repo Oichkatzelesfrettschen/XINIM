@@ -379,6 +379,13 @@ add_executable(minix_test_hypercomplex
 target_include_directories(minix_test_hypercomplex PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
 add_test(NAME minix_test_hypercomplex COMMAND minix_test_hypercomplex)
 
+# minix_test_fat_time
+add_executable(minix_test_fat_time
+  test_fat_time.cpp
+)
+target_include_directories(minix_test_fat_time PRIVATE ${CMAKE_SOURCE_DIR}/include)
+add_test(NAME minix_test_fat_time COMMAND minix_test_fat_time)
+
 # -----------------------------------------------------------------------------
 # Crypto library
 # -----------------------------------------------------------------------------

@@ -12,6 +12,13 @@ if(NOT CMAKE_C_COMPILER)
         $<IF:$<BOOL:${CLANG_20}>,${CLANG_20},clang>>)
 endif()
 
+# Automatically enable libc++ when building with Clang
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
+  link_libraries(c++ c++abi)
+endif()
 if(NOT CMAKE_CXX_COMPILER)
   find_program(CLANGXX_18 clang++-18)
   find_program(CLANGXX_20 clang++-20)

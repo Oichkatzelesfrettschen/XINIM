@@ -113,35 +113,14 @@ namespace compiler_paths {
 }
 
 // Legacy toolchain path globals (being phased out)
-// TODO: Replace with modern compiler_paths namespace usage
-#ifdef MEM640K
-    /* MINIX paths for 640K PC (not 512K AT) */
-    char *PP = const_cast<char*>("/lib/cpp");
-    char *CEM = const_cast<char*>("/lib/cem");
-    char *OPT = const_cast<char*>("/usr/lib/opt");
-    char *CG = const_cast<char*>("/usr/lib/cg");
-    char *ASLD = const_cast<char*>("/usr/bin/asld");
-    char *SHELL = const_cast<char*>("/bin/sh");
-    char *LIBDIR = const_cast<char*>("/usr/lib");
-#elif defined(MEM512K)
-    /* MINIX paths for 512K AT (not 640K PC) */
-    char *PP = const_cast<char*>("/usr/lib/cpp");
-    char *CEM = const_cast<char*>("/usr/lib/cem");
-    char *OPT = const_cast<char*>("/usr/lib/opt");
-    char *CG = const_cast<char*>("/usr/lib/cg");
-    char *ASLD = const_cast<char*>("/usr/bin/asld");
-    char *SHELL = const_cast<char*>("/bin/sh");
-    char *LIBDIR = const_cast<char*>("/usr/lib");
-#else
-    // Default modern configuration
-    char *PP = const_cast<char*>("/usr/lib/cpp");
-    char *CEM = const_cast<char*>("/usr/lib/cem");
-    char *OPT = const_cast<char*>("/usr/lib/opt");
-    char *CG = const_cast<char*>("/usr/lib/cg");
-    char *ASLD = const_cast<char*>("/usr/bin/asld");
-    char *SHELL = const_cast<char*>("/bin/sh");
-    char *LIBDIR = const_cast<char*>("/usr/lib");
-#endif
+// Replaced with references to compiler_paths namespace constants
+const char *PP = compiler_paths::CPP_PATH.data();
+const char *CEM = compiler_paths::CEM_PATH.data();
+const char *OPT = compiler_paths::OPT_PATH.data();
+const char *CG = compiler_paths::CG_PATH.data();
+const char *ASLD = compiler_paths::ASLD_PATH.data();
+const char *SHELL = compiler_paths::SHELL_PATH.data();
+const char *LIBDIR = compiler_paths::LIB_DIR.data();
 
 // Modern configuration constants
 namespace toolchain_config {

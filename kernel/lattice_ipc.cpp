@@ -157,6 +157,10 @@ void Graph::set_listening(xinim::pid_t pid, bool flag) noexcept { listening_[pid
  * @brief Establish bidirectional channels and perform stubbed Kyber exchange.
  */
 int lattice_connect(xinim::pid_t src, xinim::pid_t dst, net::node_t node_id) {
+    if (node_id == 0) {
+        node_id = net::local_node();
+    }
+
     auto kp_a = pqcrypto::generate_keypair();
     auto kp_b = pqcrypto::generate_keypair();
     auto secret_bytes = pqcrypto::compute_shared_secret(kp_a, kp_b);
@@ -270,7 +274,7 @@ int lattice_recv(xinim::pid_t pid, message *out, IpcFlags flags) {
     using namespace std::chrono_literals;
     std::unique_lock lk(g_ipc_mutex);
     lattice_listen(pid);
-    sched::scheduler.block_on(pid, -1);
+    [[maybe_unused]] bool blocked = sched::scheduler.block_on(pid, -1);
     auto deadline = std::chrono::steady_clock::now() + 100ms;
     for (;;) {
         auto ib2 = g_graph.inbox_.find(pid);
