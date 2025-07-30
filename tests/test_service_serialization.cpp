@@ -69,7 +69,7 @@ int main() {
     assert(loaded.contract(2).restarts == 0);
 
     // Crash service 1 and ensure dependent service 2 also restarts
-    loaded.handle_crash(1);
+    (void)loaded.handle_crash(1);
     assert(loaded.contract(1).restarts == 1);
     assert(loaded.contract(2).restarts == 1);
 
