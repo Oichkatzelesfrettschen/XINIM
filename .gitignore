@@ -11,6 +11,9 @@
 # ── 1. Build & tool-chain artefacts ──────────────────────────────────────────
 **/build/                     # any “build” dir (out-of-source CMake, Meson…)
 build/                        # top-level build tree
+build*/                       # directories like build32/, build-debug/
+builds/                       # aggregate build artifacts
+*/CMakeFiles/                 # per-dir CMake state
 bin/                          # root-level binaries
 */bin/                        # per-module bin/
 
