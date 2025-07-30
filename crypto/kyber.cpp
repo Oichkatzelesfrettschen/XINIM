@@ -121,7 +121,11 @@ std::vector<std::byte> aes_gcm_decrypt(std::span<const std::byte> cipher,
 }
 
 /// Encrypt data using libsodium's ChaCha20-Poly1305 AEAD.
-std::vector<std::byte> sodium_aead_encrypt(
+/// \brief Encrypt data using libsodium's ChaCha20-Poly1305 AEAD.
+///
+/// This utility wrapper is not used by the current library but provides
+/// a reference implementation.  It remains for completeness.
+[[maybe_unused]] std::vector<std::byte> sodium_aead_encrypt(
     std::span<const std::byte> plain, std::span<const std::byte, pqcrystals_kyber512_BYTES> key,
     std::span<const std::byte, NONCE_SIZE> nonce, std::array<std::byte, TAG_SIZE> &tag) {
     if (sodium_init() < 0) {
@@ -144,7 +148,10 @@ std::vector<std::byte> sodium_aead_encrypt(
 }
 
 /// Decrypt data using libsodium's ChaCha20-Poly1305 AEAD.
-std::vector<std::byte> sodium_aead_decrypt(
+/// \brief Decrypt data using libsodium's ChaCha20-Poly1305 AEAD.
+///
+/// This function complements sodium_aead_encrypt and is currently unused.
+[[maybe_unused]] std::vector<std::byte> sodium_aead_decrypt(
     std::span<const std::byte> cipher, std::span<const std::byte, pqcrystals_kyber512_BYTES> key,
     std::span<const std::byte, NONCE_SIZE> nonce, std::span<const std::byte, TAG_SIZE> tag) {
     if (sodium_init() < 0) {
