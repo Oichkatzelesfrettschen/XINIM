@@ -79,7 +79,16 @@ set(BASE_CPU_FLAGS
     "-mmmx"
     "-msse2"
 )
-add_compile_options(${BASE_CPU_FLAGS})
+
+# Baseline warnings treated as errors for a clean build
+add_compile_options(
+    ${BASE_CPU_FLAGS}
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+)
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 6. Wini driver selection
