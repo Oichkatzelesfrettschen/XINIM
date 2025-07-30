@@ -14,3 +14,7 @@ All build outputs should reside in ignored directories only.
 - Verified workspace with `cmake` and `ctest`; no build artifacts remain under version control.
 
 
+
+## Repository Cleanup (Automated)
+- Verified no build artifacts present.
+- Added header sanity check script with safe quoting.
