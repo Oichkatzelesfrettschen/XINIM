@@ -1,22 +1,22 @@
 ###############################################################################
-#  Project-wide .gitignore — reconciled 2025-06-23
+# Project-wide .gitignore — reconciled 2025-06-23
 #
-#  Ordering & precedence
-#  • Directory rules (trailing “/”) come first.
-#  • Generic glob patterns follow next.
-#  • More specific overrides can follow later.
-#  • Later rules override earlier ones.
+# Ordering & precedence:
+# • Directory rules (trailing “/”) come first.
+# • Generic glob patterns follow next.
+# • More specific overrides can follow later.
+# • Later rules override earlier ones.
 ###############################################################################
 
-# ── 1. Build & tool-chain artefacts ──────────────────────────────────────────
+# ── 1. Build & tool-chain artifacts ───────────────────────────────────────────
 **/build/                     # any “build” dir (out-of-source CMake, Meson…)
+**/build*/                    # catch “build”, “build_debug” etc.
 build/                        # top-level build tree
-build*/                       # ephemeral build directories
-builds/                       # aggregated build artefacts
+builds/                       # alternate plural naming
 bin/                          # root-level binaries
 */bin/                        # per-module bin/
 
-# ── 2. Compiler outputs & binaries ──────────────────────────────────────────
+# ── 2. Compiler outputs & binaries ───────────────────────────────────────────
 *.o                           # object files
 *.a                           # static archives
 *.s~                          # assembly backups
@@ -25,18 +25,18 @@ bin/                          # root-level binaries
 *.elf                         # ELF binaries
 *.bin                         # raw binaries
 
-# ── 3. CMake generated files ────────────────────────────────────────────────
+# ── 3. CMake generated files ─────────────────────────────────────────────────
 CMakeFiles/
 */CMakeFiles/
 CMakeCache.txt
 cmake_install.cmake           # install script generator
 
-# ── 4. Documentation generators ─────────────────────────────────────────────
+# ── 4. Documentation generators ───────────────────────────────────────────────
 docs/doxygen/                 # Doxygen HTML/LaTeX output
 docs/sphinx/html/
 docs/sphinx/_build/
 
-# ── 5. Logs, reports & temporary files ──────────────────────────────────────
+# ── 5. Logs, reports & temporary files ───────────────────────────────────────
 *.log
 *.tmp
 *.d
@@ -47,17 +47,17 @@ output.txt
 *_output.txt
 *.txt
 
-# ── 6. Language & tool caches ───────────────────────────────────────────────
+# ── 6. Language & tool caches ─────────────────────────────────────────────────
 __pycache__/                  # Python byte-code cache
 .cache/                       # user-level build caches
 *.DS_Store                    # macOS metadata
 
-# ── 7. Editor & IDE backups ─────────────────────────────────────────────────
+# ── 7. Editor & IDE backups ──────────────────────────────────────────────────
 *.idx
 *.swp
 *.bak
 *~                            # generic “tilde” backups
 
-# ── 8. Local test artefacts ─────────────────────────────────────────────────
+# ── 8. Local test artifacts ─────────────────────────────────────────────────
 ls_test                       # ad-hoc test binary
 **/ls_test                    # ignore in subdirectories
