@@ -13,6 +13,7 @@
 **/build*/                    # catch “build”, “build_debug” etc.
 build/                        # top-level build tree
 builds/                       # alternate plural naming
+build*/                       # other top-level build dirs
 */CMakeFiles/                 # per-dir CMake state
 bin/                          # root-level binaries
 */bin/                        # per-module bin/
