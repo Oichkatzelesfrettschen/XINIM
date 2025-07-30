@@ -1,6 +1,13 @@
 # Project Status
 
-## Repository Cleanup (September 2025)
+## Repository Cleanup
+- Verified that no build artifacts (`build*/`, `builds/`, `*/CMakeFiles/`) remain in version control.
+- Added new ignore rules to `.gitignore` for these directories.
+- Removed duplicate file `tools/README 2.md`.
+
+All build outputs should reside in ignored directories only.
+
+## Repository Cleanup (Aug 2025)
 
 - Removed residual build directories (none were tracked).
 - Added ignore patterns for `build*/`, `builds/`, and `*/CMakeFiles/` to `.gitignore`.
