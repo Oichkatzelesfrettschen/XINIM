@@ -14,3 +14,10 @@ All build outputs should reside in ignored directories only.
 - Verified workspace with `cmake` and `ctest`; no build artifacts remain under version control.
 
 
+
+## Repository Cleanup (Aug 2025 - header sanity script)
+
+- Created `tools/header_sanity_check.sh` with safe include handling.
+- Verified no build artifacts remain after running CMake in `build/`.
+- Confirmed ignore rules for `build*/`, `builds/`, and `*/CMakeFiles/` already present.
+
