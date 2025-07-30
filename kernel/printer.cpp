@@ -31,6 +31,7 @@
 #include "type.hpp"
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
+#include <cstdio>  // For printf
 
 #define NORMAL_STATUS 0xDF  /* printer gives this status when idle */
 #define BUSY_STATUS 0x5F    /* printer gives this status when busy */
@@ -51,7 +52,7 @@
 
 static int port_base;          /* I/O port for printer: 0x 378 or 0x3BC */
 static int caller;             /* process to tell when printing done (FS) */
-static int proc_nr;            /* user requesting the printing */
+static int requesting_proc;    /* user requesting the printing */
 static std::size_t orig_count; /* original byte count (was int) */
 static int es;     /* (es, offset) point to next character to - segment part from phys addr */
 static int offset; /* print, i.e., in the user's buffer - offset part from phys addr */
@@ -120,7 +121,7 @@ static void do_write(message *m_ptr) noexcept { // PRIVATE -> static, modernized
         /* Save information needed later. */
         lock(); // noexcept
         caller = m_ptr->m_source;
-        proc_nr = proc_nr(*m_ptr);
+        requesting_proc = proc_nr(*m_ptr);
         pcount = static_cast<std::size_t>(count(*m_ptr));
         orig_count = static_cast<std::size_t>(count(*m_ptr));
         // phys is uint64_t. es, offset are int. CLICK_SHIFT, LOW_FOUR are int.
@@ -163,8 +164,8 @@ static void do_done(message *m_ptr) noexcept { // PRIVATE -> static, modernized 
     int status;
 
     status = (rep_status(*m_ptr) == OK ? orig_count : ErrorCode::EIO);
-    if (proc_nr != CANCELED) {
-        reply(REVIVE, caller, proc_nr, status);
+    if (requesting_proc != CANCELED) {
+        reply(REVIVE, caller, requesting_proc, status);
         if (status == ErrorCode::EIO)
             pr_error(rep_status(*m_ptr));
     }
@@ -182,10 +183,10 @@ message *m_ptr; /* pointer to the newly arrived message */
      */
 
     if (pr_busy == FALSE)
-        return;         /* this statement avoids race conditions */
-    pr_busy = FALSE;    /* mark printer as idle */
-    pcount = 0;         /* causes printing to stop at next interrupt (pcount is std::size_t) */
-    proc_nr = CANCELED; /* marks process as canceled */
+        return;      /* this statement avoids race conditions */
+    pr_busy = FALSE; /* mark printer as idle */
+    pcount = 0;      /* causes printing to stop at next interrupt (pcount is std::size_t) */
+    requesting_proc = CANCELED; /* marks process as canceled */
     reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), ErrorCode::EINTR);
 }
 

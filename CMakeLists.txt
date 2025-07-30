@@ -78,7 +78,6 @@ set(BASE_CPU_FLAGS
     "-msse"
     "-mmmx"
     "-msse2"
-    "-mfpu=sse"
 )
 add_compile_options(${BASE_CPU_FLAGS})
 
