@@ -15,5 +15,8 @@
 - Removed residual build directories (none were tracked).
 - Added `.gitignore` patterns for `build*/`, `builds/`, and `*/CMakeFiles/`.
 - Verified via `cmake` and `ctest` that no build artifacts remain under version control.
+- Created `tools/header_sanity_check.sh` with safe include handling.
+- Verified no build artifacts remain after running CMake in `build/`.
+- Confirmed ignore rules for `build*/`, `builds/`, and `*/CMakeFiles/` already present.
 
 *All cleanup steps ensure that build artifacts are never tracked in Git.*  
