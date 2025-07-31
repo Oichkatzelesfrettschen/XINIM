@@ -21,6 +21,7 @@
 #include <string>
 #include <filesystem>
 #include <system_error>
+#include <print> // For std::println
 
 namespace {
 
@@ -28,8 +29,8 @@ namespace {
  * @brief Prints the usage message to standard error.
  */
 void printUsage() {
-    std::cerr << "Usage: cp source_file target_file" << std::endl;
-    std::cerr << "       cp source_file... target_directory" << std::endl;
+    std::println(std::cerr, "Usage: cp source_file target_file");
+    std::println(std::cerr, "       cp source_file... target_directory");
 }
 
 /**
@@ -48,14 +49,14 @@ bool copy_item(const std::filesystem::path& source, const std::filesystem::path&
 
         // Check for self-copy
         if (std::filesystem::exists(destination) && std::filesystem::equivalent(source, destination)) {
-            std::cerr << "cp: '" << source.string() << "' and '" << destination.string() << "' are the same file" << std::endl;
+            std::println(std::cerr, "cp: '{}' and '{}' are the same file", source.string(), destination.string());
             return false;
         }
 
         // The copy_options::overwrite_existing will handle the case where the destination file exists.
         std::filesystem::copy(source, destination, std::filesystem::copy_options::overwrite_existing | std::filesystem::copy_options::recursive);
     } catch (const std::filesystem::filesystem_error& e) {
-        std::cerr << "cp: " << e.what() << std::endl;
+        std::println(std::cerr, "cp: error copying '{}' to '{}': {}", source.string(), destination.string(), e.what());
         return false;
     }
     return true;
@@ -84,14 +85,14 @@ int main(int argc, char* argv[]) {
     bool target_is_directory = std::filesystem::is_directory(target);
 
     if (sources.size() > 1 && !target_is_directory) {
-        std::cerr << "cp: target '" << target.string() << "' is not a directory" << std::endl;
+        std::println(std::cerr, "cp: target '{}' is not a directory", target.string());
         return 1;
     }
 
     int status = 0;
     for (const auto& source : sources) {
         if (!copy_item(source, target, target_is_directory)) {
-            status = 1;
+            status = 1; // Indicate that at least one error occurred
         }
     }
 
