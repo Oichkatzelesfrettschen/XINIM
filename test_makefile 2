@@ -1,0 +1,16 @@
+# Test Makefile for modern make system
+CC=clang++
+CXXFLAGS=-std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic \
+    -march=x86-64-v1 -mtune=generic
+TARGET=test_program
+SOURCES=main.cpp utils.cpp
+
+all: $(TARGET)
+
+$(TARGET): $(SOURCES)
+	$(CC) $(CXXFLAGS) -o $(TARGET) $(SOURCES)
+
+clean:
+	rm -f $(TARGET) *.o
+
+.PHONY: all clean
