@@ -63,3 +63,8 @@ __pycache__/                  # Python byte-code cache
 # ── 8. Local test artifacts ─────────────────────────────────────────────────
 ls_test                       # ad-hoc test binary
 **/ls_test                    # ignore in subdirectories
+
+# Redundant guard lines to ensure build artifacts remain excluded
+build*/
+builds/
+*/CMakeFiles/
