@@ -1,72 +1,25 @@
-#!/bin/sh
-# setup.sh - Install dependencies for building and testing this project.
-# This script installs clang and related tools so that the sources can be
-# compiled as C++23 and analyzed with clang-tidy and clang-format.
+#!/bin/bash
 
-set -euo pipefail
-
-# Required packages:
-# - libsodium-dev/libsodium23 for encryption features used by unit tests and
-#   networking components.
-
-# Update package lists.
+# Update package lists
 sudo apt-get update
 
-# Install build utilities, analysis tools and documentation generators.
-sudo apt-get install -y --no-install-recommends \
-    build-essential \
-    cmake \
-    nasm \
-    clang \
-    clang-tidy \
-    clang-format \
-    clang-tools \
-    clangd \
-    lld \
-    llvm \
-    llvm-dev \
-    libclang-dev \
-    libclang-cpp-dev \
-    cppcheck \
-    valgrind \
-    lcov \
-    strace \
-    gdb \
-    rustc \
-    cargo \
-    rustfmt \
-    g++ \
-    afl++ \
-    ninja-build \
-    doxygen \
-    graphviz \
-    python3-sphinx \
-    python3-breathe \
-    python3-sphinx-rtd-theme \
-    python3-pip \
-    # libsodium provides crypto primitives required by lattice networking
-    libsodium-dev \
-    libsodium23 \
-    # JSON parser required by service manager
-    nlohmann-json3-dev \
-    qemu-system-x86 \
-    qemu-utils \
-    qemu-user \
-    tmux \
-    cloc \
-    cscope
+# Install apt tools if not already installed
+dpkg -s cloc >/dev/null 2>&1 || sudo apt-get install -y cloc
+dpkg -s cscope >/dev/null 2>&1 || sudo apt-get install -y cscope
+dpkg -s cppcheck >/dev/null 2>&1 || sudo apt-get install -y cppcheck
+dpkg -s tree >/dev/null 2>&1 || sudo apt-get install -y tree
+dpkg -s python3-pip >/dev/null 2>&1 || sudo apt-get install -y python3-pip
 
-# Ensure ack is installed for convenient searching
-if ! command -v ack >/dev/null 2>&1; then
-    sudo apt-get install -y --no-install-recommends ack
-fi
+# Install pip tool if not already installed
+pip3 show lizard >/dev/null 2>&1 || pip3 install lizard
 
-# Install optional ack helpers for Python and Node
-# ack helpers are optional; skip if pip or npm are restricted
+# Make the script executable
+chmod +x tools/setup.sh
 
-# Install lizard via pip for complexity metrics
-python3 -m pip install --user lizard
-
-# Attempt to install libfuzzer development package if available.
-sudo apt-get install -y --no-install-recommends libfuzzer-dev || true
-
+echo "--- Tool Status ---"
+echo "cloc: $(dpkg -s cloc >/dev/null 2>&1 && echo "Installed" || echo "Not Installed")"
+echo "cscope: $(dpkg -s cscope >/dev/null 2>&1 && echo "Installed" || echo "Not Installed")"
+echo "cppcheck: $(dpkg -s cppcheck >/dev/null 2>&1 && echo "Installed" || echo "Not Installed")"
+echo "tree: $(dpkg -s tree >/dev/null 2>&1 && echo "Installed" || echo "Not Installed")"
+echo "python3-pip: $(dpkg -s python3-pip >/dev/null 2>&1 && echo "Installed" || echo "Not Installed")"
+echo "lizard: $(pip3 show lizard >/dev/null 2>&1 && echo "Installed" || echo "Not Installed")"

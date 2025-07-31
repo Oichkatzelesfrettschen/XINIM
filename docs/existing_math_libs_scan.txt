@@ -1,0 +1,304 @@
+4: * @brief Octonion multiplication via the Fano plane.
+7:#include "octonion.hpp"
+18: * @param lhs Left-hand side octonion.
+19: * @param rhs Right-hand side octonion.
+20: * @return Product octonion.
+60:[[nodiscard]] constexpr Octonion fano_multiply(const Octonion &lhs, const Octonion &rhs) noexcept {
+61:    Octonion result{};
+4: * @brief Utility helpers for operating on octonion tokens.
+7:#include "octonion.hpp"
+12: * @brief Wrapper type representing an octonion capability token.
+15:    Octonion value{}; ///< Underlying octonion value
+19: * @brief Multiply two tokens using octonion multiplication.
+4: * @brief RAII quaternion-based spinlock implementation.
+13: * @brief Simple quaternion type.
+15:struct Quaternion {
+22:    constexpr Quaternion() = default;
+25:    constexpr Quaternion(float sw, float sx, float sy, float sz) noexcept
+28:    /// Obtain the identity quaternion.
+29:    [[nodiscard]] static constexpr Quaternion id() noexcept { return {}; }
+32:     * @brief Quaternion multiplication.
+34:    [[nodiscard]] constexpr Quaternion operator*(const Quaternion &rhs) const noexcept {
+35:        return Quaternion{
+44:     * @brief Conjugate quaternion.
+46:    [[nodiscard]] constexpr Quaternion conjugate() const noexcept {
+47:        return Quaternion{w, -x, -y, -z};
+52: * @brief Spinlock using an atomic flag combined with quaternion state.
+59:    void lock(const Quaternion &ticket) noexcept {
+66:    void unlock(const Quaternion &ticket) noexcept {
+73:    Quaternion orientation{}; ///< Orientation state
+81:    QuaternionLockGuard(QuaternionSpinlock &spin, const Quaternion &t) noexcept
+88:    QuaternionSpinlock &lock; ///< Referenced spinlock
+89:    Quaternion ticket{};      ///< Ticket quaternion
+3: * @file sedenion.hpp
+4: * @brief Minimal sedenion type with zero divisor detection.
+72: * @brief Sixteen component sedenion built via Cayley-Dickson construction.
+74:struct Sedenion {
+80:    [[nodiscard]] Sedenion operator*(const Sedenion &rhs) const noexcept {
+81:        return Sedenion{detail::cd_mul<16>(comp, rhs.comp)};
+85:    explicit constexpr Sedenion(std::array<float, 16> c) noexcept : comp(c) {}
+87:    constexpr Sedenion() = default;
+105:    Sedenion pub{};  ///< Public zero divisor
+106:    Sedenion priv{}; ///< Companion private zero divisor
+132:    return ZPair{Sedenion{a}, Sedenion{b}};
+140: * @return Ciphertext sedenion.
+142:[[nodiscard]] inline Sedenion zlock_encrypt(const Sedenion &pub, std::span<const uint8_t, 16> m) {
+151:    return Sedenion{sum};
+161:[[nodiscard]] inline std::array<uint8_t, 16> zlock_decrypt(const Sedenion &pub, const Sedenion &c) {
+173:[[nodiscard]] inline bool is_zero_divisor(const Sedenion &s) noexcept {
+178: * @brief Toy encryption using sedenion multiplication.
+181:                             const Sedenion &key) {
+3: * @file octonion.hpp
+4: * @brief Lightweight octonion type for capability tokens.
+16:struct Octonion {
+20:    constexpr Octonion() = default;
+23:    explicit constexpr Octonion(const std::array<std::uint32_t, 8> &c) : comp(c) {}
+25:    /// Convert 32 raw bytes into an octonion.
+26:    static constexpr Octonion from_bytes(const std::array<std::uint8_t, 32> &bytes) noexcept {
+27:        Octonion o{};
+39:    /// Serialize the octonion into 32 bytes.
+51:    [[nodiscard]] constexpr Octonion operator*(const Octonion &rhs) const noexcept {
+91:        Octonion out{};
+103:    /// Compute the conjugate octonion.
+104:    [[nodiscard]] constexpr Octonion conjugate() const noexcept {
+105:        Octonion out = *this;
+113:    [[nodiscard]] Octonion inverse() const noexcept {
+119:            return Octonion{};
+78:    // Block interrupts via RAII quaternion spinlock
+80:    const hyper::Quaternion ticket = hyper::Quaternion::id();
+3:#include "../kernel/sedenion.hpp"
+9:    using hyper::Quaternion;
+12:    Quaternion ticket{0.0F, 1.0F, 0.0F, 0.0F};
+16:    lattice::Octonion a{};
+18:    lattice::Octonion b{};
+1:#include "sedenion.hpp"
+2:#include "octonion.hpp" // For Cayley-Dickson
+13:Sedenion::Sedenion(const Octonion& o1, const Octonion& o2) {
+20:// Helper to get Octonion parts
+21:Octonion Sedenion::get_o1() const {
+24:    return Octonion(o1_comps);
+27:Octonion Sedenion::get_o2() const {
+30:    return Octonion(o2_comps);
+34:Sedenion& Sedenion::operator+=(const Sedenion& other) {
+41:Sedenion& Sedenion::operator-=(const Sedenion& other) {
+48:Sedenion& Sedenion::operator*=(double scalar) {
+55:Sedenion& Sedenion::operator/=(double scalar) {
+57:        throw std::runtime_error("Sedenion division by zero scalar.");
+65:Sedenion& Sedenion::operator*=(const Sedenion& other) {
+68:    Octonion a = this->get_o1();
+69:    Octonion b = this->get_o2();
+70:    Octonion c_other = other.get_o1();
+71:    Octonion d_other = other.get_o2();
+73:    Octonion res_o1 = (a * c_other) - (d_other * b.conjugate());
+74:    Octonion res_o2 = (d_other * a) + (c_other.conjugate() * b);
+84:Sedenion operator+(Sedenion lhs, const Sedenion& rhs) {
+89:Sedenion operator-(Sedenion lhs, const Sedenion& rhs) {
+94:Sedenion operator*(Sedenion lhs, double scalar) {
+99:Sedenion operator*(double scalar, Sedenion rhs) {
+104:Sedenion operator/(Sedenion lhs, double scalar) {
+109:Sedenion operator*(Sedenion lhs, const Sedenion& rhs) {
+115:bool Sedenion::operator==(const Sedenion& other) const {
+125:bool Sedenion::operator!=(const Sedenion& other) const {
+130:double Sedenion::norm() const {
+134:Sedenion Sedenion::inverse() const {
+140:    // A Sedenion s is a zero divisor if there exists a non-zero Sedenion t such that st = 0.
+144:        // This Sedenion is a zero divisor or the zero Sedenion itself.
+145:        // Returning a zero Sedenion, or NaN/inf by direct division, or throwing.
+149:        // console_write_string("Warning: Attempting to invert a Sedenion with zero norm.\n");
+150:        return Sedenion::zero();
+155:Sedenion& Sedenion::normalize() {
+158:        // Cannot normalize a sedenion with zero norm. It remains zero or becomes NaN/inf.
+166:Sedenion Sedenion::normalized() const {
+167:    Sedenion s = *this;
+172:bool Sedenion::is_unit(double tolerance) const {
+176:bool Sedenion::is_zero_divisor_candidate() const {
+177:    if (this->operator==(Sedenion::zero())) return false; // Zero is not a zero divisor by typical def.
+183:std::ostream& operator<<(std::ostream& os, const Sedenion& s) {
+1:#include "octonion.hpp"
+2:#include "quaternion.hpp" // For Cayley-Dickson construction
+13:Octonion::Octonion(const Quaternion& q1, const Quaternion& q2) {
+18:// Helper to get Quaternion parts
+19:Quaternion Octonion::get_q1() const {
+20:    return Quaternion(c[0], c[1], c[2], c[3]);
+23:Quaternion Octonion::get_q2() const {
+24:    return Quaternion(c[4], c[5], c[6], c[7]);
+29:Octonion& Octonion::operator+=(const Octonion& other) {
+36:Octonion& Octonion::operator-=(const Octonion& other) {
+43:Octonion& Octonion::operator*=(double scalar) {
+50:Octonion& Octonion::operator/=(double scalar) {
+52:        throw std::runtime_error("Octonion division by zero scalar.");
+60:Octonion& Octonion::operator*=(const Octonion& other) {
+65:    Quaternion a = this->get_q1();
+66:    Quaternion b = this->get_q2();
+67:    Quaternion c_other = other.get_q1();
+68:    Quaternion d_other = other.get_q2();
+70:    Quaternion res_q1 = (a * c_other) - (d_other * b.conjugate());
+71:    Quaternion res_q2 = (d_other * a) + (c_other.conjugate() * b);
+80:Octonion operator+(Octonion lhs, const Octonion& rhs) {
+85:Octonion operator-(Octonion lhs, const Octonion& rhs) {
+90:Octonion operator*(Octonion lhs, double scalar) {
+95:Octonion operator*(double scalar, Octonion rhs) {
+100:Octonion operator/(Octonion lhs, double scalar) {
+105:Octonion operator*(Octonion lhs, const Octonion& rhs) {
+111:bool Octonion::operator==(const Octonion& other) const {
+121:bool Octonion::operator!=(const Octonion& other) const {
+126:double Octonion::norm() const {
+130:Octonion Octonion::inverse() const {
+133:        return Octonion::zero();
+138:Octonion& Octonion::normalize() {
+148:Octonion Octonion::normalized() const {
+149:    Octonion o = *this;
+154:bool Octonion::is_unit(double tolerance) const {
+159:std::ostream& operator<<(std::ostream& os, const Octonion& o) {
+1:#include "quaternion.hpp"
+11:Quaternion& Quaternion::operator+=(const Quaternion& other) {
+19:Quaternion& Quaternion::operator-=(const Quaternion& other) {
+27:Quaternion& Quaternion::operator*=(double scalar) {
+35:Quaternion& Quaternion::operator/=(double scalar) {
+39:        throw std::runtime_error("Quaternion division by zero scalar.");
+48:Quaternion& Quaternion::operator*=(const Quaternion& other) {
+61:Quaternion operator+(Quaternion lhs, const Quaternion& rhs) {
+66:Quaternion operator-(Quaternion lhs, const Quaternion& rhs) {
+71:Quaternion operator*(Quaternion lhs, double scalar) {
+76:Quaternion operator*(double scalar, Quaternion rhs) {
+81:Quaternion operator/(Quaternion lhs, double scalar) {
+86:Quaternion operator*(Quaternion lhs, const Quaternion& rhs) {
+92:bool Quaternion::operator==(const Quaternion& other) const {
+101:bool Quaternion::operator!=(const Quaternion& other) const {
+106:double Quaternion::norm() const {
+110:Quaternion Quaternion::inverse() const {
+113:        // Return zero quaternion or handle error (e.g. throw)
+115:        return Quaternion(0.0, 0.0, 0.0, 0.0);
+120:Quaternion& Quaternion::normalize() {
+123:        // Cannot normalize a zero quaternion. It remains zero.
+132:Quaternion Quaternion::normalized() const {
+133:    Quaternion q = *this;
+138:bool Quaternion::is_unit(double tolerance) const {
+143:std::ostream& operator<<(std::ostream& os, const Quaternion& q) {
+4:#include "octonion.hpp" // For Cayley-Dickson construction from Octonions
+13: * @brief A class representing a Sedenion.
+27: * A sedenion s is represented as s = e0 + e1*i1 + ... + e15*i15.
+29:class alignas(128) Sedenion { // Align to 128 bytes for 16 doubles
+34:    /** @brief Default constructor, initializes to zero sedenion. */
+35:    constexpr Sedenion() : c{} { // Value-initialize to all zeros
+41:    constexpr Sedenion(
+47:    constexpr explicit Sedenion(const std::array<double, 16>& components) : c(components) {}
+50:    Sedenion(const Octonion& a, const Octonion& b);
+53:    Sedenion& operator+=(const Sedenion& other);
+54:    Sedenion& operator-=(const Sedenion& other);
+55:    Sedenion& operator*=(double scalar);
+56:    Sedenion& operator/=(double scalar); // Division by scalar
+57:    Sedenion& operator*=(const Sedenion& other); // Non-associative product with zero divisors
+60:    friend Sedenion operator+(Sedenion lhs, const Sedenion& rhs);
+61:    friend Sedenion operator-(Sedenion lhs, const Sedenion& rhs);
+62:    friend Sedenion operator*(Sedenion lhs, double scalar);
+63:    friend Sedenion operator*(double scalar, Sedenion rhs);
+64:    friend Sedenion operator/(Sedenion lhs, double scalar);
+65:    friend Sedenion operator*(Sedenion lhs, const Sedenion& rhs);
+68:    bool operator==(const Sedenion& other) const;
+69:    bool operator!=(const Sedenion& other) const;
+72:    /** @brief Computes the conjugate of the sedenion. */
+73:    constexpr Sedenion conjugate() const {
+74:        Sedenion res;
+95:     * @brief Computes the inverse of the sedenion if it exists.
+104:    Sedenion inverse() const;
+106:    /** @brief Normalizes the sedenion to unit length if possible.
+107:     *  If the sedenion has zero norm (e.g. it's a zero divisor like (e1+e10)), it remains zero or results in NaN.
+109:    Sedenion& normalize();
+111:    /** @brief Returns a normalized version of this sedenion if possible. */
+112:    Sedenion normalized() const;
+114:    /** @brief Checks if the sedenion is a unit sedenion (norm is close to 1). */
+118:    /** @brief Checks if the sedenion is a zero divisor. (Complex to implement generally)
+119:     *  A simple check could be if norm_sq() is zero for a non-zero Sedenion.
+127:    static constexpr Sedenion identity() {
+128:        std::array<double, 16> s_c{}; s_c[0] = 1.0; return Sedenion(s_c);
+130:    static constexpr Sedenion zero() {
+131:        std::array<double, 16> s_c{}; return Sedenion(s_c);
+134:    // Access to Octonion parts
+135:    Octonion get_o1() const; // First octonion part (e0-e7)
+136:    Octonion get_o2() const; // Second octonion part (e8-e15)
+139:    friend std::ostream& operator<<(std::ostream& os, const Sedenion& s);
+12: * @brief A class representing a Quaternion.
+14: * This implementation focuses on the algebraic properties. For spinlock applications, specific memory layout
+17: * @details A quaternion q is represented as q = r + i*i + j*j + k*k, where r is the scalar part
+20:class alignas(32) Quaternion {
+28:    /** @brief Default constructor, initializes to zero quaternion (0,0,0,0). */
+29:    constexpr Quaternion() : r(0.0), i(0.0), j(0.0), k(0.0) {}
+32:    constexpr Quaternion(double r_val, double i_val, double j_val, double k_val)
+36:    constexpr Quaternion(double scalar_part, const std::array<double, 3>& vector_part)
+41:    Quaternion& operator+=(const Quaternion& other);
+42:    Quaternion& operator-=(const Quaternion& other);
+43:    Quaternion& operator*=(double scalar);
+44:    Quaternion& operator/=(double scalar);
+45:    Quaternion& operator*=(const Quaternion& other); // Hamilton product
+48:    friend Quaternion operator+(Quaternion lhs, const Quaternion& rhs);
+49:    friend Quaternion operator-(Quaternion lhs, const Quaternion& rhs);
+50:    friend Quaternion operator*(Quaternion lhs, double scalar);
+51:    friend Quaternion operator*(double scalar, Quaternion rhs);
+52:    friend Quaternion operator/(Quaternion lhs, double scalar);
+53:    friend Quaternion operator*(Quaternion lhs, const Quaternion& rhs); // Hamilton product
+56:    bool operator==(const Quaternion& other) const;
+57:    bool operator!=(const Quaternion& other) const;
+60:    /** @brief Computes the conjugate of the quaternion. */
+61:    constexpr Quaternion conjugate() const {
+62:        return Quaternion(r, -i, -j, -k);
+65:    /** @brief Computes the squared norm (magnitude squared) of the quaternion.
+72:    /** @brief Computes the norm (magnitude) of the quaternion. */
+75:    /** @brief Computes the inverse of the quaternion.
+76:     *  Returns a zero quaternion if the original quaternion is zero (norm_sq is zero).
+78:    Quaternion inverse() const;
+80:    /** @brief Normalizes the quaternion to unit length.
+81:     *  If the quaternion is zero, it remains zero.
+83:    Quaternion& normalize();
+85:    /** @brief Returns a normalized version of this quaternion. */
+86:    Quaternion normalized() const;
+88:    /** @brief Checks if the quaternion is a unit quaternion (norm is close to 1). */
+92:    /** @brief Returns the identity quaternion (1,0,0,0). */
+93:    static constexpr Quaternion identity() { return Quaternion(1.0, 0.0, 0.0, 0.0); }
+94:    /** @brief Returns the zero quaternion (0,0,0,0). */
+95:    static constexpr Quaternion zero() { return Quaternion(0.0, 0.0, 0.0, 0.0); }
+98:    friend std::ostream& operator<<(std::ostream& os, const Quaternion& q);
+4:#include "quaternion.hpp" // May be used for Cayley-Dickson, or for inspiration
+13: * @brief A class representing an Octonion.
+17: * @details An octonion o is represented as o = e0 + e1*i1 + e2*i2 + ... + e7*i7.
+24:class alignas(64) Octonion { // Align to 64 bytes for 8 doubles (AVX-512 potential)
+29:    /** @brief Default constructor, initializes to zero octonion. */
+30:    constexpr Octonion() : c{0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0} {}
+33:    constexpr Octonion(double c0, double c1, double c2, double c3,
+38:    constexpr explicit Octonion(const std::array<double, 8>& components) : c(components) {}
+41:    Octonion(const Quaternion& a, const Quaternion& b);
+45:    Octonion& operator+=(const Octonion& other);
+46:    Octonion& operator-=(const Octonion& other);
+47:    Octonion& operator*=(double scalar);
+48:    Octonion& operator/=(double scalar);
+49:    Octonion& operator*=(const Octonion& other); // Non-associative product
+52:    friend Octonion operator+(Octonion lhs, const Octonion& rhs);
+53:    friend Octonion operator-(Octonion lhs, const Octonion& rhs);
+54:    friend Octonion operator*(Octonion lhs, double scalar);
+55:    friend Octonion operator*(double scalar, Octonion rhs);
+56:    friend Octonion operator/(Octonion lhs, double scalar);
+57:    friend Octonion operator*(Octonion lhs, const Octonion& rhs);
+60:    bool operator==(const Octonion& other) const;
+61:    bool operator!=(const Octonion& other) const;
+64:    /** @brief Computes the conjugate of the octonion. */
+65:    constexpr Octonion conjugate() const {
+66:        return Octonion(c[0], -c[1], -c[2], -c[3], -c[4], -c[5], -c[6], -c[7]);
+81:    /** @brief Computes the inverse of the octonion.
+82:     *  Returns a zero octonion if the original is zero.
+84:    Octonion inverse() const;
+86:    /** @brief Normalizes the octonion to unit length.
+87:     *  If the octonion is zero, it remains zero.
+89:    Octonion& normalize();
+91:    /** @brief Returns a normalized version of this octonion. */
+92:    Octonion normalized() const;
+94:    /** @brief Checks if the octonion is a unit octonion (norm is close to 1). */
+98:    /** @brief Returns the identity octonion (1,0,...,0). */
+99:    static constexpr Octonion identity() {
+100:        return Octonion(1.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+102:    /** @brief Returns the zero octonion (0,...,0). */
+103:    static constexpr Octonion zero() {
+104:        return Octonion(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0);
+107:    // Access to Quaternion parts for Cayley-Dickson based operations if needed
+108:    Quaternion get_q1() const; // First quaternion part (e0-e3)
+109:    Quaternion get_q2() const; // Second quaternion part (e4-e7)
+112:    friend std::ostream& operator<<(std::ostream& os, const Octonion& o);
