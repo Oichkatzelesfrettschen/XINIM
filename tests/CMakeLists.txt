@@ -256,6 +256,19 @@ target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_overflow COMMAND minix_test_net_driver_overflow)
 
 # -----------------------------------------------------------------------------
+# minix_test_net_driver_drop
+# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_drop
+  test_net_driver_drop.cpp
+  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_drop PUBLIC
+  ${CMAKE_SOURCE_DIR}/kernel
+)
+target_link_libraries(minix_test_net_driver_drop PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_drop COMMAND minix_test_net_driver_drop)
+
+# -----------------------------------------------------------------------------
 # minix_test_net_driver_drop_newest
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver_drop_newest
