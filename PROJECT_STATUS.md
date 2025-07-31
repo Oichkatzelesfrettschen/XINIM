@@ -19,4 +19,8 @@
 - Verified no build artifacts remain after running CMake in `build/`.
 - Confirmed ignore rules for `build*/`, `builds/`, and `*/CMakeFiles/` already present.
 
-*All cleanup steps ensure that build artifacts are never tracked in Git.*  
+*All cleanup steps ensure that build artifacts are never tracked in Git.*
+
+## 2025-07-31
+- Verified absence of `build*/`, `builds/`, and `*/CMakeFiles/` directories after a full clang-based build.
+- Appended explicit ignore patterns to `.gitignore` as redundant safeguards.
