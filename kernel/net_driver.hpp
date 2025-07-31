@@ -41,7 +41,7 @@ using node_t = int;
  */
 struct Packet {
     node_t src_node;                ///< Originating node ID
-    std::vector<std::byte> payload; ///< Message payload (excluding prefix)
+    std::vector<std::byte> payload; ///< Raw payload bytes (post‐prefix)
 };
 
 /**
@@ -69,21 +69,13 @@ enum class Protocol {
  * @param policy          Overflow policy
  * @param node_id_dir_    Directory for persisting auto-detected node ID
  */
-struct Config {
-    node_t node_id;
-    std::uint16_t port;
-    std::size_t max_queue_length;
-    OverflowPolicy overflow;
-    std::filesystem::path node_id_dir;
-
-    constexpr Config(node_t node_id_ = 0, std::uint16_t port_ = 0, std::size_t max_len = 0,
-                     OverflowPolicy policy = OverflowPolicy::DropNewest,
-                     std::filesystem::path node_id_dir_ = {}) noexcept
-        : node_id(node_id_), port(port_), max_queue_length(max_len), overflow(policy),
-          node_id_dir(std::move(node_id_dir_)) {}
+struct Remote {
+    sockaddr_in addr; ///< IPv4 socket address of the peer
+    Protocol proto;   ///< Protocol to use (UDP or TCP)
+    int tcp_fd{-1};   ///< TCP socket FD (if persistent; optional)
 };
 
-/** Callback type invoked on packet arrival (from background thread). */
+/** Callback type invoked on packet arrival. */
 using RecvCallback = std::function<void(const Packet &)>;
 
 /**
@@ -133,14 +125,10 @@ void shutdown() noexcept;
 /**
  * @brief Retrieve the stable local node identifier.
  *
- * If cfg.node_id was non-zero, returns that.  Otherwise:
- *   1. Reads node_id_dir/node_id if present
- *   2. Derives from first active non-loopback interface (MAC or IP)
- *   3. Falls back to a hash of hostname
- *
- * If auto-detected, the ID is written to node_id_dir/node_id.
- *
- * @return Stable non-zero node ID (0 only if uninitialized)
+ * The node identifier is established during ::init. If ``Config::node_id`` is
+ * zero, the driver hashes the MAC address of the primary network interface, or
+ * its IPv4 address when the MAC cannot be read. A hashed host name is used as a
+ * final fallback. Providing a non-zero ``node_id`` bypasses the detection.
  */
 [[nodiscard]] node_t local_node() noexcept;
 

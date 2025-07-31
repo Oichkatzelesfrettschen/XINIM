@@ -113,7 +113,7 @@ Typical Configuration Steps
 
    .. code-block:: cpp
 
-      net::init({ node_id, udp_port });
+      net::init({ local_node_id, udp_port });
 
 2. **Register** remote peers:
 
