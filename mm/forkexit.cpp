@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This file deals with creating processes (via FORK) and deleting them (via
  * EXIT/WAIT).  When a process forks, a new slot in the 'mproc' table is
  * allocated for it, and a copy of the parent's core image is made for the

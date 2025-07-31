@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This is a special version of printf.  It is used only by the operating
  * system itself, and should never be included in user programs.   The name
  * printk never appears in the operating system, because the macro printf

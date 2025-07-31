@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 char *name[] = {"t10a","t10b","t10c","t10d","t10e","t10f","t10g","t10h","t10i","t10j"};
 
 extern int errno;

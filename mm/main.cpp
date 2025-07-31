@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This file contains the main program of the memory manager and some related
  * procedures.  When MINIX starts up, the kernel runs for a little while,
  * initializing itself and its tasks, and then it runs MM.  MM at this point

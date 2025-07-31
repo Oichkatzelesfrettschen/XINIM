@@ -27,7 +27,7 @@ MOD_HEADER_ASM='; <<< WORK-IN-PROGRESS MODERNIZATION HEADER
 
 # Rename .h to .hpp
 count=0
-for f in $(git ls-files '*.h'); do
+for f in $(git ls-files '*.h' | grep -vE '^tools/c86/|^tools/minix/'); do
     if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
         break
     fi
@@ -39,7 +39,7 @@ done
 
 # Rename .cpp to .cpppp
 count=0
-for f in $(git ls-files '*.cpp'); do
+for f in $(git ls-files '*.cpp' | grep -vE '^tools/c86/|^tools/minix/'); do
     if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
         break
     fi
@@ -80,7 +80,7 @@ done
 
 # Rename .s or .asm to .nasm and insert header
 count=0
-for f in $(git ls-files '*.s' '*.asm' '*.S'); do
+for f in $(git ls-files '*.s' '*.asm' '*.S' | grep -vE '^tools/c86/|^tools/minix/'); do
     if [ "$FILE_LIMIT" -gt 0 ] && [ "$count" -ge "$FILE_LIMIT" ]; then
         break
     fi

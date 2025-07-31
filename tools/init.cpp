@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This process is the father (mother) of all MINIX user processes.  When
  * MINIX comes up, this is process 2.  It executes the /etc/rc shell file and
  * then reads the /ect/ttys file to find out which terminals need a login

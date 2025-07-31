@@ -27,9 +27,9 @@ def classify_file(path: str) -> str:
     """Classify a single source file by style."""
 
     ext = os.path.splitext(path)[1].lower()
-    if ext in {".s", ".asm", ".S"}:
+    if ext in {".s", ".asm", ".S", ".nasm"}:  # Added .nasm as it's the new extension for assembly
         return "assembly"
-    if ext not in {".cpp", ".h"}:
+    if ext not in {".cpp", ".h", ".hpp", ".cpppp"}:  # Added .hpp and .cpppp
         return ""
 
     try:

@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* Entry point for standalone programs.
  * This function extracts argc, argv, and envp from the stack
  * and then invokes _main. It finally terminates by calling _exit.

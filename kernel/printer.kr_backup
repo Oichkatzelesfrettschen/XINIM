@@ -95,7 +95,8 @@ PUBLIC printer_task() {
 /*===========================================================================*
  *				do_write				     *
  *===========================================================================*/
-PRIVATE do_write(int r) /* pointer to the newly arrived message */
+PRIVATE do_write(m_ptr)
+message *m_ptr; /* pointer to the newly arrived message */
 {
     /* The printer is used by sending TTY_WRITE messages to it. Process one. */
 
@@ -158,7 +159,8 @@ PRIVATE do_write(int r) /* pointer to the newly arrived message */
 /*===========================================================================*
  *				do_done					     *
  *===========================================================================*/
-PRIVATE do_done(int r) /* pointer to the newly arrived message */
+PRIVATE do_done(m_ptr)
+message *m_ptr; /* pointer to the newly arrived message */
 {
     /* Printing is finished.  Reply to caller (FS). */
 
@@ -176,7 +178,8 @@ PRIVATE do_done(int r) /* pointer to the newly arrived message */
 /*===========================================================================*
  *				do_cancel				     *
  *===========================================================================*/
-PRIVATE do_cancel(int r) /* pointer to the newly arrived message */
+PRIVATE do_cancel(m_ptr)
+message *m_ptr; /* pointer to the newly arrived message */
 {
     /* Cancel a print request that has already started.  Usually this means that
      * the process doing the printing has been killed by a signal.
@@ -193,7 +196,11 @@ PRIVATE do_cancel(int r) /* pointer to the newly arrived message */
 /*===========================================================================*
  *				reply					     *
  *===========================================================================*/
-PRIVATE reply(int s)  /* number of  chars printed or error code */
+PRIVATE reply(code, replyee, process, status)
+int code;    /* TASK_REPLY or REVIVE */
+int replyee; /* destination for message (normally FS) */
+int process; /* which user requested the printing */
+int status;  /* number of  chars printed or error code */
 {
     /* Send a reply telling FS that printing has started or stopped. */
 
@@ -208,7 +215,8 @@ PRIVATE reply(int s)  /* number of  chars printed or error code */
 /*===========================================================================*
  *				pr_error				     *
  *===========================================================================*/
-PRIVATE pr_error(int s) /* printer status byte */
+PRIVATE pr_error(status)
+int status; /* printer status byte */
 {
     /* The printer is not ready.  Display a message on the console telling why. */
 

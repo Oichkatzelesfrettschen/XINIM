@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This file handles the 4 system calls that get and set uids and gids.
  * It also handles getpid().  The code for each one is so tiny that it hardly
  * seemed worthwhile to make each a separate function.

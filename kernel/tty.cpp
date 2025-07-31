@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This file contains the terminal driver, both for the IBM console and regular
  * ASCII terminals.  It is split into two sections, a device-independent part
  * and a device-dependent part.  The device-independent part accepts

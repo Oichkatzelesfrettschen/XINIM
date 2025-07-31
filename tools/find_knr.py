@@ -16,7 +16,7 @@ def scan(root: str) -> list[Path]:
     knr_files = []
     for dirpath, _, files in os.walk(root):
         for name in files:
-            if name.endswith(".cpp"):
+            if name.endswith(".cpppp"):
                 path = Path(dirpath) / name
                 if classify_file(str(path)) == "K&R":
                     knr_files.append(path)

@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* prints() is like printf(), except that it can only handle %s and %c.  It
  * cannot print any of the numeric types such as %d, %o, etc.  It has the
  * advantage of not requiring the runtime code for converting binary numbers

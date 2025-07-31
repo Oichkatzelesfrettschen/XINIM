@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This file is concerned with allocating and freeing arbitrary-size blocks of
  * physical memory on behalf of the FORK and EXEC system calls.  The key data
  * structure used is the hole table, which maintains a list of holes in memory.

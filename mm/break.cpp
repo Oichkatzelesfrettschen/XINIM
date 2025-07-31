@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* The MINIX model of memory allocation reserves a fixed amount of memory for
  * the combined text, data, and stack segements.  The amount used for a child
  * process created by FORK is the same as the parent had.  If the child does

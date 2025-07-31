@@ -1,3 +1,9 @@
+/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
+  This repository is a work in progress to reproduce the
+  original MINIX simplicity on modern 32-bit and 64-bit
+  ARM and x86/x86_64 hardware using C++17.
+>>>*/
+
 /* This file contains a driver for a Floppy Disk Controller (FDC) using the
  * NEC PD765 chip.  The driver supports two operations: read a block and
  * write a block.  It accepts two messages, one for reading and one for
