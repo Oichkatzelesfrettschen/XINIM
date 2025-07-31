@@ -1,328 +1,142 @@
 /**
  * @file mkdir.cpp
- * @brief Universal Directory Creation System - C++23 Modernized
- * @details Hardware-agnostic, SIMD/FPU-ready directory creation with
- *          comprehensive path validation, permission management, and
- *          atomic directory structure establishment.
- *
- * MODERNIZATION: Complete decomposition and synthesis from legacy K&R C to
- * paradigmatically pure C++23 with RAII, exception safety, type safety,
- * vectorization readiness, and hardware abstraction.
- * 
- * @author Original: Adri Koppes, Modernized for C++23 XINIM
- * @version 2.0
- * @date 2024
- * @copyright XINIM OS Project
+ * @brief Create directories - C++23 modernized version
+ * @details A modern C++23 implementation of the `mkdir` utility
+ *          using std::filesystem. Supports creating parent directories.
+ *          Integrates with xinim::fs for directory creation.
  */
 
-#include <cstdint>
-#include <string>
-#include <string_view>
-#include <vector>
-#include <memory>
-#include <filesystem>
-#include <system_error>
-#include <exception>
-#include <iostream>
-#include <array>
-#include <algorithm>
-#include <ranges>
-#include <span>
-#include <cstring>
-#include <unistd.h>
-#include <sys/stat.h>
-#include <sys/types.h>
-#include <signal.h>
-#include <errno.h>
-#include <fcntl.h>
+#include <iostream>      // For std::cerr
+#include <vector>        // For std::vector
+#include <string>        // For std::string
+#include <string_view>   // For std::string_view
+#include <filesystem>    // For std::filesystem::*
+#include <system_error>  // For std::error_code, std::errc
+#include <print>         // For std::println (C++23)
+#include <cstdlib>       // For EXIT_SUCCESS, EXIT_FAILURE
 
-namespace xinim::commands::mkdir {
+#include "xinim/filesystem.hpp" // For xinim::fs free functions and operation_context
+
+namespace { // Anonymous namespace for helper functions
 
 /**
- * @brief Universal Directory Creation and Management System
- * @details Complete C++23 modernization providing hardware-agnostic,
- *          SIMD/FPU-optimized directory creation with atomic operations,
- *          robust error handling, permission management, and path validation.
+ * @brief Prints the usage message to standard error.
  */
-class UniversalDirectoryCreator final {
-public:
-    /// Default directory permissions (rwxrwxrwx)
-    static constexpr mode_t DEFAULT_DIR_PERMISSIONS{0777};
-    
-    /// Maximum path length for safety checks
-    static constexpr std::size_t MAX_PATH_LENGTH{4096};
-    
-    /// Directory mode flag for mknod
-    static constexpr mode_t DIRECTORY_MODE_FLAG{S_IFDIR};
+void print_usage() {
+    std::println(std::cerr, "Usage: mkdir [-p] directory...");
+}
 
-private:
-    /// Error tracking for batch operations
-    bool has_errors_{false};
-    
-    /// Signal handler restoration info
-    struct sigaction original_handlers_[4];
-    
-    /// Signal numbers to ignore during directory creation
-    static constexpr std::array<int, 4> SIGNALS_TO_IGNORE{
-        SIGHUP, SIGINT, SIGQUIT, SIGTERM
-    };
+/**
+ * @brief Creates a single directory entry, optionally with parent directories.
+ * @param dir_path The path of the directory to create.
+ * @param create_parents_flag True if -p (create parents) option is enabled.
+ * @return True if the directory was created successfully or already existed (and is a directory),
+ *         false on actual error.
+ */
+bool create_single_directory_entry(
+    const std::filesystem::path& dir_path,
+    bool create_parents_flag) {
 
-public:
-    /**
-     * @brief Initialize directory creator with signal handling setup
-     * @details Sets up signal ignoring for atomic directory operations
-     */
-    UniversalDirectoryCreator() {
-        setup_signal_handling();
-    }
+    xinim::fs::operation_context ctx; // Create default context
+    // Future: if mkdir gets options for mode (direct/standard) or symlink handling for path components,
+    // they would be set in ctx here based on parsed command-line options.
+    // ctx.execution_mode = xinim::fs::mode::direct; // Example
 
-    /**
-     * @brief RAII cleanup with signal handler restoration
-     */
-    ~UniversalDirectoryCreator() noexcept {
-        restore_signal_handling();
-    }
-
-    // Prevent copying and moving for singleton directory operations
-    UniversalDirectoryCreator(const UniversalDirectoryCreator&) = delete;
-    UniversalDirectoryCreator& operator=(const UniversalDirectoryCreator&) = delete;
-    UniversalDirectoryCreator(UniversalDirectoryCreator&&) = delete;
-    UniversalDirectoryCreator& operator=(UniversalDirectoryCreator&&) = delete;
-
-    /**
-     * @brief Create multiple directories with atomic operation guarantees
-     * @param directory_paths Vector of directory paths to create
-     * @return true if all directories created successfully, false if any errors
-     * @throws std::invalid_argument on invalid path specifications
-     */
-    bool create_directories(const std::vector<std::string>& directory_paths) {
-        if (directory_paths.empty()) {
-            throw std::invalid_argument("No directory paths specified");
+    // Revised pre-check
+    std::error_code pre_check_ec;
+    // For this pre-check, std::filesystem::status is fine.
+    // If dir_path is a symlink, status() follows it. This is usually desired:
+    // if `symlink -> existing_dir`, mkdir `symlink` should succeed.
+    // if `symlink -> existing_file`, mkdir `symlink` should fail.
+    auto status = std::filesystem::status(dir_path, pre_check_ec);
+    if (!pre_check_ec && std::filesystem::exists(status)) {
+        if (!std::filesystem::is_directory(status)) {
+            std::println(std::cerr, "mkdir: cannot create directory '{}': File exists and is not a directory", dir_path.string());
+            return false;
         }
+        // If it exists and IS a directory, mkdir considers this a success.
+        return true;
+    }
+    // If stat failed (e.g. permission denied on parent) or path doesn't exist, proceed to creation attempt.
+    // The xinim::fs functions will handle these errors.
 
-        // Process each directory with individual error handling
-        for (const auto& dir_path : directory_paths) {
-            try {
-                create_single_directory(dir_path);
-            } catch (const std::exception& e) {
-                std::cerr << "mkdir: Error creating directory '" << dir_path 
-                         << "': " << e.what() << '\n';
-                has_errors_ = true;
+    if (create_parents_flag) {
+        // Default perms for create_directories in xinim::fs is perms::all, which is suitable for mkdir -p
+        // where intermediate directories get default permissions and final one can be adjusted.
+        // The current create_directories sets final dir perms.
+        auto result = xinim::fs::create_directories(dir_path, std::filesystem::perms::all, ctx);
+        if (!result) {
+            std::println(std::cerr, "mkdir: cannot create directory '{}': {}", dir_path.string(), result.error().message());
+            return false;
+        }
+    } else {
+        // Default perms for create_directory is perms::all.
+        auto result = xinim::fs::create_directory(dir_path, std::filesystem::perms::all, ctx);
+        if (!result) {
+            std::println(std::cerr, "mkdir: cannot create directory '{}': {}", dir_path.string(), result.error().message());
+            return false;
+        }
+    }
+
+    return true;
+}
+
+} // namespace
+
+/**
+ * @brief Main entry point for the mkdir command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return EXIT_SUCCESS on success, EXIT_FAILURE on error.
+ */
+int main(int argc, char* argv[]) {
+    bool create_parents = false;
+    std::vector<std::filesystem::path> paths_to_create;
+    bool options_ended = false;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string_view arg = argv[i];
+        if (!options_ended && !arg.empty() && arg[0] == '-') {
+            if (arg == "--") { // End of options
+                options_ended = true;
+                continue;
             }
-        }
-
-        return !has_errors_;
-    }
-
-    /**
-     * @brief Check if any errors occurred during batch operations
-     * @return true if errors were encountered
-     */
-    [[nodiscard]] bool has_errors() const noexcept {
-        return has_errors_;
-    }
-
-private:
-    /**
-     * @brief Setup signal handling to ignore interrupts during directory creation
-     * @details Provides atomic directory creation by preventing signal interruption
-     */
-    void setup_signal_handling() noexcept {
-        struct sigaction ignore_action{};
-        ignore_action.sa_handler = SIG_IGN;
-        sigemptyset(&ignore_action.sa_mask);
-        ignore_action.sa_flags = 0;
-
-        for (std::size_t i = 0; i < SIGNALS_TO_IGNORE.size(); ++i) {
-            sigaction(SIGNALS_TO_IGNORE[i], &ignore_action, &original_handlers_[i]);
+            // Iterate over characters for combined flags like -p
+            if (arg.length() > 1 && arg[0] == '-') {
+                 for (size_t j = 1; j < arg.length(); ++j) {
+                    char flag = arg[j];
+                    switch (flag) {
+                        case 'p':
+                            create_parents = true;
+                            break;
+                        default:
+                            std::println(std::cerr, "mkdir: unknown option -- '{}'", flag);
+                            print_usage();
+                            return EXIT_FAILURE;
+                    }
+                }
+            } else {
+                 paths_to_create.emplace_back(arg); // Treat "-" as a path if not part of a multi-char option
+            }
+        } else {
+            paths_to_create.emplace_back(arg);
         }
     }
 
-    /**
-     * @brief Restore original signal handlers
-     */
-    void restore_signal_handling() noexcept {
-        for (std::size_t i = 0; i < SIGNALS_TO_IGNORE.size(); ++i) {
-            sigaction(SIGNALS_TO_IGNORE[i], &original_handlers_[i], nullptr);
-        }
-    }
-
-    /**
-     * @brief Create single directory with comprehensive validation and linking
-     * @param directory_name Path of directory to create
-     * @throws std::system_error on creation failure
-     * @throws std::invalid_argument on invalid path
-     */
-    void create_single_directory(const std::string& directory_name) {
-        validate_directory_path(directory_name);
-        
-        // Extract parent directory for access validation
-        std::string parent_dir = extract_parent_directory(directory_name);
-        validate_parent_access(parent_dir);
-        
-        // Create the directory node with atomic operations
-        create_directory_node(directory_name);
-        
-        // Set appropriate ownership
-        set_directory_ownership(directory_name);
-        
-        // Create directory structure links (. and ..)
-        create_directory_links(directory_name, parent_dir);
-    }
-
-    /**
-     * @brief Validate directory path for safety and correctness
-     * @param path Directory path to validate
-     * @throws std::invalid_argument on invalid path
-     */
-    void validate_directory_path(const std::string& path) const {
-        if (path.empty()) {
-            throw std::invalid_argument("Empty directory path");
-        }
-        
-        if (path.length() > MAX_PATH_LENGTH) {
-            throw std::invalid_argument("Directory path too long");
-        }
-        
-        // Check for null bytes and other invalid characters
-        if (path.find('\0') != std::string::npos) {
-            throw std::invalid_argument("Directory path contains null bytes");
-        }
-    }
-
-    /**
-     * @brief Extract parent directory from full path
-     * @param full_path Complete directory path
-     * @return Parent directory path
-     */
-    std::string extract_parent_directory(const std::string& full_path) const {
-        auto last_slash = full_path.find_last_of('/');
-        if (last_slash == std::string::npos) {
-            return ".";  // Current directory
-        }
-        
-        if (last_slash == 0) {
-            return "/";  // Root directory
-        }
-        
-        return full_path.substr(0, last_slash);
-    }
-
-    /**
-     * @brief Validate parent directory access permissions
-     * @param parent_path Path to parent directory
-     * @throws std::system_error on access failure
-     */
-    void validate_parent_access(const std::string& parent_path) const {
-        if (::access(parent_path.c_str(), W_OK) == -1) {
-            throw std::system_error(errno, std::system_category(),
-                                  std::string("Cannot access parent directory: ") + parent_path);
-        }
-    }
-
-    /**
-     * @brief Create directory node with proper permissions
-     * @param directory_name Directory to create
-     * @throws std::system_error on creation failure
-     */
-    void create_directory_node(const std::string& directory_name) const {
-        if (::mknod(directory_name.c_str(), 
-                    DIRECTORY_MODE_FLAG | DEFAULT_DIR_PERMISSIONS, 0) == -1) {
-            throw std::system_error(errno, std::system_category(),
-                                  std::string("Cannot create directory: ") + directory_name);
-        }
-    }
-
-    /**
-     * @brief Set directory ownership to current user and group
-     * @param directory_name Directory to set ownership for
-     * @throws std::system_error on ownership change failure
-     */
-    void set_directory_ownership(const std::string& directory_name) const {
-        uid_t current_uid = ::getuid();
-        gid_t current_gid = ::getgid();
-          if (::chown(directory_name.c_str(), current_uid, current_gid) == -1) {
-            // Non-fatal error - log but continue
-            std::cerr << "mkdir: Warning: Cannot change ownership of " 
-                     << directory_name << ": " << std::strerror(errno) << '\n';
-        }
-    }
-
-    /**
-     * @brief Create standard directory links (. and ..)
-     * @param directory_name Target directory
-     * @param parent_dir Parent directory
-     * @throws std::system_error on link creation failure
-     */
-    void create_directory_links(const std::string& directory_name, 
-                               const std::string& parent_dir) const {
-        // Create current directory link (.)
-        std::string current_link = directory_name + "/.";
-        if (::link(directory_name.c_str(), current_link.c_str()) == -1) {
-            // Cleanup on failure
-            ::unlink(directory_name.c_str());
-            throw std::system_error(errno, std::system_category(),
-                                  std::string("Cannot link ") + current_link + 
-                                  " to " + directory_name);
-        }
-
-        // Create parent directory link (..)
-        std::string parent_link = directory_name + "/..";
-        if (::link(parent_dir.c_str(), parent_link.c_str()) == -1) {
-            // Cleanup on failure
-            ::unlink(current_link.c_str());
-            ::unlink(directory_name.c_str());
-            throw std::system_error(errno, std::system_category(),
-                                  std::string("Cannot link ") + parent_link + 
-                                  " to " + parent_dir);
-        }
-    }
-};
-
-} // namespace xinim::commands::mkdir
-
-/**
- * @brief Modern C++23 main entry point with exception safety
- * @param argc Argument count
- * @param argv Argument vector
- * @return Exit status code
- * @details Complete exception-safe implementation with comprehensive
- *          error handling and resource management
- */
-int main(int argc, char* argv[]) noexcept {
-    try {
-        if (argc < 2) {
-            std::cerr << "Usage: mkdir directory...\n";
-            return EXIT_FAILURE;
-        }
-
-        // Create universal directory creator instance
-        xinim::commands::mkdir::UniversalDirectoryCreator creator;
-        
-        // Prepare directory list from command line arguments
-        std::vector<std::string> directory_paths;
-        directory_paths.reserve(static_cast<std::size_t>(argc - 1));
-        
-        for (int i = 1; i < argc; ++i) {
-            directory_paths.emplace_back(argv[i]);
-        }
-        
-        // Create directories
-        bool success = creator.create_directories(directory_paths);
-        
-        return success ? EXIT_SUCCESS : EXIT_FAILURE;
-        
-    } catch (const std::invalid_argument& e) {
-        std::cerr << "mkdir: Invalid argument: " << e.what() << '\n';
-        return EXIT_FAILURE;
-    } catch (const std::system_error& e) {
-        std::cerr << "mkdir: System error: " << e.what() << '\n';
-        return EXIT_FAILURE;
-    } catch (const std::exception& e) {
-        std::cerr << "mkdir: Error: " << e.what() << '\n';
-        return EXIT_FAILURE;
-    } catch (...) {
-        std::cerr << "mkdir: Unknown error occurred\n";
+    if (paths_to_create.empty()) {
+        print_usage();
         return EXIT_FAILURE;
     }
+
+    // xinim::fs::filesystem_ops fs_ops_instance; // Removed
+    bool overall_success = true;
+
+    for (const auto& path : paths_to_create) {
+        // fs_ops_instance removed from call
+        if (!create_single_directory_entry(path, create_parents)) {
+            overall_success = false;
+        }
+    }
+
+    return overall_success ? EXIT_SUCCESS : EXIT_FAILURE;
 }
