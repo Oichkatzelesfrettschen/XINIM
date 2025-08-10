@@ -108,6 +108,16 @@ rm -rf build/
 
 ---
 
+## Sort Utility Merge Mode
+
+The modern `sort` command supports a multi-file merge when invoked with the
+`-m` flag. Each input file must already be sorted; the utility performs a
+streaming k-way merge using the same comparison rules as regular sorting.  When
+combined with the `-u` option, duplicate lines encountered across input files
+are removed during the merge.
+
+---
+
 ## License
 
 Dual-licensed under **Apache-2.0** or **MIT**.  See `LICENSE` for details.

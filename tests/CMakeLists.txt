@@ -742,3 +742,13 @@ add_test(NAME minix_test_net_driver_autodetect COMMAND minix_test_net_driver_aut
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)
+
+# -----------------------------------------------------------------------------
+# sort merge tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_sort_merge
+  test_sort_merge.cpp
+  ${CMAKE_SOURCE_DIR}/commands/sort.cpp
+)
+target_compile_definitions(minix_test_sort_merge PRIVATE XINIM_SORT_NO_MAIN)
+add_test(NAME minix_test_sort_merge COMMAND minix_test_sort_merge)
