@@ -109,8 +109,4 @@ rm -rf build/
 ---
 
 ## License
-
-Dual-licensed under **Apache-2.0** or **MIT**.  See `LICENSE` for details.
-
-```
-```
+Licensed under the **BSD-3-Clause** license. See `LICENSE` for details.
