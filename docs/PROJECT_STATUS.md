@@ -24,3 +24,7 @@ This document tracks repository maintenance and cleanup activities.
 - No `build*/`, `builds/`, or `*/CMakeFiles/` directories remained after cleanup.
 - Added redundant ignore patterns to `.gitignore` as an extra safeguard.
 
+## 2025-08-06
+- Expanded Doxygen coverage for paging interfaces and miscellaneous file-system routines.
+- Generated API reference with Doxygen and attempted Sphinx build (errors remain in legacy `.rst` files).
+
