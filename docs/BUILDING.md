@@ -152,7 +152,19 @@ database.
 
 ---
 
-## 11 · Generating Documentation
+## 11 · Git Hooks
+
+Install the provided pre-commit hook to automatically format staged C and C++ sources:
+
+```sh
+ln -s ../../hooks/pre-commit .git/hooks/pre-commit
+```
+
+The hook runs `clang-format -i` on each staged file and re-adds the result to the commit.
+
+---
+
+## 12 · Generating Documentation
 
 API reference and architecture manuals combine **Doxygen** with **Sphinx**
 using the **Breathe** extension. The mapping in `docs/sphinx/conf.py` is:
