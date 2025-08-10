@@ -739,6 +739,17 @@ target_link_libraries(minix_test_net_driver_autodetect PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_autodetect COMMAND minix_test_net_driver_autodetect)
 
 # -----------------------------------------------------------------------------
+# minix_test_sort_merge
+# -----------------------------------------------------------------------------
+add_executable(minix_test_sort_merge
+  test_sort_merge.cpp
+)
+target_include_directories(minix_test_sort_merge PUBLIC
+  ${CMAKE_SOURCE_DIR}/commands
+)
+add_test(NAME minix_test_sort_merge COMMAND minix_test_sort_merge)
+
+# -----------------------------------------------------------------------------
 # Crypto subdirectory
 # -----------------------------------------------------------------------------
 add_subdirectory(crypto)
