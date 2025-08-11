@@ -1,10 +1,14 @@
-github.com/AlDanial/cloc v 1.98  T=5.07 s (108.9 files/s, 17107.3 lines/s)
+# Analysis Cloc Fresh Detailed
+
+```text
+github.com/AlDanial/cloc v 1.98  T=7.15 s (77.4 files/s, 12612.9 lines/s)
 ------------------------------------------------------------------------------------------------
 File                                                         blank        comment           code
 ------------------------------------------------------------------------------------------------
 ./analysis_cppcheck.txt                                          4              0           4786
 ./analysis_flawfinder.txt                                        6              0           4714
 ./analysis_lizard.txt                                            1              0           3486
+./analysis_lizard_fresh.txt                                      1              0           2940
 ./commands/make.cpp                                            272            224           1779
 ./analysis_pmccabe.txt                                           0              0           1768
 ./commands/mined1.cpp                                          190            647           1438
@@ -21,6 +25,7 @@ File                                                         blank        commen
 ./commands/sh1.cpp                                              95             62            704
 ./commands/sh2.cpp                                              87             18            613
 ./commands/sh4.cpp                                              60             49            589
+./analysis_cloc_detailed_fresh.txt                               1              0            582
 ./analysis_sloccount.txt                                         2              0            520
 ./commands/ls.cpp                                               81             40            484
 ./crypto/kyber_impl/fips202.c                                   63            251            460
@@ -555,29 +560,7 @@ File                                                         blank        commen
 ./mm/type.hpp                                                    2              9              1
 ./tools/c86/_image.bat                                           0              0              1
 ------------------------------------------------------------------------------------------------
-SUM:                                                          8807          14172          63739
+SUM:                                                          8809          14172          67261
 ------------------------------------------------------------------------------------------------
 
---------------------------------------------------------------------------------
-Language                      files          blank        comment           code
---------------------------------------------------------------------------------
-C++                             337           6581          10381          37966
-Text                             15             14              0          16211
-C/C++ Header                    104           1213           2335           4482
-C                                12            219            899           1338
-DOS Batch                        16              1             10            654
-make                             12            132             87            625
-CMake                            10            103            129            489
-Markdown                          5            191              0            484
-reStructuredText                 13            168            166            417
-Python                            8             86             65            361
-JSON                              5              5              0            292
-Bourne Shell                      6             49             61            224
-YAML                              5             12              7             91
-Bourne Again Shell                1             11             11             48
-Assembly                          1              8              7             26
-Linker Script                     1              9              8             24
-Dockerfile                        1              5              6              7
---------------------------------------------------------------------------------
-SUM:                            552           8807          14172          63739
---------------------------------------------------------------------------------
+```

@@ -1,3 +1,6 @@
+# Analysis Lizard Fresh
+
+```text
 ================================================
   NLOC    CCN   token  PARAM  length  location  
 ------------------------------------------------
@@ -2939,3 +2942,5 @@ NLOC    Avg.NLOC  AvgCCN  Avg.token  function_cnt    file
 Total nloc   Avg.NLOC  AvgCCN  Avg.token   Fun Cnt  Warning cnt   Fun Rt   nloc Rt
 ------------------------------------------------------------------------------------------
      42564      14.5     4.1      100.8     2377           85      0.04    0.19
+
+```

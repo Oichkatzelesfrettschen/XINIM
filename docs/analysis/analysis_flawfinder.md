@@ -1,3 +1,465 @@
+# Analysis Flawfinder
+
+```text
+Flawfinder version 2.0.19, (C) 2001-2019 David A. Wheeler.
+Number of rules (primarily dangerous function names) in C/C++ ruleset: 222
+Examining ./fs/utility.cpp
+Examining ./fs/pipe.cpp
+Examining ./fs/filedes.cpp
+Examining ./fs/type.hpp
+Examining ./fs/super.cpp
+Examining ./fs/table.cpp
+Examining ./fs/inode.hpp
+Examining ./fs/super.hpp
+Examining ./fs/open.cpp
+Examining ./fs/dev.hpp
+Examining ./fs/putc.cpp
+Examining ./fs/fproc.hpp
+Examining ./fs/cache.cpp
+Examining ./fs/file.hpp
+Examining ./fs/write.cpp
+Examining ./fs/read.cpp
+Examining ./fs/mount.cpp
+Examining ./fs/param.hpp
+Examining ./fs/device.cpp
+Examining ./fs/compat.hpp
+Examining ./fs/protect.cpp
+Examining ./fs/glo.hpp
+Examining ./fs/time.cpp
+Examining ./fs/inode.cpp
+Examining ./fs/misc.cpp
+Examining ./fs/link.cpp
+Examining ./fs/path.cpp
+Examining ./fs/const.hpp
+Examining ./fs/stadir.cpp
+Examining ./fs/compat.cpp
+Examining ./fs/main.cpp
+Examining ./fs/buf.hpp
+Examining ./fs/extent.hpp
+Examining ./mm/vm.cpp
+Examining ./mm/mproc.hpp
+Examining ./mm/utility.cpp
+Examining ./mm/forkexit.cpp
+Examining ./mm/type.hpp
+Examining ./mm/paging.cpp
+Examining ./mm/table.cpp
+Examining ./mm/getset.cpp
+Examining ./mm/token.hpp
+Examining ./mm/putc.cpp
+Examining ./mm/break.cpp
+Examining ./mm/alloc.cpp
+Examining ./mm/param.hpp
+Examining ./mm/glo.hpp
+Examining ./mm/const.hpp
+Examining ./mm/exec.cpp
+Examining ./mm/main.cpp
+Examining ./mm/alloc.hpp
+Examining ./mm/signal.cpp
+Examining ./multiboot.h
+Examining ./test/test2.cpp
+Examining ./test/test12.cpp
+Examining ./test/test8.cpp
+Examining ./test/test10.cpp
+Examining ./test/test6.cpp
+Examining ./test/t15a.cpp
+Examining ./test/t11a.cpp
+Examining ./test/test4.cpp
+Examining ./test/t10a.cpp
+Examining ./test/t16b.cpp
+Examining ./test/t16a.cpp
+Examining ./test/test7.cpp
+Examining ./test/test0.cpp
+Examining ./test/test9.cpp
+Examining ./test/test1.cpp
+Examining ./test/t11b.cpp
+Examining ./test/test11.cpp
+Examining ./test/test3.cpp
+Examining ./test/test5.cpp
+Examining ./h/callnr.hpp
+Examining ./h/stat.hpp
+Examining ./h/type.hpp
+Examining ./h/signal.hpp
+Examining ./h/error.hpp
+Examining ./h/com.hpp
+Examining ./h/const.hpp
+Examining ./h/signal.h
+Examining ./tests/test_fastpath_cache_performance.cpp
+Examining ./tests/sodium_stub.cpp
+Examining ./tests/test_net_driver_overflow.cpp
+Examining ./tests/test_streams.cpp
+Examining ./tests/test_service_manager_dag.cpp
+Examining ./tests/test_stream_foundation.cpp
+Examining ./tests/test_fastpath_fallback.cpp
+Examining ./tests/test_svcctl.cpp
+Examining ./tests/test_fastpath_preconditions.cpp
+Examining ./tests/test_lattice_ipv6.cpp
+Examining ./tests/test_lib.cpp
+Examining ./tests/test_net_driver_socket_failure.cpp
+Examining ./tests/test_net_two_node.cpp
+Examining ./tests/test_lattice_blocking.cpp
+Examining ./tests/test_hypercomplex.cpp
+Examining ./tests/test_lattice_network_encrypted.cpp
+Examining ./tests/test_net_driver_tcp.cpp
+Examining ./tests/test_semantic_region.cpp
+Examining ./tests/test_lattice_send_recv.cpp
+Examining ./tests/test_service_manager_updates.cpp
+Examining ./tests/test_net_driver_id.cpp
+Examining ./tests/task_stubs.cpp
+Examining ./tests/sodium.h
+Examining ./tests/test_fastpath.cpp
+Examining ./tests/test_net_driver_unpriv_id.cpp
+Examining ./tests/test_net_driver_ipv6.cpp
+Examining ./tests/test_memory_stream.cpp
+Examining ./tests/test_net_driver_reconnect.cpp
+Examining ./tests/test_net_driver.cpp
+Examining ./tests/test_net_driver_persistent_id.cpp
+Examining ./tests/test_scheduler_edge.cpp
+Examining ./tests/test_syscall.cpp
+Examining ./tests/test_lattice.cpp
+Examining ./tests/test_service_contract.cpp
+Examining ./tests/randombytes_stub.c
+Examining ./tests/test_wait_graph.cpp
+Examining ./tests/test_lattice_send_error.cpp
+Examining ./tests/test_net_driver_concurrency.cpp
+Examining ./tests/crypto/test_kyber.cpp
+Examining ./tests/crypto/test_constant_time_equal.cpp
+Examining ./tests/crypto/test_shared_secret_failure.cpp
+Examining ./tests/test_lattice_network.cpp
+Examining ./tests/test_scheduler_deadlock.cpp
+Examining ./tests/test_net_driver_drop_newest.cpp
+Examining ./tests/test_lattice_ipc.cpp
+Examining ./tests/test_service_serialization.cpp
+Examining ./tests/test_scheduler.cpp
+Examining ./tests/test_net_driver_loopback.cpp
+Examining ./tests/test_poll_network.cpp
+Examining ./pmm.cpp
+Examining ./common/math/octonion.hpp
+Examining ./common/math/quaternion.cpp
+Examining ./common/math/sedenion.hpp
+Examining ./common/math/octonion.cpp
+Examining ./common/math/sedenion.cpp
+Examining ./common/math/quaternion.hpp
+Examining ./pmm.h
+Examining ./kernel/tty.cpp
+Examining ./kernel/wormhole.hpp
+Examining ./kernel/pqcrypto.hpp
+Examining ./kernel/octonion.hpp
+Examining ./kernel/type.hpp
+Examining ./kernel/pqcrypto.cpp
+Examining ./kernel/paging.cpp
+Examining ./kernel/table.cpp
+Examining ./kernel/octonion_math.hpp
+Examining ./kernel/service.hpp
+Examining ./kernel/wini.cpp
+Examining ./kernel/syscall.cpp
+Examining ./kernel/sedenion.hpp
+Examining ./kernel/klib64.cpp
+Examining ./kernel/fano_octonion.hpp
+Examining ./kernel/schedule.hpp
+Examining ./kernel/wait_graph.hpp
+Examining ./kernel/quaternion_spinlock.hpp
+Examining ./kernel/printer.cpp
+Examining ./kernel/floppy.cpp
+Examining ./kernel/dmp.cpp
+Examining ./kernel/memory.cpp
+Examining ./kernel/xt_wini.cpp
+Examining ./kernel/wait_graph.cpp
+Examining ./kernel/schedule.cpp
+Examining ./kernel/glo.hpp
+Examining ./kernel/lattice_ipc.cpp
+Examining ./kernel/clock.cpp
+Examining ./kernel/proc.cpp
+Examining ./kernel/idt64.cpp
+Examining ./kernel/mpx64.cpp
+Examining ./kernel/net_driver.hpp
+Examining ./kernel/proc.hpp
+Examining ./kernel/net_driver.cpp
+Examining ./kernel/const.hpp
+Examining ./kernel/system.cpp
+Examining ./kernel/mpx88.cpp
+Examining ./kernel/lattice_ipc.hpp
+Examining ./kernel/klib88.cpp
+Examining ./kernel/main.cpp
+Examining ./kernel/wormhole.cpp
+Examining ./kernel/service.cpp
+Examining ./kernel/at_wini.cpp
+Examining ./vmm.cpp
+Examining ./console.h
+Examining ./kernel.cpp
+Examining ./lib/perror.cpp
+Examining ./lib/strncmp.cpp
+Examining ./lib/sendrec.cpp
+Examining ./lib/cleanup.cpp
+Examining ./lib/minix/end.cpp
+Examining ./lib/minix/head.cpp
+Examining ./lib/minix/crtso.cpp
+Examining ./lib/minix/setjmp.cpp
+Examining ./lib/scanf.cpp
+Examining ./lib/catchsig.cpp
+Examining ./lib/rindex.cpp
+Examining ./lib/ioctl.cpp
+Examining ./lib/dup2.cpp
+Examining ./lib/fread.cpp
+Examining ./lib/chroot.cpp
+Examining ./lib/pipe.cpp
+Examining ./lib/brksize.cpp
+Examining ./lib/unlink.cpp
+Examining ./lib/brk2.cpp
+Examining ./lib/utime.cpp
+Examining ./lib/fputs.cpp
+Examining ./lib/rand.cpp
+Examining ./lib/gets.cpp
+Examining ./lib/fclose.cpp
+Examining ./lib/lseek.cpp
+Examining ./lib/fwrite.cpp
+Examining ./lib/exit.cpp
+Examining ./lib/setbuf.cpp
+Examining ./lib/getenv.cpp
+Examining ./lib/ctype.cpp
+Examining ./lib/malloc.cpp
+Examining ./lib/end.cpp
+Examining ./lib/chown.cpp
+Examining ./lib/open.cpp
+Examining ./lib/sleep.cpp
+Examining ./lib/stb.cpp
+Examining ./lib/sync.cpp
+Examining ./lib/syscall_x86_64.cpp
+Examining ./lib/strcat.cpp
+Examining ./lib/stime.cpp
+Examining ./lib/brk.cpp
+Examining ./lib/printk.cpp
+Examining ./lib/isatty.cpp
+Examining ./lib/abort.cpp
+Examining ./lib/getuid.cpp
+Examining ./lib/wait.cpp
+Examining ./lib/getutil.cpp
+Examining ./lib/putc.cpp
+Examining ./lib/getegid.cpp
+Examining ./lib/syslib.cpp
+Examining ./lib/times.cpp
+Examining ./lib/stat.cpp
+Examining ./lib/mknod.cpp
+Examining ./lib/message.cpp
+Examining ./lib/setgid.cpp
+Examining ./lib/freopen.cpp
+Examining ./lib/fopen.cpp
+Examining ./lib/mktemp.cpp
+Examining ./lib/write.cpp
+Examining ./lib/pause.cpp
+Examining ./lib/ungetc.cpp
+Examining ./lib/read.cpp
+Examining ./lib/strncpy.cpp
+Examining ./lib/mount.cpp
+Examining ./lib/getpass.cpp
+Examining ./lib/chdir.cpp
+Examining ./lib/abs.cpp
+Examining ./lib/fflush.cpp
+Examining ./lib/access.cpp
+Examining ./lib/geteuid.cpp
+Examining ./lib/getgid.cpp
+Examining ./lib/doprintf.cpp
+Examining ./lib/getpwent.cpp
+Examining ./lib/printdat.cpp
+Examining ./lib/fprintf.cpp
+Examining ./lib/strncat.cpp
+Examining ./lib/crt0.cpp
+Examining ./lib/alarm.cpp
+Examining ./lib/crypt.cpp
+Examining ./lib/sprintf.cpp
+Examining ./lib/safe_alloc.cpp
+Examining ./lib/strcmp.cpp
+Examining ./lib/fstat.cpp
+Examining ./lib/stderr.cpp
+Examining ./lib/strlen.cpp
+Examining ./lib/chmod.cpp
+Examining ./lib/close.cpp
+Examining ./lib/strcpy.cpp
+Examining ./lib/kill.cpp
+Examining ./lib/getc.cpp
+Examining ./lib/call.cpp
+Examining ./lib/prints.cpp
+Examining ./lib/time.cpp
+Examining ./lib/head.cpp
+Examining ./lib/ftell.cpp
+Examining ./lib/c86/prologue.hpp
+Examining ./lib/setuid.cpp
+Examining ./lib/regsub.cpp
+Examining ./lib/umask.cpp
+Examining ./lib/csv.cpp
+Examining ./lib/umount.cpp
+Examining ./lib/atoi.cpp
+Examining ./lib/doscanf.cpp
+Examining ./lib/dup.cpp
+Examining ./lib/crtso.cpp
+Examining ./lib/index.cpp
+Examining ./lib/itoa.cpp
+Examining ./lib/link.cpp
+Examining ./lib/fork.cpp
+Examining ./lib/creat.cpp
+Examining ./lib/exec.cpp
+Examining ./lib/fgets.cpp
+Examining ./lib/setjmp.cpp
+Examining ./lib/regexp.cpp
+Examining ./lib/io/src/file_operations.cpp
+Examining ./lib/io/src/stdio_compat.cpp
+Examining ./lib/io/src/memory_stream.cpp
+Examining ./lib/io/src/file_stream.cpp
+Examining ./lib/io/src/standard_streams.cpp
+Examining ./lib/getpid.cpp
+Examining ./lib/fseek.cpp
+Examining ./lib/bcopy.cpp
+Examining ./lib/getgrent.cpp
+Examining ./lib/atol.cpp
+Examining ./lib/signal.cpp
+Examining ./include/shared/signal_constants.hpp
+Examining ./include/shared/number_to_ascii.hpp
+Examining ./include/shared/stat_struct.hpp
+Examining ./include/lib.hpp
+Examining ./include/pqcrypto.hpp
+Examining ./include/minix/fs/buffer.hpp
+Examining ./include/minix/fs/inode.hpp
+Examining ./include/minix/fs/const.hpp
+Examining ./include/minix/fs_error.hpp
+Examining ./include/minix/io/file_stream.hpp
+Examining ./include/minix/io/memory_stream.hpp
+Examining ./include/minix/io/stdio_compat.hpp
+Examining ./include/minix/io/stream.hpp
+Examining ./include/minix/io/file_operations.hpp
+Examining ./include/minix/io/standard_streams.hpp
+Examining ./include/paging.hpp
+Examining ./include/vm.hpp
+Examining ./include/number_parse.hpp
+Examining ./include/stat.hpp
+Examining ./include/xinim/core_types.hpp
+Examining ./include/signal.hpp
+Examining ./include/psd/vm/semantic_memory.hpp
+Examining ./include/ctype.hpp
+Examining ./include/setjmp.hpp
+Examining ./include/defs.hpp
+Examining ./include/grp.hpp
+Examining ./include/stdio.hpp
+Examining ./include/regexp.hpp
+Examining ./include/mined.hpp
+Examining ./include/blocksiz.hpp
+Examining ./include/sgtty.hpp
+Examining ./include/errno.hpp
+Examining ./include/constant_time.hpp
+Examining ./include/sh.hpp
+Examining ./include/pwd.hpp
+Examining ./crypto/kyber.cpp
+Examining ./crypto/kyber.hpp
+Examining ./crypto/kyber_impl/cbd.h
+Examining ./crypto/kyber_impl/polyvec.c
+Examining ./crypto/kyber_impl/verify.c
+Examining ./crypto/kyber_impl/poly.c
+Examining ./crypto/kyber_impl/params.h
+Examining ./crypto/kyber_impl/poly.h
+Examining ./crypto/kyber_impl/symmetric-shake.c
+Examining ./crypto/kyber_impl/indcpa.c
+Examining ./crypto/kyber_impl/api.h
+Examining ./crypto/kyber_impl/fips202.h
+Examining ./crypto/kyber_impl/fips202.c
+Examining ./crypto/kyber_impl/verify.h
+Examining ./crypto/kyber_impl/randombytes.h
+Examining ./crypto/kyber_impl/indcpa.h
+Examining ./crypto/kyber_impl/reduce.h
+Examining ./crypto/kyber_impl/kem.c
+Examining ./crypto/kyber_impl/symmetric.h
+Examining ./crypto/kyber_impl/cbd.c
+Examining ./crypto/kyber_impl/ntt.h
+Examining ./crypto/kyber_impl/reduce.c
+Examining ./crypto/kyber_impl/kem.h
+Examining ./crypto/kyber_impl/ntt.c
+Examining ./crypto/kyber_impl/randombytes.c
+Examining ./crypto/kyber_impl/polyvec.h
+Examining ./crypto/pqcrypto_shared.cpp
+Examining ./vmm.h
+Examining ./commands/split.cpp
+Examining ./commands/sh5.cpp
+Examining ./commands/date.cpp
+Examining ./commands/mined2.cpp
+Examining ./commands/echo.cpp
+Examining ./commands/sum.cpp
+Examining ./commands/ln.cpp
+Examining ./commands/clr.cpp
+Examining ./commands/mkfs.cpp
+Examining ./commands/tar.cpp
+Examining ./commands/cc.cpp
+Examining ./commands/update.cpp
+Examining ./commands/dd.cpp
+Examining ./commands/getlf.cpp
+Examining ./commands/tr.cpp
+Examining ./commands/chown.cpp
+Examining ./commands/dosread.cpp
+Examining ./commands/sleep.cpp
+Examining ./commands/sync.cpp
+Examining ./commands/size.cpp
+Examining ./commands/cp.cpp
+Examining ./commands/shar.cpp
+Examining ./commands/mknod.cpp
+Examining ./commands/df.cpp
+Examining ./commands/ar.cpp
+Examining ./commands/mount.cpp
+Examining ./commands/pr.cpp
+Examining ./commands/basename.cpp
+Examining ./commands/libpack.cpp
+Examining ./commands/mined1.cpp
+Examining ./commands/sh2.cpp
+Examining ./commands/rmdir.cpp
+Examining ./commands/sh4.cpp
+Examining ./commands/chmem.cpp
+Examining ./commands/su.cpp
+Examining ./commands/sh1.cpp
+Examining ./commands/rev.cpp
+Examining ./commands/tail.cpp
+Examining ./commands/login.cpp
+Examining ./commands/sh3.cpp
+Examining ./commands/roff.cpp
+Examining ./commands/pwd.cpp
+Examining ./commands/svcctl.hpp
+Examining ./commands/chmod.cpp
+Examining ./commands/mv.cpp
+Examining ./commands/gres.cpp
+Examining ./commands/x.cpp
+Examining ./commands/make.cpp
+Examining ./commands/comm.cpp
+Examining ./commands/kill.cpp
+Examining ./commands/time.cpp
+Examining ./commands/head.cpp
+Examining ./commands/grep.cpp
+Examining ./commands/lpr.cpp
+Examining ./commands/mined.hpp
+Examining ./commands/od.cpp
+Examining ./commands/umount.cpp
+Examining ./commands/svcctl.cpp
+Examining ./commands/stty.cpp
+Examining ./commands/cat.cpp
+Examining ./commands/passwd.cpp
+Examining ./commands/cmp.cpp
+Examining ./commands/tee.cpp
+Examining ./commands/sort.cpp
+Examining ./commands/touch.cpp
+Examining ./commands/cal.cpp
+Examining ./commands/rm.cpp
+Examining ./commands/mkdir.cpp
+Examining ./commands/uniq.cpp
+Examining ./commands/libupack.cpp
+Examining ./commands/ls.cpp
+Examining ./commands/wc.cpp
+Examining ./tools/mkfs.cpp
+Examining ./tools/diskio.cpp
+Examining ./tools/fsck.cpp
+Examining ./tools/getcore.cpp
+Examining ./tools/diskio.hpp
+Examining ./tools/build.cpp
+Examining ./tools/r.cpp
+Examining ./tools/bootblok1.cpp
+Examining ./tools/c86/dos2out.cpp
+Examining ./tools/init.cpp
+Examining ./console.cpp
+
+FINAL RESULTS:
+
 ./commands/ar.cpp:367:  [5] (race) chmod:
   This accepts filename arguments; if an attacker can move those files, a
   race condition results. (CWE-362). Use fchmod( ) instead.
@@ -697,12 +1159,7 @@
   overflows or other issues (CWE-119!/CWE-120). Perform bounds checking, use
   functions that limit length, or ensure that the size is larger than the
   maximum possible length.
-./commands/cat.cpp:61:  [2] (misc) open:
-  Check when opening files - can an attacker redirect it (via symlinks),
-  force the opening of special file type (e.g., device files), move things
-  around to create a race condition, control its ancestors, or change its
-  contents? (CWE-362).
-./commands/cat.cpp:115:  [2] (misc) open:
+./commands/cat.cpp:52:  [2] (misc) open:
   Check when opening files - can an attacker redirect it (via symlinks),
   force the opening of special file type (e.g., device files), move things
   around to create a race condition, control its ancestors, or change its
@@ -3355,7 +3812,7 @@
 ./commands/cal.cpp:56:  [1] (buffer) strlen:
   Does not handle strings that are not \0-terminated; if given one it may
   perform an over-read (it could cause a crash if unprotected) (CWE-126).
-./commands/cat.cpp:142:  [1] (buffer) read:
+./commands/cat.cpp:79:  [1] (buffer) read:
   Check buffer boundaries if used in a loop including recursive loops
   (CWE-120, CWE-20).
 ./commands/cc.cpp:90:  [1] (buffer) strlen:
@@ -4243,3 +4700,26 @@
 ./tools/r.cpp:88:  [1] (buffer) read:
   Check buffer boundaries if used in a loop including recursive loops
   (CWE-120, CWE-20).
+
+ANALYSIS SUMMARY:
+
+Hits = 995
+Lines analyzed = 65349 in approximately 0.52 seconds (125442 lines/second)
+Physical Source Lines of Code (SLOC) = 43688
+Hits@level = [0] 403 [1] 290 [2] 548 [3]  11 [4] 129 [5]  17
+Hits@level+ = [0+] 1398 [1+] 995 [2+] 705 [3+] 157 [4+] 146 [5+]  17
+Hits/KSLOC@level+ = [0+] 31.9996 [1+] 22.7751 [2+] 16.1372 [3+] 3.59366 [4+] 3.34188 [5+] 0.389123
+Dot directories skipped = 3 (--followdotdir overrides)
+Minimum risk level = 1
+
+Not every hit is necessarily a security vulnerability.
+You can inhibit a report by adding a comment in this form:
+// flawfinder: ignore
+Make *sure* it's a false positive!
+You can use the option --neverignore to show these.
+
+There may be other security vulnerabilities; review your code!
+See 'Secure Programming HOWTO'
+(https://dwheeler.com/secure-programs) for more information.
+
+```
