@@ -1,3 +1,6 @@
+# Analysis Sloccount Fresh
+
+```text
 Have a non-directory at the top, so creating directory top_dir
 Adding /workspaces/XINIM/./CMakeLists.txt to top_dir
 Adding /workspaces/XINIM/./LICENSE to top_dir
@@ -105,3 +108,5 @@ SLOCCount comes with ABSOLUTELY NO WARRANTY, and you are welcome to
 redistribute it under certain conditions as specified by the GNU GPL license;
 see the documentation for details.
 Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
+
+```

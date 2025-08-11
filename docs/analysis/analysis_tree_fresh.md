@@ -1,3 +1,6 @@
+# Analysis Tree Fresh
+
+```text
 .
 ├── analysis_cloc_detailed_fresh.txt
 ├── analysis_cloc_detailed.txt
@@ -646,3 +649,5 @@
     └── tasks.json
 
 46 directories, 600 files
+
+```

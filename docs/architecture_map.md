@@ -1,3 +1,6 @@
+# Architecture Map
+
+```text
 ```
 XINIM Operating System - Repository Architecture Map
 =====================================================
@@ -159,4 +162,6 @@ Repository Statistics:
 • Headers: 104 files (several need .h→.hpp conversion)
 • Analysis: 8,636 ctags, 448 indexed files, 10+ quality reports
 • Unique Features: Post-quantum crypto, octonion math, lattice IPC
+```
+
 ```

@@ -1,3 +1,6 @@
+# Analysis Pmccabe Fresh
+
+```text
 "commands/cal.cpp", line 316: not enough }'s
 1	1	1	25	1	commands/ar.cpp(25): odd
 2	2	2	28	1	commands/ar.cpp(28): even
@@ -1668,3 +1671,5 @@ p(78): getpwent
 1	1	21	24	35	tests/crypto/test_shared_secret_failure.cpp(24): main
 38	39	116	117	189	tools/c86/dos2out.cpp(117): main
 1	1	14	309	30	tools/c86/dos2out.cpp(309): printinfo
+
+```

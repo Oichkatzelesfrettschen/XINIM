@@ -1,3 +1,6 @@
+# Analysis Tree Classified
+
+```text
 XINIM Repository Structure (Classified by Type)
 ==================================================
 ├── commands/
@@ -597,3 +600,5 @@ XINIM Repository Structure (Classified by Type)
 ├── pmm.h (C-HDR)
 ├── vmm.cpp (C++?)
 └── vmm.h (C-HDR)
+
+```
