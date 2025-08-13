@@ -369,6 +369,19 @@ int main(int argc, char *argv[]) {
     return swapped.joined;
 }
 
+/**
+ * @brief Process the archive based on command line options.
+ *
+ * Iterates over each archive
+ * member and dispatches actions such as
+ * extraction, deletion, replacement, appending, or listing
+ * according
+ * to the flags supplied in @p argv.
+ *
+ * @param argc Number of command line
+ * arguments.
+ * @param argv Argument vector containing the operation flags and file names.
+ */
 static void get(int argc, char *argv[]) {
     register MEMBER *member;
     int i = 0;
@@ -453,6 +466,21 @@ static void get(int argc, char *argv[]) {
     (void)close(ar_fd);
 }
 
+/**
+ * @brief Add or replace a file within the archive.
+ *
+ * Reads the specified file from the host
+ * filesystem and writes its
+ * metadata and contents into the archive referenced by @p fd.
+ *
+ *
+ * @param name Path to the source file being archived.
+ * @param fd File descriptor of the archive
+ * being written.
+ * @param mess Character indicating operation context ('a' for append,
+ * 'r' for
+ * replace).
+ */
 static void add(char *name, int fd, char mess) {
     static MEMBER member;
     register int read_chars;
@@ -489,6 +517,17 @@ static void add(char *name, int fd, char mess) {
     (void)close(src_fd);
 }
 
+/**
+ * @brief Extract a member from the archive.
+ *
+ * Creates the output file (unless printing to
+ * standard output) and
+ * copies the archived contents into it, restoring the recorded
+ *
+ * permissions.
+ *
+ * @param member Pointer to the archive member metadata.
+ */
 static void extract(MEMBER *member) {
     int fd = 1;
 
@@ -507,6 +546,19 @@ static void extract(MEMBER *member) {
     (void)chmod(member->m_name, member->m_mode);
 }
 
+/**
+ * @brief Copy a member's contents between file descriptors.
+ *
+ * Performs buffered I/O from @p
+ * from to @p to for the number of bytes
+ * indicated by the global @ref mem_size variable.
+ *
+ *
+ * @param member Pointer to the member being copied (used for error messages).
+ * @param from Source
+ * file descriptor.
+ * @param to Destination file descriptor.
+ */
 static void copy_member(MEMBER *member, int from, int to) {
     register int rest;
     BOOL is_odd = odd(mem_size) ? TRUE : FALSE;
@@ -569,6 +621,16 @@ inline void flush() {
     }
 }
 
+/**
+ * @brief Print a symbolic representation of POSIX file modes.
+ *
+ * Outputs a string such as
+ * ``rwxr-xr-x`` to the archive's terminal
+ * buffer.
+ *
+ * @param mode File mode bits to
+ * represent.
+ */
 static void print_mode(int mode) {
     static char mode_buf[11];
     register int tmp = mode;
@@ -588,6 +650,17 @@ static void print_mode(int mode) {
     print(mode_buf);
 }
 
+/**
+ * @brief Print a long integer using buffered output.
+ *
+ * The number is converted to decimal
+ * and written via ::print with
+ * optional padding spaces.
+ *
+ * @param pad Minimum field width to
+ * pad.
+ * @param number Value to convert and output.
+ */
 static void litoa(int pad, long number) {
     static char num_buf[11];
     register long digit;
@@ -612,11 +685,33 @@ static void litoa(int pad, long number) {
     print(&num_buf[i]);
 }
 
+/**
+ * @brief Write bytes to a file descriptor with error checking.
+ *
+ * Invokes ::write and
+ * terminates the program if the write fails.
+ *
+ * @param fd Destination file descriptor.
+ * @param
+ * address Buffer containing the data to write.
+ * @param bytes Number of bytes to write from the
+ * buffer.
+ */
 static void mwrite(int fd, char *address, int bytes) {
     if (write(fd, address, bytes) != bytes)
         error(TRUE, "Write error.", NIL_PTR);
 }
 
+/**
+ * @brief Emit a one-line status message for a file operation.
+ *
+ * Prints messages such as "x
+ * - filename" to standard output.
+ *
+ * @param c Operation character (e.g., 'x' for extract).
+ *
+ * @param name Name of the file being operated on.
+ */
 static void show(char c, char *name) {
     write(1, &c, 1);
     write(1, " - ", 3);
@@ -624,6 +719,16 @@ static void show(char c, char *name) {
     write(1, "\n", 1);
 }
 
+/**
+ * @brief Print a member name from an archive header.
+ *
+ * The name stored in the archive
+ * header is not null terminated; this
+ * function copies it into a temporary buffer before output.
+
+ * *
+ * @param mem_name Pointer to the 14-character member name field.
+ */
 static void p_name(char *mem_name) {
     register int i = 0;
     char name[15];
@@ -646,7 +751,16 @@ int mo[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 char *moname[] = {" Jan ", " Feb ", " Mar ", " Apr ", " May ", " Jun ",
                   " Jul ", " Aug ", " Sep ", " Oct ", " Nov ", " Dec "};
 
-/* Print the date.  This only works from 1970 to 2099. */
+/**
+ * @brief Print a timestamp in ``Mon dd hh:mm`` or ``Mon dd  yyyy`` format.
+ *
+ * The
+ * representation matches traditional UNIX ``ls`` output and is
+ * valid for years 1970--2099.
+ *
+ *
+ * @param t Epoch time to format.
+ */
 static void date(long t) {
     int i, year, day, month, hour, minute;
     long length, time(), original;

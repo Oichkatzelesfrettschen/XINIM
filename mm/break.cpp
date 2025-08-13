@@ -39,7 +39,7 @@ constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
  * Resizes the data segment according to the address supplied via the incoming message. The stack
  * pointer is validated so that the stack and data segments do not collide.
  *
- * @return ::OK on success or an ::ErrorCode value otherwise.
+ * @return OK on success or an ErrorCode value otherwise.
  */
 PUBLIC int do_brk() {
     /* Perform the brk(addr) system call.
@@ -81,7 +81,7 @@ PUBLIC int do_brk() {
  * @param data_clicks Desired new data segment size in clicks.
  * @param sp         Current stack pointer value.
  *
- * @return ::OK if the new layout fits or ::ErrorCode::ENOMEM otherwise.
+ * @return OK if the new layout fits or ErrorCode::ENOMEM otherwise.
  */
 [[nodiscard]] PUBLIC int adjust(struct mproc *rmp, std::size_t data_clicks,
                                 std::size_t sp) { // vir_clicks, vir_bytes -> std::size_t
@@ -164,7 +164,7 @@ PUBLIC int do_brk() {
  * @param dvir       Data segment virtual origin.
  * @param s_vir      Stack segment virtual origin.
  *
- * @return ::OK if the configuration fits, otherwise ::ErrorCode::ENOMEM.
+ * @return OK if the configuration fits, otherwise ErrorCode::ENOMEM.
  */
 [[nodiscard]] PUBLIC int size_ok(int file_type, std::size_t tc, std::size_t dc, std::size_t sc,
                                  std::size_t dvir, std::size_t s_vir) { // vir_clicks -> std::size_t
