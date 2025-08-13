@@ -9,7 +9,7 @@
  * @author C++23 conversion team
  * @version 2.0
  * @date 2024
- * @copyright MIT License
+ * @copyright BSD-3-Clause
  */
 
 #pragma once

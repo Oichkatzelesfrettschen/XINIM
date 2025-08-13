@@ -1,4 +1,4 @@
-# SPDX-License-Identifier: MIT
+# SPDX-License-Identifier: BSD-3-Clause
 # ---------------------------------------------------------------------------
 #  Kernel Makefile (reconciled 2025-06-23)
 #
