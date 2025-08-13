@@ -8,19 +8,19 @@
  *
  * This program is a C++23 modernization of the original `df` utility from MINIX.
  * It reports the amount of available disk space for file systems.
- * The modern implementation leverages the C++ <filesystem> library for a portable
- * and robust solution, abstracting away the low-level details of specific
- * filesystem structures.
+ * The modern implementation leverages the C++ std::filesystem library for a portable
+ * and robust
+ * solution, abstracting away the low-level details of specific filesystem structures.
  *
  * Usage: df [path...]
  */
 
-#include <iostream>
-#include <vector>
-#include <string>
 #include <filesystem>
-#include <system_error>
 #include <iomanip>
+#include <iostream>
+#include <string>
+#include <system_error>
+#include <vector>
 
 namespace {
 
@@ -55,20 +55,27 @@ std::string human_readable_size(std::uintmax_t bytes) {
  * @brief Prints the disk space information for a given path.
  * @param path The path to a file or directory on the filesystem to check.
  */
-void print_fs_info(const std::filesystem::path& path) {
+void print_fs_info(const std::filesystem::path &path) {
     std::error_code ec;
     const auto space_info = std::filesystem::space(path, ec);
 
     if (ec) {
-        std::cerr << "df: Cannot get info for '" << path.string() << "': " << ec.message() << std::endl;
+        std::cerr << "df: Cannot get info for '" << path.string() << "': " << ec.message()
+                  << std::endl;
         return;
     }
 
-    std::cout << std::left << std::setw(25) << path.string()
-              << std::right << std::setw(12) << human_readable_size(space_info.capacity)
-              << std::setw(12) << human_readable_size(space_info.capacity - space_info.free)
-              << std::setw(12) << human_readable_size(space_info.available)
-              << std::setw(8) << static_cast<int>((static_cast<double>(space_info.capacity - space_info.free) / space_info.capacity) * 100) << "%"
+    const auto used = space_info.capacity - space_info.free;
+    const int usage_percent =
+        space_info.capacity == 0
+            ? 0
+            : static_cast<int>(
+                  (static_cast<double>(used) / static_cast<double>(space_info.capacity)) * 100);
+
+    std::cout << std::left << std::setw(25) << path.string() << std::right << std::setw(12)
+              << human_readable_size(space_info.capacity) << std::setw(12)
+              << human_readable_size(used) << std::setw(12)
+              << human_readable_size(space_info.available) << std::setw(8) << usage_percent << "%"
               << std::endl;
 }
 
@@ -80,12 +87,10 @@ void print_fs_info(const std::filesystem::path& path) {
  * @param argv An array of command-line arguments.
  * @return 0 on success, 1 on error.
  */
-int main(int argc, char* argv[]) {
-    std::cout << std::left << std::setw(25) << "Filesystem"
-              << std::right << std::setw(12) << "Size"
-              << std::setw(12) << "Used"
-              << std::setw(12) << "Available"
-              << std::setw(8) << "Use%" << std::endl;
+int main(int argc, char *argv[]) {
+    std::cout << std::left << std::setw(25) << "Filesystem" << std::right << std::setw(12) << "Size"
+              << std::setw(12) << "Used" << std::setw(12) << "Available" << std::setw(8) << "Use%"
+              << std::endl;
 
     if (argc == 1) {
         // If no arguments, check the current path.

@@ -92,27 +92,30 @@ inline void copy(void *dest, const void *source, int bytes) {
     vir_bytes vpath = reinterpret_cast<vir_bytes>(path);
     err_code = rw_user(D, who, vpath, static_cast<vir_bytes>(len), user_path, FROM_USER);
     return err_code;
-    /**
-     * @brief Handler for unsupported system calls.
-     * @return Always returns ErrorCode::EINVAL.
-     */
-    [[nodiscard]] int no_sys() { return ErrorCode::EINVAL; }
+}
 
-    /**
-     * @brief Panic handler that syncs all buffers and halts the system.
-     * @param format Message format string.
-     * @param num Optional numeric argument printed with the message.
-     */
-    void panic(const char *format, int num) {
-        if (panicking) {
-            return;
-        }
-        panicking = TRUE;
-        printf("File system panic: %s ", format);
-        if (num != NO_NUM) {
-            printf("%d", num);
-        }
-        printf("\n");
-        do_sync();
-        sys_abort();
+/**
+ * @brief Handler for unsupported system calls.
+ * @return Always returns ErrorCode::EINVAL.
+ */
+[[nodiscard]] int no_sys() { return static_cast<int>(ErrorCode::EINVAL); }
+
+/**
+ * @brief Panic handler that syncs all buffers and halts the system.
+ * @param format Message
+ * format string.
+ * @param num Optional numeric argument printed with the message.
+ */
+void panic(const char *format, int num) {
+    if (panicking) {
+        return;
     }
+    panicking = TRUE;
+    printf("File system panic: %s ", format);
+    if (num != NO_NUM) {
+        printf("%d", num);
+    }
+    printf("\n");
+    do_sync();
+    sys_abort();
+}

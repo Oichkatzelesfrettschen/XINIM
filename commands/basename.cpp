@@ -6,12 +6,13 @@
  *
  * Modernized for C++23. This program extracts and prints the filename component of a given path,
  * with an option to remove a specified suffix. It adheres to modern C++ practices, including
- * the use of <filesystem> for path manipulation, exception handling for robustness, and
+ * the use of std::filesystem for path manipulation, exception handling for robustness, and
+ *
  * type-safe I/O operations.
  */
 
-#include <iostream>
 #include <filesystem>
+#include <iostream>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -24,7 +25,7 @@
  *
  * Usage: basename string [suffix]
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: basename string [suffix]" << std::endl;
         return 1;
@@ -43,7 +44,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << base << std::endl;
 
-    } catch (const std::filesystem::filesystem_error& e) {
+    } catch (const std::filesystem::filesystem_error &e) {
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
