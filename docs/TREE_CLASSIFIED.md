@@ -14,7 +14,6 @@
   TREE.txt
   TREE_CLASSIFIED.txt
   classify_style.py
-  setup.sh
   .github
     workflows
       build.yml

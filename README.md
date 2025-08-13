@@ -22,8 +22,9 @@ The repository contains the full kernel, memory manager, file-system, classic us
 
 ## Prerequisites
 
-Install the tool-chain and host packages listed in **`docs/TOOL_INSTALL.md`**.  
-Example for Ubuntu 24.04 LTS:
+Install the tool-chain and host packages listed in **`docs/TOOL_INSTALL.md`**.
+The step-by-step commands formerly automated by `setup.sh` now live in
+[`tools/setup.md`](tools/setup.md). Example for Ubuntu 24.04 LTS:
 
 ```bash
 sudo apt-get update
@@ -36,10 +37,10 @@ sudo apt-get install -y $(tr '\n' ' ' < docs/TOOL_INSTALL.md)
 
 ```bash
 # Configure (Debug build by default)
-cmake -B build
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
 
-# Compile everything
-cmake --build build -j$(nproc)
+# Compile everything using Ninja
+ninja -C build
 
 # Boot the resulting disk image under QEMU
 ./tools/run_qemu.sh build/xinim.img

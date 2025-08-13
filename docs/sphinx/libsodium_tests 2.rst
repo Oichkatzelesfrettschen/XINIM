@@ -8,12 +8,13 @@ building the tests.
 Quick install
 -------------
 
-Use the repository's ``setup.sh`` script to install the required
-packages on Ubuntu based systems:
+Follow the instructions in ``tools/setup.md`` to install the required
+packages on Ubuntu-based systems:
 
 .. code-block:: bash
 
-   ./setup.sh
+   sudo apt-get update
+   sudo apt-get install -y libsodium-dev libsodium23
 
 The script installs ``libsodium-dev`` and ``libsodium23`` which package
 libsodium **1.0.18** at the time of writing.

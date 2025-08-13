@@ -63,7 +63,8 @@ users.
 ### Prerequisites
 
  - **Compiler**: GCC 13+ or Clang 18+ with the full LLVM 18 suite including lld and lldb (MSVC 19.36+ supported)
- - **Setup**: Run `tools/setup.sh` to install clang-18, lld-18, lldb-18, and related packages
+ - **Setup**: Follow [`tools/setup.md`](../tools/setup.md) to install clang-18,
+   lld-18, lldb-18, and related packages
  - **Build System**: Make (GNU Make recommended)
  - **Optional**: Doxygen for documentation, Valgrind for debugging
 
@@ -75,16 +76,14 @@ git clone <repository-url>
 cd XINIM
 
 # Install dependencies (LLVM 18, lld, etc.)
-tools/setup.sh
+# See tools/setup.md for details
 
-# Build debug version (default)
-make
+# Configure and build with Ninja
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+ninja -C build
 
-# Build optimized release version
-make BUILD_MODE=release
-
-# Install system-wide
-sudo make install
+# Boot the resulting image under QEMU
+./tools/run_qemu.sh build/xinim.img
 ```
 
 ### Build Modes
