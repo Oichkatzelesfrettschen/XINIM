@@ -11,19 +11,19 @@ The repository contains the full kernel, memory manager, file-system, classic us
 
 ## Table of Contents
 
-1. [Prerequisites](#prerequisites)  
-2. [Native Build (Quick Start)](#native-build-quick-start)  
-3. [Cross-Compilation](#cross-compilation)  
-4. [Cleaning the Workspace](#cleaning-the-workspace)  
-5. [Documentation](#documentation)  
-6. [License](#license)
+1. [Prerequisites](#prerequisites)
+2. [Building](#building)
+3. [Cleaning the Workspace](#cleaning-the-workspace)
+4. [Documentation](#documentation)
+5. [License](#license)
 
 ---
 
 ## Prerequisites
 
-Install the tool-chain and host packages listed in **`docs/TOOL_INSTALL.md`**.  
-Example for Ubuntu 24.04 LTS:
+Install the tool-chain and host packages listed in **`docs/TOOL_INSTALL.md`**.
+The step-by-step commands formerly automated by `setup.sh` now live in
+[`tools/setup.md`](tools/setup.md). Example for Ubuntu 24.04 LTS:
 
 ```bash
 sudo apt-get update
@@ -32,52 +32,10 @@ sudo apt-get install -y $(tr '\n' ' ' < docs/TOOL_INSTALL.md)
 
 ---
 
-## Native Build (Quick Start)
+## Building
 
-```bash
-# Configure (Debug build by default)
-cmake -B build
-
-# Compile everything
-cmake --build build -j$(nproc)
-
-# Boot the resulting disk image under QEMU
-./tools/run_qemu.sh build/xinim.img
-```
-
-To build an optimised image add:
-
-```bash
-cmake -B build -DCMAKE_BUILD_TYPE=Release
-```
-
----
-
-## Cross-Compilation
-
-Building a freestanding x86-64 image on any host:
-
-```bash
-cmake -B build \
-      -DCROSS_COMPILE_X86_64=ON \
-      -DCROSS_PREFIX=x86_64-elf-
-
-cmake --build build
-```
-
-The legacy Makefiles accept the same triplet:
-
-```bash
-make CROSS_PREFIX=x86_64-elf- all
-```
-
-The generated `xinim.img` boots via GRUB 2, Limine, or directly with:
-
-```bash
-qemu-system-x86_64 -drive file=xinim.img,if=none,format=raw
-```
-
-For additional architectures (AArch64, RISC-V) see **`docs/BUILDING.md`**.
+See [docs/BUILDING.md](docs/BUILDING.md) for canonical Ninja and Clang
+instructions, including cross-compilation workflows and QEMU launch notes.
 
 ---
 
@@ -119,8 +77,4 @@ are removed during the merge.
 ---
 
 ## License
-
-Dual-licensed under **Apache-2.0** or **MIT**.  See `LICENSE` for details.
-
-```
-```
+Licensed under the **BSD-3-Clause** license. See `LICENSE` for details.

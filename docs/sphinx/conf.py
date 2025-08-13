@@ -23,8 +23,15 @@ release = "0.1.0"  # Full version string including patch level
 
 # Extensions that add additional functionality to Sphinx.
 extensions = [
-    "breathe",  # Integrates Doxygen XML output for API reference
+    "breathe",      # Integrates Doxygen XML output for API reference
+    "myst_parser",  # Enables CommonMark and MyST markdown support
 ]
+
+# Allow Sphinx to parse both reStructuredText and Markdown sources.
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
 
 # Mapping of projects for the Breathe extension.  The path is relative to this
 # configuration file and matches the ``OUTPUT_DIRECTORY`` from ``Doxyfile``.
