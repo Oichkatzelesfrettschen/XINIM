@@ -21,7 +21,7 @@ simplicity on modern **arm64** and **x86-64** machines using **C++23**.
 Install everything with:
 
 ```sh
-tools/setup.sh          # installs clang-18, lld-18, nasm, cmake …
+# See tools/setup.md for the step-by-step package list
 clang++ --version       # verify the compiler in PATH
 ````
 
@@ -44,8 +44,8 @@ Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 ## 3 · Building with CMake
 
 ```sh
-cmake -B build
-cmake --build build
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+ninja -C build
 ```
 
 Driver variants (AT vs PC/XT) and other options are configured via CMake
@@ -56,8 +56,9 @@ flags—see `README.md`.
 ## 4 · Cross-compiling for x86-64
 
 ```sh
-cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
-cmake --build build
+cmake -B build -G Ninja -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf- \
+      -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+ninja -C build
 ```
 
 or, using Makefiles:

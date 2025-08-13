@@ -26,6 +26,7 @@ sudo apt-get install -y --no-install-recommends \
   build-essential cmake nasm \
   clang-tidy clang-format clang-tools clangd \
   llvm llvm-dev libclang-dev libclang-cpp-dev \
+  libc++-18-dev libc++abi-18-dev \
   cppcheck valgrind lcov strace gdb \
   rustc cargo rustfmt \
   g++ afl++ ninja-build \
@@ -34,18 +35,18 @@ sudo apt-get install -y --no-install-recommends \
   python3-pip \
   libsodium-dev libsodium23 nlohmann-json3-dev \
   qemu-system-x86 qemu-utils qemu-user \
-  tmux cloc cscope \
+  tmux cloc cscope ack \
+  bear universal-ctags \
   gcc-x86-64-linux-gnu g++-x86-64-linux-gnu binutils-x86-64-linux-gnu
 ```
 
 ## Optional Extras
 
 ```bash
-command -v ack >/dev/null 2>&1 \
-  || sudo apt-get install -y --no-install-recommends ack
 sudo apt-get install -y --no-install-recommends libfuzzer-dev || true
 python3 -m pip install --user --quiet lizard
 npm install --global markdownlint-cli
+# include-what-you-use requires manual installation if desired
 ```
 
 ## Verify Tool Versions
