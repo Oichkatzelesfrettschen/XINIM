@@ -575,7 +575,6 @@ int main(int argc, char* argv[]) {
         CompilerDriver driver;
         ProgCall = *argv++;
         --argc;
-
         signal(SIGHUP, CompilerDriver::trapcc);
         signal(SIGINT, CompilerDriver::trapcc);
         signal(SIGQUIT, CompilerDriver::trapcc);
@@ -663,7 +662,7 @@ int main(int argc, char* argv[]) {
     }
 }
 
-// Recommendations:
+// Recommendations/TODOs:
 // - Add support for parallel compilation using std::jthread (C++23).
 // - Implement logging framework for detailed diagnostics.
 // - Add unit tests for edge cases (e.g., invalid files, missing tools).
