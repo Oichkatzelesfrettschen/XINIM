@@ -103,7 +103,7 @@ inline void copy(void *dest, const void *source, int bytes) {
 /**
  * @brief Panic handler that syncs all buffers and halts the system.
  * @param format Message
- * format string.
+ * @param format Message format string.
  * @param num Optional numeric argument printed with the message.
  */
 void panic(const char *format, int num) {
