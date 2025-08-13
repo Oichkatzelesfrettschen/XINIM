@@ -138,7 +138,7 @@ PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, 
 /**
  * @brief Stub for unimplemented system calls.
  *
- * Always returns ::ErrorCode::EINVAL.
+ * Always returns ErrorCode::EINVAL.
  */
 PUBLIC int no_sys() noexcept {
     /* A system call number not implemented by MM has been requested. */
