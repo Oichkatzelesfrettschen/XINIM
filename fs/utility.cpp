@@ -164,7 +164,6 @@ void copy(std::span<char> dest, std::span<const char> src) {
 int main() {
     // Optional: Add test code for standalone compilation
     return 0;
-}
 
 // Recommendations/TODOs:
 // - Add unit tests for clock_time, cmp_string, copy, fetch_name, and panic.
