@@ -229,6 +229,10 @@ private:
 };
 
 thread_local DdCommand* DdCommand::running_command_ = nullptr;
+    static DdCommand* running_command_;
+};
+
+DdCommand* DdCommand::running_command_ = nullptr;
 
 size_t parse_num(std::string_view s) {
     long long val = 0;
