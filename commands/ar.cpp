@@ -381,6 +381,10 @@ int main(int argc, char *argv[]) {
  * @param argc Number of command line
  * arguments.
  * @param argv Argument vector containing the operation flags and file names.
+ * Iterates over each archive member and dispatches actions such as extraction, deletion, replacement, appending, or listing according to the flags supplied in @p argv.
+ *
+ * @param argc Number of command line arguments.
+ * @param argv Argument vector containing the operation flags and file names.
  */
 static void get(int argc, char *argv[]) {
     register MEMBER *member;
