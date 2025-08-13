@@ -354,6 +354,10 @@ void Archiver::date(long t) {
 void Archiver::mktempname() {
     std::lock_guard lock(mtx_);
     std::format_to(temp_arch_.begin(), "/tmp/ar.{:05d}", getpid());
+void Archiver::mktempname() {
+    std::lock_guard lock(mtx_);
+    auto result = std::format_to_n(temp_arch_.begin(), temp_arch_.size() - 1, "/tmp/ar.{:05d}", getpid());
+    temp_arch_[result.out - temp_arch_.begin()] = '\0';
 }
 
 void Archiver::add(std::string_view name, int fd, char mess) {
