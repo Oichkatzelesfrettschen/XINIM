@@ -22,9 +22,12 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 #include "param.hpp"
+#include "process_slot.hpp"
 #include "token.hpp"
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
+#include <ranges>
+#include <span>
 
 #define LAST_FEW 2 /* last few slots reserved for superuser */
 
@@ -35,13 +38,24 @@ PRIVATE next_pid = INIT_PROC_NR + 1; /* next pid to be assigned */
 /*===========================================================================*
  *				do_fork					     *
  *===========================================================================*/
+/**
+ * @brief Perform the FORK system call.
+ *
+ * Allocates a new process table entry using @ref
+ * xinim::ScopedProcessSlot and
+ * copies the parent's memory map into the child. The routine
+ * reports the new
+ * child's PID to both the kernel and the file system.
+ *
+ * @return Newly
+ * created child PID or an error code from ::ErrorCode.
+ */
 PUBLIC int do_fork() {
     /* The process pointed to by 'mp' has forked.  Create a child process. */
 
     register struct mproc *rmp; /* pointer to parent */
-    register struct mproc *rmc; /* pointer to child */
     int i, child_nr, t;
-    char *sptr, *dptr;
+    std::span<mproc> proc_table{mproc};
     uint64_t prog_bytes;              // Was long, should be phys_bytes equivalent
     uint64_t prog_clicks, child_base; // phys_clicks -> uint64_t
     uint64_t parent_abs, child_abs;   // Was long, should be phys_bytes equivalent
@@ -77,19 +91,17 @@ PUBLIC int do_fork() {
     if (i < 0)
         panic("do_fork can't copy", i);
 
-    /* Find a slot in 'mproc' for the child process.  A slot must exist. */
-    for (rmc = &mproc[0]; rmc < &mproc[NR_PROCS]; rmc++)
-        if ((rmc->mp_flags & IN_USE) == 0)
-            break;
+    /* Find and reserve a free slot using RAII. */
+    xinim::ScopedProcessSlot child_slot{proc_table};
+    if (!child_slot.valid())
+        return (ErrorCode::EAGAIN);
+
+    auto rmc = child_slot.get();
+    child_nr = child_slot.index(); /* slot number of the child */
 
     /* Set up the child and its memory map; copy its 'mproc' slot from parent. */
-    child_nr = rmc - mproc; /* slot number of the child */
-    procs_in_use++;
-    sptr = (char *)rmp;       /* pointer to parent's 'mproc' slot */
-    dptr = (char *)rmc;       /* pointer to child's 'mproc' slot */
-    i = sizeof(struct mproc); /* number of bytes in a proc slot. */
-    while (i--)
-        *dptr++ = *sptr++; /* copy from parent slot to child's */
+    *rmc = *rmp; /* direct structure copy */
+    child_slot.release();
 
     rmc->mp_parent = who;                 /* record child's parent */
     rmc->mp_seg[T].mem_phys = child_base; // child_base is uint64_t
@@ -107,11 +119,9 @@ PUBLIC int do_fork() {
     do {
         t = 0; /* 't' = 0 means pid still free */
         next_pid = (next_pid < 30000 ? next_pid + 1 : INIT_PROC_NR + 1);
-        for (rmp = &mproc[0]; rmp < &mproc[NR_PROCS]; rmp++)
-            if (rmp->mp_pid == next_pid) {
-                t = 1;
-                break;
-            }
+        if (std::ranges::any_of(proc_table,
+                                [next_pid](const mproc &p) { return p.mp_pid == next_pid; }))
+            t = 1;
         rmc->mp_pid = next_pid; /* assign pid to child */
     } while (t);
 
@@ -171,13 +181,27 @@ int exit_status;            /* the process' exit status (for parent) */
 /*===========================================================================*
  *				do_wait					     *
  *===========================================================================*/
+/**
+ * @brief Perform the WAIT system call.
+ *
+ * Iterates over the process table using ::std::span
+ * to determine whether any
+ * children of the current process have exited. If none have, the caller
+ * is put
+ * into a waiting state.
+ *
+ * @return ::OK if the caller should block, or
+ * ::ErrorCode::ECHILD when no
+ * children exist.
+ */
 PUBLIC int do_wait() {
     /* A process wants to wait for a child to terminate. If one is already waiting,
-     * go clean it up and let this WAIT call terminate.  Otherwise, really wait.
+     * go clean
+     * it up and let this WAIT call terminate.  Otherwise, really wait.
      */
 
-    register struct mproc *rp;
-    register int children;
+    int children;
+    std::span<mproc> table{mproc};
 
     /* A process calling WAIT never gets a reply in the usual way via the
      * reply() in the main loop.  If a child has already exited, the routine
@@ -186,11 +210,11 @@ PUBLIC int do_wait() {
 
     /* Is there a child waiting to be collected? */
     children = 0;
-    for (rp = &mproc[0]; rp < &mproc[NR_PROCS]; rp++) {
-        if ((rp->mp_flags & IN_USE) && rp->mp_parent == who) {
+    for (auto &proc : table) {
+        if ((proc.mp_flags & IN_USE) && proc.mp_parent == who) {
             children++;
-            if (rp->mp_flags & HANGING) {
-                cleanup(rp); /* a child has already exited */
+            if (proc.mp_flags & HANGING) {
+                cleanup(&proc); /* a child has already exited */
                 dont_reply = TRUE;
                 return (OK);
             }

@@ -27,3 +27,4 @@ The documentation is divided into several sections:
    service
    service_manager
    wait_graph
+   process_control
