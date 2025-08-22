@@ -10,6 +10,11 @@
  * @param count Number of elements to read.
  * @param file  Source stream.
  * @return Number of elements successfully read.
+ * @sideeffects Consumes bytes from @p file and writes to @p ptr.
+ * @thread_safety Relies on stdio synchronization.
+ * @compat fread(3)
+ * @example
+ * fread(buf,1,10,file);
  */
 size_t fread(void *ptr, size_t size, size_t count, FILE *file) {
     auto *bytes = static_cast<char *>(ptr);
