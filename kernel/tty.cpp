@@ -205,6 +205,11 @@ PRIVATE char m24[] = {0,    033,  '!',  '"',  '#',  '$',  '%',  '&',  047,  '(',
 /*===========================================================================*
  *				tty_task				     *
  *===========================================================================*/
+/**
+ * @brief Terminal task main loop.
+ * @pre tty_init() has configured device tables.
+ * @post Runs indefinitely handling TTY requests and interrupts.
+ */
 PUBLIC void tty_task() noexcept { // Added void return, noexcept
     /* Main routine of the terminal task. */
 
@@ -857,6 +862,11 @@ PRIVATE int vid_port;      /* I/O port for accessing 6845 */
 /*===========================================================================*
  *				keyboard				     *
  *===========================================================================*/
+/**
+ * @brief Interrupt handler for keyboard events.
+ * @pre Executing on keyboard IRQ with interrupts disabled.
+ * @post Raw scancode is acknowledged and queued for tty_task().
+ */
 PUBLIC keyboard() {
     /* A keyboard interrupt has occurred.  Process it. */
 
@@ -1186,6 +1196,12 @@ static void beep(int f) noexcept { // PRIVATE -> static, modernized signature, n
 /*===========================================================================*
  *				tty_init				     *
  *===========================================================================*/
+/**
+ * @brief Initialise TTY descriptor tables.
+ *
+ * @pre Console driver initialised.
+ * @post All TTY structures set to default line discipline.
+ */
 static void tty_init() noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Initialize the tty tables. */
 

@@ -86,6 +86,10 @@ extern void phys_copy(void *dst, const void *src, std::size_t num_bytes) noexcep
  *
  * Waits for driver messages and services /dev/null, /dev/mem,
  * /dev/kmem and /dev/ram requests.
+ *
+ * @pre Memory manager has initialized RAM device parameters.
+ * @post Task replies to each request; loop runs indefinitely.
+ * @warning No interrupt-driven I/O; all requests are synchronous.
  */
 PUBLIC void mem_task() noexcept {
 

@@ -53,9 +53,13 @@ extern void mem_task() noexcept;
  * Unused slots are explicitly initialised with `nullptr`.
  */
 constinit std::array<TaskEntry, NR_TASKS + INIT_PROC_NR + 1> task = {
-    printer_task, tty_task, winchester_task, floppy_task,
+    printer_task,
+    tty_task,
+    winchester_task,
+    floppy_task,
     mem_task,
-    clock_task, sys_task,
+    clock_task,
+    sys_task,
     nullptr, ///< Was 0
     nullptr, ///< Was 0
     nullptr, ///< Was 0

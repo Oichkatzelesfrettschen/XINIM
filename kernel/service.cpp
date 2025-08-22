@@ -44,6 +44,10 @@ bool ServiceManager::has_path(xinim::pid_t start, xinim::pid_t target,
  * @brief Register a new service with dependency information.
  *
  * Contracts are created lazily for each service and track restart counts.
+ *
+ * @pre @p pid is a valid process ID and not already registered.
+ * @post Service is marked running and scheduled for execution.
+ * @warning Scheduler queue does not yet enforce priority inheritance.
  */
 void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim::pid_t> &deps,
                                       std::uint32_t limit) {
@@ -61,6 +65,11 @@ void ServiceManager::register_service(xinim::pid_t pid, const std::vector<xinim:
     }
 
     info.running = true;
+    /**
+     * @brief Place service onto ready queue.
+     * @pre Scheduler subsystem initialized via sched::init().
+     * @post Service will eventually be dispatched by scheduler.
+     */
     sched::scheduler.enqueue(pid);
 }
 
