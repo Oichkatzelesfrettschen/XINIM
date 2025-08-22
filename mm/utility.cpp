@@ -16,21 +16,33 @@
 #include "glo.hpp"
 #include "mproc.hpp"
 
+#include <array>      // std::array
 #include <cerrno>     // errno
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uintptr_t
 #include <cstdio>     // printf
 #include <filesystem> // std::filesystem utilities
 #include <memory>     // std::unique_ptr
+#include <optional>   // std::optional
+#include <ranges>     // std::ranges algorithms
+#include <utility>    // std::pair
 
 PRIVATE message copy_mess;
 
 namespace {
-// Simple RAII wrapper to ensure file descriptors are closed on scope exit.
+/**
+ * @brief RAII wrapper ensuring a file descriptor is closed on scope exit.
+ *
+ * The wrapper is move-only to prevent double closes and provides a
+ * @c release() helper to transfer ownership.
+ */
 struct FileDescriptor {
+    /// Wrapped file descriptor value.
     int fd{-1};
+    /// Construct from a raw descriptor.
     explicit FileDescriptor(int f) : fd(f) {}
-    ~FileDescriptor() noexcept { // Added noexcept
+    /// Close the descriptor if it is valid.
+    ~FileDescriptor() noexcept {
         if (fd >= 0) {
             // In a destructor, we should generally not let exceptions escape.
             // close() can set errno but doesn't throw C++ exceptions.
@@ -38,11 +50,13 @@ struct FileDescriptor {
             close(fd);
         }
     }
-    // Disallow copy to avoid double close.
+    /// Deleted copy constructor.
     FileDescriptor(const FileDescriptor &) = delete;
+    /// Deleted copy assignment operator.
     FileDescriptor &operator=(const FileDescriptor &) = delete;
-    // Allow move semantics for flexibility.
+    /// Move constructor.
     FileDescriptor(FileDescriptor &&other) noexcept : fd(other.fd) { other.fd = -1; }
+    /// Move assignment operator.
     FileDescriptor &operator=(FileDescriptor &&other) noexcept {
         if (this != &other) {
             if (fd >= 0)
@@ -52,13 +66,45 @@ struct FileDescriptor {
         }
         return *this;
     }
-    // Release ownership of the descriptor without closing it
+    /// Release ownership of the descriptor without closing it.
     [[nodiscard]] int release() noexcept {
         int old = fd;
         fd = -1;
         return old;
     }
 };
+
+/**
+ * @brief Determine if any execute bit is present in @p mode.
+ *
+ * Utilizes @c std::ranges::any_of for clarity.
+ */
+[[nodiscard]] bool has_exec_bits(mode_t mode) noexcept {
+    constexpr std::array<mode_t, 3> exec_bits{X_BIT << 6, X_BIT << 3, X_BIT};
+    return std::ranges::any_of(exec_bits, [mode](mode_t bit) { return (mode & bit) != 0; });
+}
+
+/**
+ * @brief Compute the permission shift based on file ownership.
+ *
+ * Uses @c std::ranges::find_if to locate the applicable rule and returns
+ * the shift amount as an @c std::optional.
+ *
+ * @param effuid Effective user ID requesting access.
+ * @param effgid Effective group ID requesting access.
+ * @param st     Stat structure describing the file.
+ * @return 6 for owner, 3 for group or an empty optional if neither match.
+ */
+[[nodiscard]] std::optional<int> ownership_shift(uid_t effuid, gid_t effgid,
+                                                 const struct stat *st) noexcept {
+    const std::array<std::pair<bool, int>, 2> rules{
+        {{effuid == st->st_uid, 6}, {effgid == st->st_gid, 3}}};
+    if (auto it = std::ranges::find_if(rules, [](const auto &rule) { return rule.first; });
+        it != rules.end()) {
+        return it->second;
+    }
+    return std::nullopt;
+}
 } // namespace
 
 /**
@@ -85,22 +131,17 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept 
         return (ErrorCode::EACCES);
     }
     /* Even for superuser, at least 1 X bit must be on. */
-    if (mp->mp_effuid == SUPER_USER && mask == X_BIT &&
-        (s_buf->st_mode & (X_BIT << 6 | X_BIT << 3 | X_BIT)))
+    if (mp->mp_effuid == SUPER_USER && mask == X_BIT && has_exec_bits(s_buf->st_mode))
         return fd.release();
 
     /* Right adjust the relevant set of permission bits. */
-    int shift = 0;
-    if (mp->mp_effuid == s_buf->st_uid)
-        shift = 6;
-    else if (mp->mp_effgid == s_buf->st_gid)
-        shift = 3;
+    const int shift = ownership_shift(mp->mp_effuid, mp->mp_effgid, s_buf).value_or(0);
 
     if (mp->mp_effuid == SUPER_USER && mask != X_BIT)
         return fd.release();
-    if (s_buf->st_mode >> shift & mask) /* test the relevant bits */
-        return fd.release();            /* permission granted */
-    return (ErrorCode::EACCES);         /* permission denied */
+    if ((s_buf->st_mode >> shift) & mask) /* test the relevant bits */
+        return fd.release();              /* permission granted */
+    return (ErrorCode::EACCES);           /* permission denied */
 }
 
 /**

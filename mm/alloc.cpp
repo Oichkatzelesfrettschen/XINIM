@@ -6,6 +6,8 @@
  * `std::list`. Memory is allocated in units of clicks using a first-fit
  * strategy. During system initialisation the regions occupied by the kernel and
  * memory manager are removed from the list so they cannot be reused.
+ *
+ * @ingroup memory
  */
 
 #include "../h/const.hpp"
@@ -21,6 +23,15 @@ constexpr int NR_HOLES = 128;
 
 /**
  * @brief Descriptor for a free region of physical memory.
+ *
+ * Each descriptor represents ownership of a contiguous range expressed in
+ * clicks.  The allocator retains ownership of all ::Hole instances; callers
+ * receive only base addresses and lengths.
+ *
+ * Alignment is implicit: @c base and @c len are measured in clicks, so every
+ * region is aligned to @c CLICK_SIZE bytes.
+ *
+ * @ingroup memory
  */
 struct Hole {
     uint64_t base; ///< Start address of the hole in clicks.
@@ -28,12 +39,24 @@ struct Hole {
 };
 
 /// List of available holes managed using RAII.
+/**
+ * The list acts as the allocator's free list, kept sorted by increasing base
+ * address to facilitate merging of adjacent holes.
+ *
+ * @ingroup memory
+ */
 static std::list<Hole> hole_list;
 /**
  * @brief Allocate a block from the hole list using first fit.
  *
+ * Ownership of the physical range is transferred to the caller, who must later
+ * return it with free_mem().  Because holes are described in click units, the
+ * returned address and size are page aligned.
+ *
  * @param clicks Number of clicks to allocate.
  * @return Base click address of the allocated block or ::NO_MEM.
+ *
+ * @ingroup memory
  */
 [[nodiscard]] uint64_t alloc_mem(uint64_t clicks) noexcept {
     for (auto it = hole_list.begin(); it != hole_list.end(); ++it) {
@@ -52,8 +75,14 @@ static std::list<Hole> hole_list;
 /**
  * @brief Return a block of memory to the allocator.
  *
+ * The caller relinquishes ownership of the range, which is inserted into the
+ * free list and merged with neighbouring holes when possible.  The base and
+ * size must observe the original click granularity.
+ *
  * @param base   Starting click of the block.
  * @param clicks Size of the block in clicks.
+ *
+ * @ingroup memory
  */
 void free_mem(uint64_t base, uint64_t clicks) noexcept {
     Hole new_hole{base, clicks};
@@ -68,7 +97,11 @@ void free_mem(uint64_t base, uint64_t clicks) noexcept {
 /**
  * @brief Merge a hole with adjacent holes if they are contiguous.
  *
+ * Operates entirely in click units to preserve page alignment.
+ *
  * @param it Iterator pointing to the hole to merge.
+ *
+ * @ingroup memory
  */
 static void merge(std::list<Hole>::iterator it) noexcept {
     if (it == hole_list.end()) {
@@ -90,6 +123,10 @@ static void merge(std::list<Hole>::iterator it) noexcept {
 
 /**
  * @brief Return the size of the largest available hole.
+ *
+ * @return Length in clicks of the largest free region.
+ *
+ * @ingroup memory
  */
 [[nodiscard]] uint64_t max_hole() noexcept {
     uint64_t max = 0;
@@ -105,10 +142,12 @@ static void merge(std::list<Hole>::iterator it) noexcept {
  * @brief Initialise the hole allocator with a single region.
  *
  * The hole table is prepared so that one hole spans the entire region
- * described by @p clicks. All remaining table slots are added to the
- * free-slot list for later use.
+ * described by @p clicks.  Ownership of that region is recorded in the free
+ * list; subsequent allocations carve out subranges while retaining alignment.
  *
  * @param clicks Number of clicks available.
+ *
+ * @ingroup memory
  */
 void mem_init(uint64_t clicks) noexcept {
     hole_list.clear();

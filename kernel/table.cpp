@@ -31,32 +31,37 @@
 #define EXTERN
 #include "glo.hpp"
 #include "proc.hpp"
-#include <cstddef> // For nullptr
+#include <array>
 
-// Function declarations for tasks. Assuming they are now void () noexcept.
+/// @brief Function pointer type for kernel tasks.
+using TaskEntry = void (*)() noexcept;
+
+/// @brief Entry point for the system task.
 extern void sys_task() noexcept;
+/// @brief Entry point for the clock task.
 extern void clock_task() noexcept;
 // extern void mem_task() noexcept; // mem_task not defined in provided files, assume similar
+/// @brief Entry point for the floppy disk task.
 extern void floppy_task() noexcept;
+/// @brief Entry point for the winchester disk task.
 extern void winchester_task() noexcept;
+/// @brief Entry point for the terminal task.
 extern void tty_task() noexcept;
+/// @brief Entry point for the printer task.
 extern void printer_task() noexcept;
 
-/* The startup routine of each task is given below, from -NR_TASKS upwards.
- * The order of the names here MUST agree with the numerical values assigned to
- * the tasks in ../h/com.hpp.
+/**
+ * @brief Startup routine table for kernel tasks.
+ *
+ * The order of entries must match the task identifiers defined in
+ * ../h/com.hpp.
  */
-// Changed array type from int(*)() to void(*)() noexcept
-void (*task[NR_TASKS + INIT_PROC_NR + 1])() noexcept = {
-    printer_task,
-    tty_task,
-    winchester_task,
-    floppy_task,
-    nullptr, // Placeholder for mem_task if its signature changes / not available
-    clock_task,
-    sys_task,
-    nullptr, // Was 0
-    nullptr, // Was 0
-    nullptr, // Was 0
-    nullptr  // Was 0
+constexpr std::array<TaskEntry, NR_TASKS + INIT_PROC_NR + 1> task{
+    printer_task, tty_task, winchester_task, floppy_task,
+    nullptr, ///< Placeholder for mem_task if its signature changes / not available
+    clock_task,   sys_task,
+    nullptr, ///< Was 0
+    nullptr, ///< Was 0
+    nullptr, ///< Was 0
+    nullptr  ///< Was 0
 };

@@ -129,7 +129,10 @@ EXCLUDE_PATTERNS       = */obj/* \
                          */bin/* \
                          */docs/* \
                          */.git/* \
-                         */.*
+                         */.* \
+                         "* 2.*" \
+                         "* 3.*" \
+                         "* 4.*"
 EXCLUDE_SYMBOLS        = 
 EXAMPLE_PATH           = 
 EXAMPLE_PATTERNS       = 
