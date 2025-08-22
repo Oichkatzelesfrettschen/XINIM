@@ -60,7 +60,7 @@ rm -rf build/
 | Document                      | Description                         |
 | ----------------------------- | ----------------------------------- |
 | `docs/BUILDING.md`            | Full build and flashing guide       |
-| `docs/ARCHITECTURE.md`        | Subsystem overview and design notes |
+| `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](docs/sphinx/architecture.rst) |
 | `docs/TOOL_INSTALL.md`        | OS-specific dependency list         |
 | `docs/sphinx/html/index.html` | Generated developer manual in HTML  |
 
