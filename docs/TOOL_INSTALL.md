@@ -5,6 +5,12 @@ project. Step-by-step installation commands live in [`tools/setup.md`](../tools/
 The sections below catalog the packages that have proven successful in the
 current environment and highlight additional tools worth exploring.
 
+```sh
+sudo apt-get update && sudo apt-get install -y \
+    build-essential cmake ninja-build clang-18 lld-18 lldb-18 \
+    libsodium-dev nlohmann-json3-dev
+```
+
 ## Package Inventory
 
 | Package | Purpose |

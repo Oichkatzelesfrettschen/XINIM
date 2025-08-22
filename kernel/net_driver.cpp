@@ -1,14 +1,3 @@
-// Add connection state management
-enum class ConnectionState { Disconnected, Connecting, Connected, Failed, Reconnecting };
-
-struct Remote {
-    sockaddr_in addr{};
-    Protocol proto = Protocol::UDP;
-    int tcp_fd = -1;
-    ConnectionState state = ConnectionState::Disconnected;
-    std::chrono::steady_clock::time_point last_attempt{};
-    int retry_count = 0;
-};
 /**
  * @file net_driver.cpp
  * @brief Robust UDP/TCP networking backend for Lattice IPC (IPv4/IPv6, C++23).
@@ -20,6 +9,7 @@ struct Remote {
 #include <ifaddrs.h>
 #include <net/if.h>
 #include <netdb.h>
+#include <netinet/in.h> // for sockaddr_in
 #include <netpacket/packet.h>
 #include <string_view>
 #include <sys/socket.h>
@@ -144,6 +134,16 @@ void tcp_accept_loop() {
 
 } // namespace
 
+/**
+ * @brief Initialize sockets and launch networking threads.
+ *
+ * Creates UDP and TCP sockets, binds them to the configured port and starts
+ * background threads for receiving and accepting connections.
+ *
+ * @param cfg Configuration parameters controlling socket ports and queue
+ *            behaviour.
+ * @throws std::system_error If socket creation or binding fails.
+ */
 void init(const Config &cfg) {
     g_cfg = cfg;
 
@@ -166,11 +166,14 @@ void init(const Config &cfg) {
     if (::bind(g_tcp_listen, reinterpret_cast<sockaddr *>(&addr), sizeof(addr)) < 0)
         throw std::system_error(errno, std::generic_category(), "TCP bind");
 
-    running_.store(true, std::memory_order_relaxed);
-    udp_thread_ = std::jthread{[this] { udp_recv_loop(); }};
-    tcp_thread_ = std::jthread{[this] { tcp_accept_loop(); }};
+    g_running.store(true, std::memory_order_relaxed);
+    g_udp_thread = std::jthread{udp_recv_loop};
+    g_tcp_thread = std::jthread{tcp_accept_loop};
 }
 
+/**
+ * @brief Shut down networking and release resources.
+ */
 void shutdown() noexcept {
     g_running.store(false, std::memory_order_relaxed);
     if (g_udp_sock != -1) {
@@ -187,8 +190,8 @@ void shutdown() noexcept {
     if (g_tcp_thread.joinable())
         g_tcp_thread.join();
     {
-        std::lock_guard lock{mutex_};
-        queue_.clear();
+        std::lock_guard lock{g_mutex};
+        g_queue.clear();
     }
     for (auto &[_, r] : g_remotes) {
         if (r.proto == Protocol::TCP && r.tcp_fd >= 0)
@@ -198,6 +201,16 @@ void shutdown() noexcept {
     g_callback = nullptr;
 }
 
+/**
+ * @brief Register a remote peer for communication.
+ *
+ * @param node Logical identifier of the remote peer.
+ * @param host Hostname or IPv4 address of the peer.
+ * @param port Port number to use for communication.
+ * @param proto Transport protocol (UDP or TCP).
+ * @throws std::invalid_argument If the host address cannot be parsed.
+ * @throws std::system_error On TCP socket or connect failure.
+ */
 void add_remote(node_t node, const std::string &host, uint16_t port, Protocol proto) {
     Remote rem{};
     rem.proto = proto;
@@ -217,8 +230,14 @@ void add_remote(node_t node, const std::string &host, uint16_t port, Protocol pr
     g_remotes[node] = rem;
 }
 
+/**
+ * @brief Install a callback invoked when a packet arrives.
+ */
 void set_recv_callback(RecvCallback cb) { g_callback = std::move(cb); }
 
+/**
+ * @brief Return the detected local node identifier.
+ */
 node_t local_node() noexcept {
     if (g_cfg.node_id != 0)
         return g_cfg.node_id;
@@ -239,19 +258,39 @@ node_t local_node() noexcept {
     return 1;
 }
 
-bool send(node_t node, std::span<const std::byte> data) {
+/**
+ * @brief Send a framed message to a registered peer.
+ *
+ * @param node Destination node identifier.
+ * @param data Payload bytes to transmit.
+ * @return std::errc{} on success, otherwise an error code.
+ */
+std::errc send(node_t node, std::span<const std::byte> data) {
     auto it = g_remotes.find(node);
-    if (it == g_remotes.end())
-        return false;
+    if (it == g_remotes.end()) {
+        return std::errc::host_unreachable;
+    }
     auto buf = frame_payload(data);
     auto &rem = it->second;
+    ssize_t n = 0;
     if (rem.proto == Protocol::TCP && rem.tcp_fd >= 0) {
-        return ::send(rem.tcp_fd, buf.data(), buf.size(), 0) == static_cast<ssize_t>(buf.size());
+        n = ::send(rem.tcp_fd, buf.data(), buf.size(), 0);
+    } else {
+        n = ::sendto(g_udp_sock, buf.data(), buf.size(), 0, reinterpret_cast<sockaddr *>(&rem.addr),
+                     sizeof(rem.addr));
     }
-    return ::sendto(g_udp_sock, buf.data(), buf.size(), 0, reinterpret_cast<sockaddr *>(&rem.addr),
-                    sizeof(rem.addr)) == static_cast<ssize_t>(buf.size());
+    if (n != static_cast<ssize_t>(buf.size())) {
+        return std::errc::io_error;
+    }
+    return {};
 }
 
+/**
+ * @brief Retrieve the next packet from the receive queue.
+ *
+ * @param out Packet object that receives the data.
+ * @return true if a packet was available.
+ */
 bool recv(Packet &out) {
     std::lock_guard lock{g_mutex};
     if (g_queue.empty())
@@ -259,11 +298,6 @@ bool recv(Packet &out) {
     out = std::move(g_queue.front());
     g_queue.pop_front();
     return true;
-}
-
-void Driver::reset() noexcept {
-    std::lock_guard lock{mutex_};
-    queue_.clear();
 }
 
 } // namespace net
