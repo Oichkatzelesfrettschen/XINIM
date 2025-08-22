@@ -1,18 +1,31 @@
 /**
  * @file abs.cpp
- * @brief Implementation of the standard @c abs function.
+ * @brief Implementation of a generic absolute value wrapper.
  */
 
+#include <cmath>
+#include <concepts>
 #include <cstdlib>
 
 namespace xinim {
 
 /**
- * @brief Compute the absolute value of an integer.
+ * @brief Compute the absolute value of a numeric type.
  *
- * @param i Input integer to evaluate.
- * @return The non-negative magnitude of @p i.
+ * This template delegates to @c std::abs, leveraging the standard
+ * library's overload set for integral and floating-point types.
+ *
+ * @tparam T Arithmetic type of the input value.
+ * @param value The number to transform.
+ * @return The non-negative magnitude of @p value.
  */
-[[nodiscard]] constexpr int abs(int i) noexcept { return (i < 0) ? -i : i; }
+template <typename T>
+    requires(std::integral<T> || std::floating_point<T>)
+[[nodiscard]] constexpr T abs(T value) noexcept {
+    return std::abs(value);
+}
+
+// Explicit instantiation for @c int to preserve previous interface.
+template int abs<int>(int) noexcept;
 
 } // namespace xinim
