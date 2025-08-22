@@ -41,6 +41,8 @@ void sys_getsp(int proc, vir_bytes *newsp) {
  * @param sig        Signal number to deliver.
  * @param sighandler Handler address for catching the signal.
  * @param token      Capability token authorising the action.
+ * @sideeffects Traps into the kernel to deliver a signal.
+ * @thread_safety Thread-safe; kernel serialises signal delivery.
  */
 void sys_sig(int proc, int sig, sighandler_t sighandler, std::uint64_t token) {
 
@@ -58,6 +60,8 @@ void sys_sig(int proc, int sig, sighandler_t sighandler, std::uint64_t token) {
  * @param child  Child process slot number.
  * @param pid    PID assigned to the child.
  * @param token  Capability token for the new process.
+ * @sideeffects Performs a synchronous kernel call allocating a new process.
+ * @thread_safety Thread-safe as per kernel semantics.
  */
 void sys_fork(int parent, int child, int pid, std::uint64_t token) {
 
@@ -76,6 +80,8 @@ void sys_fork(int parent, int child, int pid, std::uint64_t token) {
  * @param proc  Process number performing exec.
  * @param ptr   Stack pointer value for the new program.
  * @param token Newly generated capability token.
+ * @sideeffects Replaces the process image in kernel.
+ * @thread_safety Thread-safe; affects only the targeted process.
  */
 void sys_exec(int proc, char *ptr, std::uint64_t token) {
 

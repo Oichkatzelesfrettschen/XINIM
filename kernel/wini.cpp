@@ -27,8 +27,10 @@
 #include "proc.hpp"
 #include "type.hpp"
 #include <algorithm> // For std::min if needed, though not apparent yet
-#include <cstddef>   // For std::size_t, nullptr
-#include <cstdint>   // For uint64_t, uint16_t etc.
+#include <array>
+#include <cstddef> // For std::size_t, nullptr
+#include <cstdint> // For uint64_t, uint16_t etc.
+#include <span>
 
 /* RAII helper ensuring critical sections use lock/unlock */
 class ScopedPortLock {
@@ -38,73 +40,77 @@ class ScopedPortLock {
 };
 
 /* I/O Ports used by winchester disk task. */
-#define WIN_DATA 0x320   /* winchester disk controller data register */
-#define WIN_STATUS 0x321 /* winchester disk controller status register */
-#define WIN_SELECT 0x322 /* winchester disk controller select port */
-#define WIN_DMA 0x323    /* winchester disk controller dma register */
-#define DMA_ADDR 0x006   /* port for low 16 bits of DMA address */
-#define DMA_TOP 0x082    /* port for top 4 bits of 20-bit DMA addr */
-#define DMA_COUNT 0x007  /* port for DMA count (count =  bytes - 1) */
-#define DMA_M2 0x00C     /* DMA status port */
-#define DMA_M1 0x00B     /* DMA status port */
-#define DMA_INIT 0x00A   /* DMA init port */
+inline constexpr std::uint16_t WIN_DATA{0x320};   //!< Winchester disk controller data register
+inline constexpr std::uint16_t WIN_STATUS{0x321}; //!< Winchester disk controller status register
+inline constexpr std::uint16_t WIN_SELECT{0x322}; //!< Winchester disk controller select port
+inline constexpr std::uint16_t WIN_DMA{0x323};    //!< Winchester disk controller DMA register
+inline constexpr std::uint16_t DMA_ADDR{0x006};   //!< Port for low 16 bits of DMA address
+inline constexpr std::uint16_t DMA_TOP{0x082};    //!< Port for top 4 bits of 20-bit DMA addr
+inline constexpr std::uint16_t DMA_COUNT{0x007};  //!< Port for DMA count (count = bytes - 1)
+inline constexpr std::uint16_t DMA_M2{0x00C};     //!< DMA status port
+inline constexpr std::uint16_t DMA_M1{0x00B};     //!< DMA status port
+inline constexpr std::uint16_t DMA_INIT{0x00A};   //!< DMA init port
 
 /* Winchester disk controller command bytes. */
-#define WIN_RECALIBRATE 0x01 /* command for the drive to recalibrate */
-#define WIN_SENSE 0x03       /* command for the controller to get its status */
-#define WIN_READ 0x08        /* command for the drive to read */
-#define WIN_WRITE 0x0a       /* command for the drive to write */
-#define WIN_SPECIFY 0x0C     /* command for the controller to accept params */
-#define WIN_ECC_READ 0x0D    /* command for the controller to read ecc length */
+inline constexpr int WIN_RECALIBRATE{0x01}; //!< Command for the drive to recalibrate
+inline constexpr int WIN_SENSE{0x03};       //!< Command for the controller to get its status
+inline constexpr int WIN_READ{0x08};        //!< Command for the drive to read
+inline constexpr int WIN_WRITE{0x0A};       //!< Command for the drive to write
+inline constexpr int WIN_SPECIFY{0x0C};     //!< Command for the controller to accept params
+inline constexpr int WIN_ECC_READ{0x0D};    //!< Command for the controller to read ECC length
 
-#define DMA_INT 3    /* Command with dma and interrupt */
-#define INT 2        /* Command with interrupt, no dma */
-#define NO_DMA_INT 0 /* Command without dma and interrupt */
-#define CTRL_BYTE 5  /* Control byte for controller */
+inline constexpr int DMA_INT{3};    //!< Command with DMA and interrupt
+inline constexpr int INT{2};        //!< Command with interrupt, no DMA
+inline constexpr int NO_DMA_INT{0}; //!< Command without DMA and interrupt
+inline constexpr int CTRL_BYTE{5};  //!< Control byte for controller
 
 /* DMA channel commands. */
-#define DMA_READ 0x47  /* DMA read opcode */
-#define DMA_WRITE 0x4B /* DMA write opcode */
+inline constexpr int DMA_READ{0x47};  //!< DMA read opcode
+inline constexpr int DMA_WRITE{0x4B}; //!< DMA write opcode
 
 /* Parameters for the disk drive. */
-#define SECTOR_SIZE 512 /* physical sector size in bytes */
-#define NR_SECTORS 0x11 /* number of sectors per track */
+inline constexpr int SECTOR_SIZE{512}; //!< Physical sector size in bytes
+inline constexpr int NR_SECTORS{0x11}; //!< Number of sectors per track
 
 /* Error codes */
-#define ERR -1 /* general error */
+inline constexpr int ERR{-1}; //!< General error
 
 /* Miscellaneous. */
-#define MAX_ERRORS 4        /* how often to try rd/wt before quitting */
-#define MAX_RESULTS 4       /* max number of bytes controller returns */
-#define NR_DEVICES 10       /* maximum number of drives */
-#define MAX_WIN_RETRY 10000 /* max # times to try to output to WIN */
-#define PART_TABLE 0x1C6    /* IBM partition table starts here in sect 0 */
-#define DEV_PER_DRIVE 5     /* hd0 + hd1 + hd2 + hd3 + hd4 = 5 */
+inline constexpr int MAX_ERRORS{4};        //!< How often to try rd/wt before quitting
+inline constexpr int MAX_RESULTS{4};       //!< Max number of bytes controller returns
+inline constexpr int NR_DEVICES{10};       //!< Maximum number of drives
+inline constexpr int MAX_WIN_RETRY{10000}; //!< Max # times to try to output to WIN
+inline constexpr int PART_TABLE{0x1C6};    //!< IBM partition table starts here in sect 0
+inline constexpr int DEV_PER_DRIVE{5};     //!< hd0 + hd1 + hd2 + hd3 + hd4 = 5
 
 /* Variables. */
-PRIVATE struct wini {             /* main drive struct, one entry per drive */
-    int wn_opcode;                /* DISK_READ or DISK_WRITE */
-    int wn_procnr;                /* which proc wanted this operation? */
-    int wn_drive;                 /* drive number addressed */
-    int wn_cylinder;              /* cylinder number addressed */
-    int wn_sector;                /* sector addressed */
-    int wn_head;                  /* head number addressed */
-    int wn_heads;                 /* maximum number of heads */
-    uint64_t wn_low;              /* lowest cylinder of partition (was long, now block offset) */
-    uint64_t wn_size;             /* size of partition in blocks (was long) */
-    std::size_t wn_count;         /* byte count (was int) */
-    std::size_t wn_address;       /* user virtual address (was vir_bytes) */
-    char wn_results[MAX_RESULTS]; /* the controller can give lots of output */
+/**
+ * @brief Drive descriptor holding state for each physical device.
+ */
+PRIVATE struct wini {
+    int wn_opcode;                              //!< DISK_READ or DISK_WRITE
+    int wn_procnr;                              //!< Which proc wanted this operation?
+    int wn_drive;                               //!< Drive number addressed
+    int wn_cylinder;                            //!< Cylinder number addressed
+    int wn_sector;                              //!< Sector addressed
+    int wn_head;                                //!< Head number addressed
+    int wn_heads;                               //!< Maximum number of heads
+    uint64_t wn_low;                            //!< Lowest cylinder of partition (block offset)
+    uint64_t wn_size;                           //!< Size of partition in blocks
+    std::size_t wn_count;                       //!< Byte count
+    std::size_t wn_address;                     //!< User virtual address
+    std::array<char, MAX_RESULTS> wn_results{}; //!< Controller can give lots of output
 } wini[NR_DEVICES];
 
-PRIVATE int w_need_reset = FALSE; /* set to 1 when controller must be reset */
-PRIVATE int nr_drives;            /* Number of drives */
+PRIVATE int w_need_reset = FALSE; //!< Set to 1 when controller must be reset
+PRIVATE int nr_drives;            //!< Number of drives
 
-PRIVATE message w_mess; /* message buffer for in and out */
+PRIVATE message w_mess; //!< Message buffer for in and out
 
-PRIVATE int command[6]; /* Common command block */
+/** Common command block issued to the controller. */
+PRIVATE std::array<int, 6> command{};
 
-PRIVATE unsigned char buf[BLOCK_SIZE]; /* Buffer used by the startup routine */
+PRIVATE unsigned char buf[BLOCK_SIZE]; //!< Buffer used by the startup routine
 
 PRIVATE struct param {
     int nr_cyl;     /* Number of cylinders */
@@ -162,8 +168,14 @@ PUBLIC void winchester_task() noexcept { // Added void return, noexcept
 /*===========================================================================*
  *				w_do_rdwt					     *
  *===========================================================================*/
-/* Handle a read or write request from the disk. */
-static int w_do_rdwt(message *m_ptr) noexcept { // Added noexcept
+/**
+ * @brief Handle a read or write request from the disk.
+ *
+ * @param m_ptr Message describing
+ * the operation.
+ * @return Number of bytes transferred or error code.
+ */
+static int w_do_rdwt(message *m_ptr) noexcept {
     /* Carry out a read or write request from the disk. */
     register struct wini *wn;
     int r, device, errors = 0;
@@ -223,15 +235,24 @@ static int w_do_rdwt(message *m_ptr) noexcept { // Added noexcept
 /*===========================================================================*
  *				w_dma_setup				     *
  *===========================================================================*/
-/* Prepare the DMA chip for a transfer. */
-static void w_dma_setup(struct wini *wn) noexcept { // Modernized param, noexcept. Renamed wini to
-                                                    // struct wini for clarity.
-    /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
-     * the DMA (Direct Memory Access) chip is loaded with the 20-bit memory address
-     * to by read from or written to, the byte count minus 1, and a read or write
-     * opcode.  This routine sets up the DMA chip.  Note that the chip is not
-     * capable of doing a DMA across a 64K boundary (e.g., you can't read a
+/**
+ * @brief Prepare the DMA chip for a transfer.
+ *
+ * @param wn Drive parameters governing the
+ * transfer.
+ */
+static void w_dma_setup(struct wini *wn) noexcept {
+    /* The IBM PC can perform DMA operations by using the DMA chip. To use it,
+     * the DMA
+     * (Direct Memory Access) chip is loaded with the 20-bit memory address
+     * to be read from
+     * or written to, the byte count minus 1, and a read or write
+     * opcode. This routine sets
+     * up the DMA chip. Note that the chip is not
+     * capable of doing a DMA across a 64K
+     * boundary (e.g., you can't read a
      * 512-byte block starting at physical address 65520).
+
      */
 
     int mode, low_addr, high_addr, top_addr, low_ct, high_ct, top_end;
@@ -280,18 +301,24 @@ static void w_dma_setup(struct wini *wn) noexcept { // Modernized param, noexcep
 /*===========================================================================*
  *				w_transfer				     *
  *===========================================================================*/
-/* Transfer one block after the drive is positioned. */
-static int w_transfer(struct wini &wn) noexcept { // Parameter is struct wini&, noexcept
+/**
+ * @brief Transfer one block after the drive is positioned.
+ *
+ * @param wn Drive parameters.
+ *
+ * @return OK on success or ERR on failure.
+ */
+static int w_transfer(struct wini &wn) noexcept {
     /* The drive is now on the proper cylinder. Read or write one block. */
 
-    /* The command is issued by outputing 6 bytes to the controller chip. */
+    /* The command is issued by outputting 6 bytes to the controller chip. */
     command[0] = (wn->wn_opcode == DISK_READ ? WIN_READ : WIN_WRITE);
     command[1] = (wn->wn_head | (wn->wn_drive << 5));
     command[2] = (((wn->wn_cylinder & 0x0300) >> 2) | wn->wn_sector);
     command[3] = (wn->wn_cylinder & 0xFF);
     command[4] = BLOCK_SIZE / SECTOR_SIZE;
     command[5] = CTRL_BYTE;
-    if (com_out(DMA_INT) != OK)
+    if (com_out(command, DMA_INT) != OK)
         return (ERR);
 
     port_out(DMA_INIT, 3); /* initialize DMA */
@@ -311,8 +338,14 @@ static int w_transfer(struct wini &wn) noexcept { // Parameter is struct wini&, 
 /*===========================================================================*
  *				win_results				     *
  *===========================================================================*/
-static int win_results(struct wini &wn) noexcept { // Parameter is struct wini&, noexcept
-    /* Extract results from the controller after an operation. */
+/**
+ * @brief Extract results from the controller after an operation.
+ *
+ * @param wn Drive
+ * context.
+ * @return OK on success or ERR on failure.
+ */
+static int win_results(struct wini &wn) noexcept {
 
     register int i;
     int status;
@@ -323,15 +356,15 @@ static int win_results(struct wini &wn) noexcept { // Parameter is struct wini&,
         return (OK);
     command[0] = WIN_SENSE;
     command[1] = (wn->wn_drive << 5);
-    if (com_out(NO_DMA_INT) != OK)
+    if (com_out(command, NO_DMA_INT) != OK)
         return (ERR);
 
     /* Loop, extracting bytes from WIN */
-    for (i = 0; i < MAX_RESULTS; i++) {
+    for (auto &res : std::span<char, MAX_RESULTS>{wn.wn_results}) {
         if (hd_wait(1) != OK)
             return (ERR);
         port_in(WIN_DATA, &status);
-        wn->wn_results[i] = status & BYTE;
+        res = static_cast<char>(status & BYTE);
     }
     if (wn->wn_results[0] & 63)
         return (ERR);
@@ -391,9 +424,9 @@ static int win_init() noexcept { // Added noexcept
 
     register int i;
 
-    command[0] = WIN_SPECIFY;      /* Specify some parameters */
-    command[1] = 0;                /* Drive 0 */
-    if (com_out(NO_DMA_INT) != OK) /* Output command block */
+    command[0] = WIN_SPECIFY;               /* Specify some parameters */
+    command[1] = 0;                         /* Drive 0 */
+    if (com_out(command, NO_DMA_INT) != OK) /* Output command block */
         return (ERR);
     {
         ScopedPortLock guard; // lock controller while specifying drive 0
@@ -429,8 +462,8 @@ static int win_init() noexcept { // Added noexcept
     }
 
     if (nr_drives > 1) {
-        command[1] = (1 << 5);         /* Drive 1 */
-        if (com_out(NO_DMA_INT) != OK) /* Output command block */
+        command[1] = (1 << 5);                  /* Drive 1 */
+        if (com_out(command, NO_DMA_INT) != OK) /* Output command block */
             return (ERR);
         {
             ScopedPortLock guard; // lock controller while specifying drive 1
@@ -468,7 +501,7 @@ static int win_init() noexcept { // Added noexcept
         command[0] = WIN_RECALIBRATE;
         command[1] = i << 5;
         command[5] = CTRL_BYTE;
-        if (com_out(INT) != OK)
+        if (com_out(command, INT) != OK)
             return (ERR);
         receive(HARDWARE, &w_mess);
         if (win_results(wini[i * DEV_PER_DRIVE]) != OK) {
@@ -504,7 +537,7 @@ static int read_ecc() noexcept { // Added noexcept
     int r;
 
     command[0] = WIN_ECC_READ;
-    if (com_out(NO_DMA_INT) == OK && hd_wait(1) == OK) {
+    if (com_out(command, NO_DMA_INT) == OK && hd_wait(1) == OK) {
         port_in(WIN_DATA, &r);
         if (hd_wait(1) == OK) {
             port_in(WIN_DATA, &r);
@@ -539,14 +572,21 @@ static int hd_wait(int bit) noexcept { // Added noexcept
 /*============================================================================*
  *				com_out					      *
  *============================================================================*/
-static int com_out(int mode) noexcept { // Added noexcept
-    /* Output the command block to the winchester controller and return status */
-
-    register int i = 0;
+/**
+ * @brief Output a command block to the winchester controller.
+ *
+ * @param cmd  Sequence of
+ * command bytes to send.
+ * @param mode DMA/interrupt mode selector.
+ * @return Status code from
+ * controller.
+ */
+static int com_out(std::span<const int> cmd, int mode) noexcept {
     int r;
 
     port_out(WIN_SELECT, mode);
     port_out(WIN_DMA, mode);
+    int i = 0;
     for (i = 0; i < MAX_WIN_RETRY; i++) {
         port_in(WIN_STATUS, &r);
         if ((r & 0x0F) == 0x0D)
@@ -558,15 +598,15 @@ static int com_out(int mode) noexcept { // Added noexcept
     }
     {
         ScopedPortLock guard; // ensure ports locked during writes
-        for (i = 0; i < 6; i++)
-            port_out(WIN_DATA, command[i]);
+        for (const auto val : cmd)
+            port_out(WIN_DATA, val);
     }
     port_in(WIN_STATUS, &r);
     if (r & 1) {
         w_need_reset = TRUE;
         return (ERR);
-    } else
-        return (OK);
+    }
+    return (OK);
 }
 
 /*============================================================================*

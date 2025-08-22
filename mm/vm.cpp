@@ -3,13 +3,26 @@
 #include "mproc.hpp"
 #include <vector>
 
-/*
- * Simple virtual memory subsystem used for demonstration.  Each process gets
- * a set of virtual memory areas stored in vm_proc_table.  Actual page table
- * management is omitted and only bookkeeping is performed.
+/**
+ * @file vm.cpp
+ * @brief Minimal virtual memory bookkeeping for processes.
+ *
+ * The module models per-process address spaces using the @ref vm_proc_table
+ * vector.  Each entry tracks up to ::VM_MAX_AREAS regions via ::vm_area
+ * descriptors but does not manage actual hardware page tables.
+ *
+ * @ingroup memory
  */
 
-/* Per-process virtual memory information stored in a vector for RAII. */
+/**
+ * @brief Per-process virtual memory information.
+ *
+ * Each element owns an array of ::vm_area descriptors describing regions
+ * reserved within the process.  The table retains ownership of these
+ * descriptors; callers manipulate only addresses.
+ *
+ * @ingroup memory
+ */
 static std::vector<vm_proc> vm_proc_table(NR_PROCS);
 
 /* State for a very small pseudo random generator used for ASLR. */
@@ -25,6 +38,8 @@ static unsigned long rng_state = 1;
  * @brief Generate a pseudo random number used for address randomisation.
  *
  * @return Next pseudo random value.
+ *
+ * @ingroup memory
  */
 static unsigned long next_rand() {
     rng_state = rng_state * 1103515245 + 12345;
@@ -39,6 +54,10 @@ static unsigned long next_rand() {
  */
 /**
  * @brief Initialise the virtual memory subsystem.
+ *
+ * Clears all per-process area records and resets the random generator.
+ *
+ * @ingroup memory
  */
 void vm_init() noexcept {
     for (auto &p : vm_proc_table) {
@@ -57,10 +76,16 @@ void vm_init() noexcept {
 /**
  * @brief Allocate a region of virtual memory with simple ASLR.
  *
+ * The returned base is aligned to ::PAGE_SIZE_4K and chosen with a trivial
+ * pseudo random offset to mimic address-space layout randomisation.  Ownership
+ * of the virtual region is passed to the caller; no freeing is supported.
+ *
  * @param bytes Number of bytes to allocate.
  * @param flags Protection flags (currently unused).
  *
  * @return Base address of the allocated region.
+ *
+ * @ingroup memory
  */
 void *vm_alloc(u64_t bytes, VmFlags flags) noexcept {
     virt_addr64 base;
@@ -83,8 +108,13 @@ void *vm_alloc(u64_t bytes, VmFlags flags) noexcept {
 /**
  * @brief Record a page fault within a process.
  *
+ * The faulting address is rounded down to a page boundary and stored as a new
+ * ::vm_area if room is available.
+ *
  * @param proc Index of the faulting process.
  * @param addr Faulting virtual address.
+ *
+ * @ingroup memory
  */
 void vm_handle_fault(int proc, virt_addr64 addr) noexcept {
     /* This routine would allocate a page frame and map it.  Here it is
@@ -105,10 +135,14 @@ void vm_handle_fault(int proc, virt_addr64 addr) noexcept {
 /**
  * @brief Duplicate a parent's virtual memory bookkeeping for a child.
  *
+ * Only metadata is copied; physical frames and page tables remain distinct.
+ *
  * @param parent Index of the parent process.
  * @param child  Index of the child process.
  *
  * @return ::OK on success.
+ *
+ * @ingroup memory
  */
 int vm_fork(int parent, int child) noexcept {
     vm_proc_table[child] = vm_proc_table[parent];
@@ -121,12 +155,18 @@ int vm_fork(int parent, int child) noexcept {
 /**
  * @brief Map a region of memory into a process.
  *
+ * Updates the bookkeeping in @ref vm_proc_table by appending a new ::vm_area
+ * descriptor.  The base is page aligned, and ownership of the descriptor
+ * resides with the process record.
+ *
  * @param proc   Process index to map into.
  * @param addr   Desired base address or nullptr for automatic placement.
  * @param length Length of the mapping in bytes.
  * @param flags  Mapping flags.
  *
  * @return Base address of the mapped region.
+ *
+ * @ingroup memory
  */
 void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) noexcept {
     auto &p = vm_proc_table[proc];

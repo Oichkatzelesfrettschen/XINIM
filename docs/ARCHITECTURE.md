@@ -16,6 +16,7 @@ XINIM preserves MINIX's educational clarity while incorporating cutting-edge res
 3. **Mathematical Foundations**: Capability algebra grounded in octonion mathematics
 4. **Modern C++23**: Type-safe, RAII-based system programming
 5. **Educational Clarity**: Maintainable, well-documented code for learning
+6. **Robust Signal Management**: Standard `<csignal>` constants and container-based tables simplify asynchronous control flow
 
 ## Layered Architecture
 
@@ -117,7 +118,8 @@ std::array<uint8_t, 32> compute_shared_secret(const KeyPair& local,
 
 **User Mode Servers**
 - **PM (Process Manager)**: Process lifecycle and signal handling
-- **MM (Memory Manager)**: Virtual memory and paging policy  
+- **MM (Memory Manager)**: Virtual memory, paging policy, RAII-managed process
+  images via `std::filesystem`
 - **FS (File System)**: VFS layer with MINIX filesystem support
 - **RS (Resurrection Server)**: Service monitoring and restart
 - **DS (Data Store)**: Configuration and state persistence
