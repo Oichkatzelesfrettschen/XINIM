@@ -9,7 +9,7 @@
 /**
  * @brief Allocate a block of physical memory measured in clicks.
  *
- * The allocator uses a first-fit policy on a list of free holes.
+ * The allocator uses a first-fit policy on a `std::vector` of free holes.
  *
  * @param clicks Number of memory clicks to allocate.
  * @return Base click address of the allocated block or ::NO_MEM on failure.
