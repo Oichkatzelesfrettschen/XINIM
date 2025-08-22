@@ -78,15 +78,15 @@ struct FieldOffset {
 /// Modern sort flags with type safety
 enum class SortFlag : std::uint16_t {
     None = 0x0000,
-    FoldCase = 0x0001,       // -f: Fold upper case to lower
-    Numeric = 0x0002,        // -n: Sort numeric values
-    IgnoreBlanks = 0x0004,   // -b: Skip leading blanks
-    IgnoreNonASCII = 0x0008, // -i: Ignore non-ASCII chars
-    Reverse = 0x0010,        // -r: Reverse sort order
-    Dictionary = 0x0020,     // -d: Dictionary order only
-    Unique = 0x0040,         // -u: Unique lines only
-    CheckOrder = 0x0080,     // -c: Check if sorted
-    Merge = 0x0100,          // -m: Merge sorted files
+    FoldCase = 0x0001,        // -f: Fold upper case to lower
+    Numeric = 0x0002,         // -n: Sort numeric values
+    IgnoreBlanks = 0x0004,    // -b: Skip leading blanks
+    IgnoreNonASCII = 0x0008,  // -i: Ignore non-ASCII chars
+    Reverse = 0x0010,         // -r: Reverse sort order
+    Dictionary = 0x0020,      // -d: Dictionary order only
+    Unique = 0x0040,          // -u: Unique lines only
+    CheckOrder = 0x0080,      // -c: Check if sorted
+    Merge = 0x0100,           // -m: Merge sorted files
 };
 
 /// Bitwise operations for sort flags
@@ -130,12 +130,12 @@ struct SortConfig {
 // =============================================================================
 /// RAII container for line management
 class LineContainer {
-  private:
+private:
     std::vector<std::string> lines_;
     std::unordered_set<std::string> unique_lines_;
     bool enforce_unique_{false};
 
-  public:
+public:
     explicit LineContainer(bool unique_only = false) : enforce_unique_{unique_only} {
         if (unique_only) {
             unique_lines_.reserve(1000); // Initial capacity for uniqueness check
@@ -182,12 +182,12 @@ concept FieldExtractor = requires(T extractor, std::string_view line, FieldSpec 
 
 /// Modern field extraction engine
 class ModernFieldExtractor {
-  private:
+private:
     char separator_;
     std::vector<std::string_view> field_cache_;
     std::string concat_buffer_; /**< Buffer for concatenated fields */
 
-  public:
+public:
     explicit ModernFieldExtractor(char sep = '\t') : separator_{sep} {
         field_cache_.reserve(64); // Optimize for common field counts
     }
@@ -239,7 +239,7 @@ class ModernFieldExtractor {
         return field_cache_;
     }
 
-  private:
+private:
     /// Split line into fields using separator
     void split_fields(std::string_view line) {
         field_cache_.clear();
@@ -265,11 +265,11 @@ class ModernFieldExtractor {
 // =============================================================================
 /// Modern comparison engine using function objects
 class ComparisonEngine {
-  private:
+private:
     SortConfig config_;
     ModernFieldExtractor extractor_;
 
-  public:
+public:
     explicit ComparisonEngine(const SortConfig &config)
         : config_{config}, extractor_{config.field_separator} {}
 
@@ -290,7 +290,7 @@ class ComparisonEngine {
         }
     }
 
-  private:
+private:
     /// Compare using field specifications
     [[nodiscard]] auto compare_with_fields(std::string_view lhs, std::string_view rhs) -> int {
         for (const auto &field_spec : config_.fields) {
@@ -389,13 +389,13 @@ class ComparisonEngine {
 // =============================================================================
 /// Modern file reader with RAII
 class ModernFileReader {
-  private:
+private:
     std::unique_ptr<std::istream> stream_;
     std::istream *raw_stream_ptr_{nullptr};
     std::filesystem::path file_path_;
     bool owns_stream_{false};
 
-  public:
+public:
     explicit ModernFileReader(const std::filesystem::path &path) : file_path_{path} {
         auto file_stream = std::make_unique<std::ifstream>(path);
         if (!file_stream->is_open()) {
@@ -431,13 +431,13 @@ class ModernFileReader {
 
 /// Modern file writer with RAII
 class ModernFileWriter {
-  private:
+private:
     std::unique_ptr<std::ostream> stream_;
     std::ostream *raw_stream_ptr_{nullptr};
     std::filesystem::path file_path_;
     bool owns_stream_{false};
 
-  public:
+public:
     explicit ModernFileWriter(const std::filesystem::path &path) : file_path_{path} {
         auto file_stream = std::make_unique<std::ofstream>(path);
         if (!file_stream->is_open()) {
@@ -472,11 +472,11 @@ class ModernFileWriter {
 // =============================================================================
 /// Modern command line parser
 class CommandLineParser {
-  private:
+private:
     std::span<char *> args_;
     SortConfig config_;
 
-  public:
+public:
     explicit CommandLineParser(std::span<char *> arguments) : args_{arguments} {}
 
     [[nodiscard]] auto parse() -> Result<SortConfig> {
@@ -519,7 +519,7 @@ class CommandLineParser {
         return config_;
     }
 
-  private:
+private:
     [[nodiscard]] auto parse_field_start(std::string_view spec) -> Result<FieldSpec> {
         auto dot_pos = spec.find('.');
         auto field_str = spec.substr(0, dot_pos);
@@ -600,11 +600,11 @@ class CommandLineParser {
 // =============================================================================
 /// Modern sort engine
 class ModernSortEngine {
-  private:
+private:
     SortConfig config_;
     ComparisonEngine comparator_;
 
-  public:
+public:
     explicit ModernSortEngine(const SortConfig &config) : config_{config}, comparator_{config} {}
 
     auto sort_lines(LineContainer &container) -> Result<void> {
@@ -621,7 +621,7 @@ class ModernSortEngine {
         }
     }
 
-  private:
+private:
     auto perform_sort(LineContainer &container) -> Result<void> {
         auto &lines = container.mutable_lines();
         auto comparator = comparator_.create_comparator();
@@ -643,7 +643,7 @@ class ModernSortEngine {
      *
      * This routine performs a k-way merge over all configured input sources.
      * Each file (and optionally standard input) is assumed to be individually
-     * sorted according to the active @c SortFlag options.  Lines are compared
+     * sorted according to the active @c SortFlag options. Lines are compared
      * using the configured @c ComparisonEngine and appended to @p container,
      * which itself may enforce uniqueness semantics.
      *
@@ -656,9 +656,9 @@ class ModernSortEngine {
         /// Represents one input source participating in the merge operation.
         struct InputSource {
             std::unique_ptr<std::ifstream> file_stream{}; /**< Owned file stream */
-            std::istream *stream{nullptr};                /**< Active stream */
-            std::filesystem::path path{};                 /**< Path for diagnostics */
-            std::string line{};                           /**< Buffer holding current line */
+            std::istream *stream{nullptr};                 /**< Active stream */
+            std::filesystem::path path{};                  /**< Path for diagnostics */
+            std::string line{};                            /**< Buffer holding current line */
         };
 
         std::vector<InputSource> sources;
@@ -744,11 +744,11 @@ class ModernSortEngine {
 // =============================================================================
 /// Main sort utility application
 class SortUtilityApp {
-  private:
+private:
     SortConfig config_;
     ModernSortEngine engine_;
 
-  public:
+public:
     explicit SortUtilityApp(const SortConfig &config) : config_{config}, engine_{config} {}
 
     [[nodiscard]] auto run() -> Result<void> {
@@ -776,7 +776,7 @@ class SortUtilityApp {
         }
     }
 
-  private:
+private:
     auto read_input(LineContainer &container) -> Result<void> {
         if (config_.use_stdin) {
             ModernFileReader reader{std::cin};
@@ -832,16 +832,16 @@ Field Specifications:
   +N.M Start sorting at field N, character M (0-based)
   -N.M Stop sorting at field N, character M
 Examples:
-  {} file.txt                 # Sort file.txt
-  {} -n numbers.txt           # Numeric sort
-  {} -r -f text.txt           # Reverse case-insensitive sort
-  {} +1.2 -2.5 data.txt       # Sort on field 1 char 2 to field 2 char 5
-  {} -t: -k2 /etc/passwd      # Sort by second field using ':' separator
-  {} -u duplicate.txt         # Remove duplicates and sort
+  {} file.txt             # Sort file.txt
+  {} -n numbers.txt       # Numeric sort
+  {} -r -f text.txt       # Reverse case-insensitive sort
+  {} +1.2 -2.5 data.txt   # Sort on field 1 char 2 to field 2 char 5
+  {} -t: -k2 /etc/passwd  # Sort by second field using ':' separator
+  {} -u duplicate.txt     # Remove duplicates and sort
 Modern C++23 implementation with Unicode support and memory safety.
 )",
-                             program_name, program_name, program_name, program_name, program_name,
-                             program_name, program_name);
+                              program_name, program_name, program_name, program_name, program_name,
+                              program_name, program_name);
 }
 
 } // namespace xinim::sort_utility

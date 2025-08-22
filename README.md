@@ -240,7 +240,7 @@ rm -rf build/
 
 XINIM includes modern implementations of classic UNIX utilities with enhanced capabilities:
 
-**Enhanced Sort Utility**: The `sort` command supports multi-file merge mode with the `-m` flag. Each input file must already be sorted; the utility performs a streaming k-way merge using the same comparison rules as regular sorting. When combined with the `-u` option, duplicate lines encountered across input files are removed during the merge.
+**Enhanced Sort Utility**: The `sort` command supports multi-file merge mode with the `-m` flag. Each input stream must already be sorted, and at least two sources - regular files or standard input - are required. The utility performs a streaming k-way merge using the same comparison rules as regular sorting; when combined with the `-u` option, duplicate lines encountered across sources are removed during the merge.
 
 **75+ UNIX Commands**: All classic utilities modernized with C++23 for improved safety and performance.
 

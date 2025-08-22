@@ -13,6 +13,7 @@
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <vector>
 
 using namespace xinim::sort_utility;
@@ -34,6 +35,7 @@ int main() {
     const auto temp_dir = fs::temp_directory_path();
     const auto file1 = temp_dir / "sort_merge_input1.txt";
     const auto file2 = temp_dir / "sort_merge_input2.txt";
+    const auto file3 = temp_dir / "sort_merge_input3.txt"; // Added for 3-way merge test
     const auto outfile = temp_dir / "sort_merge_output.txt";
 
     // Test Case 1: Basic merge without uniqueness
@@ -134,17 +136,37 @@ int main() {
         std::cin.rdbuf(old_buf);
     }
 
+    // Test Case 5: Merge three input files (from eirikr branch)
+    {
+        create_temp_file(file1, {"apple", "orange"});
+        create_temp_file(file2, {"banana", "pear"});
+        create_temp_file(file3, {"avocado", "kiwi"});
+
+        SortConfig cfg;
+        cfg.global_flags = SortFlag::Merge;
+        cfg.input_files = {file1, file2, file3};
+        cfg.output_file = outfile;
+
+        SortUtilityApp app{cfg};
+        auto result = app.run();
+        assert(result && "Three-way merge operation failed");
+
+        std::ifstream in{outfile};
+        std::vector<std::string> merged;
+        std::string line;
+        while (std::getline(in, line)) {
+            merged.push_back(line);
+        }
+
+        std::vector<std::string> expected{"apple", "avocado", "banana", "kiwi", "orange", "pear"};
+        assert(merged == expected && "Three-way merge output does not match expected");
+    }
+
     // Cleanup temporary files
     fs::remove(file1);
     fs::remove(file2);
+    fs::remove(file3);
     fs::remove(outfile);
 
     return 0;
 }
-
-// Recommendations:
-// - Add tests for additional merge scenarios, such as empty files or invalid inputs.
-// - Implement logging for test failures to aid debugging.
-// - Integrate with CI pipeline to run tests automatically and generate reports.
-// - Consider parameterized tests for different sort flags (e.g., -r, -n) in combination with merge.
-// - Validate cross-platform behavior, especially for temporary file handling.
