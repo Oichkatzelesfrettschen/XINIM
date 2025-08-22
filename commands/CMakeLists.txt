@@ -17,6 +17,12 @@ add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 # This CMake file builds each userland command as a separate executable.
 
 file(GLOB CMD_SOURCES "*.cpp")
+# Filter out legacy duplicates like "foo 2.cpp" that may linger in the tree.
+list(FILTER CMD_SOURCES EXCLUDE REGEX ".*\\s2\\.cpp$")
+# Drop placeholder sources that lack real implementations.
+list(FILTER CMD_SOURCES EXCLUDE REGEX "pr_modern\\.cpp$")
+list(FILTER CMD_SOURCES EXCLUDE REGEX "sort_modern\\.cpp$")
+list(FILTER CMD_SOURCES EXCLUDE REGEX "tar_modern\\.cpp$")
 # Consider excluding test source files if any are directly in commands/
 # list(FILTER CMD_SOURCES EXCLUDE REGEX ".*/test_.*\.cpp$")
 # For now, assume tests are neatly in commands/tests/
