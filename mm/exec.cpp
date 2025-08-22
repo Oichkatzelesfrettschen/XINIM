@@ -92,14 +92,20 @@ class ProcessImage {
   private:
     int fd_{-1};
 };
-} // namespace
 
-#define MAGIC 0x04000301L /* magic number with 2 bits masked off */
-#define SEP 0x00200000L   /* value for separate I & D */
-#define TEXTB 2           /* location of text size in header */
-#define DATAB 3           /* location of data size in header */
-#define BSSB 4            /* location of bss size in header */
-#define TOTB 6            /* location of total size in header */
+/** Magic number with 2 bits masked off. */
+constexpr std::uint32_t MAGIC = 0x04000301U;
+/** Value for separate I & D. */
+constexpr std::uint32_t SEP = 0x00200000U;
+/** Location of text size in header. */
+constexpr int TEXTB = 2;
+/** Location of data size in header. */
+constexpr int DATAB = 3;
+/** Location of bss size in header. */
+constexpr int BSSB = 4;
+/** Location of total size in header. */
+constexpr int TOTB = 6;
+} // namespace
 
 /*===========================================================================*
  *				do_exec					     *
