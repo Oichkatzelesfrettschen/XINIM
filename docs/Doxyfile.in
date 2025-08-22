@@ -106,7 +106,7 @@ WARN_LOGFILE           =
 #---------------------------------------------------------------------------
 # Configuration options related to the input files
 #---------------------------------------------------------------------------
-INPUT                  = @DOXYGEN_INPUT@
+INPUT                  = @DOXYGEN_INPUT@ commands fs mm lib
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.cpp \
                          *.hpp \

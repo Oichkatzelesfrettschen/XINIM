@@ -76,6 +76,10 @@ static void idt_set_gate(int n, void (*handler)() noexcept, unsigned int ist) no
 
 /**
  * @brief Initialize the 64-bit IDT and TSS.
+ *
+ * @pre Global descriptor table must contain a valid TSS descriptor.
+ * @post Interrupt vectors for clock and keyboard are installed.
+ * @warning Currently assumes legacy PIC remapping; APIC setup pending.
  */
 void idt_init() noexcept {
     int i;

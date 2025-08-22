@@ -9,6 +9,11 @@ static char qbuf[8];
  * @param n The integer
  * value to convert.
  * @return Pointer to a static buffer containing the converted string.
+ * @sideeffects Overwrites an internal static buffer.
+ * @thread_safety Not thread-safe; buffer is shared.
+ * @compat itoa
+ * @example
+ * char *s = itoa(123);
  */
 char *itoa(int n) {
     int r, k;

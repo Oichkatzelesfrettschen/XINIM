@@ -1,36 +1,14 @@
 #include "../include/defs.hpp"
 #include <array>
 #include <cstdint>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
 #include <system_error>
-
-// Fallback filesystem implementation
-namespace fs {
-using path = std::string;
-inline bool create_directories(const std::string &path) {
-    return true; // Simplified for compatibility
-}
-} // namespace fs
-
-// Simplified optional implementation
-template <typename T> class optional {
-  private:
-    bool has_value_;
-    T value_;
-
-  public:
-    optional() : has_value_(false) {}
-    optional(T val) : has_value_(true), value_(val) {}
-
-    explicit operator bool() const { return has_value_; }
-    T operator*() const { return value_; }
-
-    static optional nullopt() { return optional(); }
-};
 
 namespace minix::bootloader {
 
@@ -163,27 +141,33 @@ class BootSector {
         sector_buffer[DRIVE_NUMBER_OFFSET] = drive_number;
     }
     /**
-     * @brief Write boot sector to file
-     * @param file_path Output file path
-     * @throws std::system_error on I/O errors
+     * @brief Write boot sector to file.
+     *
+     * Creates parent directories as needed
+     * using `std::filesystem::create_directories`
+     * before atomically writing the 512-byte
+     * sector.
+     *
+     * @param file_path Output file path.
+     * @throws std::system_error on
+     * I/O errors.
      */
-    void write_to_file(const fs::path &file_path) const {
-        // Open file with appropriate flags
+    void write_to_file(const std::filesystem::path &file_path) const {
+        auto parent = file_path.parent_path();
+        if (!parent.empty()) {
+            std::filesystem::create_directories(parent);
+        }
         std::ofstream file(file_path, std::ios::binary | std::ios::trunc);
         if (!file.is_open()) {
             throw std::system_error(std::make_error_code(std::errc::no_such_file_or_directory),
-                                    "Failed to open output file: " + file_path);
+                                    "Failed to open output file: " + file_path.string());
         }
-
-        // Write sector data
         file.write(reinterpret_cast<const char *>(sector_buffer.data()),
                    static_cast<std::streamsize>(sector_buffer.size()));
-
         if (!file.good()) {
             throw std::system_error(std::make_error_code(std::errc::io_error),
                                     "Failed to write boot sector data");
         }
-
         file.close();
         if (file.fail()) {
             throw std::system_error(std::make_error_code(std::errc::io_error),
@@ -231,12 +215,21 @@ class BootSector {
 class BootSectorExtractor {
   public:
     /**
-     * @brief Extract boot sector to specified file
+     * @brief Extract boot sector to specified file.
+     *
+     * @param output_path Path
+     * where the boot sector will be written.
+     * @param kernel_lba  Optional logical block
+     * address for the kernel.
+     * @param kernel_entry Optional entry point address for the
+     * kernel.
+     * @param drive_num   Optional BIOS drive number.
      */
-    static void extract(const std::string &output_path = "bootblok",
-                        optional<std::uint32_t> kernel_lba = optional<std::uint32_t>::nullopt(),
-                        optional<std::uint64_t> kernel_entry = optional<std::uint64_t>::nullopt(),
-                        optional<u8_t> drive_num = optional<u8_t>::nullopt()) {
+    static void
+    extract(const std::filesystem::path &output_path = std::filesystem::path{"bootblok"},
+            std::optional<std::uint32_t> kernel_lba = std::nullopt,
+            std::optional<std::uint64_t> kernel_entry = std::nullopt,
+            std::optional<u8_t> drive_num = std::nullopt) {
 
         try {
             BootSector boot_sector;
@@ -255,7 +248,7 @@ class BootSectorExtractor {
             // Write to file
             boot_sector.write_to_file(output_path);
 
-            std::cout << "Boot sector extracted to: " << output_path << '\n';
+            std::cout << "Boot sector extracted to: " << output_path.string() << '\n';
             std::cout << "Size: " << BootSector::SECTOR_SIZE << " bytes\n";
 
         } catch (const std::exception &e) {
@@ -295,7 +288,8 @@ int main(int argc, char *argv[]) noexcept {
             return 1;
         }
 
-        const std::string output_file = (argc > 1) ? argv[1] : "bootblok";
+        const std::filesystem::path output_file =
+            (argc > 1) ? std::filesystem::path{argv[1]} : std::filesystem::path{"bootblok"};
         minix::bootloader::BootSectorExtractor::extract(output_file);
 
         return 0;

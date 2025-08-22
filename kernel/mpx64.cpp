@@ -1,3 +1,27 @@
+/**
+ * @file mpx64.cpp
+ * @brief 64-bit context switch and interrupt stubs for the XINIM kernel.
+ *
+ * This file contains the low-level, assembly-based entry points for context
+ * switching and interrupt handling in the 64-bit XINIM kernel. The code
+ * is hand-optimized assembly, wrapped in C++ function declarations to
+ * provide a safe and modern interface.
+ *
+ * @section Core Functions
+ * - `save`: Saves the current process's registers and switches to the kernel stack.
+ * - `restart`: Restores a process's registers and resumes its execution.
+ *
+ * @section Interrupts
+ * This file defines stubs for various interrupt service routines (ISRs) and trap
+ * handlers, including the clock, keyboard, printer, and disk. Each stub performs
+ * a context save, calls a higher-level C++ handler function, and then restores
+ * the context to resume execution.
+ *
+ * @note This code uses GCC/Clang extensions like `__asm__ volatile` and `NAKED`
+ * to write assembly within C++ functions, which is necessary for low-level
+ * kernel development.
+ */
+
 #include "../h/const.hpp"
 #include "../h/type.hpp"
 #include "../include/defs.hpp"
@@ -31,7 +55,7 @@ inline constexpr std::size_t PSW_OFF{136};
 
 extern char k_stack[K_STACK_BYTES];
 
-/// @brief Save registers to the current process and switch stacks.
+/// @brief Saves the current process's registers to its process slot and switches to the kernel stack.
 void save() noexcept NAKED;
 void save() noexcept {
     __asm__ volatile("push %%rax\n\t"
@@ -97,7 +121,7 @@ void save() noexcept {
                      : "memory", "rax", "r15");
 }
 
-/// @brief Restore registers and continue the interrupted task.
+/// @brief Restores the registers from a process slot and resumes its execution.
 void restart() noexcept NAKED;
 void restart() noexcept {
     __asm__ volatile("movq _proc_ptr(%%rip), %%r15\n\t"

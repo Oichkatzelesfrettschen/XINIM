@@ -1,74 +1,69 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
-
-/* shar - make a shell archive		Author: Michiel Husijes */
+/// \file shar.cpp
+/// \brief Generate a shell archive from one or more files.
+///
+/// This utility reproduces the classic `shar` program using modern
+/// C++23 facilities.  Each input file is emitted as a sequence of shell
+/// commands that reconstruct the file when executed.  Lines are prefixed
+/// with the character `X` so that a simple `gres` command can strip the
+/// prefix during extraction.
 
 #include "blocksiz.hpp"
 
-#define IO_SIZE (10 * BLOCK_SIZE)
+#include <filesystem>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <string_view>
 
-char input[IO_SIZE];
-char output[IO_SIZE];
-int index = 0;
+namespace fs = std::filesystem;
 
-// Entry point with modern parameters
+/// Size of the internal I/O buffer used when copying data.
+inline constexpr std::size_t IO_SIZE = 10 * BLOCK_SIZE;
+
+/// \brief Emit archive commands for a single file.
+/// \param path Path to the file that will be archived.
+static void emit_archive(const fs::path &path);
+
+/// \brief Encode an input stream for inclusion in the archive.
+/// \param in Stream from which to read the file contents.
+static void encode_stream(std::istream &in);
+
+/// \brief Program entry point.
+/// \param argc Number of command line arguments.
+/// \param argv Argument vector.
+/// \return Zero on success, non–zero otherwise.
 int main(int argc, char *argv[]) {
-    register int i;
-    int fd;
-
-    for (i = 1; i < argc; i++) {
-        if ((fd = open(argv[i], 0)) < 0) {
-            write(2, "Cannot open ", 12);
-            write(2, argv[i], strlen(argv[i]));
-            write(2, ".\n", 2);
-        } else {
-            print("echo x - ");
-            print(argv[i]);
-            print("\ngres '^X' '' > ");
-            print(argv[i]);
-            print(" << '/'\n");
-            cat(fd);
-        }
+    if (argc < 2) {
+        std::cerr << "Usage: shar file...\n";
+        return 1;
     }
-    if (index)
-        write(1, output, index);
+
+    for (int i = 1; i < argc; ++i) {
+        emit_archive(argv[i]);
+    }
     return 0;
 }
 
-static void cat(int fd) {
-    static char *current, *last;
-    register int r = 0;
-    register char *cur_pos = current;
-
-    putchar('X');
-    for (;;) {
-        if (cur_pos == last) {
-            if ((r = read(fd, input, IO_SIZE)) <= 0)
-                break;
-            last = &input[r];
-            cur_pos = input;
-        }
-        putchar(*cur_pos);
-        if (*cur_pos++ == '\n' && cur_pos != last)
-            putchar('X');
+void emit_archive(const fs::path &path) {
+    std::ifstream in{path, std::ios::binary};
+    if (!in) {
+        std::cerr << "shar: cannot open " << path << "\n";
+        return;
     }
-    print("/\n");
-    (void)close(fd);
-    current = cur_pos;
+
+    std::cout << "echo x - " << path.string() << "\n";
+    std::cout << "gres '^X' '' > " << path.string() << " << '/'\n";
+    encode_stream(in);
+    std::cout << "/\n";
 }
 
-static void print(char *str) {
-    while (*str)
-        putchar(*str++);
-}
-
-static void putchar(char c) {
-    output[index++] = c;
-    if (index == IO_SIZE) {
-        write(1, output, index);
-        index = 0;
+void encode_stream(std::istream &in) {
+    std::string line;
+    line.reserve(IO_SIZE);
+    while (std::getline(in, line)) {
+        std::cout << 'X' << line << '\n';
+    }
+    if (in.bad()) {
+        throw std::ios_base::failure("read error");
     }
 }
