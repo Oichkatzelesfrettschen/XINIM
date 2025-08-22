@@ -1,7 +1,7 @@
 #include "../include/vm.hpp"
 #include "const.hpp"
 #include "mproc.hpp"
-#include <vector>
+#include <vector> // vm_proc_table storage
 
 /*
  * Simple virtual memory subsystem used for demonstration.  Each process gets
@@ -91,11 +91,13 @@ void vm_handle_fault(int proc, virt_addr64 addr) noexcept {
      * recorded only for bookkeeping.
      */
     auto &p = vm_proc_table[proc];
-    if (p.area_count < VM_MAX_AREAS) {
-        auto &a = p.areas[p.area_count++];
+    auto areas = p.area_span();
+    if (p.area_count < areas.size()) {
+        auto &a = areas[p.area_count++];
         a.start = addr & ~(PAGE_SIZE_4K - 1);
         a.end = a.start + PAGE_SIZE_4K;
         a.flags = VmFlags::VM_READ | VmFlags::VM_WRITE | VmFlags::VM_PRIVATE;
+        a.type = VmAreaType::Mapped;
     }
 }
 
@@ -136,11 +138,13 @@ void *vm_mmap(int proc, void *addr, u64_t length, VmFlags flags) noexcept {
         base = (virt_addr64)vm_alloc(length, flags);
     }
 
-    if (p.area_count < VM_MAX_AREAS) {
-        auto &a = p.areas[p.area_count++];
+    auto areas = p.area_span();
+    if (p.area_count < areas.size()) {
+        auto &a = areas[p.area_count++];
         a.start = base;
         a.end = base + length;
         a.flags = flags;
+        a.type = VmAreaType::Mapped;
     }
 
     return (void *)base;
