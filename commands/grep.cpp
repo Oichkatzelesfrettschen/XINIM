@@ -43,6 +43,7 @@
  *
  * @note Requires C++23 compliant compiler
  */
+// clang-format on
 
 #include <filesystem>
 #include <format>
@@ -93,7 +94,7 @@ public:
             }
         } else {
             // Process each file
-            for (const auto& filepath : options_.files) {
+            for (const auto &filepath : options_.files) {
                 if (filepath == "-") {
                     if (process_stream(std::cin, "-")) {
                         any_matches = true;
@@ -163,17 +164,19 @@ private:
  * @return Parsed GrepOptions structure.
  * @throws std::runtime_error on invalid arguments.
  */
-GrepOptions parse_arguments(int argc, char* argv[]) {
+GrepOptions parse_arguments(int argc, char *argv[]) {
     GrepOptions opts;
     int i = 1;
 
     // Parse flags
     while (i < argc && argv[i][0] == '-' && argv[i][1] != '\0') {
         std::string_view arg(argv[i]);
+
         if (arg == "-") {
             // Special case: "-" means stdin
             break;
         }
+
         for (size_t j = 1; j < arg.length(); ++j) {
             switch (arg[j]) {
             case 'v':
@@ -237,7 +240,7 @@ void print_usage() {
  * @param argv An array of command-line arguments.
  * @return 0 if matches found, 1 if no matches, 2 on error.
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     try {
         GrepOptions options = parse_arguments(argc, argv);
         GrepEngine engine(std::move(options));
@@ -256,11 +259,3 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 }
-
-// Recommendations:
-// - Add support for parallel file processing using std::jthread for multiple files.
-// - Implement a logging framework for detailed diagnostics.
-// - Add unit tests for edge cases (e.g., invalid regex, empty files, binary files).
-// - Consider std::expected for regex construction to handle errors without exceptions.
-// - Optimize regex matching for large files using incremental processing.
-// - Integrate with CI for automated testing and validation across UNIX platforms.

@@ -164,11 +164,4 @@ void copy(std::span<char> dest, std::span<const char> src) {
 int main() {
     // Optional: Add test code for standalone compilation
     return 0;
-
-// Recommendations/TODOs:
-// - Add unit tests for clock_time, cmp_string, copy, fetch_name, and panic.
-// - Implement a logging framework (e.g., spdlog) for detailed diagnostics.
-// - Consider std::expected for fetch_name to handle errors without global err_code.
-// - Optimize copy and cmp_string for large buffers using SIMD instructions.
-// - Add support for parallel operations using std::jthread where applicable.
-// - Integrate with CI for automated testing and validation in the XINIM environment.
+}
