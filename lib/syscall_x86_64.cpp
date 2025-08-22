@@ -9,6 +9,8 @@
  * @param dst   Destination process identifier.
  * @param m_ptr Pointer to message structure.
  * @return Result of the system call.
+ * @sideeffects Performs a kernel trap to send a message.
+ * @thread_safety Thread-safe; relies on kernel-level isolation.
  */
 int send(int dst, message *m_ptr) noexcept {
     register long rax __asm__("rax") = 0;
@@ -28,6 +30,8 @@ int send(int dst, message *m_ptr) noexcept {
  * @param src   Source process identifier.
  * @param m_ptr Pointer to message structure.
  * @return Result of the system call.
+ * @sideeffects Blocks until a message arrives.
+ * @thread_safety Thread-safe; relies on kernel-level isolation.
  */
 int receive(int src, message *m_ptr) noexcept {
     register long rax __asm__("rax") = 0;
@@ -47,6 +51,8 @@ int receive(int src, message *m_ptr) noexcept {
  * @param srcdest Destination/source identifier.
  * @param m_ptr   Pointer to message structure.
  * @return Result of the system call.
+ * @sideeffects Traps into the kernel and may block for a reply.
+ * @thread_safety Thread-safe; relies on kernel-level isolation.
  */
 int sendrec(int srcdest, message *m_ptr) noexcept {
     register long rax __asm__("rax") = 0;

@@ -12,6 +12,11 @@ namespace xinim {
  *
  * @param i Input integer to evaluate.
  * @return The non-negative magnitude of @p i.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @compat abs(3)
+ * @example
+ * int m = xinim::abs(-5);
  */
 [[nodiscard]] constexpr int abs(int i) noexcept { return (i < 0) ? -i : i; }
 
