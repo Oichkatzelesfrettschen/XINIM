@@ -52,7 +52,7 @@
 - ✅ Added comprehensive file-level and function-level Doxygen documentation
 - ✅ Modernized with C++23 features: constexpr, string_view, span, RAII principles
 - ✅ Replaced unsafe macros with type-safe inline functions
-- ✅ Modernized global state management with structured compiler_state
+- ✅ Encapsulated compiler options and state within dedicated `CompilerDriver` class
 - ✅ Exception-safe main() function with proper error handling and cleanup
 - ✅ Memory-safe buffer management replacing legacy static buffer
 - ✅ Modern signal handling with RAII cleanup in trapcc()
