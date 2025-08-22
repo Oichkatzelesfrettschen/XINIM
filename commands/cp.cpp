@@ -8,7 +8,7 @@
  *
  * This program is a C++23 modernization of the original `cp` utility from MINIX.
  * It copies files and directories, handling both file-to-file and multiple files
- * to a directory copy operations. It leverages the C++ <filesystem> library for
+ * to a directory copy operations. It leverages the C++ std::filesystem library for
  * robust and platform-independent file operations.
  *
  * Usage:
@@ -16,12 +16,12 @@
  *   cp source_file... target_directory
  */
 
-#include <iostream>
-#include <vector>
-#include <string>
 #include <filesystem>
-#include <system_error>
+#include <iostream>
 #include <print> // For std::println
+#include <string>
+#include <system_error>
+#include <vector>
 
 namespace {
 
@@ -40,7 +40,8 @@ void printUsage() {
  * @param is_target_dir A boolean indicating if the target is a directory.
  * @return True on success, false on failure.
  */
-bool copy_item(const std::filesystem::path& source, const std::filesystem::path& target, bool is_target_dir) {
+bool copy_item(const std::filesystem::path &source, const std::filesystem::path &target,
+               bool is_target_dir) {
     try {
         std::filesystem::path destination = target;
         if (is_target_dir) {
@@ -48,15 +49,21 @@ bool copy_item(const std::filesystem::path& source, const std::filesystem::path&
         }
 
         // Check for self-copy
-        if (std::filesystem::exists(destination) && std::filesystem::equivalent(source, destination)) {
-            std::println(std::cerr, "cp: '{}' and '{}' are the same file", source.string(), destination.string());
+        if (std::filesystem::exists(destination) &&
+            std::filesystem::equivalent(source, destination)) {
+            std::println(std::cerr, "cp: '{}' and '{}' are the same file", source.string(),
+                         destination.string());
             return false;
         }
 
-        // The copy_options::overwrite_existing will handle the case where the destination file exists.
-        std::filesystem::copy(source, destination, std::filesystem::copy_options::overwrite_existing | std::filesystem::copy_options::recursive);
-    } catch (const std::filesystem::filesystem_error& e) {
-        std::println(std::cerr, "cp: error copying '{}' to '{}': {}", source.string(), destination.string(), e.what());
+        // The copy_options::overwrite_existing will handle the case where the destination file
+        // exists.
+        std::filesystem::copy(source, destination,
+                              std::filesystem::copy_options::overwrite_existing |
+                                  std::filesystem::copy_options::recursive);
+    } catch (const std::filesystem::filesystem_error &e) {
+        std::println(std::cerr, "cp: error copying '{}' to '{}': {}", source.string(),
+                     destination.string(), e.what());
         return false;
     }
     return true;
@@ -70,7 +77,7 @@ bool copy_item(const std::filesystem::path& source, const std::filesystem::path&
  * @param argv An array of command-line arguments.
  * @return 0 on success, 1 on error.
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc < 3) {
         printUsage();
         return 1;
@@ -90,7 +97,7 @@ int main(int argc, char* argv[]) {
     }
 
     int status = 0;
-    for (const auto& source : sources) {
+    for (const auto &source : sources) {
         if (!copy_item(source, target, target_is_directory)) {
             status = 1; // Indicate that at least one error occurred
         }

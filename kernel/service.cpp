@@ -1,3 +1,9 @@
+/**
+ * @file service.cpp
+ * @brief Implementation of the kernel service manager with JSON
+ * persistence.
+ */
+
 #include "service.hpp"
 #include "schedule.hpp"
 
