@@ -10,6 +10,11 @@
  *
  * @param str Destination buffer to populate.
  * @return Pointer to @p str on success or nullptr on failure.
+ * @sideeffects Reads from standard input and writes to @p str.
+ * @thread_safety Not thread-safe; relies on shared stdin and buffer.
+ * @compat gets(3)
+ * @example
+ * gets(buf);
  */
 char *gets(char *str) {
     int ch;

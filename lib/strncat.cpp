@@ -4,19 +4,35 @@
 
 /**
  * @file strncat.cpp
- * @brief Implementation of \c strncat using modern C++23 facilities.
+ * @brief Modern C++23 implementation of the standard `strncat` function.
+ *
+ * @details This implementation provides a type-safe and efficient wrapper
+ * for appending a substring to a C-style string, using modern C++ facilities
+ * like `std::string_view` to safely handle the source string and `std::copy_n`
+ * for the copy operation.
+ *
+ * @ingroup utility
  */
 
 /**
- * @brief Append up to @p count characters from @p src to @p dest.
+ * @brief Append up to `count` characters from `src` to `dest`.
  *
  * The destination buffer must be large enough to hold the existing
  * characters, the appended substring, and a terminating null character.
+ * This function handles the copy operation using modern C++ algorithms
+ * for safety and clarity.
  *
  * @param dest  Destination character buffer.
  * @param src   Source C string.
  * @param count Maximum number of characters to append.
- * @return Pointer to @p dest.
+ * @return A pointer to `dest`.
+ *
+ * @sideeffects Modifies `dest` by appending data.
+ * @thread_safety The caller must ensure that `dest` is not concurrently accessed.
+ * @compat strncat(3)
+ * @example
+ * char buf[16] = "Hi";
+ * strncat(buf, " there", 6); // buf becomes "Hi there"
  */
 [[nodiscard]] char *strncat(char *dest, const char *src, std::size_t count) {
     const std::size_t dest_len = std::strlen(dest);
