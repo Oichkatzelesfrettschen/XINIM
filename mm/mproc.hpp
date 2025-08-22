@@ -10,10 +10,11 @@
  */
 
 #include "../h/type.hpp" // For uid, gid, unshort, mem_map
+#include <array>         // For std::array process table container
 #include <cstddef>       // For std::size_t if not via type.hpp
 #include <cstdint>       // For explicit use of uint16_t, uint8_t if not via type.hpp
 
-EXTERN struct mproc {
+struct mproc {
     struct mem_map mp_seg[NR_SEGS]; /**< Segment descriptors for text, data and stack. */
     char mp_exitstatus;             /**< Status code when the process exits. */
     char mp_sigstatus;              /**< Signal number that caused termination. */
@@ -34,7 +35,12 @@ EXTERN struct mproc {
     int (*mp_func)();  /**< User function handling all signals. */
 
     unsigned mp_flags; /**< Process flags. */
-} mproc[NR_PROCS];
+};
+
+/**
+ * @brief Global process table indexed by process number.
+ */
+EXTERN std::array<mproc, NR_PROCS> mproc;
 
 /**
  * @brief Values for ::mproc::mp_flags.

@@ -1,9 +1,16 @@
 /**
  * @file quaternion.cpp
  * @brief SIMD-optimized quaternion implementation for XINIM
- * @author XINIM Project  
+ * @author XINIM Project
  * @version 1.0
  * @date 2025
+ *
+ * @sideeffects Quaternion operations are pure; atomic helpers modify internal state atomically.
+ * @thread_safety Atomic variants are thread-safe, while regular operations require external synchronization.
+ * @example
+ * using namespace xinim::simd::math;
+ * quaternion<float> q = quaternion<float>::identity();
+ * auto v = q.rotate_vector({1.0f, 0.0f, 0.0f});
  */
 
 #include "../../include/xinim/simd/math/quaternion.hpp"

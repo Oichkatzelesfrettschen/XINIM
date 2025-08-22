@@ -1,3 +1,8 @@
+/**
+ * @file syscall.cpp
+ * @brief x86_64 system call entry and configuration.
+ */
+
 #include "../include/defs.h"
 #include "const.hpp"
 #include "glo.hpp"
@@ -9,7 +14,9 @@
 /*===========================================================================*
  *                              init_syscall_msrs                            *
  *===========================================================================*/
-/* Configure system call Model Specific Registers. */
+/**
+ * @brief Configure system-call related model specific registers.
+ */
 void init_syscall_msrs() noexcept { // (void) -> (), noexcept
     asm volatile("mov $0xC0000080, %%ecx\n\t"
                  "rdmsr\n\t"
@@ -34,9 +41,11 @@ void init_syscall_msrs() noexcept { // (void) -> (), noexcept
 /*===========================================================================*
  *                              syscall_entry                                *
  *===========================================================================*/
-/* Entry point for user mode syscalls. */
+/**
+ * @brief Entry point for user-mode system calls.
+ */
 void syscall_entry() noexcept NAKED; // (void) -> (), noexcept
-void syscall_entry() noexcept {     // (void) -> (), noexcept
+void syscall_entry() noexcept {      // (void) -> (), noexcept
     __asm__ volatile("call save\n\t"
                      "mov %rdi, %rax\n\t"
                      "mov %rdx, %rdi\n\t"

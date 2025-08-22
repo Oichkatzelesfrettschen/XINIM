@@ -8,13 +8,13 @@
 ==8755== 
 CMakeLists.txt
 LICENSE
-PROJECT_STATUS 2.md
-PROJECT_STATUS 3.md
-PROJECT_STATUS 4.md
-PROJECT_STATUS.md
+project_status_2.md
+project_status_3.md
+project_status_4.md
+project_status.md
 README.md
-SIMD_LIBRARY_COMPLETE 2.md
-SIMD_LIBRARY_COMPLETE.md
+simd_library_complete_2.md
+simd_library_complete.md
 build
 commands
 common

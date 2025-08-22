@@ -1,3 +1,8 @@
+/**
+ * @file mpx64.cpp
+ * @brief 64-bit context switch and interrupt stubs.
+ */
+
 #include "../h/const.hpp"
 #include "../h/type.hpp"
 #include "../include/defs.h"
@@ -32,7 +37,7 @@ extern char k_stack[K_STACK_BYTES];
 /*===========================================================================*
  *                              save                                         *
  *===========================================================================*/
-/* Save registers to the current process and switch stacks. */
+/** @brief Save registers to the current process and switch stacks. */
 void save(void) NAKED;
 void save(void) {
     __asm__ volatile("push %%rax\n\t"
@@ -101,7 +106,7 @@ void save(void) {
 /*===========================================================================*
  *                              restart                                      *
  *===========================================================================*/
-/* Restore registers and continue the interrupted task. */
+/** @brief Restore registers and continue the interrupted task. */
 void restart(void) NAKED;
 void restart(void) {
     __asm__ volatile("movq _proc_ptr(%%rip), %%r15\n\t"
@@ -135,7 +140,7 @@ void restart(void) {
 /*===========================================================================*
  *                              isr_default                                  *
  *===========================================================================*/
-/* Default interrupt service routine. */
+/** @brief Default interrupt service routine. */
 void isr_default(void) NAKED;
 void isr_default(void) {
     __asm__ volatile("call save\n\t"
@@ -146,7 +151,7 @@ void isr_default(void) {
 /*===========================================================================*
  *                              isr_clock                                    *
  *===========================================================================*/
-/* Clock interrupt service routine. */
+/** @brief Clock interrupt service routine. */
 void isr_clock(void) NAKED;
 void isr_clock(void) {
     __asm__ volatile("call save\n\t"
@@ -157,7 +162,7 @@ void isr_clock(void) {
 /*===========================================================================*
  *                              isr_keyboard                                 *
  *===========================================================================*/
-/* Keyboard interrupt service routine. */
+/** @brief Keyboard interrupt service routine. */
 void isr_keyboard(void) NAKED;
 void isr_keyboard(void) {
     __asm__ volatile("call save\n\t"
@@ -168,7 +173,7 @@ void isr_keyboard(void) {
 /*===========================================================================*
  *                              s_call                                       *
  *===========================================================================*/
-/* System call entry point. */
+/** @brief System call entry point. */
 void s_call(void) NAKED;
 void s_call(void) {
     __asm__ volatile("call save\n\t"
@@ -183,7 +188,7 @@ void s_call(void) {
 /*===========================================================================*
  *                              lpr_int                                      *
  *===========================================================================*/
-/* Printer interrupt service routine. */
+/** @brief Printer interrupt service routine. */
 void lpr_int(void) NAKED;
 void lpr_int(void) {
     __asm__ volatile("call save\n\t"
@@ -194,7 +199,7 @@ void lpr_int(void) {
 /*===========================================================================*
  *                              disk_int                                     *
  *===========================================================================*/
-/* Disk interrupt service routine. */
+/** @brief Disk interrupt service routine. */
 void disk_int(void) NAKED;
 void disk_int(void) {
     __asm__ volatile("call save\n\t"
@@ -207,7 +212,7 @@ void disk_int(void) {
 /*===========================================================================*
  *                              divide                                       *
  *===========================================================================*/
-/* Divide trap handler. */
+/** @brief Divide trap handler. */
 void divide(void) NAKED;
 void divide(void) {
     __asm__ volatile("call save\n\t"
@@ -218,7 +223,7 @@ void divide(void) {
 /*===========================================================================*
  *                              trp                                          *
  *===========================================================================*/
-/* General trap handler. */
+/** @brief General trap handler. */
 void trp(void) NAKED;
 void trp(void) {
     __asm__ volatile("call save\n\t"
