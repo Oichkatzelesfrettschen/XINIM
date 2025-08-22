@@ -9,7 +9,9 @@
 
 #include "../h/const.hpp"
 #include "paging.hpp"
-#include <vector>
+#include <array>
+#include <cstdint>
+#include <span>
 
 /**
  * @brief Flags describing permissions and properties for a virtual memory region.
@@ -45,23 +47,38 @@ inline VmFlags &operator&=(VmFlags &l, VmFlags r) {
 inline constexpr int VM_MAX_AREAS = 16;
 
 /**
+ * @brief Categories of memory areas managed by the VM subsystem.
+ */
+enum class VmAreaType : std::uint8_t {
+    Unspecified, /**< Area type not specified. */
+    Mapped,      /**< Memory region established via mmap or similar. */
+    Stack,       /**< Stack region growing downward. */
+    Heap,        /**< Dynamically allocated heap region. */
+};
+
+/**
  * @brief Contiguous virtual memory area owned by a process.
  */
 struct vm_area {
     virt_addr64 start; ///< Inclusive start address.
     virt_addr64 end;   ///< Exclusive end address.
     VmFlags flags;     ///< Protection flags.
+    VmAreaType type;   ///< Semantic type of this area.
 };
 
 /**
  * @brief Per-process bookkeeping of virtual memory areas.
  */
 struct vm_proc {
-    std::vector<vm_area> areas; ///< List of owned areas.
-    int area_count{};           ///< Number of valid entries.
+    std::array<vm_area, VM_MAX_AREAS> areas{}; ///< Storage for owned areas.
+    std::size_t area_count{};                  ///< Number of valid entries.
 
-    /// Construct an empty process record with space for ::VM_MAX_AREAS areas.
-    vm_proc() : areas(VM_MAX_AREAS) {}
+    /// Provide a span covering the valid areas.
+    [[nodiscard]] std::span<vm_area> area_span() noexcept { return {areas.data(), area_count}; }
+    /// Provide a read-only span covering the valid areas.
+    [[nodiscard]] std::span<const vm_area> area_span() const noexcept {
+        return {areas.data(), area_count};
+    }
 };
 
 void vm_init() noexcept;

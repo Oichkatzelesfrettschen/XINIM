@@ -35,13 +35,15 @@
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
 #include <cstdio>  // for EOF constant
+#include <memory>  // for smart pointers
+#include <span>    // for std::span
 #include <utility>
 
 /// Number of RAM-type devices managed by the driver
 constexpr std::size_t NR_RAMS = 4;
 
-/// Message exchange buffer
-static message mess;
+/// Message exchange buffer managed via smart pointer
+static std::unique_ptr<message> mess = std::make_unique<message>();
 
 /// Origin of each RAM disk (phys_bytes -> uint64_t)
 static std::array<uint64_t, NR_RAMS> ram_origin{};
@@ -56,10 +58,10 @@ class MessageReply {
   public:
     MessageReply(int caller, int proc) noexcept : caller_{caller}, proc_{proc} {}
     ~MessageReply() noexcept {
-        mess.m_type = TASK_REPLY;
-        rep_proc_nr(mess) = proc_;
-        rep_status(mess) = result;
-        send(caller_, &mess);
+        mess->m_type = TASK_REPLY;
+        rep_proc_nr(*mess) = proc_;
+        rep_status(*mess) = result;
+        send(caller_, mess.get());
     }
 
     int result{OK};
@@ -109,23 +111,23 @@ PUBLIC void mem_task() noexcept {
      */
     while (TRUE) {
         /* First wait for a request to read or write. */
-        receive(ANY, &mess);
-        if (mess.m_source < 0)
-            panic("mem task got message from ", mess.m_source);
-        caller = mess.m_source;
-        proc = proc_nr(mess);
+        receive(ANY, mess.get());
+        if (mess->m_source < 0)
+            panic("mem task got message from ", mess->m_source);
+        caller = mess->m_source;
+        proc = proc_nr(*mess);
         MessageReply reply{caller, proc};
 
         /* Now carry out the work.  It depends on the opcode. */
-        switch (mess.m_type) {
+        switch (mess->m_type) {
         case DISK_READ:
-            r = do_mem(&mess);
+            r = do_mem(mess.get());
             break;
         case DISK_WRITE:
-            r = do_mem(&mess);
+            r = do_mem(mess.get());
             break;
         case DISK_IOCTL:
-            r = do_setup(&mess);
+            r = do_setup(mess.get());
             break;
         default:
             r = static_cast<int>(ErrorCode::EINVAL);
@@ -179,16 +181,14 @@ PUBLIC void mem_task() noexcept {
     if (user_phys == 0)
         return static_cast<int>(ErrorCode::E_BAD_ADDR);
 
-    /* Copy the data. */
-    // phys_copy (klib88 version) takes (uintptr_t dst, uintptr_t src, size_t n)
-    // phys_copy (klib64 version) takes (void* dst, const void* src, size_t n)
-    // Assuming a common phys_copy that can take uintptr_t for physical addresses.
+    /* Copy the data using std::span for safer bounds management. */
+    auto user_span = std::span<std::byte>{reinterpret_cast<std::byte *>(user_phys), byte_count};
+    auto mem_span = std::span<std::byte>{reinterpret_cast<std::byte *>(mem_phys), byte_count};
+
     if (m_ptr->m_type == DISK_READ) {
-        phys_copy(reinterpret_cast<void *>(user_phys), reinterpret_cast<const void *>(mem_phys),
-                  byte_count);
+        phys_copy(user_span.data(), mem_span.data(), byte_count);
     } else {
-        phys_copy(reinterpret_cast<void *>(mem_phys), reinterpret_cast<const void *>(user_phys),
-                  byte_count);
+        phys_copy(mem_span.data(), user_span.data(), byte_count);
     }
     return static_cast<int>(byte_count); // Return int count
 }
