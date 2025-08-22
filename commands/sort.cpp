@@ -5,7 +5,8 @@
  * @version 2.1
  * @date 2025
  *
- * This file provides a modernized C++23 sort utility, synthesizing legacy and updated implementations for robustness, clarity, and efficiency. Key features include:
+ * This file provides a modernized C++23 sort utility, synthesizing legacy and updated
+ * implementations for robustness, clarity, and efficiency. Key features include:
  * - RAII-based memory management with smart containers
  * - Type-safe enums and strong typing for field specifications
  * - std::expected for robust error handling
@@ -16,7 +17,8 @@
  * - Unicode-aware text processing
  * - Unified merge implementation with k-way merging for sorted files
  *
- * The implementation harmonizes two merge strategies, prioritizing the k-way merge for scalability while maintaining compatibility with legacy sorting behavior.
+ * The implementation harmonizes two merge strategies, prioritizing the k-way merge for scalability
+ * while maintaining compatibility with legacy sorting behavior.
  */
 
 #include <algorithm>
@@ -76,15 +78,15 @@ struct FieldOffset {
 /// Modern sort flags with type safety
 enum class SortFlag : std::uint16_t {
     None = 0x0000,
-    FoldCase = 0x0001,      // -f: Fold upper case to lower
-    Numeric = 0x0002,       // -n: Sort numeric values
-    IgnoreBlanks = 0x0004,  // -b: Skip leading blanks
-    IgnoreNonASCII = 0x0008,// -i: Ignore non-ASCII chars
-    Reverse = 0x0010,       // -r: Reverse sort order
-    Dictionary = 0x0020,    // -d: Dictionary order only
-    Unique = 0x0040,        // -u: Unique lines only
-    CheckOrder = 0x0080,    // -c: Check if sorted
-    Merge = 0x0100,         // -m: Merge sorted files
+    FoldCase = 0x0001,       // -f: Fold upper case to lower
+    Numeric = 0x0002,        // -n: Sort numeric values
+    IgnoreBlanks = 0x0004,   // -b: Skip leading blanks
+    IgnoreNonASCII = 0x0008, // -i: Ignore non-ASCII chars
+    Reverse = 0x0010,        // -r: Reverse sort order
+    Dictionary = 0x0020,     // -d: Dictionary order only
+    Unique = 0x0040,         // -u: Unique lines only
+    CheckOrder = 0x0080,     // -c: Check if sorted
+    Merge = 0x0100,          // -m: Merge sorted files
 };
 
 /// Bitwise operations for sort flags
@@ -128,12 +130,12 @@ struct SortConfig {
 // =============================================================================
 /// RAII container for line management
 class LineContainer {
-private:
+  private:
     std::vector<std::string> lines_;
     std::unordered_set<std::string> unique_lines_;
     bool enforce_unique_{false};
 
-public:
+  public:
     explicit LineContainer(bool unique_only = false) : enforce_unique_{unique_only} {
         if (unique_only) {
             unique_lines_.reserve(1000); // Initial capacity for uniqueness check
@@ -180,18 +182,19 @@ concept FieldExtractor = requires(T extractor, std::string_view line, FieldSpec 
 
 /// Modern field extraction engine
 class ModernFieldExtractor {
-private:
+  private:
     char separator_;
     std::vector<std::string_view> field_cache_;
     std::string concat_buffer_; /**< Buffer for concatenated fields */
 
-public:
+  public:
     explicit ModernFieldExtractor(char sep = '\t') : separator_{sep} {
         field_cache_.reserve(64); // Optimize for common field counts
     }
 
     /// Extract field based on specification
-    [[nodiscard]] auto extract_field(std::string_view line, const FieldSpec &spec) -> std::string_view {
+    [[nodiscard]] auto extract_field(std::string_view line,
+                                     const FieldSpec &spec) -> std::string_view {
         split_fields(line);
         if (spec.start_field.value >= field_cache_.size()) {
             return {};
@@ -236,7 +239,7 @@ public:
         return field_cache_;
     }
 
-private:
+  private:
     /// Split line into fields using separator
     void split_fields(std::string_view line) {
         field_cache_.clear();
@@ -262,16 +265,17 @@ private:
 // =============================================================================
 /// Modern comparison engine using function objects
 class ComparisonEngine {
-private:
+  private:
     SortConfig config_;
     ModernFieldExtractor extractor_;
 
-public:
+  public:
     explicit ComparisonEngine(const SortConfig &config)
         : config_{config}, extractor_{config.field_separator} {}
 
     /// Create comparison function for sorting
-    [[nodiscard]] auto create_comparator() -> std::function<bool(const std::string &, const std::string &)> {
+    [[nodiscard]] auto
+    create_comparator() -> std::function<bool(const std::string &, const std::string &)> {
         return [this](const std::string &lhs, const std::string &rhs) -> bool {
             return compare_lines(lhs, rhs) < 0;
         };
@@ -286,7 +290,7 @@ public:
         }
     }
 
-private:
+  private:
     /// Compare using field specifications
     [[nodiscard]] auto compare_with_fields(std::string_view lhs, std::string_view rhs) -> int {
         for (const auto &field_spec : config_.fields) {
@@ -344,8 +348,10 @@ private:
         try {
             auto lhs_num = std::stod(std::string{lhs});
             auto rhs_num = std::stod(std::string{rhs});
-            if (lhs_num < rhs_num) return -1;
-            if (lhs_num > rhs_num) return 1;
+            if (lhs_num < rhs_num)
+                return -1;
+            if (lhs_num > rhs_num)
+                return 1;
             return 0;
         } catch (const std::exception &) {
             return lhs.compare(rhs); // Fall back to string comparison
@@ -358,11 +364,16 @@ private:
         auto lhs_it = lhs.begin();
         auto rhs_it = rhs.begin();
         while (lhs_it != lhs.end() && rhs_it != rhs.end()) {
-            while (lhs_it != lhs.end() && !is_dict_char(*lhs_it)) ++lhs_it;
-            while (rhs_it != rhs.end() && !is_dict_char(*rhs_it)) ++rhs_it;
-            if (lhs_it == lhs.end() && rhs_it == rhs.end()) return 0;
-            if (lhs_it == lhs.end()) return -1;
-            if (rhs_it == rhs.end()) return 1;
+            while (lhs_it != lhs.end() && !is_dict_char(*lhs_it))
+                ++lhs_it;
+            while (rhs_it != rhs.end() && !is_dict_char(*rhs_it))
+                ++rhs_it;
+            if (lhs_it == lhs.end() && rhs_it == rhs.end())
+                return 0;
+            if (lhs_it == lhs.end())
+                return -1;
+            if (rhs_it == rhs.end())
+                return 1;
             if (*lhs_it != *rhs_it) {
                 return (*lhs_it < *rhs_it) ? -1 : 1;
             }
@@ -378,13 +389,13 @@ private:
 // =============================================================================
 /// Modern file reader with RAII
 class ModernFileReader {
-private:
+  private:
     std::unique_ptr<std::istream> stream_;
     std::istream *raw_stream_ptr_{nullptr};
     std::filesystem::path file_path_;
     bool owns_stream_{false};
 
-public:
+  public:
     explicit ModernFileReader(const std::filesystem::path &path) : file_path_{path} {
         auto file_stream = std::make_unique<std::ifstream>(path);
         if (!file_stream->is_open()) {
@@ -420,13 +431,13 @@ public:
 
 /// Modern file writer with RAII
 class ModernFileWriter {
-private:
+  private:
     std::unique_ptr<std::ostream> stream_;
     std::ostream *raw_stream_ptr_{nullptr};
     std::filesystem::path file_path_;
     bool owns_stream_{false};
 
-public:
+  public:
     explicit ModernFileWriter(const std::filesystem::path &path) : file_path_{path} {
         auto file_stream = std::make_unique<std::ofstream>(path);
         if (!file_stream->is_open()) {
@@ -461,11 +472,11 @@ public:
 // =============================================================================
 /// Modern command line parser
 class CommandLineParser {
-private:
+  private:
     std::span<char *> args_;
     SortConfig config_;
 
-public:
+  public:
     explicit CommandLineParser(std::span<char *> arguments) : args_{arguments} {}
 
     [[nodiscard]] auto parse() -> Result<SortConfig> {
@@ -508,7 +519,7 @@ public:
         return config_;
     }
 
-private:
+  private:
     [[nodiscard]] auto parse_field_start(std::string_view spec) -> Result<FieldSpec> {
         auto dot_pos = spec.find('.');
         auto field_str = spec.substr(0, dot_pos);
@@ -530,18 +541,37 @@ private:
         return parse_field_start(spec);
     }
 
-    [[nodiscard]] auto parse_options(std::string_view arg, std::size_t &index) -> Result<std::size_t> {
+    [[nodiscard]] auto parse_options(std::string_view arg,
+                                     std::size_t &index) -> Result<std::size_t> {
         for (std::size_t j = 1; j < arg.size(); ++j) {
             switch (arg[j]) {
-            case 'f': config_.global_flags = config_.global_flags | SortFlag::FoldCase; break;
-            case 'n': config_.global_flags = config_.global_flags | SortFlag::Numeric; break;
-            case 'b': config_.global_flags = config_.global_flags | SortFlag::IgnoreBlanks; break;
-            case 'i': config_.global_flags = config_.global_flags | SortFlag::IgnoreNonASCII; break;
-            case 'r': config_.global_flags = config_.global_flags | SortFlag::Reverse; break;
-            case 'd': config_.global_flags = config_.global_flags | SortFlag::Dictionary; break;
-            case 'u': config_.global_flags = config_.global_flags | SortFlag::Unique; break;
-            case 'c': config_.global_flags = config_.global_flags | SortFlag::CheckOrder; break;
-            case 'm': config_.global_flags = config_.global_flags | SortFlag::Merge; break;
+            case 'f':
+                config_.global_flags = config_.global_flags | SortFlag::FoldCase;
+                break;
+            case 'n':
+                config_.global_flags = config_.global_flags | SortFlag::Numeric;
+                break;
+            case 'b':
+                config_.global_flags = config_.global_flags | SortFlag::IgnoreBlanks;
+                break;
+            case 'i':
+                config_.global_flags = config_.global_flags | SortFlag::IgnoreNonASCII;
+                break;
+            case 'r':
+                config_.global_flags = config_.global_flags | SortFlag::Reverse;
+                break;
+            case 'd':
+                config_.global_flags = config_.global_flags | SortFlag::Dictionary;
+                break;
+            case 'u':
+                config_.global_flags = config_.global_flags | SortFlag::Unique;
+                break;
+            case 'c':
+                config_.global_flags = config_.global_flags | SortFlag::CheckOrder;
+                break;
+            case 'm':
+                config_.global_flags = config_.global_flags | SortFlag::Merge;
+                break;
             case 'o':
                 if (++index >= args_.size()) {
                     return std::unexpected("Option -o requires an argument");
@@ -570,11 +600,11 @@ private:
 // =============================================================================
 /// Modern sort engine
 class ModernSortEngine {
-private:
+  private:
     SortConfig config_;
     ComparisonEngine comparator_;
 
-public:
+  public:
     explicit ModernSortEngine(const SortConfig &config) : config_{config}, comparator_{config} {}
 
     auto sort_lines(LineContainer &container) -> Result<void> {
@@ -591,7 +621,7 @@ public:
         }
     }
 
-private:
+  private:
     auto perform_sort(LineContainer &container) -> Result<void> {
         auto &lines = container.mutable_lines();
         auto comparator = comparator_.create_comparator();
@@ -609,12 +639,19 @@ private:
     }
 
     /// Merge multiple sorted input streams into the container using k-way merge.
+    ///
+    /// The algorithm reads the first line from each available input source and
+    /// performs a streaming \em k-way merge using a min-heap. At least two input
+    /// sources are required; otherwise, a descriptive error is returned.
+    ///
+    /// @param container Line storage receiving merged output.
+    /// @return `Result<void>` indicating success or failure with message.
     auto merge_files(LineContainer &container) -> Result<void> {
         struct InputSource {
             std::unique_ptr<std::ifstream> file_stream{}; ///< Owned file stream
-            std::istream *stream{nullptr}; ///< Active stream
-            std::filesystem::path path{}; ///< File path for errors
-            std::string line{}; ///< Current line buffer
+            std::istream *stream{nullptr};                ///< Active stream
+            std::filesystem::path path{};                 ///< File path for errors
+            std::string line{};                           ///< Current line buffer
         };
 
         std::vector<InputSource> sources;
@@ -636,10 +673,12 @@ private:
                 if (load_first_line(src)) {
                     sources.emplace_back(std::move(src));
                 } else if (src.stream->bad()) {
-                    return std::unexpected(std::format("I/O error while reading {}", file_path.string()));
+                    return std::unexpected(
+                        std::format("I/O error while reading {}", file_path.string()));
                 }
             } catch (const std::exception &e) {
-                std::cerr << std::format("Warning: Cannot open {}: {}\n", file_path.string(), e.what());
+                std::cerr << std::format("Warning: Cannot open {}: {}\n", file_path.string(),
+                                         e.what());
                 continue;
             }
         }
@@ -656,8 +695,8 @@ private:
             }
         }
 
-        if (sources.empty()) {
-            return std::unexpected("No input sources available for merge");
+        if (sources.size() < 2) {
+            return std::unexpected("At least two input sources are required for merge");
         }
 
         // Perform k-way merge using a min-heap
@@ -683,7 +722,8 @@ private:
             if (std::getline(*src.stream, src.line)) {
                 heap.push({idx});
             } else if (src.stream->bad()) {
-                return std::unexpected(std::format("I/O error while reading {}", src.path.string()));
+                return std::unexpected(
+                    std::format("I/O error while reading {}", src.path.string()));
             }
         }
         return {};
@@ -695,11 +735,11 @@ private:
 // =============================================================================
 /// Main sort utility application
 class SortUtilityApp {
-private:
+  private:
     SortConfig config_;
     ModernSortEngine engine_;
 
-public:
+  public:
     explicit SortUtilityApp(const SortConfig &config) : config_{config}, engine_{config} {}
 
     [[nodiscard]] auto run() -> Result<void> {
@@ -727,7 +767,7 @@ public:
         }
     }
 
-private:
+  private:
     auto read_input(LineContainer &container) -> Result<void> {
         if (config_.use_stdin) {
             ModernFileReader reader{std::cin};
@@ -738,11 +778,13 @@ private:
                 ModernFileReader reader{file_path};
                 auto result = reader.read_lines(container);
                 if (!result) {
-                    std::cerr << std::format("Warning: Cannot read {}: {}\n", file_path.string(), result.error());
+                    std::cerr << std::format("Warning: Cannot read {}: {}\n", file_path.string(),
+                                             result.error());
                     continue;
                 }
             } catch (const std::exception &e) {
-                std::cerr << std::format("Warning: Cannot open {}: {}\n", file_path.string(), e.what());
+                std::cerr << std::format("Warning: Cannot open {}: {}\n", file_path.string(),
+                                         e.what());
                 continue;
             }
         }

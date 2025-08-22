@@ -9,22 +9,23 @@
  * and cleanup, harmonizing the approaches from previous implementations.
  */
 
+#include "../commands/sort.cpp"
 #include <cassert>
 #include <filesystem>
 #include <fstream>
+#include <sstream>
 #include <vector>
-#include "../commands/sort.cpp"
 
 using namespace xinim::sort_utility;
 namespace fs = std::filesystem;
 
 /// Helper function to create a temporary file with given lines.
-static auto create_temp_file(const fs::path& path, const std::vector<std::string>& lines) -> void {
+static auto create_temp_file(const fs::path &path, const std::vector<std::string> &lines) -> void {
     std::ofstream out{path};
     if (!out.is_open()) {
         throw std::runtime_error(std::format("Failed to create temporary file: {}", path.string()));
     }
-    for (const auto& line : lines) {
+    for (const auto &line : lines) {
         out << line << '\n';
     }
 }
@@ -34,6 +35,7 @@ int main() {
     const auto temp_dir = fs::temp_directory_path();
     const auto file1 = temp_dir / "sort_merge_input1.txt";
     const auto file2 = temp_dir / "sort_merge_input2.txt";
+    const auto file3 = temp_dir / "sort_merge_input3.txt";
     const auto outfile = temp_dir / "sort_merge_output.txt";
 
     // Test Case 1: Basic merge without uniqueness
@@ -98,7 +100,8 @@ int main() {
         SortUtilityApp app{cfg};
         auto result = app.run();
         assert(!result && "Merge with single file should fail");
-        assert(result.error().find("No input sources available for merge") != std::string::npos &&
+        assert(result.error().find("At least two input sources are required for merge") !=
+                   std::string::npos &&
                "Expected error message for single file merge not found");
     }
 
@@ -108,7 +111,7 @@ int main() {
         // Simulate stdin input by redirecting a string stream
         std::stringstream ss;
         ss << "apricot\nblueberry\n";
-        std::cin.rdbuf(ss.rdbuf());
+        auto *orig_buf = std::cin.rdbuf(ss.rdbuf());
 
         SortConfig cfg;
         cfg.global_flags = SortFlag::Merge;
@@ -131,12 +134,39 @@ int main() {
         assert(merged == expected && "Merge with stdin output does not match expected");
 
         // Restore stdin
-        std::cin.rdbuf(std::cin.rdbuf());
+        std::cin.rdbuf(orig_buf);
+    }
+
+    // Test Case 5: Merge three input files
+    {
+        create_temp_file(file1, {"apple", "orange"});
+        create_temp_file(file2, {"banana", "pear"});
+        create_temp_file(file3, {"avocado", "kiwi"});
+
+        SortConfig cfg;
+        cfg.global_flags = SortFlag::Merge;
+        cfg.input_files = {file1, file2, file3};
+        cfg.output_file = outfile;
+
+        SortUtilityApp app{cfg};
+        auto result = app.run();
+        assert(result && "Three-way merge operation failed");
+
+        std::ifstream in{outfile};
+        std::vector<std::string> merged;
+        std::string line;
+        while (std::getline(in, line)) {
+            merged.push_back(line);
+        }
+
+        std::vector<std::string> expected{"apple", "avocado", "banana", "kiwi", "orange", "pear"};
+        assert(merged == expected && "Three-way merge output does not match expected");
     }
 
     // Cleanup temporary files
     fs::remove(file1);
     fs::remove(file2);
+    fs::remove(file3);
     fs::remove(outfile);
 
     return 0;
