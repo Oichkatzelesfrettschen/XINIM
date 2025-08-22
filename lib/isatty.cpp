@@ -8,6 +8,13 @@
  *
  * @param fd File descriptor to query.
  * @return 1 if the descriptor refers to a character device, otherwise 0.
+ * @sideeffects Performs a system call to inspect the descriptor.
+ * @thread_safety Thread-safe; operates on the provided descriptor only.
+ * @compat isatty(3)
+ * @example
+ * if (isatty(STDIN_FILENO)) {
+ *     // interactive terminal
+ * }
  */
 int isatty(int fd) noexcept {
     struct stat s{};

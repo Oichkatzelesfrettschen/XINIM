@@ -9,7 +9,7 @@ PROJECT_NAME           = "XINIM"
 PROJECT_NUMBER         = "2.0"
 PROJECT_BRIEF          = "Modern C++23 MINIX filesystem utilities with type safety and performance"
 PROJECT_LOGO           = 
-OUTPUT_DIRECTORY       = docs/doxygen
+OUTPUT_DIRECTORY       = @DOXYGEN_OUTPUT_DIRECTORY@
 CREATE_SUBDIRS         = YES
 ALLOW_UNICODE_NAMES    = NO
 OUTPUT_LANGUAGE        = English
@@ -96,8 +96,8 @@ CITE_BIB_FILES         =
 #---------------------------------------------------------------------------
 QUIET                  = NO
 WARNINGS               = NO
-WARN_IF_UNDOCUMENTED   = YES
-WARN_IF_DOC_ERROR      = YES
+WARN_IF_UNDOCUMENTED   = NO
+WARN_IF_DOC_ERROR      = NO
 WARN_NO_PARAMDOC       = NO
 WARN_AS_ERROR          = NO
 WARN_FORMAT            = "$file:$line: $text"
@@ -106,7 +106,7 @@ WARN_LOGFILE           =
 #---------------------------------------------------------------------------
 # Configuration options related to the input files
 #---------------------------------------------------------------------------
-INPUT                  = kernel include
+INPUT                  = @DOXYGEN_INPUT@
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.cpp \
                          *.hpp \

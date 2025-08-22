@@ -138,3 +138,28 @@ if(ENABLE_UNIT_TESTS)
   enable_testing()
   add_subdirectory(tests)
 endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Documentation target
+# ─────────────────────────────────────────────────────────────────────────────
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+  set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen")
+  set(DOXYGEN_INPUT_DIRS
+      "${CMAKE_CURRENT_SOURCE_DIR}/commands"
+      "${CMAKE_CURRENT_SOURCE_DIR}/fs"
+      "${CMAKE_CURRENT_SOURCE_DIR}/kernel"
+      "${CMAKE_CURRENT_SOURCE_DIR}/mm"
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib"
+      "${CMAKE_CURRENT_SOURCE_DIR}/crypto")
+  list(JOIN DOXYGEN_INPUT_DIRS " " DOXYGEN_INPUT)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+  add_custom_target(doc
+    COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Generating API documentation with Doxygen"
+    VERBATIM)
+else()
+  message(STATUS "Doxygen not found. Documentation target will be unavailable.")
+endif()

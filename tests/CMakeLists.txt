@@ -114,6 +114,17 @@ add_executable(minix_test_memory_stream
 target_include_directories(minix_test_memory_stream PRIVATE ${XINIM_INCLUDES})
 add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
 
+# -----------------------------------------------------------------------------
+# File System Tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_fs_compat
+    ${PROJECT_ROOT}/fs/tests/compat_tests.cpp
+    ${PROJECT_ROOT}/fs/compat.cpp
+    ${PROJECT_ROOT}/lib/safe_alloc.cpp
+)
+target_include_directories(minix_test_fs_compat PRIVATE ${XINIM_INCLUDES} ${PROJECT_ROOT}/fs)
+add_test(NAME minix_test_fs_compat COMMAND minix_test_fs_compat)
+
 # Optional stream tests (disabled by default)
 add_executable(minix_test_streams
     test_streams.cpp
