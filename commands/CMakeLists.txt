@@ -103,7 +103,14 @@ foreach(COMMAND_NAME IN LISTS SINGLE_COMMANDS)
       "${CMAKE_SOURCE_DIR}/include"
       "${CMAKE_SOURCE_DIR}/h"
     )
-    target_compile_options(minix_cmd_${COMMAND_NAME} PRIVATE -O3)
+    # Apply a consistent set of rigorous compile options.
+    target_compile_options(minix_cmd_${COMMAND_NAME} PRIVATE
+      -O3
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Werror
+    )
 endforeach()
 
 # -----------------------------------------------------------------------------
@@ -124,4 +131,10 @@ target_include_directories(minix_cmd_mined PUBLIC
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
 )
-target_compile_options(minix_cmd_mined PRIVATE -O3)
+target_compile_options(minix_cmd_mined PRIVATE
+    -O3
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+)
