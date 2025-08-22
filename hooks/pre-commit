@@ -1,16 +1,9 @@
 #!/usr/bin/env bash
-# Git pre-commit hook that formats staged C/C++ sources with clang-format.
-# It rewrites the staged files in place and re-adds them to the index.
+# Formats staged C++ sources with clang-format.
 set -euo pipefail
 
-files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(c|cc|cpp|cxx|h|hh|hpp|hxx)$') || true
-
-if [[ -n "$files" ]]; then
-  echo "Formatting staged C/C++ files with clang-format"
-  for file in $files; do
-    clang-format -i "$file"
-    git add "$file"
-  done
-fi
-
-exit 0
+files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(cc|cpp|cxx|hh|hpp|hxx)$') || exit 0
+for file in $files; do
+  clang-format -i "$file"
+  git add "$file"
+done
