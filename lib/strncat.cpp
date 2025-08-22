@@ -2,6 +2,13 @@
 
 /**
  * @brief Append at most n characters of one string to another.
+ *
+ * @sideeffects Modifies @p s1 by appending data.
+ * @thread_safety Caller must ensure @p s1 is not concurrently accessed.
+ * @compat strncat(3)
+ * @example
+ * char buf[16] = "Hi";
+ * strncat(buf, " there", 6); // buf becomes "Hi there"
  */
 char *strncat(char *s1, const char *s2, int n) {
     char *original = s1;

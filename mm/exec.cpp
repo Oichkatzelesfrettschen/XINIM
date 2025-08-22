@@ -23,9 +23,76 @@
 #include "mproc.hpp"
 #include "param.hpp"
 #include "token.hpp"
-#include <algorithm> // For std::min (if min is not a macro)
-#include <cstddef>   // For std::size_t
-#include <cstdint>   // For uint64_t, int64_t
+#include <algorithm>  // For std::min (if min is not a macro)
+#include <cstddef>    // For std::size_t
+#include <cstdint>    // For uint64_t, int64_t
+#include <filesystem> // For std::filesystem::path
+
+namespace {
+/**
+ * @brief RAII guard for temporarily switching to the user's directory.
+ *
+ * Ensures the
+ * original MM directory is restored even when the function
+ * exits early.
+ */
+class DirectoryGuard {
+  public:
+    /**
+     * @brief Construct the guard and switch to the user's directory.
+     * @param user The
+     * process identifier whose directory is activated.
+     */
+    explicit DirectoryGuard(int user) { tell_fs(CHDIR, user, 0, 0); }
+
+    /**
+     * @brief Destructor restores the memory manager's directory.
+     */
+    ~DirectoryGuard() { tell_fs(CHDIR, 0, 1, 0); }
+
+    DirectoryGuard(const DirectoryGuard &) = delete;
+    DirectoryGuard &operator=(const DirectoryGuard &) = delete;
+};
+
+/**
+ * @brief RAII wrapper around an executable process image.
+ *
+ * Opens the executable and
+ * guarantees the file descriptor is closed.
+ */
+class ProcessImage {
+  public:
+    /**
+     * @brief Open the executable image.
+     * @param path Path to the executable.
+     *
+     * @param st   Stat buffer populated with file metadata.
+     */
+    ProcessImage(const std::filesystem::path &path, struct stat &st)
+        : fd_{allowed(path.c_str(), &st, X_BIT)} {}
+
+    /**
+     * @brief Close the descriptor if it is valid.
+     */
+    ~ProcessImage() {
+        if (fd_ >= 0)
+            close(fd_);
+    }
+
+    /**
+     * @brief Access the underlying file descriptor.
+     * @return The opened descriptor or
+     * negative error code.
+     */
+    [[nodiscard]] int fd() const noexcept { return fd_; }
+
+    ProcessImage(const ProcessImage &) = delete;
+    ProcessImage &operator=(const ProcessImage &) = delete;
+
+  private:
+    int fd_{-1};
+};
+} // namespace
 
 #define MAGIC 0x04000301L /* magic number with 2 bits masked off */
 #define SEP 0x00200000L   /* value for separate I & D */
@@ -52,7 +119,7 @@ PUBLIC int do_exec() {
      */
 
     register struct mproc *rmp;
-    int m, r, fd, ft;
+    int m, r, ft;
     char mbuf[MAX_ISTACK_BYTES]; /* buffer for stack and zeroes */
     union u {
         char name_buf[MAX_PATH]; /* the name of the file to exec */
@@ -81,20 +148,18 @@ PUBLIC int do_exec() {
     r = mem_copy(who, D, static_cast<uintptr_t>(src), MM_PROC_NR, D, static_cast<uintptr_t>(dst),
                  static_cast<std::size_t>(exec_len));
     if (r != OK)
-        return (r);                          /* file name not in user data segment */
-    tell_fs(CHDIR, who, 0, 0);               /* temporarily switch to user's directory */
-    fd = allowed(u.name_buf, &s_buf, X_BIT); /* is file executable? */
-    tell_fs(CHDIR, 0, 1, 0);                 /* switch back to MM's own directory */
-    if (fd < 0)
-        return (fd); /* file was not executable */
+        return (r); /* file name not in user data segment */
+    std::filesystem::path exec_path{u.name_buf};
+    DirectoryGuard dir_guard{who};
+    ProcessImage image{exec_path, s_buf};
+    if (image.fd() < 0)
+        return image.fd(); /* file was not executable */
 
     /* Read the file header and extract the segment sizes. */
     sc = (stk_bytes + static_cast<std::size_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
-    m = read_header(fd, &ft, &text_bytes, &data_bytes, &bss_bytes, &tot_bytes, sc);
-    if (m < 0) {
-        close(fd); /* something wrong with header */
+    m = read_header(image.fd(), &ft, &text_bytes, &data_bytes, &bss_bytes, &tot_bytes, sc);
+    if (m < 0)
         return (ErrorCode::ENOEXEC);
-    }
 
     /* Fetch the stack from the user before destroying the old core image. */
     src = reinterpret_cast<std::size_t>(stack_ptr); // stack_ptr is char* from param.hpp
@@ -102,17 +167,13 @@ PUBLIC int do_exec() {
     // src, dst are std::size_t (pointer values) -> uintptr_t. stk_bytes is std::size_t.
     r = mem_copy(who, D, static_cast<uintptr_t>(src), MM_PROC_NR, D, static_cast<uintptr_t>(dst),
                  stk_bytes);
-    if (r != OK) {
-        close(fd); /* can't fetch stack (e.g. bad virtual addr) */
+    if (r != OK)
         return (ErrorCode::EACCES);
-    }
 
     /* Allocate new memory and release old memory.  Fix map and tell kernel. */
     r = new_mem(text_bytes, data_bytes, bss_bytes, stk_bytes, tot_bytes, u.zb, ZEROBUF_SIZE);
-    if (r != OK) {
-        close(fd); /* insufficient core or program too big */
+    if (r != OK)
         return (r);
-    }
 
     /* Patch up stack and copy it from MM to new core image. */
     // rmp->mp_seg[S].mem_vir is vir_clicks (std::size_t)
@@ -126,9 +187,8 @@ PUBLIC int do_exec() {
         panic("do_exec stack copy err", NO_NUM);
 
     /* Read in text and data segments. */
-    load_seg(fd, T, text_bytes);
-    load_seg(fd, D, data_bytes);
-    close(fd); /* don't need exec file any more */
+    load_seg(image.fd(), T, text_bytes);
+    load_seg(image.fd(), D, data_bytes);
 
     /* Take care of setuid/setgid bits. */
     if (s_buf.st_mode & I_SET_UID_BIT) {

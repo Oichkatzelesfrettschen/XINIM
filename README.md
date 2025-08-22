@@ -96,7 +96,7 @@ sudo apt-get install -y cmake ninja-build doxygen python3-sphinx python3-breathe
 sudo apt-get install -y libssl-dev pkg-config
 ```
 
-For detailed platform-specific instructions, see [`docs/TOOL_INSTALL.md`](https://www.google.com/search?q=docs/TOOL_INSTALL.md).
+For detailed platform-specific instructions, see [`docs/TOOL_INSTALL.md`](docs/TOOL_INSTALL.md).
 
 ### Build Process
 
