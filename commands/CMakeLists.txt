@@ -17,8 +17,13 @@ add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 # This CMake file builds each userland command as a separate executable.
 
 file(GLOB CMD_SOURCES "*.cpp")
-# Exclude the compiler driver which has a dedicated target
+# Filter out legacy duplicates, placeholder sources, and the compiler driver.
+list(FILTER CMD_SOURCES EXCLUDE REGEX ".*\\s2\\.cpp$")
+list(FILTER CMD_SOURCES EXCLUDE REGEX "pr_modern\\.cpp$")
+list(FILTER CMD_SOURCES EXCLUDE REGEX "sort_modern\\.cpp$")
+list(FILTER CMD_SOURCES EXCLUDE REGEX "tar_modern\\.cpp$")
 list(FILTER CMD_SOURCES EXCLUDE REGEX "cc\\.cpp$")
+
 
 # TODO: Exclude main files of multi-file applications like 'mined' from this generic loop.
 # They should have their own targets defined or be handled by a dedicated CMakeLists.txt
