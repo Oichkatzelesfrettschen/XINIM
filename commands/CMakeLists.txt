@@ -17,6 +17,8 @@ add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 # This CMake file builds each userland command as a separate executable.
 
 file(GLOB CMD_SOURCES "*.cpp")
+# Exclude files with spaces in their names to ensure valid target identifiers
+list(FILTER CMD_SOURCES EXCLUDE REGEX ".*[ \t].*")
 # Consider excluding test source files if any are directly in commands/
 # list(FILTER CMD_SOURCES EXCLUDE REGEX ".*/test_.*\.cpp$")
 # For now, assume tests are neatly in commands/tests/
@@ -62,5 +64,12 @@ foreach(CMD_SOURCE_FILE ${CMD_SOURCES})
     # Assuming it's part of a larger project, so CMAKE_SOURCE_DIR is the project root.
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
+  )
+
+  target_compile_options(${TARGET_NAME} PRIVATE
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
   )
 endforeach()
