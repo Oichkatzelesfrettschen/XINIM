@@ -9,22 +9,22 @@
  * and cleanup, harmonizing the approaches from previous implementations.
  */
 
+#include "../commands/sort.cpp"
 #include <cassert>
 #include <filesystem>
 #include <fstream>
 #include <vector>
-#include "../commands/sort.cpp"
 
 using namespace xinim::sort_utility;
 namespace fs = std::filesystem;
 
 /// Helper function to create a temporary file with given lines.
-static auto create_temp_file(const fs::path& path, const std::vector<std::string>& lines) -> void {
+static auto create_temp_file(const fs::path &path, const std::vector<std::string> &lines) -> void {
     std::ofstream out{path};
     if (!out.is_open()) {
         throw std::runtime_error(std::format("Failed to create temporary file: {}", path.string()));
     }
-    for (const auto& line : lines) {
+    for (const auto &line : lines) {
         out << line << '\n';
     }
 }
@@ -98,7 +98,7 @@ int main() {
         SortUtilityApp app{cfg};
         auto result = app.run();
         assert(!result && "Merge with single file should fail");
-        assert(result.error().find("No input sources available for merge") != std::string::npos &&
+        assert(result.error().find("at least two input sources") != std::string::npos &&
                "Expected error message for single file merge not found");
     }
 
@@ -108,7 +108,7 @@ int main() {
         // Simulate stdin input by redirecting a string stream
         std::stringstream ss;
         ss << "apricot\nblueberry\n";
-        std::cin.rdbuf(ss.rdbuf());
+        auto *const old_buf = std::cin.rdbuf(ss.rdbuf());
 
         SortConfig cfg;
         cfg.global_flags = SortFlag::Merge;
@@ -131,7 +131,7 @@ int main() {
         assert(merged == expected && "Merge with stdin output does not match expected");
 
         // Restore stdin
-        std::cin.rdbuf(std::cin.rdbuf());
+        std::cin.rdbuf(old_buf);
     }
 
     // Cleanup temporary files
