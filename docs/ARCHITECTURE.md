@@ -117,7 +117,8 @@ std::array<uint8_t, 32> compute_shared_secret(const KeyPair& local,
 
 **User Mode Servers**
 - **PM (Process Manager)**: Process lifecycle and signal handling
-- **MM (Memory Manager)**: Virtual memory and paging policy  
+- **MM (Memory Manager)**: Virtual memory, paging policy, RAII-managed process
+  images via `std::filesystem`
 - **FS (File System)**: VFS layer with MINIX filesystem support
 - **RS (Resurrection Server)**: Service monitoring and restart
 - **DS (Data Store)**: Configuration and state persistence
