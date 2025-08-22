@@ -38,12 +38,16 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 * **Template Metaprogramming**: Compile-time optimizations and type safety.
 * **Comprehensive Testing**: Unit tests, integration tests, and property-based testing.
 * **Documentation**: Doxygen + Sphinx for comprehensive API documentation.
+* **RAII Process Control**: `ScopedProcessSlot` manages process table entries via `std::span` for safe resource handling.
 
 ***
 
 ## Architecture Overview
 
-XINIM extends the classic MINIX microkernel with modern security and scheduling capabilities:
+XINIM extends the classic MINIX microkernel with modern security and scheduling
+capabilities. For a comprehensive discussion, see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) or the
+[Sphinx architecture reference](docs/sphinx/architecture.rst):
 
 ```mermaid
 graph TD
@@ -232,12 +236,13 @@ rm -rf build/
 
 ## Documentation
 
-| Document | Description |
-|---|---|
-| `docs/BUILDING.md` | Full build and flashing guide |
-| `docs/ARCHITECTURE.md` | Subsystem overview; see [`docs/sphinx/architecture.rst`](https://www.google.com/search?q=docs/sphinx/architecture.rst) |
-| `docs/TOOL_INSTALL.md` | OS-specific dependency list |
-| `docs/sphinx/html/index.html` | Generated developer manual in HTML |
+| Document                      | Description                               |
+|-------------------------------|-------------------------------------------|
+| `docs/BUILDING.md`            | Full build and flashing guide             |
+| `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](https://www.google.com/search?q=docs/sphinx/architecture.rst) |
+| `docs/TOOL_INSTALL.md`        | OS-specific dependency list               |
+| `docs/simd_migration.md`      | Manual SIMD migration procedure           |
+| `docs/sphinx/html/index.html` | Generated developer manual in HTML        |
 
 -----
 
@@ -245,7 +250,7 @@ rm -rf build/
 
 XINIM includes modern implementations of classic UNIX utilities with enhanced capabilities:
 
-**Enhanced Sort Utility**: The `sort` command supports multi-file merge mode with the `-m` flag. Each input file must already be sorted; the utility performs a streaming k-way merge using the same comparison rules as regular sorting. When combined with the `-u` option, duplicate lines encountered across input files are removed during the merge.
+**Enhanced Sort Utility**: The `sort` command supports multi-file merge mode with the `-m` flag. Each input stream must already be sorted, and at least two sources - regular files or standard input - are required. The utility performs a streaming k-way merge using the same comparison rules as regular sorting; when combined with the `-u` option, duplicate lines encountered across sources are removed during the merge.
 
 **75+ UNIX Commands**: All classic utilities modernized with C++23 for improved safety and performance.
 
@@ -255,7 +260,7 @@ XINIM includes modern implementations of classic UNIX utilities with enhanced ca
 
 ## License
 
-Licensed under the **BSD-3-Clause** license. See `LICENSE` for details.
+Licensed under the **BSD-MODERNMOST** license. See `LICENSE` for details.
 
 -----
 

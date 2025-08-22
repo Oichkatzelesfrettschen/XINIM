@@ -1,21 +1,18 @@
 # Building and Testing
 
-This document explains how to build the Minix 1 sources and verify that the
-tool-chain works on a Unix-like host.
+This document explains how to build the (XINIM) sources and verify that the tool-chain works on a Unix-like host.
 
-The codebase is **work in progress**, aiming to reproduce classic Minix
-simplicity on modern **arm64** and **x86-64** machines using **C++23**.
+The codebase is **work in progress**, aiming to reproduce classic Minix simplicity on modern **arm64** and **x86-64** machines using **C++23**.
 
----
+-----
 
 ## 1 · Prerequisites
 
-* **C++23 tool-chain** – Clang 18 (lld, lldb) is recommended; GCC 13 or newer also works
-    (Clang 20 is detected automatically if installed).
-* **Assembler** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
-* **CMake** ≥ 3.5 (if you use the CMake flow).
-* **POSIX make + sh** for the classic Makefiles.
-* **libsodium** development headers for the crypto subsystem.
+  * **C++23 tool-chain** – Clang 18 (lld, lldb) is recommended; GCC 13 or newer also works (Clang 20 is detected automatically if installed).
+  * **Assembler** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
+  * **CMake** ≥ 3.5 (if you use the CMake flow).
+  * **POSIX make + sh** for the classic Makefiles.
+  * **libsodium** development headers for the crypto subsystem.
 
 Install everything with:
 
@@ -24,7 +21,7 @@ Install everything with:
 sudo apt-get update && sudo apt-get install -y \
     build-essential cmake ninja-build clang-18 lld-18 lldb-18 \
     libsodium-dev nlohmann-json3-dev
-clang++ --version       # verify the compiler in PATH
+clang++ --version        # verify the compiler in PATH
 ```
 
 -----
@@ -58,8 +55,7 @@ ninja -C build_test
 ctest --test-dir build_test
 ```
 
-Driver variants (AT vs PC/XT) and other options are configured via CMake
-flags—see `README.md`.
+Driver variants (AT vs PC/XT) and other options are configured via CMake flags—see `README.md`.
 
 -----
 
@@ -83,11 +79,11 @@ Both flows call `${CROSS_PREFIX}clang++`.
 
 ## 5 · Build Modes & Recommended Flags
 
-| Mode      | Purpose                          | Representative flags                             |
-|-----------|----------------------------------|--------------------------------------------------|
-| **debug** | Heavy diagnostics + sanitizers   | `-g3 -O0 -fsanitize=address,undefined`           |
-| **release**| Maximum performance / size       | `-O3 -DNDEBUG -flto -march=x86-64-v1`            |
-| **profile**| gprof / perf instrumentation     | `-O2 -g -pg`                                     |
+| Mode      | Purpose                          | Representative flags                               |
+|-----------|----------------------------------|----------------------------------------------------|
+| **debug** | Heavy diagnostics + sanitizers   | `-g3 -O0 -fsanitize=address,undefined`             |
+| **release**| Maximum performance / size       | `-O3 -DNDEBUG -flto -march=x86-64-v1`              |
+| **profile**| gprof / perf instrumentation     | `-O2 -g -pg`                                       |
 
 Example manual build:
 
@@ -132,7 +128,7 @@ Expected exit status is **0**.
 ## 8 · Historical DOS Build Scripts
 
 Legacy MS-DOS batch files reside in `tools/c86`.
-They are retained for reference only; modern C++ replacements (e.g.,
+They are retained for reference only; modern C++ replacements (e'g'.,
 `bootblok.cpp`) build automatically in native and cross workflows.
 
 -----

@@ -12,18 +12,20 @@ The documentation is divided into several sections:
 * **API Reference** contains the complete Doxygen-generated API documentation.
 
 .. toctree::
-   :maxdepth: 2
-   :caption: Contents
+    :maxdepth: 2
+    :caption: Contents
 
-   lattice_ipc
-   pq_crypto
-   scheduler
-   wait_graph
-   service
-   service_manager
-   precommit
-   networking
-   libsodium_tests
-   hypercomplex
-   architecture
-   api
+    api
+    architecture
+    compiler_driver
+    hypercomplex
+    lattice_ipc
+    libsodium_tests
+    networking
+    pq_crypto
+    scheduler
+    service
+    service_manager
+    wait_graph
+    process_control
+    wini

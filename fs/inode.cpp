@@ -170,7 +170,7 @@ PUBLIC void wipe_inode(struct inode *rip) { // Added void return, modernized par
 
     rip->i_size = 0;               // file_pos (int32_t)
     rip->i_size64 = 0;             // file_pos64 (int64_t)
-    rip->i_extents = NIL_EXTENT;   // NIL_EXTENT is extent* (nullptr or specific value)
+    rip->i_extents = NIL_EXTENT;   // no extent table
     rip->i_extent_count = 0;       // uint16_t
     rip->i_modtime = clock_time(); // real_time (int64_t)
     rip->i_dirt = DIRTY;

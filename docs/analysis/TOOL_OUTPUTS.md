@@ -59,20 +59,20 @@ SUM:                            650          14005          19453         104708
 Have a non-directory at the top, so creating directory top_dir
 Adding /workspace/XINIM/./CMakeLists.txt to top_dir
 Adding /workspace/XINIM/./LICENSE to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 2.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 3.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 4.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS.md to top_dir
+Adding /workspace/XINIM/./project_status_2.md to top_dir
+Adding /workspace/XINIM/./project_status_3.md to top_dir
+Adding /workspace/XINIM/./project_status_4.md to top_dir
+Adding /workspace/XINIM/./project_status.md to top_dir
 Adding /workspace/XINIM/./README.md to top_dir
-Adding /workspace/XINIM/./SIMD_LIBRARY_COMPLETE 2.md to top_dir
-Adding /workspace/XINIM/./SIMD_LIBRARY_COMPLETE.md to top_dir
+Adding /workspace/XINIM/./simd_library_complete_2.md to top_dir
+Adding /workspace/XINIM/./simd_library_complete.md to top_dir
 Creating filelist for build
 Creating filelist for commands
 Creating filelist for common
 Creating filelist for crypto
 Creating filelist for docs
 Creating filelist for fs
-Adding /workspace/XINIM/./grub 2.cfg to top_dir
+Adding /workspace/XINIM/./grub_2.cfg to top_dir
 Adding /workspace/XINIM/./grub.cfg to top_dir
 Creating filelist for h
 Creating filelist for hooks
@@ -80,13 +80,13 @@ Creating filelist for include
 Creating filelist for kernel
 Adding /workspace/XINIM/./kr_cpp_summary.json to top_dir
 Creating filelist for lib
-Adding /workspace/XINIM/./linker 2.ld to top_dir
+Adding /workspace/XINIM/./linker_2.ld to top_dir
 Adding /workspace/XINIM/./linker.ld to top_dir
 Adding /workspace/XINIM/./migrate_to_simd 2.sh to top_dir
 Adding /workspace/XINIM/./migrate_to_simd.sh to top_dir
 Creating filelist for mm
 Adding /workspace/XINIM/./test_makefile to top_dir
-Adding /workspace/XINIM/./test_makefile 2 to top_dir
+Adding /workspace/XINIM/./test_makefile_2 to top_dir
 Creating filelist for tests
 Creating filelist for tools
 Categorizing files.
@@ -219,13 +219,13 @@ Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
 ==8755== 
 CMakeLists.txt
 LICENSE
-PROJECT_STATUS 2.md
-PROJECT_STATUS 3.md
-PROJECT_STATUS 4.md
-PROJECT_STATUS.md
+project_status_2.md
+project_status_3.md
+project_status_4.md
+project_status.md
 README.md
-SIMD_LIBRARY_COMPLETE 2.md
-SIMD_LIBRARY_COMPLETE.md
+simd_library_complete_2.md
+simd_library_complete.md
 build
 commands
 common
