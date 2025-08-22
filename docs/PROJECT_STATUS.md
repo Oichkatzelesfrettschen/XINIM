@@ -30,3 +30,4 @@ This document tracks repository maintenance and cleanup activities.
 ## 2025-08-22
 - Documented kernel system services with granular Doxygen comments.
 - Regenerated API reference via Doxygen and verified Sphinx+Breathe integration.
+- Modernized `kernel/xt_wini.cpp` with `enum class` and `std::array` and expanded Doxygen coverage.

@@ -23,6 +23,9 @@ list(REMOVE_ITEM LIB_SRC
     "${CMAKE_CURRENT_LIST_DIR}/ungetc.cpp"
 )
 
+# Find OpenSSL for modern cryptographic primitives
+find_package(OpenSSL REQUIRED)
+
 # Define the static library target as minix_libc
 add_library(minix_libc STATIC ${LIB_SRC})
 
@@ -40,3 +43,6 @@ target_include_directories(minix_libc PUBLIC
 target_include_directories(minix_libc PRIVATE
     "." # For any headers specific to lib's internal implementation
 )
+
+# Link against OpenSSL's crypto library to expose SHA-256
+target_link_libraries(minix_libc PUBLIC OpenSSL::Crypto)

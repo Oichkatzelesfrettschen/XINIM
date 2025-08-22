@@ -32,6 +32,7 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **Template Metaprogramming**: Compile-time optimizations and type safety.
 - **Comprehensive Testing**: Unit tests, integration tests, and property-based testing.
 - **Documentation**: Doxygen + Sphinx for comprehensive API documentation.
+- **RAII Process Control**: `ScopedProcessSlot` manages process table entries via `std::span` for safe resource handling.
 
 ---
 
@@ -96,7 +97,7 @@ sudo apt-get install -y cmake ninja-build doxygen python3-sphinx python3-breathe
 sudo apt-get install -y libssl-dev pkg-config
 ```
 
-For detailed platform-specific instructions, see [`docs/TOOL_INSTALL.md`](https://www.google.com/search?q=docs/TOOL_INSTALL.md).
+For detailed platform-specific instructions, see [`docs/TOOL_INSTALL.md`](docs/TOOL_INSTALL.md).
 
 ### Build Process
 
