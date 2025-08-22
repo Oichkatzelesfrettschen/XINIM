@@ -22,6 +22,9 @@ Install everything with:
 
 ```sh
 # See tools/setup.md for the step-by-step package list
+sudo apt-get update && sudo apt-get install -y \
+    build-essential cmake ninja-build clang-18 lld-18 lldb-18 \
+    libsodium-dev nlohmann-json3-dev
 clang++ --version       # verify the compiler in PATH
 ````
 
@@ -46,6 +49,11 @@ Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 ```sh
 cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
 ninja -C build
+
+# build and run the unit tests
+cmake -S tests -B build_test
+ninja -C build_test
+ctest --test-dir build_test
 ```
 
 Driver variants (AT vs PC/XT) and other options are configured via CMake
