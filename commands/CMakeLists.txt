@@ -96,14 +96,14 @@ set(SINGLE_COMMANDS
 )
 
 foreach(COMMAND_NAME IN LISTS SINGLE_COMMANDS)
-  add_executable(minix_cmd_${COMMAND_NAME} ${COMMAND_NAME}.cpp)
-  target_link_libraries(minix_cmd_${COMMAND_NAME} PRIVATE minix_libc xinim_fs)
-  target_include_directories(minix_cmd_${COMMAND_NAME} PUBLIC
-    "."
-    "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_SOURCE_DIR}/h"
-  )
-  target_compile_options(minix_cmd_${COMMAND_NAME} PRIVATE -O3)
+    add_executable(minix_cmd_${COMMAND_NAME} ${COMMAND_NAME}.cpp)
+    target_link_libraries(minix_cmd_${COMMAND_NAME} PRIVATE minix_libc xinim_fs)
+    target_include_directories(minix_cmd_${COMMAND_NAME} PUBLIC
+      "."
+      "${CMAKE_SOURCE_DIR}/include"
+      "${CMAKE_SOURCE_DIR}/h"
+    )
+    target_compile_options(minix_cmd_${COMMAND_NAME} PRIVATE -O3)
 endforeach()
 
 # -----------------------------------------------------------------------------
@@ -120,10 +120,8 @@ set(MINED_SOURCES
 add_executable(minix_cmd_mined ${MINED_SOURCES})
 target_link_libraries(minix_cmd_mined PRIVATE minix_libc xinim_fs)
 target_include_directories(minix_cmd_mined PUBLIC
-  "."
-  "${CMAKE_SOURCE_DIR}/include"
-  "${CMAKE_SOURCE_DIR}/h"
+    "."
+    "${CMAKE_SOURCE_DIR}/include"
+    "${CMAKE_SOURCE_DIR}/h"
 )
 target_compile_options(minix_cmd_mined PRIVATE -O3)
-
-
