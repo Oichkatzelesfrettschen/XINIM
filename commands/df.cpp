@@ -133,11 +133,3 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 }
-
-// Recommendations/TODOs:
-// - Add support for parallel filesystem queries using std::jthread for multiple paths.
-// - Implement a logging framework for detailed diagnostics.
-// - Add unit tests for edge cases (e.g., inaccessible paths, zero-capacity filesystems).
-// - Consider std::expected for std::filesystem::space to handle errors without exceptions.
-// - Optimize output formatting for large datasets using a buffered approach.
-// - Integrate with CI for automated testing and validation across UNIX platforms.

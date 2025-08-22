@@ -164,7 +164,7 @@ void Archiver::error(bool quit, std::string_view str1, std::string_view str2) {
     }
     write(STDERR_FILENO, "\n", 1);
     if (quit) {
-        std::filesystem::remove(temp_arch_);
+        std::filesystem::remove(instance_->temp_arch_);
         std::exit(1);
     }
 }
@@ -351,9 +351,6 @@ void Archiver::date(long t) {
     print(" ");
 }
 
-void Archiver::mktempname() {
-    std::lock_guard lock(mtx_);
-    std::format_to(temp_arch_.begin(), "/tmp/ar.{:05d}", getpid());
 void Archiver::mktempname() {
     std::lock_guard lock(mtx_);
     auto result = std::format_to_n(temp_arch_.begin(), temp_arch_.size() - 1, "/tmp/ar.{:05d}", getpid());
@@ -551,10 +548,3 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 }
-
-// Recommendations:
-// - Add unit tests for edge cases (e.g., empty archives, invalid files).
-// - Implement logging framework for detailed diagnostics.
-// - Consider std::expected for operation return values.
-// - Optimize buffer management for large archives.
-// - Add support for parallel processing of archive members using std::jthread.
