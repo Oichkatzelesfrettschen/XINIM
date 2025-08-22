@@ -10,6 +10,11 @@
  * @param count Number of elements to write.
  * @param file  Destination stream.
  * @return Number of elements successfully written.
+ * @sideeffects Writes bytes to @p file.
+ * @thread_safety Relies on stdio synchronization.
+ * @compat fwrite(3)
+ * @example
+ * fwrite(data,1,len,stdout);
  */
 size_t fwrite(const void *ptr, size_t size, size_t count, FILE *file) {
     const char *bytes = static_cast<const char *>(ptr);
