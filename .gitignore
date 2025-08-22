@@ -37,6 +37,7 @@ cmake_install.cmake           # install script generator
 docs/doxygen/                 # Doxygen HTML/LaTeX output
 docs/sphinx/html/
 docs/sphinx/_build/
+docs/_build/
 
 # ── 5. Logs, reports & temporary files ───────────────────────────────────────
 *.log
