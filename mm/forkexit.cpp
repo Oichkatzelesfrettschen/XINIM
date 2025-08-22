@@ -7,10 +7,10 @@
  * exits first, it continues to occupy a slot until the parent does a WAIT.
  *
  * The entry points into this file are:
- *   do_fork:	perform the FORK system call
- *   do_mm_exit:	perform the EXIT system call (by calling mm_exit())
- *   mm_exit:	actually do the exiting
- *   do_wait:	perform the WAIT system call
+ *   do_fork:    perform the FORK system call
+ *   do_mm_exit:    perform the EXIT system call (by calling mm_exit())
+ *   mm_exit:    actually do the exiting
+ *   do_wait:    perform the WAIT system call
  */
 
 #include "../h/callnr.hpp"
@@ -23,35 +23,42 @@
 #include "mproc.hpp"
 #include "param.hpp"
 #include "token.hpp"
-#include <cstddef> // For std::size_t
-#include <cstdint> // For uint64_t
+#include <algorithm> // For std::find_if, std::any_of
+#include <cstddef>   // For std::size_t
+#include <cstdint>   // For uint64_t
 
 #define LAST_FEW 2 /* last few slots reserved for superuser */
 
-PRIVATE next_pid = INIT_PROC_NR + 1; /* next pid to be assigned */
+PRIVATE int next_pid = INIT_PROC_NR + 1; /* next pid to be assigned */
 
 /* Some C compilers require static declarations to precede their first use. */
 
 /*===========================================================================*
- *				do_fork					     *
+ *                do_fork                         *
  *===========================================================================*/
+/**
+ * @brief Perform the FORK system call.
+ *
+ * Duplicates the calling process and creates a child process with a distinct
+ * process table slot and memory map.
+ *
+ * @return The child's process identifier on success or a negative error code
+ *         on failure.
+ */
 PUBLIC int do_fork() {
-    /* The process pointed to by 'mp' has forked.  Create a child process. */
-
-    register struct mproc *rmp; /* pointer to parent */
-    register struct mproc *rmc; /* pointer to child */
-    int i, child_nr, t;
-    char *sptr, *dptr;
-    uint64_t prog_bytes;              // Was long, should be phys_bytes equivalent
-    uint64_t prog_clicks, child_base; // phys_clicks -> uint64_t
-    uint64_t parent_abs, child_abs;   // Was long, should be phys_bytes equivalent
-    // extern phys_clicks alloc_mem(); // alloc_mem now returns uint64_t
+    auto *rmp = mp;              /**< Pointer to the parent process entry. */
+    struct mproc *rmc = nullptr; /**< Pointer to the child process entry. */
+    int child_nr, t;             /**< Child slot index and temporary flag. */
+    uint64_t prog_bytes;         /**< Size of the program image in bytes. */
+    uint64_t prog_clicks;        /**< Size of the program image in clicks. */
+    uint64_t child_base;         /**< Base address of the child's image. */
+    uint64_t parent_abs;         /**< Physical address of the parent's image. */
+    uint64_t child_abs;          /**< Physical address of the child's image. */
 
     /* If tables might fill up during FORK, don't even start since recovery half
      * way through is such a nuisance.
      */
 
-    rmp = mp;
     if (procs_in_use == NR_PROCS)
         return (ErrorCode::EAGAIN);
     if (procs_in_use >= NR_PROCS - LAST_FEW && rmp->mp_effuid != 0)
@@ -72,24 +79,23 @@ PUBLIC int do_fork() {
     // New mem_copy signature: (int, int, uintptr_t, int, int, uintptr_t, std::size_t)
     // parent_abs, child_abs, prog_bytes are uint64_t.
     // Assuming physical addresses fit in uintptr_t and counts in std::size_t.
-    i = mem_copy(ABS, 0, static_cast<uintptr_t>(parent_abs), ABS, 0,
-                 static_cast<uintptr_t>(child_abs), static_cast<std::size_t>(prog_bytes));
+    int i = mem_copy(ABS, 0, static_cast<uintptr_t>(parent_abs), ABS, 0,
+                     static_cast<uintptr_t>(child_abs), static_cast<std::size_t>(prog_bytes));
     if (i < 0)
         panic("do_fork can't copy", i);
 
-    /* Find a slot in 'mproc' for the child process.  A slot must exist. */
-    for (rmc = &mproc[0]; rmc < &mproc[NR_PROCS]; rmc++)
-        if ((rmc->mp_flags & IN_USE) == 0)
-            break;
+    /* Find a slot in the process table for the child process. */
+    auto rmc_it = std::find_if(mproc.begin(), mproc.end(),
+                               [](const mproc &p) { return !(p.mp_flags & IN_USE); });
+    if (rmc_it == mproc.end())
+        return (ErrorCode::EAGAIN);
 
-    /* Set up the child and its memory map; copy its 'mproc' slot from parent. */
-    child_nr = rmc - mproc; /* slot number of the child */
+    rmc = &(*rmc_it);
+    child_nr = static_cast<int>(std::distance(mproc.begin(), rmc_it));
     procs_in_use++;
-    sptr = (char *)rmp;       /* pointer to parent's 'mproc' slot */
-    dptr = (char *)rmc;       /* pointer to child's 'mproc' slot */
-    i = sizeof(struct mproc); /* number of bytes in a proc slot. */
-    while (i--)
-        *dptr++ = *sptr++; /* copy from parent slot to child's */
+
+    /* Copy the parent's process table entry to the child. */
+    *rmc = *rmp;
 
     rmc->mp_parent = who;                 /* record child's parent */
     rmc->mp_seg[T].mem_phys = child_base; // child_base is uint64_t
@@ -105,14 +111,12 @@ PUBLIC int do_fork() {
 
     /* Find a free pid for the child and put it in the table. */
     do {
-        t = 0; /* 't' = 0 means pid still free */
+        t = 0;
         next_pid = (next_pid < 30000 ? next_pid + 1 : INIT_PROC_NR + 1);
-        for (rmp = &mproc[0]; rmp < &mproc[NR_PROCS]; rmp++)
-            if (rmp->mp_pid == next_pid) {
-                t = 1;
-                break;
-            }
-        rmc->mp_pid = next_pid; /* assign pid to child */
+        if (std::any_of(mproc.begin(), mproc.end(),
+                        [](const mproc &p) { return p.mp_pid == next_pid; }))
+            t = 1;
+        rmc->mp_pid = next_pid;
     } while (t);
 
     /* Tell kernel and file system about the (now successful) FORK. */
@@ -128,31 +132,38 @@ PUBLIC int do_fork() {
 }
 
 /*===========================================================================*
- *				do_mm_exit				     *
+ *                do_mm_exit                     *
  *===========================================================================*/
+/**
+ * @brief Handle the EXIT system call.
+ *
+ * The real work is delegated to ::mm_exit(), which also services fatal signal
+ * terminations.
+ *
+ * @return Always ::OK after scheduling the exit sequence.
+ */
 PUBLIC int do_mm_exit() {
-    /* Perform the exit(status) system call. The real work is done by mm_exit(),
-     * which is also called when a process is killed by a signal.
-     */
-
     mm_exit(mp, status);
     dont_reply = TRUE; /* don't reply to newly terminated process */
     return (OK);       /* pro forma return code */
 }
 
 /*===========================================================================*
- *				mm_exit					     *
+ *                mm_exit                         *
  *===========================================================================*/
-PUBLIC mm_exit(rmp, exit_status)
-register struct mproc *rmp; /* pointer to the process to be terminated */
-int exit_status;            /* the process' exit status (for parent) */
-{
+/**
+ * @brief Actually terminate a process.
+ *
+ * @param rmp Pointer to the process to be terminated.
+ * @param exit_status The process' exit status for its parent.
+ */
+PUBLIC void mm_exit(struct mproc *rmp, int exit_status) {
     /* A process is done.  If parent is waiting for it, clean it up, else hang. */
 
     /* How to terminate a process is determined by whether or not the
      * parent process has already done a WAIT.  Test to see if it has.
      */
-    rmp->mp_exitstatus = (char)exit_status; /* store status in 'mproc' */
+    rmp->mp_exitstatus = static_cast<char>(exit_status); /* store status in 'mproc' */
 
     if (mproc[rmp->mp_parent].mp_flags & WAITING)
         cleanup(rmp); /* release parent and tell everybody */
@@ -161,23 +172,24 @@ int exit_status;            /* the process' exit status (for parent) */
 
     /* If the exited process has a timer pending, kill it. */
     if (rmp->mp_flags & ALARM_ON)
-        set_alarm(rmp - mproc, (unsigned)0);
+        set_alarm(static_cast<int>(rmp - mproc.data()), (unsigned)0);
 
     /* Tell the kernel and FS that the process is no longer runnable. */
-    sys_xit(rmp->mp_parent, rmp - mproc);
-    tell_fs(EXIT, rmp - mproc, 0, 0); /* file system can free the proc slot */
+    sys_xit(rmp->mp_parent, static_cast<int>(rmp - mproc.data()));
+    tell_fs(EXIT, static_cast<int>(rmp - mproc.data()), 0,
+            0); /* file system can free the proc slot */
 }
 
 /*===========================================================================*
- *				do_wait					     *
+ *                do_wait                         *
  *===========================================================================*/
+/**
+ * @brief Implement the WAIT system call.
+ *
+ * @return ::OK on success or ::ErrorCode::ECHILD if the caller has no children.
+ */
 PUBLIC int do_wait() {
-    /* A process wants to wait for a child to terminate. If one is already waiting,
-     * go clean it up and let this WAIT call terminate.  Otherwise, really wait.
-     */
-
-    register struct mproc *rp;
-    register int children;
+    int children = 0; /**< Number of child processes. */
 
     /* A process calling WAIT never gets a reply in the usual way via the
      * reply() in the main loop.  If a child has already exited, the routine
@@ -185,12 +197,11 @@ PUBLIC int do_wait() {
      */
 
     /* Is there a child waiting to be collected? */
-    children = 0;
-    for (rp = &mproc[0]; rp < &mproc[NR_PROCS]; rp++) {
-        if ((rp->mp_flags & IN_USE) && rp->mp_parent == who) {
-            children++;
-            if (rp->mp_flags & HANGING) {
-                cleanup(rp); /* a child has already exited */
+    for (auto &proc : mproc) {
+        if ((proc.mp_flags & IN_USE) && proc.mp_parent == who) {
+            ++children;
+            if (proc.mp_flags & HANGING) {
+                cleanup(&proc); /* a child has already exited */
                 dont_reply = TRUE;
                 return (OK);
             }
@@ -202,16 +213,19 @@ PUBLIC int do_wait() {
         mp->mp_flags |= WAITING;
         dont_reply = TRUE;
         return (OK); /* yes - wait for one to exit */
-    } else
-        return (ErrorCode::ECHILD); /* no - parent has no children */
+    }
+    return (ErrorCode::ECHILD); /* no - parent has no children */
 }
 
 /*===========================================================================*
- *				cleanup					     *
+ *                cleanup                         *
  *===========================================================================*/
-PRIVATE cleanup(child)
-register struct mproc *child; /* tells which process is exiting */
-{
+/**
+ * @brief Release resources of a terminating process.
+ *
+ * @param child Pointer to the process that is exiting.
+ */
+PRIVATE void cleanup(struct mproc *child) {
     /* Clean up the remains of a process.  This routine is only called if two
      * conditions are satisfied:
      *     1. The process has done an EXIT or has been killed by a signal.
@@ -221,12 +235,13 @@ register struct mproc *child; /* tells which process is exiting */
      * has not been done depends on the order of the EXIT and WAIT calls.
      */
 
-    register struct mproc *parent, *rp;
-    int init_waiting, child_nr;
+    struct mproc *parent;
+    int init_waiting;
+    int child_nr;
     unsigned int r; // For status, not a target type for this change
     uint64_t s;     // phys_clicks -> uint64_t
 
-    child_nr = child - mproc;
+    child_nr = static_cast<int>(child - mproc.data());
     parent = &mproc[child->mp_parent];
 
     /* Wakeup the parent. */
@@ -235,13 +250,9 @@ register struct mproc *child; /* tells which process is exiting */
     reply(child->mp_parent, child->mp_pid, r, NIL_PTR);
 
     /* Release the memory occupied by the child. */
-    // child->mp_seg[X].mem_vir and mem_len are vir_clicks (std::size_t)
-    // s is uint64_t (phys_clicks)
     s = static_cast<uint64_t>(child->mp_seg[S].mem_vir + child->mp_seg[S].mem_len);
     if (child->mp_flags & SEPARATE)
         s += static_cast<uint64_t>(child->mp_seg[T].mem_len);
-    // child->mp_seg[T].mem_phys is phys_clicks (uint64_t)
-    // free_mem takes (uint64_t, uint64_t)
     free_mem(child->mp_seg[T].mem_phys, s); /* free the memory */
 
     /* Update flags. */
@@ -253,13 +264,12 @@ register struct mproc *child; /* tells which process is exiting */
 
     /* If exiting process has children, disinherit them.  INIT is new parent. */
     init_waiting = (mproc[INIT_PROC_NR].mp_flags & WAITING ? 1 : 0);
-    for (rp = &mproc[0]; rp < &mproc[NR_PROCS]; rp++) {
-        if (rp->mp_parent == child_nr) {
-            /* 'rp' points to a child to be disinherited. */
-            rp->mp_parent = INIT_PROC_NR; /* init takes over */
-            if (init_waiting && (rp->mp_flags & HANGING)) {
+    for (auto &p : mproc) {
+        if (p.mp_parent == child_nr) {
+            p.mp_parent = INIT_PROC_NR; /* init takes over */
+            if (init_waiting && (p.mp_flags & HANGING)) {
                 /* Init was waiting. */
-                cleanup(rp); /* recursive call */
+                cleanup(&p); /* recursive call */
                 init_waiting = 0;
             }
         }
