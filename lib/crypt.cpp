@@ -1,43 +1,46 @@
+#include <array>
+#include <cstdio>
 #include <cstring>
+#include <memory>
+#include <openssl/evp.h>
+#include <openssl/sha.h>
 
-// Very small DES-like password hashing used by early MINIX.
+/// \file crypt.cpp
+/// \brief Password hashing using OpenSSL SHA-256.
+///
+/// Replaces the historical bespoke DES-like scheme with a modern
+/// SHA-256 digest provided by OpenSSL. The resulting hash is returned as
+/// a lowercase hexadecimal string.
+
+/**
+ * \brief Hash a password using a salt with SHA-256.
+ *
+ * The function computes `SHA256(salt || pw)` and returns the digest encoded
+ * as a hexadecimal string. A static buffer is used for the output to maintain
+ * compatibility with the traditional `crypt` interface.
+ *
+ * \param pw   Null-terminated password string.
+ * \param salt Null-terminated salt string.
+ * \return Pointer to a static buffer containing the hex-encoded digest.
+ */
 char *crypt(char *pw, char *salt) {
-    static char buf[14];
-    char bits[67];
-    int i;
-    int j, rot;
+    static char buf[SHA256_DIGEST_LENGTH * 2 + 1];
+    std::array<unsigned char, SHA256_DIGEST_LENGTH> digest{};
 
-    for (i = 0; i < 67; i++)
-        bits[i] = 0;
-    if (salt[1] == 0)
-        salt[1] = salt[0];
-    rot = (salt[1] * 4 - salt[0]) % 128;
-    for (i = 0; *pw && i < 8; i++) {
-        for (j = 0; j < 7; j++)
-            bits[i + j * 8] = (*pw & (1 << j) ? 1 : 0);
-        bits[i + 56] = (salt[i / 4] & (1 << (i % 4)) ? 1 : 0);
-        pw++;
+    std::unique_ptr<EVP_MD_CTX, decltype(&EVP_MD_CTX_free)> ctx{EVP_MD_CTX_new(), &EVP_MD_CTX_free};
+    if (!ctx) {
+        buf[0] = '\0';
+        return buf;
     }
-    bits[64] = (salt[0] & 1 ? 1 : 0);
-    bits[65] = (salt[1] & 1 ? 1 : 0);
-    bits[66] = (rot & 1 ? 1 : 0);
-    while (rot--) {
-        for (i = 65; i >= 0; i--)
-            bits[i + 1] = bits[i];
-        bits[0] = bits[66];
+
+    EVP_DigestInit_ex(ctx.get(), EVP_sha256(), nullptr);
+    EVP_DigestUpdate(ctx.get(), salt, std::strlen(salt));
+    EVP_DigestUpdate(ctx.get(), pw, std::strlen(pw));
+    EVP_DigestFinal_ex(ctx.get(), digest.data(), nullptr);
+
+    for (size_t i = 0; i < digest.size(); ++i) {
+        std::sprintf(buf + i * 2, "%02x", digest[i]);
     }
-    for (i = 0; i < 12; i++) {
-        buf[i + 2] = 0;
-        for (j = 0; j < 6; j++)
-            buf[i + 2] |= (bits[i * 6 + j] ? (1 << j) : 0);
-        buf[i + 2] += 48;
-        if (buf[i + 2] > '9')
-            buf[i + 2] += 7;
-        if (buf[i + 2] > 'Z')
-            buf[i + 2] += 6;
-    }
-    buf[0] = salt[0];
-    buf[1] = salt[1];
-    buf[13] = '\0';
-    return (buf);
+    buf[digest.size() * 2] = '\0';
+    return buf;
 }

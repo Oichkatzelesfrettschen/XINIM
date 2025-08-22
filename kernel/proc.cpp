@@ -34,6 +34,8 @@
  *
  * @param task   Task number to notify.
  * @param m_ptr  Message payload for the task.
+ * @pre Interrupts are disabled and @p task is a valid kernel task.
+ * @post Target task receives the interrupt message or it is queued.
  */
 PUBLIC void interrupt(int task, message *m_ptr) {
     /* An interrupt has occurred.  Schedule the task that handles it. */
@@ -425,6 +427,10 @@ PUBLIC void unready(struct proc *rp) {
  * @brief Reschedule a process after it has exhausted its time slice.
  *
  * Performs a round-robin rotation within the current priority queue.
+ *
+ * @pre Ready queue for the current priority is non-empty.
+ * @post Next runnable process is placed at queue head.
+ * @warning SMP-aware load balancing remains a TODO.
  */
 PUBLIC void sched() { // Modernized signature
     /* The current process has run too long.  If another low priority (user)

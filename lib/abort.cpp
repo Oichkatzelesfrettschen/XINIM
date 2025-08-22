@@ -15,6 +15,12 @@
  * This is a C23, strictly-standards-compliant alternative to the
  * traditional abort(3) and is used as the canonical fatal-termination
  * endpoint for the XINIM kernel, tests, and userland.
+ *
+ * @sideeffects Terminates the calling process without flushing stdio buffers.
+ * @thread_safety Async-signal-safe and thread-safe; no shared state accessed.
+ * @compat abort(3)
+ * @example
+ * xinim_abort();
  */
 extern "C" {
 [[noreturn]] void xinim_abort(void) {
