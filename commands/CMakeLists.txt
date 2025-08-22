@@ -67,6 +67,11 @@ foreach(CMD_SOURCE_FILE ${CMD_SOURCES})
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
   )
+
+  if(COMMAND_NAME STREQUAL "cc")
+    target_compile_options(${TARGET_NAME} PRIVATE -O3 -flto)
+    target_link_options(${TARGET_NAME} PRIVATE -flto)
+  endif()
 endforeach()
 
 # Explicit compiler driver target

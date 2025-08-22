@@ -111,7 +111,6 @@ struct arglist {
 inline arglist LD_HEAD{1, {const_cast<char *>("/usr/lib/crtso.s")}};
 inline arglist LD_TAIL{
     2, {const_cast<char *>("/usr/lib/libc.a"), const_cast<char *>("/usr/lib/end.s")}};
-inline char *o_FILE = const_cast<char *>(toolchain_config::DEFAULT_OUTPUT.data());
 
 // Forward declaration for panic function
 [[noreturn]] void panic(std::string_view message);
@@ -384,7 +383,7 @@ class CompilerDriver {
         }
     }
 
-  private:
+private:
     /**
      * @brief Remove all temporary files generated during compilation.
      */
@@ -406,10 +405,12 @@ class CompilerDriver {
     struct arglist CG_FLAGS {};
     struct arglist ASLD_FLAGS {};
     struct arglist DEBUG_FLAGS {};
-    struct arglist LD_HEAD{1, {const_cast<char *>("/usr/lib/crtso.s")}};
-    struct arglist LD_TAIL{2,
-                             {const_cast<char *>("/usr/lib/libc.a"),
-                              const_cast<char *>("/usr/lib/end.s")}};
+    struct arglist LD_HEAD {
+        1, { const_cast<char *>("/usr/lib/crtso.s") }
+    };
+    struct arglist LD_TAIL {
+        2, { const_cast<char *>("/usr/lib/libc.a"), const_cast<char *>("/usr/lib/end.s") }
+    };
     std::array<arglist, 2> CALL_VEC{};
     int RET_CODE{0};
     bool o_flag_{false};
