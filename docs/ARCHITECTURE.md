@@ -16,6 +16,7 @@ XINIM preserves MINIX's educational clarity while incorporating cutting-edge res
 3. **Mathematical Foundations**: Capability algebra grounded in octonion mathematics
 4. **Modern C++23**: Type-safe, RAII-based system programming
 5. **Educational Clarity**: Maintainable, well-documented code for learning
+6. **Robust Signal Management**: Standard `<csignal>` constants and container-based tables simplify asynchronous control flow
 
 ## Layered Architecture
 

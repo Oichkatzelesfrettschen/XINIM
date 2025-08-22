@@ -1,5 +1,9 @@
-/* This file contains the table used to map system call numbers onto the
- * routines that perform them.
+/**
+ * @file mm/table.cpp
+ * @brief System call dispatch table for the memory manager.
+ *
+ * Maps
+ * system call numbers to the routines that implement them.
  */
 
 #include "../h/const.hpp"
@@ -13,12 +17,12 @@
 #include "glo.hpp"
 #include "mproc.hpp" // Defines struct mproc, which uses modernized types
 #include "param.hpp"
-#include <cstdint>   // For uint16_t
-#include <cstddef>   // For nullptr
+#include <cstddef> // For nullptr
+#include <cstdint> // For uint16_t
 
 /* Miscellaneous */
-char core_name[] = {"core"}; /* file name where core images are produced */
-uint16_t core_bits = 0x0EFC;  /* which signals cause core images (unshort -> uint16_t) */
+/// File name where core images are produced.
+char core_name[] = {"core"};
 
 extern char mm_stack[]; // From mm/const.hpp (MM_STACK_BYTES)
 // MM_STACK_BYTES is std::size_t. Pointer arithmetic is fine.
@@ -38,11 +42,17 @@ extern int do_kill() noexcept;
 extern int do_pause() noexcept;
 extern int do_alarm() noexcept;
 extern int no_sys() noexcept;
-// extern int unpause() noexcept; // unpause is not in the original list, might be from specific file
+// extern int unpause() noexcept; // unpause is not in the original list, might be from specific
+// file
 extern int do_ksig() noexcept;
 extern int do_brk2() noexcept;
 
-
+/**
+ * @brief Dispatch table mapping system call numbers to handlers.
+ *
+ * The index corresponds to
+ * the call number defined in callnr.hpp.
+ */
 int (*call_vec[NCALLS])() = {
     no_sys,     /*  0 = unused	*/
     do_mm_exit, /*  1 = exit	*/
