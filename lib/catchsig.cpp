@@ -6,5 +6,7 @@
  * This function merely returns so the caller can resume execution.
  *
  * @return Always zero.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent invocation.
  */
 int begsig() noexcept { return 0; }

@@ -12,6 +12,11 @@
  *
  * @param s Null-terminated numeric string.
  * @return Converted integer value.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @compat atoi(3)
+ * @example
+ * int value = atoi("42");
  */
 [[nodiscard]] constexpr int atoi(const char *s) noexcept {
     return static_cast<int>(parse_signed_decimal(s));

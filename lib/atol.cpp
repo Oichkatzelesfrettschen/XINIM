@@ -11,5 +11,10 @@
  * @param s Pointer to a null-terminated numeric string. The parameter is kept
  *          non-const for compatibility with historic prototypes.
  * @return Converted @c long value.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @compat atol(3)
+ * @example
+ * long v = atol(const_cast<char*>("99"));
  */
 [[nodiscard]] constexpr long atol(char *s) noexcept { return parse_signed_decimal(s); }

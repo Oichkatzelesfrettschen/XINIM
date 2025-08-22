@@ -15,6 +15,10 @@ int errno = 0; // accessed by system call wrappers
  * @param ptr2       Second pointer parameter.
  * @param ptr3       Third pointer parameter.
  * @return Result of ::callx.
+ * @sideeffects Traps into the kernel with message format m1.
+ * @thread_safety Thread-safe; kernel serialises calls per process.
+ * @example
+ * callm1(FS, OPEN, fd, 0, 0, path, nullptr, nullptr);
  */
 int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, char *ptr2,
            char *ptr3) noexcept {
@@ -38,6 +42,10 @@ int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, ch
  * @param int1       Integer argument.
  * @param name       Pointer to string argument.
  * @return Result of ::callx.
+ * @sideeffects Traps into the kernel with message format m3.
+ * @thread_safety Thread-safe; kernel handles concurrency.
+ * @example
+ * callm3(FS, UNLINK, 0, "file");
  */
 int callm3(int proc, int syscallnr, int int1, const char *name) noexcept {
     /* This form of system call is used for those calls that contain at most
@@ -63,6 +71,8 @@ int callm3(int proc, int syscallnr, int int1, const char *name) noexcept {
  * @param proc       Destination process.
  * @param syscallnr  System call number.
  * @return Kernel response value or error.
+ * @sideeffects Performs a blocking send/receive cycle with the kernel.
+ * @thread_safety Thread-safe; kernel serialises messages.
  */
 int callx(int proc, int syscallnr) noexcept {
     /* Send a message and get the response.  The 'M.m_type' field of the
@@ -87,6 +97,10 @@ int callx(int proc, int syscallnr) noexcept {
  *
  * @param s Pointer to string.
  * @return  Length in bytes including the terminator.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @example
+ * std::size_t l = len("hi");
  */
 std::size_t len(const char *s) noexcept {
     // Return the length of a character string including the terminating null.

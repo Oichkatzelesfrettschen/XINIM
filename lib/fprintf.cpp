@@ -12,6 +12,11 @@ extern "C" int vsnprintf(char *, std::size_t, const char *, va_list);
  * @param file Target stream.
  * @param fmt  Format string.
  * @return Number of characters printed or -1 on error.
+ * @sideeffects Writes formatted text to @p file.
+ * @thread_safety Uses stdio locks; synchronize if sharing FILE*.
+ * @compat fprintf(3)
+ * @example
+ * fprintf(stdout, "%d", 7);
  */
 int fprintf(FILE *file, const char *fmt, ...) {
     // Capture the variable arguments.
@@ -49,6 +54,11 @@ int fprintf(FILE *file, const char *fmt, ...) {
  *
  * @param fmt Format string.
  * @return Number of characters printed or -1 on error.
+ * @sideeffects Writes to stdout and may flush depending on flags.
+ * @thread_safety Uses stdio locks.
+ * @compat printf(3)
+ * @example
+ * printf("%s", "hi\n");
  */
 int printf(const char *fmt, ...) {
     va_list args;
