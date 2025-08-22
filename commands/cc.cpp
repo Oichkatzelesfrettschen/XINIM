@@ -34,6 +34,8 @@
 #include <array>
 #include <cerrno>
 #include <cstddef>
+#include <cstring>
+#include <fcntl.h>
 #include <filesystem>
 #include <format>
 #include <fstream>
@@ -52,11 +54,11 @@
 
 // Modern constants with clear semantic meaning
 namespace config {
-constexpr std::size_t MAXARGC = 64;                  /**< Maximum arguments in a list */
-constexpr std::size_t USTR_SIZE = 64;                /**< Maximum string variable length */
-constexpr std::size_t MAX_FILES = 32;                /**< Maximum number of input files */
+constexpr std::size_t MAXARGC = 64;           /**< Maximum arguments in a list */
+constexpr std::size_t USTR_SIZE = 64;         /**< Maximum string variable length */
+constexpr std::size_t MAX_FILES = 32;         /**< Maximum number of input files */
 constexpr std::size_t BUFSIZE = USTR_SIZE * MAXARGC; /**< Total buffer size */
-constexpr std::size_t TEMP_NAME_SIZE = 15;           /**< Temporary filename buffer size */
+constexpr std::size_t TEMP_NAME_SIZE = 15;    /**< Temporary filename buffer size */
 } // namespace config
 
 // Modern type aliases for clarity
@@ -106,6 +108,9 @@ struct arglist {
     constexpr void init() noexcept { al_argc = 1; }
     [[nodiscard]] constexpr bool is_full() const noexcept { return al_argc >= config::MAXARGC; }
 };
+inline arglist LD_HEAD{1, {const_cast<char *>("/usr/lib/crtso.s")}};
+inline arglist LD_TAIL{
+    2, {const_cast<char *>("/usr/lib/libc.a"), const_cast<char *>("/usr/lib/end.s")}};
 
 // Forward declaration for panic function
 [[noreturn]] void panic(std::string_view message);
@@ -139,26 +144,48 @@ namespace file_utils {
     return filename ? remove_file(filename) : true;
 }
 
+/**
+ * @brief Construct a full archive path within the library directory.
+ *
+ * @param name Short
+ * name of the library without prefix or extension.
+ * @return Pointer to a newly allocated C-string
+ * (e.g., "/usr/lib/libc.a").
+ */
 [[nodiscard]] inline char *create_library_path(std::string_view name) {
     if (name.empty())
         return nullptr;
-    const auto total_len =
-        std::string(LIBDIR).size() + name.size() + 7; // "/lib" + name + ".a" + null
-    char *result = memory_manager::allocate(total_len);
-    return result ? std::format("{}/lib{}.a", LIBDIR, name).copy(result, total_len) : nullptr;
+    const auto formatted = std::format("{}/lib{}.a", LIBDIR, name);
+    char *result = memory_manager::allocate(formatted.size() + 1);
+    std::memcpy(result, formatted.c_str(), formatted.size() + 1);
+    return result;
 }
 } // namespace file_utils
 
 // Utility functions
+/**
+ * @brief Allocate raw memory from the compiler's internal buffer.
+ *
+ * @param size Number of
+ * bytes to allocate.
+ * @return Pointer to allocated memory.
+ */
 [[nodiscard]] inline char *alloc(std::size_t size) {
     try {
         return memory_manager::allocate(size);
     } catch (const std::runtime_error &) {
         panic("No space for allocation");
-        return nullptr; // Never reached
+        return nullptr; // Unreachable
     }
 }
 
+/**
+ * @brief Append a single argument to an argument list.
+ *
+ * @param al  Argument list to
+ * modify.
+ * @param arg Argument to append.
+ */
 void append(arglist &al, std::string_view arg) {
     if (al.is_full()) {
         panic("Argument list overflow");
@@ -169,6 +196,13 @@ void append(arglist &al, std::string_view arg) {
     al.al_argv[al.al_argc++] = buf;
 }
 
+/**
+ * @brief Concatenate two argument lists.
+ *
+ * @param al1 Destination argument list.
+ * @param
+ * al2 Source argument list.
+ */
 void concat(arglist &al1, const arglist &al2) {
     if (al1.is_full() || (al1.al_argc + al2.al_argc) > config::MAXARGC) {
         panic("Argument list overflow in concat");
@@ -178,15 +212,25 @@ void concat(arglist &al1, const arglist &al2) {
     al1.al_argc += al2.al_argc;
 }
 
-[[nodiscard]] char *mkstr(UString &dst, const std::ranges::range auto &...args) {
+/**
+ * @brief Concatenate arbitrary string-like pieces into a UString buffer.
+ *
+ * @tparam Args
+ * Parameter pack convertible to std::string_view.
+ * @param dst Destination buffer.
+ * @param args
+ * Strings to concatenate.
+ * @return Pointer to the destination buffer.
+ */
+template <typename... Args> [[nodiscard]] char *mkstr(UString &dst, Args &&...args) {
     char *q = dst.data();
-    const auto copy = [&](std::string_view s) {
-        while (!s.empty() && q < dst.data() + config::USTR_SIZE - 1) {
-            *q++ = s.front();
-            s.remove_prefix(1);
-        }
+    auto copy = [&](std::string_view s) {
+        const auto len = std::min<std::size_t>(
+            s.size(), static_cast<std::size_t>(dst.data() + config::USTR_SIZE - 1 - q));
+        std::memcpy(q, s.data(), len);
+        q += len;
     };
-    (copy(args), ...);
+    (copy(std::string_view(std::forward<Args>(args))), ...);
     *q = '\0';
     return dst.data();
 }
@@ -217,14 +261,35 @@ void basename(std::string_view str, UString &dst) {
     exit(EXIT_FAILURE);
 }
 
+// Global state
+inline const char *ProgCall = nullptr;
+
 // RAII-based compiler driver
+/**
+ * @brief Thread-safe RAII compilation orchestrator.
+ *
+ * Encapsulates all compiler state that
+ * was previously handled via global
+ * structures. Each instance manages its own temporary files
+ * and flags,
+ * ensuring clean teardown and providing a foundation for concurrent
+ * compilation
+ * tasks.
+ */
 class CompilerDriver {
   public:
-    CompilerDriver() : instance_(this) {
+    /**
+     * @brief Construct the compiler driver and initialise command vectors.
+     */
+    CompilerDriver() {
+        instance_ = this;
         CALL_VEC[0].init();
         CALL_VEC[1].init();
     }
 
+    /**
+     * @brief Clean up temporary files on destruction.
+     */
     ~CompilerDriver() {
         cleanup_temporary_files();
         instance_ = nullptr;
@@ -251,11 +316,10 @@ class CompilerDriver {
     [[nodiscard]] auto &sfile() noexcept { return sfile_; }
     [[nodiscard]] auto &mfile() noexcept { return mfile_; }
     [[nodiscard]] auto &ofile() noexcept { return ofile_; }
-    [[nodiscard]] auto &o_file() noexcept { return o_file_; }
-    [[nodiscard]] auto &prog_call() noexcept { return prog_call_; }
     [[nodiscard]] auto &base() noexcept { return BASE; }
     [[nodiscard]] auto &tmpdir() noexcept { return tmpdir_; }
     [[nodiscard]] auto tmpname_buf() noexcept { return std::span<char>{tmpname}; }
+    [[nodiscard]] std::string &o_file() noexcept { return o_file_; }
 #ifdef DEBUG
     [[nodiscard]] auto &noexec() noexcept { return noexec_; }
 #endif
@@ -306,6 +370,12 @@ class CompilerDriver {
     [[noreturn]] void ex_vec(arglist &vec);
 
     // Signal handler
+    /**
+     * @brief Signal handler to tidy temporary files on interrupt.
+     *
+     * @param sig
+     * Received POSIX signal.
+     */
     static void trapcc(int sig) noexcept {
         signal(sig, SIG_IGN);
         if (instance_) {
@@ -313,51 +383,83 @@ class CompilerDriver {
         }
     }
 
-  private:
+private:
+    /**
+     * @brief Remove all temporary files generated during compilation.
+     */
     void cleanup_temporary_files() noexcept {
         std::lock_guard lock(mtx_);
-        file_utils::cleanup_temp(ifile_.data());
-        file_utils::cleanup_temp(kfile_.data());
-        file_utils::cleanup_temp(sfile_.data());
-        file_utils::cleanup_temp(mfile_.data());
-        file_utils::cleanup_temp(ofile_.data());
+        std::ignore = file_utils::cleanup_temp(ifile_.data());
+        std::ignore = file_utils::cleanup_temp(kfile_.data());
+        std::ignore = file_utils::cleanup_temp(sfile_.data());
+        std::ignore = file_utils::cleanup_temp(mfile_.data());
+        std::ignore = file_utils::cleanup_temp(ofile_.data());
     }
 
-    struct arglist SRCFILES {};    /**< Source files to process */
-    struct arglist LDFILES {};     /**< Object files for linking */
-    struct arglist GEN_LDFILES {}; /**< Generated temporary files */
-    struct arglist PP_FLAGS {};    /**< Preprocessor flags */
-    struct arglist CEM_FLAGS {};   /**< Compiler flags */
-    struct arglist OPT_FLAGS {};   /**< Optimizer flags */
-    struct arglist CG_FLAGS {};    /**< Code generator flags */
-    struct arglist ASLD_FLAGS {};  /**< Assembler/linker flags */
-    struct arglist DEBUG_FLAGS {}; /**< Debug flags */
+    struct arglist SRCFILES {};
+    struct arglist LDFILES {};
+    struct arglist GEN_LDFILES {};
+    struct arglist PP_FLAGS {};
+    struct arglist CEM_FLAGS {};
+    struct arglist OPT_FLAGS {};
+    struct arglist CG_FLAGS {};
+    struct arglist ASLD_FLAGS {};
+    struct arglist DEBUG_FLAGS {};
     struct arglist LD_HEAD {
         1, { const_cast<char *>("/usr/lib/crtso.s") }
-    }; /**< Linker prologue files */
+    };
     struct arglist LD_TAIL {
         2, { const_cast<char *>("/usr/lib/libc.a"), const_cast<char *>("/usr/lib/end.s") }
-    };                                 /**< Linker epilogue files */
-    std::array<arglist, 2> CALL_VEC{}; /**< Command execution vectors */
-    int RET_CODE{0};                   /**< Return code accumulator */
-    bool o_flag_{false};               /**< Output file specified */
-    bool S_flag_{false};               /**< Stop after compilation */
-    bool v_flag_{false};               /**< Verbose mode */
-    bool F_flag_{false};               /**< Use files instead of pipes */
+    };
+    std::array<arglist, 2> CALL_VEC{};
+    int RET_CODE{0};
+    bool o_flag_{false};
+    bool S_flag_{false};
+    bool v_flag_{false};
+    bool F_flag_{false};
     UString ifile_{}, kfile_{}, sfile_{}, mfile_{}, ofile_{}, BASE{};
+    std::string o_file_{
+        std::string(toolchain_config::DEFAULT_OUTPUT)};
     const char *tmpdir_{toolchain_config::TEMP_DIR.data()};
     char tmpname[config::TEMP_NAME_SIZE]{};
-    char *o_file_{
-        const_cast<char *>(toolchain_config::DEFAULT_OUTPUT.data())}; /**< Output file path */
-    const char *prog_call_{nullptr}; /**< Program invocation name */
 #ifdef DEBUG
-    bool noexec_{false}; /**< Debug: don't execute commands */
+    bool noexec_{false};
 #endif
     mutable std::mutex mtx_{};
+    /**
+     * @brief Thread-local pointer to active driver for signal handling.
+     */
     static thread_local CompilerDriver *instance_;
+
+    /**
+     * @brief Print a command vector to stderr.
+     */
+    static void pr_vec(const arglist &vec);
 };
 
 thread_local CompilerDriver *CompilerDriver::instance_ = nullptr;
+
+void CompilerDriver::pr_vec(const arglist &vec) {
+    for (int i = 1; i < vec.al_argc; ++i) {
+        if (const char *arg = vec.al_argv[i]) {
+            write(STDERR_FILENO, arg, std::strlen(arg));
+            if (i < vec.al_argc - 1) {
+                write(STDERR_FILENO, " ", 1);
+            }
+        }
+    }
+}
+
+/**
+ * @brief Generate a unique temporary filename fragment.
+ *
+ * @param buf Destination buffer for
+ * the generated name.
+ */
+void mktempname(std::span<char> buf) {
+    auto result = std::format_to_n(buf.begin(), buf.size() - 1, "cc.{}", getpid());
+    buf[result.out - buf.begin()] = '\0';
+}
 
 void CompilerDriver::process_source_files() {
     std::lock_guard lock(mtx_);
@@ -397,7 +499,7 @@ bool CompilerDriver::process_single_file(std::string_view &file, int &ext, char 
                 file = ifile_.data();
                 ext = 'i';
             } else {
-                file_utils::remove_file(ifile_.data());
+                std::ignore = file_utils::remove_file(ifile_.data());
                 return false;
             }
         } else {
@@ -413,7 +515,7 @@ bool CompilerDriver::process_single_file(std::string_view &file, int &ext, char 
                 file = kfile_.data();
                 ext = 'k';
             } else {
-                file_utils::remove_file(kfile_.data());
+                std::ignore = file_utils::remove_file(kfile_.data());
                 return false;
             }
         }
@@ -433,13 +535,13 @@ bool CompilerDriver::process_compilation_stages(std::string_view &file, int &ext
         append(call, file);
         auto f = mkstr(kfile_, tmpdir_, tmpname, ".k");
         append(call, f);
-        if (!runvec(call, nullptr)) {
-            file_utils::remove_file(kfile_.data());
+        if (!runvec(call, "")) {
+            std::ignore = file_utils::remove_file(kfile_.data());
             return false;
         }
         file = kfile_.data();
         ext = 'k';
-        file_utils::cleanup_temp(ifile_.data());
+        std::ignore = file_utils::cleanup_temp(ifile_.data());
     }
     if (ext == 'k') {
         call.init();
@@ -452,20 +554,20 @@ bool CompilerDriver::process_compilation_stages(std::string_view &file, int &ext
         }
         file = mfile_.data();
         ext = 'm';
-        file_utils::cleanup_temp(kfile_.data());
+        std::ignore = file_utils::cleanup_temp(kfile_.data());
     }
     if (ext == 'm') {
-        ldfile = S_flag_ ? ofile_.data() : alloc(BASE.size() + 3);
+        ldfile = S_flag_ ? ofile_.data() : alloc(std::strlen(BASE.data()) + 3);
         call.init();
         append(call, CG);
         concat(call, CG_FLAGS);
         append(call, file);
         auto f = mkstr(ldfile, BASE.data(), ".s");
         append(call, f);
-        if (!runvec(call, nullptr)) {
+        if (!runvec(call, "")) {
             return false;
         }
-        file_utils::cleanup_temp(mfile_.data());
+        std::ignore = file_utils::cleanup_temp(mfile_.data());
         file = ldfile;
         ext = 's';
     }
@@ -485,7 +587,7 @@ void CompilerDriver::perform_linking() {
     concat(call, LD_TAIL);
     if (runvec(call, "")) {
         for (int i = 0; i < GEN_LDFILES.al_argc; ++i) {
-            file_utils::remove_file(GEN_LDFILES.al_argv[i]);
+            std::ignore = file_utils::remove_file(GEN_LDFILES.al_argv[i]);
         }
     }
 }
@@ -585,7 +687,7 @@ void CompilerDriver::ex_vec(arglist &vec) {
     vec.al_argv[vec.al_argc] = nullptr;
     execv(vec.al_argv[1], &vec.al_argv[1]);
     if (errno == ENOEXEC) {
-        vec.al_argv[0] = SHELL;
+        vec.al_argv[0] = const_cast<char *>(SHELL);
         execv(SHELL, &vec.al_argv[0]);
     }
     if (access(vec.al_argv[1], X_OK) == 0) {
@@ -601,7 +703,7 @@ void CompilerDriver::ex_vec(arglist &vec) {
 int main(int argc, char *argv[]) {
     try {
         CompilerDriver driver;
-        driver.prog_call() = *argv++;
+        ++argv;
         --argc;
         signal(SIGHUP, CompilerDriver::trapcc);
         signal(SIGINT, CompilerDriver::trapcc);
