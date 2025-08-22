@@ -25,7 +25,7 @@ constexpr int NR_HOLES = 128;
  * @brief Descriptor for a free region of physical memory.
  *
  * Each descriptor represents ownership of a contiguous range expressed in
- * clicks.  The allocator retains ownership of all ::Hole instances; callers
+ * clicks. The allocator retains ownership of all ::Hole instances; callers
  * receive only base addresses and lengths.
  *
  * Alignment is implicit: @c base and @c len are measured in clicks, so every
@@ -46,11 +46,15 @@ struct Hole {
  * @ingroup memory
  */
 static std::list<Hole> hole_list;
+
+// Forward declaration for the merge function.
+static void merge(std::list<Hole>::iterator it) noexcept;
+
 /**
  * @brief Allocate a block from the hole list using first fit.
  *
  * Ownership of the physical range is transferred to the caller, who must later
- * return it with free_mem().  Because holes are described in click units, the
+ * return it with free_mem(). Because holes are described in click units, the
  * returned address and size are page aligned.
  *
  * @param clicks Number of clicks to allocate.
@@ -72,11 +76,12 @@ static std::list<Hole> hole_list;
     }
     return NO_MEM;
 }
+
 /**
  * @brief Return a block of memory to the allocator.
  *
  * The caller relinquishes ownership of the range, which is inserted into the
- * free list and merged with neighbouring holes when possible.  The base and
+ * free list and merged with neighbouring holes when possible. The base and
  * size must observe the original click granularity.
  *
  * @param base   Starting click of the block.
@@ -142,7 +147,7 @@ static void merge(std::list<Hole>::iterator it) noexcept {
  * @brief Initialise the hole allocator with a single region.
  *
  * The hole table is prepared so that one hole spans the entire region
- * described by @p clicks.  Ownership of that region is recorded in the free
+ * described by @p clicks. Ownership of that region is recorded in the free
  * list; subsequent allocations carve out subranges while retaining alignment.
  *
  * @param clicks Number of clicks available.
