@@ -13,10 +13,12 @@
 #include "../h/const.hpp"
 #include "../h/type.hpp" // This should define phys_clicks as uint64_t
 #include "const.hpp"     // For NO_MEM
+#include <algorithm>     // For std::ranges algorithms
 #include <cstddef>       // For nullptr
 #include <cstdint>       // For explicit uint64_t usage
 #include <iterator>      // For std::begin/std::end
 #include <list>          // For std::list
+#include <ranges>        // For std::ranges::find_if, std::views
 
 /** Maximum number of entries initially reserved. */
 constexpr int NR_HOLES = 128;
@@ -63,18 +65,18 @@ static void merge(std::list<Hole>::iterator it) noexcept;
  * @ingroup memory
  */
 [[nodiscard]] uint64_t alloc_mem(uint64_t clicks) noexcept {
-    for (auto it = hole_list.begin(); it != hole_list.end(); ++it) {
-        if (it->len >= clicks) {
-            uint64_t old_base = it->base;
-            it->base += clicks;
-            it->len -= clicks;
-            if (it->len == 0) {
-                hole_list.erase(it);
-            }
-            return old_base;
-        }
+    auto it = std::ranges::find_if(hole_list,
+                                   [clicks](const Hole &h) noexcept { return h.len >= clicks; });
+    if (it == hole_list.end()) {
+        return NO_MEM;
     }
-    return NO_MEM;
+    uint64_t old_base = it->base;
+    it->base += clicks;
+    it->len -= clicks;
+    if (it->len == 0) {
+        hole_list.erase(it);
+    }
+    return old_base;
 }
 
 /**
@@ -91,10 +93,8 @@ static void merge(std::list<Hole>::iterator it) noexcept;
  */
 void free_mem(uint64_t base, uint64_t clicks) noexcept {
     Hole new_hole{base, clicks};
-    auto it = hole_list.begin();
-    while (it != hole_list.end() && it->base < base) {
-        ++it;
-    }
+    auto it =
+        std::ranges::find_if(hole_list, [base](const Hole &h) noexcept { return h.base >= base; });
     auto inserted = hole_list.insert(it, new_hole);
     merge(inserted);
 }
@@ -134,13 +134,11 @@ static void merge(std::list<Hole>::iterator it) noexcept {
  * @ingroup memory
  */
 [[nodiscard]] uint64_t max_hole() noexcept {
-    uint64_t max = 0;
-    for (const auto &h : hole_list) {
-        if (h.len > max) {
-            max = h.len;
-        }
+    if (hole_list.empty()) {
+        return 0;
     }
-    return max;
+    auto lengths = hole_list | std::views::transform(&Hole::len);
+    return std::ranges::max(lengths);
 }
 
 /**

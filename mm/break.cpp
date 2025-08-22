@@ -28,8 +28,10 @@
 #include <cstdint> // For int64_t
 #include <span>    // For std::span
 
-constexpr int DATA_CHANGED = 1;  /* flag value when data segment size changed */
-constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
+/** Flag value when data segment size changed. */
+constexpr int DATA_CHANGED = 1;
+/** Flag value when stack size changed. */
+constexpr int STACK_CHANGED = 2;
 
 /*===========================================================================*
  *				do_brk  				     *
@@ -42,7 +44,7 @@ constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
  *
  * @return OK on success or an ErrorCode value otherwise.
  */
-PUBLIC int do_brk() {
+[[nodiscard]] PUBLIC int do_brk() {
     /* Perform the brk(addr) system call.
      *
      * The call is complicated by the fact that on some machines (e.g., 8088),
@@ -214,7 +216,7 @@ PUBLIC int do_brk() {
  *
  * @param proc_nr Index of the faulting process.
  */
-PRIVATE void stack_fault(int proc_nr) {
+PRIVATE void stack_fault(int proc_nr) noexcept {
     /* Handle a stack fault by growing the stack segment until sp is inside of it.
      * If this is impossible because data segment is in the way, kill the process.
      */

@@ -115,7 +115,7 @@ struct FileDescriptor {
  * @param mask Permission bits to verify.
  * @return File descriptor on success or negative errno.
  */
-PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept {
+[[nodiscard]] PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept {
     int raw_fd = open(name_buf, 0);
     if (raw_fd < 0) {
         return -errno; // propagate errno to caller
@@ -150,8 +150,8 @@ PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept 
  * Source and destination can be absolute memory or process space.
  * @return OK on success or error code.
  */
-PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, int dst_seg,
-                    uintptr_t dst_vir, std::size_t bytes) noexcept {
+[[nodiscard]] PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc,
+                                  int dst_seg, uintptr_t dst_vir, std::size_t bytes) noexcept {
     /* Transfer a block of data.  The source and destination can each either be a
      * process (including MM) or absolute memory, indicate by setting 'src_proc'
      * or 'dst_proc' to ABS.
@@ -181,7 +181,7 @@ PUBLIC int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, 
  *
  * Always returns ErrorCode::EINVAL.
  */
-PUBLIC int no_sys() noexcept {
+[[nodiscard]] PUBLIC int no_sys() noexcept {
     /* A system call number not implemented by MM has been requested. */
 
     return (ErrorCode::EINVAL);
@@ -192,7 +192,7 @@ PUBLIC int no_sys() noexcept {
  *
  * Prints a message and aborts the system.
  */
-PUBLIC void panic(const char *format, int num) noexcept {
+[[noreturn]] PUBLIC void panic(const char *format, int num) noexcept {
     /* Something awful has happened.  Panics are caused when an internal
      * inconsistency is detected, e.g., a programm_ing error or illegal value of a
      * defined constant.
