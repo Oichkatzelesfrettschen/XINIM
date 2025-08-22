@@ -5,6 +5,8 @@ Welcome to the XINIM documentation. This guide outlines the components of the sy
 
 The documentation is divided into several sections:
 
+* **Architecture Overview** describes the layered microkernel design.
+* **Compiler Driver** documents the bespoke ``minix_cmd_cc`` front-end.
 * **Lattice IPC Subsystem** provides details about the fast capability-based message passing layer.
 * **Remote Channel Setup** demonstrates establishing cross-node links using the network driver.
 * **Post-Quantum Cryptography** explains the experimental lattice-based key exchange API.
@@ -27,5 +29,6 @@ The documentation is divided into several sections:
     service
     service_manager
     wait_graph
+    precommit
     process_control
     wini

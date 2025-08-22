@@ -40,7 +40,7 @@ exclude_patterns = ["* 2.rst", "lattice_ipc.rst", "wait_graph.rst"]
 # Mapping of projects for the Breathe extension.  The path is relative to this
 # configuration file and matches the ``OUTPUT_DIRECTORY`` from ``Doxyfile``.
 breathe_projects = {
-    "XINIM": str(Path("..") / "doxygen" / "xml"),
+    "XINIM": Path(__file__).resolve().parent.parent / "doxygen" / "xml",
 }
 breathe_default_project = "XINIM"  # Activate this project by default
 

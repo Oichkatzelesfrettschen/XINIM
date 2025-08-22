@@ -6,7 +6,7 @@
 #---------------------------------------------------------------------------
 DOXYFILE_ENCODING      = UTF-8
 PROJECT_NAME           = "XINIM"
-PROJECT_NUMBER         = "0.01sp"
+PROJECT_NUMBER         = "2.0"
 PROJECT_BRIEF          = "Modern C++23 MINIX filesystem utilities with type safety and performance"
 PROJECT_LOGO           = 
 OUTPUT_DIRECTORY       = @DOXYGEN_OUTPUT_DIRECTORY@
