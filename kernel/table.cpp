@@ -1,26 +1,18 @@
-/* The object file of "table.cpp" contains all the data.  In the *.h files,
- * declared variables appear with EXTERN in front of them, as in
+/**
+ * @file table.cpp
+ * @brief Defines the global task start table used by the kernel.
  *
- *    EXTERN int x;
+ * This file contains the definitions for all shared global data in the system.
+ * It uses a technique of redefining the `EXTERN` macro to an empty string,
+ * so that when header files are included here, they allocate storage for
+ * the shared variables rather than just declaring them as `extern`.
  *
- * Normally EXTERN is defined as extern, so when they are included in another
- * file, no storage is allocated.  If the EXTERN were not present, but just
- * say,
+ * The task table, `task`, is declared here with `constinit` to guarantee
+ * compile-time initialization, providing a safe, modern alternative to
+ * relying on linker behavior. The `tasks()` helper function returns a
+ * `std::span` for type-safe, bounds-checked access to this critical global data.
  *
- *    int x;
- *
- * then including this file in several source files would cause 'x' to be
- * declared several times.  While some linkers accept this, others do not,
- * so they are declared extern when included normally.  However, it must
- * be declared for real somewhere.  That is done here, but redefining
- * EXTERN as the null string, so the inclusion of all the *.h files in
- * table.cpp actually generates storage for them.  All the initialized
- * variables are also declared here, since
- *
- * extern int x = 4;
- *
- * is not allowed.  If such variables are shared, they must also be declared
- * in one of the *.h files without the initialization.
+ * @ingroup kernel_init
  */
 
 #include "../h/const.hpp"
@@ -32,6 +24,8 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include <array>
+#include <cstddef>
+#include <span>
 
 /// @brief Function pointer type for kernel tasks.
 using TaskEntry = void (*)() noexcept;
@@ -40,7 +34,6 @@ using TaskEntry = void (*)() noexcept;
 extern void sys_task() noexcept;
 /// @brief Entry point for the clock task.
 extern void clock_task() noexcept;
-// extern void mem_task() noexcept; // mem_task not defined in provided files, assume similar
 /// @brief Entry point for the floppy disk task.
 extern void floppy_task() noexcept;
 /// @brief Entry point for the winchester disk task.
@@ -49,19 +42,35 @@ extern void winchester_task() noexcept;
 extern void tty_task() noexcept;
 /// @brief Entry point for the printer task.
 extern void printer_task() noexcept;
+/// @brief Entry point for the memory task.
+extern void mem_task() noexcept;
 
 /**
- * @brief Startup routine table for kernel tasks.
+ * @brief Compile-time table of startup routines for system tasks.
  *
- * The order of entries must match the task identifiers defined in
- * ../h/com.hpp.
+ * The order of entries must match the task identifiers defined in `com.hpp`.
+ * This table is guaranteed to be initialized at compile time due to `constinit`.
+ * Unused slots are explicitly initialised with `nullptr`.
  */
-constexpr std::array<TaskEntry, NR_TASKS + INIT_PROC_NR + 1> task{
+constinit std::array<TaskEntry, NR_TASKS + INIT_PROC_NR + 1> task = {
     printer_task, tty_task, winchester_task, floppy_task,
-    nullptr, ///< Placeholder for mem_task if its signature changes / not available
-    clock_task,   sys_task,
+    mem_task,
+    clock_task, sys_task,
     nullptr, ///< Was 0
     nullptr, ///< Was 0
     nullptr, ///< Was 0
     nullptr  ///< Was 0
 };
+
+/**
+ * @brief Obtain a read-only span over the task table.
+ *
+ * This `constexpr` function provides a safe, C++23-idiomatic way to access the
+ * global `task` table, ensuring bounds safety without exposing the underlying
+ * array directly.
+ *
+ * @return A `std::span` providing read-only access to the task startup routines.
+ */
+[[nodiscard]] constexpr auto tasks() noexcept -> std::span<const TaskEntry> {
+    return {task};
+}
