@@ -638,7 +638,7 @@
 │   ├── setup1
 │   ├── setup2
 │   ├── setup3
-│   ├── setup.sh
+│   ├── setup.md
 │   ├── ttys
 │   └── versions
 ├── vmm.cpp
