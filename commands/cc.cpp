@@ -81,13 +81,6 @@ constexpr std::string_view SHELL_PATH = "/bin/sh";
 constexpr std::string_view LIB_DIR = "/usr/lib";
 } // namespace compiler_paths
 
-// Modern configuration constants
-namespace toolchain_config {
-constexpr std::string_view V_FLAG = "-Vs2.2w2.2i2.2l4.2f4.2d8.2p2.2";
-constexpr std::string_view DEFAULT_OUTPUT = "a.out";
-constexpr std::string_view TEMP_DIR = "/tmp";
-} // namespace toolchain_config
-
 // Legacy toolchain path globals (phased out)
 inline constexpr const char* PP = compiler_paths::CPP_PATH.data();
 inline constexpr const char* CEM = compiler_paths::CEM_PATH.data();
@@ -97,16 +90,139 @@ inline constexpr const char* ASLD = compiler_paths::ASLD_PATH.data();
 inline constexpr const char* SHELL = compiler_paths::SHELL_PATH.data();
 inline constexpr const char* LIBDIR = compiler_paths::LIB_DIR.data();
 
+// Modern configuration constants
+namespace toolchain_config {
+constexpr std::string_view V_FLAG = "-Vs2.2w2.2i2.2l4.2f4.2d8.2p2.2";
+constexpr std::string_view DEFAULT_OUTPUT = "a.out";
+constexpr std::string_view TEMP_DIR = "/tmp";
+} // namespace toolchain_config
+
 // Legacy global structures (modernized)
+// @brief Argument list for a single command execution
+struct arglist {
+    int al_argc{0};
+    std::array<char*, config::MAXARGC> al_argv{};
+
+    constexpr void init() noexcept { al_argc = 1; }
+    [[nodiscard]] constexpr bool is_full() const noexcept { return al_argc >= config::MAXARGC; }
+};
 inline arglist LD_HEAD{1, {const_cast<char*>("/usr/lib/crtso.s")}};
 inline arglist LD_TAIL{2, {const_cast<char*>("/usr/lib/libc.a"), const_cast<char*>("/usr/lib/end.s")}};
 inline char* o_FILE = const_cast<char*>(toolchain_config::DEFAULT_OUTPUT.data());
+
+// Forward declaration for panic function
+[[noreturn]] void panic(std::string_view message);
+
+// Modern memory and file utilities
+namespace memory_manager {
+inline std::array<char, config::BUFSIZE> buffer{};
+inline char* buffer_ptr = buffer.data();
+
+[[nodiscard]] inline char* allocate(std::size_t size) {
+    char* const result = buffer_ptr;
+    if ((buffer_ptr + size) >= (buffer.data() + config::BUFSIZE)) {
+        throw std::runtime_error("Buffer overflow: no space for allocation");
+    }
+    buffer_ptr += size;
+    return result;
+}
+inline void reset() noexcept { buffer_ptr = buffer.data(); }
+} // namespace memory_manager
+
+namespace file_utils {
+[[nodiscard]] inline bool remove_file(char* filename) noexcept {
+    if (!filename || filename[0] == '\0') return true;
+    const bool success = (unlink(filename) == 0);
+    filename[0] = '\0';
+    return success;
+}
+
+[[nodiscard]] inline bool cleanup_temp(char* filename) noexcept {
+    return filename ? remove_file(filename) : true;
+}
+
+[[nodiscard]] inline char* create_library_path(std::string_view name) {
+    if (name.empty()) return nullptr;
+    const auto total_len = std::string(LIBDIR).size() + name.size() + 7; // "/lib" + name + ".a" + null
+    char* result = memory_manager::allocate(total_len);
+    return result ? std::format("{}/lib{}.a", LIBDIR, name).copy(result, total_len) : nullptr;
+}
+} // namespace file_utils
+
+// Utility functions
+[[nodiscard]] inline char* alloc(std::size_t size) {
+    try {
+        return memory_manager::allocate(size);
+    } catch (const std::runtime_error&) {
+        panic("No space for allocation");
+        return nullptr; // Never reached
+    }
+}
+
+void append(arglist& al, std::string_view arg) {
+    if (al.is_full()) {
+        panic("Argument list overflow");
+    }
+    char* buf = alloc(arg.size() + 1);
+    arg.copy(buf, arg.size());
+    buf[arg.size()] = '\0';
+    al.al_argv[al.al_argc++] = buf;
+}
+
+void concat(arglist& al1, const arglist& al2) {
+    if (al1.is_full() || (al1.al_argc + al2.al_argc) > config::MAXARGC) {
+        panic("Argument list overflow in concat");
+    }
+    std::ranges::copy(al2.al_argv | std::views::take(al2.al_argc),
+                     al1.al_argv.begin() + al1.al_argc);
+    al1.al_argc += al2.al_argc;
+}
+
+[[nodiscard]] char* mkstr(UString& dst, const std::ranges::range auto&... args) {
+    char* q = dst.data();
+    const auto copy = [&](std::string_view s) {
+        while (!s.empty() && q < dst.data() + config::USTR_SIZE - 1) {
+            *q++ = s.front();
+            s.remove_prefix(1);
+        }
+    };
+    (copy(args), ...);
+    *q = '\0';
+    return dst.data();
+}
+
+void basename(std::string_view str, UString& dst) {
+    auto last_slash = str.rfind('/');
+    auto base = last_slash == std::string_view::npos ? str : str.substr(last_slash + 1);
+    auto dot = base.find('.');
+    if (dot != std::string_view::npos) base.remove_suffix(base.size() - dot);
+    base.copy(dst.data(), std::min(base.size(), config::USTR_SIZE - 1));
+    dst[std::min(base.size(), config::USTR_SIZE - 1)] = '\0';
+}
+
+[[nodiscard]] int extension(std::string_view filename) {
+    if (filename.empty()) return 0;
+    if (filename.back() == '.') return 0;
+    auto dot = filename.rfind('.');
+    return (dot != std::string_view::npos && dot + 1 < filename.size()) ? filename[dot + 1] : 0;
+}
+
+[[noreturn]] void panic(std::string_view message) {
+    if (!message.empty()) {
+        write(STDERR_FILENO, message.data(), message.size());
+    }
+    exit(EXIT_FAILURE);
+}
+
+// Global state
+inline const char* ProgCall = nullptr;
 
 // RAII-based compiler driver
 class CompilerDriver {
 public:
     CompilerDriver() : instance_(this) {
-        std::ranges::for_each(CALL_VEC, [](auto& vec) { vec.init(); });
+        CALL_VEC[0].init();
+        CALL_VEC[1].init();
     }
 
     ~CompilerDriver() {
@@ -143,12 +259,48 @@ public:
 #endif
 
     // Core functionality
+    /**
+     * @brief Process all source files through the compilation pipeline.
+     */
     void process_source_files();
+    /**
+     * @brief Process a single file through the compilation pipeline.
+     * @param file Input filename.
+     * @param ext File extension character.
+     * @param ldfile Output parameter for generated object file.
+     * @return true if processing succeeded, false otherwise.
+     */
     [[nodiscard]] bool process_single_file(std::string_view& file, int& ext, char*& ldfile);
+    /**
+     * @brief Continue processing file through compilation stages.
+     * @param file File being processed (modified in-place).
+     * @param ext File extension (modified in-place).
+     * @param ldfile Output object file name.
+     * @return true if processing succeeded.
+     */
     [[nodiscard]] bool process_compilation_stages(std::string_view& file, int& ext, char*& ldfile);
+    /**
+     * @brief Perform final linking stage.
+     */
     void perform_linking();
+    /**
+     * @brief Execute command vector with optional output redirection.
+     * @param vec Command and arguments to execute.
+     * @param output_file Optional output redirection file (empty for stdout).
+     * @return 1 on success, 0 on failure.
+     */
     [[nodiscard]] int runvec(arglist& vec, std::string_view output_file);
+    /**
+     * @brief Execute two command vectors connected by pipe.
+     * @param vec0 First command (producer).
+     * @param vec1 Second command (consumer).
+     * @return 1 on success, 0 on failure.
+     */
     [[nodiscard]] int runvec2(arglist& vec0, arglist& vec1);
+    /**
+     * @brief Execute command vector via execv.
+     * @param vec Command and arguments to execute.
+     */
     [[noreturn]] void ex_vec(arglist& vec);
 
     // Signal handler
@@ -196,148 +348,6 @@ private:
 
 thread_local CompilerDriver* CompilerDriver::instance_ = nullptr;
 
-// Modern utility functions
-namespace file_utils {
-[[nodiscard]] inline bool remove_file(char* filename) noexcept {
-    if (!filename || filename[0] == '\0') return true;
-    const bool success = (unlink(filename) == 0);
-    filename[0] = '\0';
-    return success;
-}
-
-[[nodiscard]] inline bool cleanup_temp(char* filename) noexcept {
-    return filename ? remove_file(filename) : true;
-}
-
-[[nodiscard]] inline char* create_library_path(std::string_view name) {
-    if (name.empty()) return nullptr;
-    const auto total_len = std::string(LIBDIR).size() + name.size() + 7; // "/lib" + name + ".a" + null
-    char* result = memory_manager::allocate(total_len);
-    return result ? std::format("{}/lib{}.a", LIBDIR, name).copy(result, total_len) : nullptr;
-}
-} // namespace file_utils
-
-// Modern memory management
-namespace memory_manager {
-inline std::array<char, config::BUFSIZE> buffer{};
-inline char* buffer_ptr = buffer.data();
-
-[[nodiscard]] inline char* allocate(std::size_t size) {
-    char* const result = buffer_ptr;
-    if ((buffer_ptr + size) >= (buffer.data() + config::BUFSIZE)) {
-        throw std::runtime_error("Buffer overflow: no space for allocation");
-    }
-    buffer_ptr += size;
-    return result;
-}
-
-inline void reset() noexcept { buffer_ptr = buffer.data(); }
-} // namespace memory_manager
-
-// Modern argument list structure
-struct arglist {
-    int al_argc{0};
-    std::array<char*, config::MAXARGC> al_argv{};
-
-    constexpr void init() noexcept { al_argc = 1; }
-    [[nodiscard]] constexpr bool is_full() const noexcept { return al_argc >= config::MAXARGC; }
-};
-
-// Utility functions
-[[nodiscard]] inline char* alloc(std::size_t size) {
-    try {
-        return memory_manager::allocate(size);
-    } catch (const std::runtime_error&) {
-        panic("No space for allocation");
-        return nullptr; // Never reached
-    }
-}
-
-void append(arglist& al, std::string_view arg) {
-    if (al.is_full()) {
-        panic("Argument list overflow");
-    }
-    char* buf = alloc(arg.size() + 1);
-    arg.copy(buf, arg.size());
-    buf[arg.size()] = '\0';
-    al.al_argv[al.al_argc++] = buf;
-}
-
-void concat(arglist& al1, const arglist& al2) {
-    if (al1.is_full() || (al1.al_argc + al2.al_argc) > config::MAXARGC) {
-        panic("Argument list overflow in concat");
-    }
-    std::ranges::copy(al2.al_argv | std::views::take(al2.al_argc),
-                      al1.al_argv.begin() + al1.al_argc);
-    al1.al_argc += al2.al_argc;
-}
-
-[[nodiscard]] char* mkstr(UString& dst, const std::ranges::range auto&... args) {
-    char* q = dst.data();
-    const auto copy = [&](std::string_view s) {
-        while (!s.empty() && q < dst.data() + config::USTR_SIZE - 1) {
-            *q++ = s.front();
-            s.remove_prefix(1);
-        }
-    };
-    (copy(args), ...);
-    *q = '\0';
-    return dst.data();
-}
-
-void basename(std::string_view str, UString& dst) {
-    auto last_slash = str.rfind('/');
-    auto base = last_slash == std::string_view::npos ? str : str.substr(last_slash + 1);
-    auto dot = base.find('.');
-    if (dot != std::string_view::npos) base.remove_suffix(base.size() - dot);
-    base.copy(dst.data(), std::min(base.size(), config::USTR_SIZE - 1));
-    dst[std::min(base.size(), config::USTR_SIZE - 1)] = '\0';
-}
-
-[[nodiscard]] int extension(std::string_view filename) {
-    if (filename.empty()) return 0;
-    if (filename.back() == '.') return 0;
-    auto dot = filename.rfind('.');
-    return (dot != std::string_view::npos && dot + 1 < filename.size()) ? filename[dot + 1] : 0;
-}
-
-[[noreturn]] void panic(std::string_view message) {
-    if (!message.empty()) {
-        write(STDERR_FILENO, message.data(), message.size());
-    }
-    exit(EXIT_FAILURE);
-}
-
-void pr_vec(const arglist& vec) {
-    if (vec.al_argc <= 1) return;
-    const char* cmd = vec.al_argv[1];
-    if (cmd) {
-        write(STDERR_FILENO, cmd, strlen(cmd));
-        for (int i = 2; i < vec.al_argc; ++i) {
-            if (vec.al_argv[i]) {
-                write(STDERR_FILENO, " ", 1);
-                write(STDERR_FILENO, vec.al_argv[i], strlen(vec.al_argv[i]));
-            }
-        }
-    }
-}
-
-void mktempname(std::span<char> name_buffer) {
-    if (name_buffer.size() < 11) {
-        panic("Buffer too small for temporary filename");
-    }
-    const auto pid = getpid();
-    std::string_view prefix = "/cem";
-    std::copy(prefix.begin(), prefix.end(), name_buffer.begin());
-    auto temp_pid = pid;
-    for (int i = 9; i > 3; --i) {
-        name_buffer[i] = (temp_pid % 10) + '0';
-        temp_pid /= 10;
-    }
-    name_buffer[10] = '\0';
-}
-
-// CompilerDriver methods
 void CompilerDriver::process_source_files() {
     std::lock_guard lock(mtx_);
     for (auto file : std::span(SRCFILES.al_argv.data(), SRCFILES.al_argc)) {
@@ -661,11 +671,3 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 }
-
-// Recommendations/TODOs:
-// - Add support for parallel compilation using std::jthread (C++23).
-// - Implement logging framework for detailed diagnostics.
-// - Add unit tests for edge cases (e.g., invalid files, missing tools).
-// - Consider std::expected for runvec/runvec2 return values.
-// - Optimize memory_manager for dynamic allocation if BUFSIZE is exceeded.
-// - Integrate with CI for automated testing and validation.

@@ -37,10 +37,11 @@
  * - skip=N: Skip N input blocks at start of input
  * - seek=N: Skip N output blocks at start of output
  * - conv=CONV[,CONV...]: Convert the file as per the comma-separated list of symbols
- *   Supported conversions: ucase, lcase, swab, noerror, sync
+ * Supported conversions: ucase, lcase, swab, noerror, sync
  *
  * @note Requires C++23 compliant compiler
  */
+// clang-format on
 
 #include <algorithm>
 #include <charconv>
@@ -167,7 +168,7 @@ private:
         }
     }
 
-    void apply_conversions(std::vector<char>& buffer) {
+    void apply_conversions(std::vector<char> &buffer) {
         for (auto flag : options.conv_flags) {
             switch (flag) {
             case Conversion::UCASE:
@@ -229,10 +230,6 @@ private:
 };
 
 thread_local DdCommand* DdCommand::running_command_ = nullptr;
-    static DdCommand* running_command_;
-};
-
-DdCommand* DdCommand::running_command_ = nullptr;
 
 size_t parse_num(std::string_view s) {
     long long val = 0;
@@ -246,7 +243,7 @@ size_t parse_num(std::string_view s) {
     return static_cast<size_t>(val);
 }
 
-DdOptions parse_arguments(int argc, char* argv[]) {
+DdOptions parse_arguments(int argc, char *argv[]) {
     DdOptions opts;
     for (int i = 1; i < argc; ++i) {
         std::string_view arg(argv[i]);
@@ -303,7 +300,7 @@ DdOptions parse_arguments(int argc, char* argv[]) {
 
 } // namespace
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     try {
         DdOptions options = parse_arguments(argc, argv);
         DdCommand command(std::move(options));
@@ -317,11 +314,3 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 }
-
-// Recommendations/TODOs:
-// - Add support for parallel I/O operations using std::jthread for large files.
-// - Implement a logging framework for detailed diagnostics.
-// - Add unit tests for edge cases (e.g., empty files, invalid conversions).
-// - Consider std::expected for parse_num return values to handle errors more gracefully.
-// - Optimize buffer management for large block sizes using memory pools.
-// - Integrate with CI for automated testing and validation.

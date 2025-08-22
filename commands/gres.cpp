@@ -45,6 +45,7 @@
  *
  * @note Requires C++23 compliant compiler
  */
+// clang-format on
 
 #include <filesystem>
 #include <format>
@@ -93,7 +94,7 @@ public:
             }
         } else {
             // Process each file
-            for (const auto& filepath : options_.files) {
+            for (const auto &filepath : options_.files) {
                 if (filepath == "-") {
                     if (process_stream(std::cin, "-")) {
                         any_replacements = true;
@@ -128,6 +129,7 @@ private:
 
         while (std::getline(stream, line)) {
             std::string result;
+
             if (options_.global_replace) {
                 // Replace all occurrences
                 result = std::regex_replace(line, regex_, options_.replacement);
@@ -160,7 +162,7 @@ private:
  * @return Parsed GresOptions structure.
  * @throws std::runtime_error on invalid arguments.
  */
-GresOptions parse_arguments(int argc, char* argv[]) {
+GresOptions parse_arguments(int argc, char *argv[]) {
     GresOptions opts;
     int i = 1;
 
@@ -209,7 +211,7 @@ void print_usage() {
  * @param argv An array of command-line arguments.
  * @return 0 if replacements made, 1 if no matches, 2 on error.
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     try {
         GresOptions options = parse_arguments(argc, argv);
         GresEngine engine(std::move(options));
@@ -228,11 +230,3 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 }
-
-// Recommendations:
-// - Add support for parallel file processing using std::jthread for multiple files.
-// - Implement a logging framework for detailed diagnostics.
-// - Add unit tests for edge cases (e.g., invalid regex, empty files, binary files).
-// - Consider std::expected for regex construction to handle errors without exceptions.
-// - Add option to write output to files instead of stdout (e.g., -i for in-place editing).
-// - Integrate with CI for automated testing and validation across UNIX platforms.
