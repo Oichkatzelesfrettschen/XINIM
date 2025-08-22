@@ -70,7 +70,7 @@ int main() {
     assert(stats.failure_count == 1);
     auto idx = static_cast<size_t>(Precondition::P1);
     assert(stats.precondition_failures[idx] == 1);
-    assert(scheduler.current() == s.current_tid);
+    assert(scheduler.current() == static_cast<xinim::pid_t>(s.current_tid));
 
     // Validate message_region_valid rejects regions that are too small.
     MessageRegion small_region(reinterpret_cast<std::uintptr_t>(buf), sizeof(uint64_t));

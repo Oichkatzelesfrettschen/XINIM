@@ -43,7 +43,7 @@ docs/sphinx/_build/
 *.tmp
 *.d
 analysis_*.txt                # analysis reports
-analysis_*_fresh.*
+analysis_*_fresh.txt
 perf.csv
 output.txt
 *_output.txt

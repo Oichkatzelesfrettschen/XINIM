@@ -1,63 +1,101 @@
-cmake_minimum_required(VERSION 3.16)
-project(XINIMUnitTests LANGUAGES CXX)
+# CMake configuration for XINIM Unit Tests
+#
+# This file defines the build and test configuration for the XINIM unit tests,
+# harmonizing legacy and modern test setups for the Fiwix kernel. It enforces
+# modern C++23 standards, optimizes build flags, and organizes tests for core
+# libraries, fastpath, scheduler, Lattice IPC, network drivers, and sorting
+# utilities. The configuration resolves inconsistencies, enhances modularity, and
+# provides clear documentation for developers.
 
-# Enforce modern C++
+cmake_minimum_required(VERSION 3.16)
+project(XINIMUnitTests LANGUAGES C CXX)
+
+# Root of the repository (parent directory of this tests/ folder)
+set(PROJECT_ROOT ${CMAKE_CURRENT_LIST_DIR}/..)
+
+# Enforce C++23 for all targets
 set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-# Recommended build flags
+# Recommended build flags for different configurations
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -O0 -fsanitize=address,undefined")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -flto -march=x86-64-v1 -mtune=generic")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
 add_compile_options(-Wall -Wextra -Wpedantic)
 
+# Enable testing
 enable_testing()
 find_package(Threads REQUIRED)
+find_package(nlohmann_json REQUIRED)
 
 # Common include directories
 set(XINIM_INCLUDES
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/h
-    ${CMAKE_SOURCE_DIR}/kernel
+    ${PROJECT_ROOT}/include
+    ${PROJECT_ROOT}/h
+    ${PROJECT_ROOT}/kernel
+    ${PROJECT_ROOT}/crypto
+    ${PROJECT_ROOT}/commands
 )
 
 # Common sources for Lattice IPC tests
 set(LATTICE_COMMON_SOURCES
-    ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/table.cpp
+    ${PROJECT_ROOT}/kernel/lattice_ipc.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+    ${PROJECT_ROOT}/kernel/pqcrypto.cpp
+    ${PROJECT_ROOT}/kernel/schedule.cpp
+    ${PROJECT_ROOT}/kernel/service.cpp
+    ${PROJECT_ROOT}/kernel/wait_graph.cpp
+    ${PROJECT_ROOT}/kernel/table.cpp
     task_stubs.cpp
 )
 
+# Common sources for fastpath and scheduler tests
+set(FASTPATH_SOURCES
+    ${PROJECT_ROOT}/kernel/wormhole.cpp
+    ${PROJECT_ROOT}/kernel/schedule.cpp
+    ${PROJECT_ROOT}/kernel/service.cpp
+    ${PROJECT_ROOT}/kernel/wait_graph.cpp
+)
+
 # Helper macro for Lattice IPC tests
-macro(add_lattice_test name test_src)
-    add_executable(${name}
-        ${test_src}
+function(add_lattice_test target source)
+    add_executable(${target}
+        ${source}
         ${LATTICE_COMMON_SOURCES}
+        ${ARGN}
     )
-    target_include_directories(${name} PRIVATE
+    target_include_directories(${target} PRIVATE
         ${XINIM_INCLUDES}
-        ${CMAKE_SOURCE_DIR}/crypto
-        ${CMAKE_SOURCE_DIR}/tests
+        ${CMAKE_CURRENT_SOURCE_DIR}
     )
-    target_compile_definitions(${name} PRIVATE EXTERN=extern)
-    target_link_libraries(${name} PRIVATE pqcrypto Threads::Threads)
-    add_test(NAME ${name} COMMAND ${name})
-endmacro()
+    target_compile_definitions(${target} PRIVATE EXTERN=extern)
+    target_link_libraries(${target} PRIVATE pqcrypto Threads::Threads nlohmann_json::nlohmann_json)
+    add_test(NAME ${target} COMMAND ${target})
+endfunction()
+
+# Helper macro for fastpath and scheduler tests
+function(add_fastpath_test target source)
+    add_executable(${target}
+        ${source}
+        ${FASTPATH_SOURCES}
+    )
+    target_include_directories(${target} PRIVATE
+        ${PROJECT_ROOT}/kernel
+        ${PROJECT_ROOT}/include
+    )
+    target_link_libraries(${target} PRIVATE nlohmann_json::nlohmann_json)
+    add_test(NAME ${target} COMMAND ${target})
+endfunction()
 
 # -----------------------------------------------------------------------------
-# Core library tests
+# Core Library Tests
 # -----------------------------------------------------------------------------
 add_executable(minix_test_lib
     test_lib.cpp
-    ${CMAKE_SOURCE_DIR}/lib/strlen.cpp
-    ${CMAKE_SOURCE_DIR}/lib/strcmp.cpp
-    ${CMAKE_SOURCE_DIR}/lib/rand.cpp
+    ${PROJECT_ROOT}/lib/strlen.cpp
+    ${PROJECT_ROOT}/lib/strcmp.cpp
+    ${PROJECT_ROOT}/lib/rand.cpp
 )
 target_include_directories(minix_test_lib PRIVATE ${XINIM_INCLUDES})
 target_compile_options(minix_test_lib PRIVATE -fno-builtin)
@@ -71,674 +109,233 @@ add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
 add_executable(minix_test_memory_stream
     test_memory_stream.cpp
-    ${CMAKE_SOURCE_DIR}/lib/io/src/memory_stream.cpp
+    ${PROJECT_ROOT}/lib/io/src/memory_stream.cpp
 )
 target_include_directories(minix_test_memory_stream PRIVATE ${XINIM_INCLUDES})
 add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
 
-# -----------------------------------------------------------------------------
-# Fastpath & scheduler tests
-# -----------------------------------------------------------------------------
-set(FASTPATH_SOURCES
-    ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-
-add_executable(minix_test_fastpath
-    test_fastpath.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_fastpath PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
-add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
-
-add_executable(minix_test_fastpath_fallback
-    test_fastpath_fallback.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_fastpath_fallback PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
-add_test(NAME minix_test_fastpath_fallback COMMAND minix_test_fastpath_fallback)
-
-add_executable(minix_test_scheduler
-    test_scheduler.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_scheduler PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
-
-add_executable(minix_test_scheduler_deadlock
-    test_scheduler_deadlock.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_scheduler_deadlock PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_scheduler_deadlock COMMAND minix_test_scheduler_deadlock)
-
-add_executable(minix_test_wait_graph
-    test_wait_graph.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_wait_graph PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_wait_graph COMMAND minix_test_wait_graph)
-
-add_executable(minix_test_service_contract
-    test_service_contract.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_service_contract PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
-
-add_executable(minix_test_service_manager_dag
-    test_service_manager_dag.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_service_manager_dag PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_service_manager_dag COMMAND minix_test_service_manager_dag)
-
-add_executable(minix_test_service_serialization
-    test_service_serialization.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_service_serialization PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_service_serialization COMMAND minix_test_service_serialization)
-
-add_executable(minix_test_service_manager_updates
-    test_service_manager_updates.cpp
-    ${FASTPATH_SOURCES}
-)
-target_include_directories(minix_test_service_manager_updates PRIVATE
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_service_manager_updates COMMAND minix_test_service_manager_updates)
-
-# -----------------------------------------------------------------------------
-# svcctl command tests
-# -----------------------------------------------------------------------------
-add_executable(minix_test_svcctl
-    test_svcctl.cpp
-    ${LATTICE_COMMON_SOURCES}
-    ${CMAKE_SOURCE_DIR}/commands/svcctl.cpp
-)
-target_include_directories(minix_test_svcctl PRIVATE
-    ${XINIM_INCLUDES}
-    ${CMAKE_SOURCE_DIR}/crypto
-    ${CMAKE_SOURCE_DIR}/commands
-)
-target_compile_definitions(minix_test_svcctl PRIVATE EXTERN=extern SVCCTL_NO_MAIN SVCCTL_NO_WAIT)
-target_link_libraries(minix_test_svcctl PRIVATE pqcrypto Threads::Threads)
-add_test(NAME minix_test_svcctl COMMAND minix_test_svcctl)
-
-# -----------------------------------------------------------------------------
-# Lattice IPC tests
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_send_recv test_lattice_send_recv.cpp)
-add_lattice_test(minix_test_lattice_blocking test_lattice_blocking.cpp)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_ipc
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_ipc test_lattice_ipc.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_network
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_network test_lattice_network.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_network PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_network_encrypted
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encrypted.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_ipv6
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_ipv6 test_lattice_ipv6.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_ipv6 PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_two_node
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_net_two_node PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_poll_network
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_poll_network test_poll_network.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_poll_network PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver
-  test_net_driver.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver COMMAND minix_test_net_driver)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_overflow
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_overflow
-  test_net_driver_overflow.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_overflow PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_overflow COMMAND minix_test_net_driver_overflow)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_drop
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_drop
-  test_net_driver_drop.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_drop PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_drop PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_drop COMMAND minix_test_net_driver_drop)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_drop_newest
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_drop_newest
-  test_net_driver_drop_newest.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_drop_newest PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_drop_newest PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_drop_newest COMMAND minix_test_net_driver_drop_newest)
-# minix_test_net_driver_tcp
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_tcp
-  test_net_driver_tcp.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_tcp PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_reconnect
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_reconnect
-  test_net_driver_reconnect.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_reconnect PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_reconnect PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_reconnect COMMAND minix_test_net_driver_reconnect)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_loopback
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_loopback
-  test_net_driver_loopback.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_loopback PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_ipv6
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_ipv6
-  test_net_driver_ipv6.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_ipv6 PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_ipv6 PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_ipv6 COMMAND minix_test_net_driver_ipv6)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_concurrency
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_concurrency
-  test_net_driver_concurrency.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_concurrency PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_concurrency PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_concurrency COMMAND minix_test_net_driver_concurrency)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_persistent_id
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_persistent_id
-  test_net_driver_persistent_id.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_persistent_id PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_persistent_id COMMAND minix_test_net_driver_persistent_id)
-
-# -----------------------------------------------------------------------------
-
-# minix_test_net_driver_socket_failure
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_socket_failure
-  test_net_driver_socket_failure.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_socket_failure PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_socket_failure PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_socket_failure COMMAND minix_test_net_driver_socket_failure)
-
-# minix_test_net_driver_unpriv_id
-# -----------------------------------------------------------------------------
-add_executable(minix_test_net_driver_unpriv_id
-  test_net_driver_unpriv_id.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-)
-target_include_directories(minix_test_net_driver_unpriv_id PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-target_link_libraries(minix_test_net_driver_unpriv_id PRIVATE Threads::Threads)
-add_test(NAME minix_test_net_driver_unpriv_id COMMAND minix_test_net_driver_unpriv_id)
-
-# -----------------------------------------------------------------------------
-# minix_test_hypercomplex
-# -----------------------------------------------------------------------------
-add_executable(minix_test_hypercomplex
-    test_hypercomplex.cpp
-)
-target_include_directories(minix_test_hypercomplex PRIVATE ${CMAKE_SOURCE_DIR}/kernel)
-add_test(NAME minix_test_hypercomplex COMMAND minix_test_hypercomplex)
-
-# minix_test_fat_time
-add_executable(minix_test_fat_time
-  test_fat_time.cpp
-)
-target_include_directories(minix_test_fat_time PRIVATE ${CMAKE_SOURCE_DIR}/include)
-add_test(NAME minix_test_fat_time COMMAND minix_test_fat_time)
-
-# -----------------------------------------------------------------------------
-# Crypto library
-# -----------------------------------------------------------------------------
-add_subdirectory(crypto)
-cmake_minimum_required(VERSION 3.16)
-project(XINIMUnitTests LANGUAGES CXX)
-
-# Enforce C++23 for all targets
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-enable_testing()
-find_package(Threads REQUIRED)
-
-function(add_lattice_test target source)
-  add_executable(${target}
-    ${source}
-    ${CMAKE_SOURCE_DIR}/kernel/lattice_ipc.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/pqcrypto.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-    ${CMAKE_SOURCE_DIR}/kernel/table.cpp
-    task_stubs.cpp)
-  target_include_directories(${target} PUBLIC
-    ${CMAKE_SOURCE_DIR}/kernel
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/h
-    ${ARGN})
-  target_compile_definitions(${target} PRIVATE EXTERN=extern)
-  target_link_libraries(${target} PRIVATE pqcrypto Threads::Threads)
-  add_test(NAME ${target} COMMAND ${target})
-endfunction()
-
-# -----------------------------------------------------------------------------
-# minix_test_lib
-# -----------------------------------------------------------------------------
-add_executable(minix_test_lib
-  test_lib.cpp
-  ${CMAKE_SOURCE_DIR}/lib/strlen.cpp
-  ${CMAKE_SOURCE_DIR}/lib/strcmp.cpp
-  ${CMAKE_SOURCE_DIR}/lib/rand.cpp
-)
-target_include_directories(minix_test_lib PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/h
-)
-target_compile_options(minix_test_lib PRIVATE
-  -fno-builtin
-)
-add_test(NAME minix_test_lib COMMAND minix_test_lib)
-
-# -----------------------------------------------------------------------------
-# minix_test_syscall
-# -----------------------------------------------------------------------------
-add_executable(minix_test_syscall
-  test_syscall.cpp
-)
-target_include_directories(minix_test_syscall PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/h
-)
-add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
-
-# -----------------------------------------------------------------------------
-# minix_test_streams
-# -----------------------------------------------------------------------------
+# Optional stream tests (disabled by default)
 add_executable(minix_test_streams
-  test_streams.cpp
+    test_streams.cpp
 )
 target_link_libraries(minix_test_streams PRIVATE minix_libc)
-target_include_directories(minix_test_streams PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-  ${CMAKE_SOURCE_DIR}/h
-)
+target_include_directories(minix_test_streams PRIVATE ${XINIM_INCLUDES})
 set_target_properties(minix_test_streams PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_streams COMMAND minix_test_streams)
 set_tests_properties(minix_test_streams PROPERTIES DISABLED TRUE)
 
-# -----------------------------------------------------------------------------
-# minix_test_stream_foundation
-# -----------------------------------------------------------------------------
 add_executable(minix_test_stream_foundation
-  test_stream_foundation.cpp
-  ${CMAKE_SOURCE_DIR}/lib/io/src/file_stream.cpp
-  ${CMAKE_SOURCE_DIR}/lib/io/src/file_operations.cpp
-  ${CMAKE_SOURCE_DIR}/lib/io/src/standard_streams.cpp
+    test_stream_foundation.cpp
+    ${PROJECT_ROOT}/lib/io/src/file_stream.cpp
+    ${PROJECT_ROOT}/lib/io/src/file_operations.cpp
+    ${PROJECT_ROOT}/lib/io/src/standard_streams.cpp
 )
-target_include_directories(minix_test_stream_foundation PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-)
-set_target_properties(minix_test_stream_foundation PROPERTIES
-  EXCLUDE_FROM_ALL TRUE
-)
+target_include_directories(minix_test_stream_foundation PRIVATE ${PROJECT_ROOT}/include)
+set_target_properties(minix_test_stream_foundation PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
 set_tests_properties(minix_test_stream_foundation PROPERTIES DISABLED TRUE)
 
 # -----------------------------------------------------------------------------
-# minix_test_memory_stream
+# Fastpath and Scheduler Tests
 # -----------------------------------------------------------------------------
-add_executable(minix_test_memory_stream
-  test_memory_stream.cpp
-  ${CMAKE_SOURCE_DIR}/lib/io/src/memory_stream.cpp
-)
-target_include_directories(minix_test_memory_stream PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
+add_fastpath_test(minix_test_fastpath test_fastpath.cpp)
+add_fastpath_test(minix_test_fastpath_fallback test_fastpath_fallback.cpp)
+add_fastpath_test(minix_test_fastpath_preconditions test_fastpath_preconditions.cpp)
+add_fastpath_test(minix_test_fastpath_cache_performance test_fastpath_cache_performance.cpp)
+add_fastpath_test(minix_test_scheduler test_scheduler.cpp)
+add_fastpath_test(minix_test_scheduler_deadlock test_scheduler_deadlock.cpp)
+add_fastpath_test(minix_test_scheduler_edge test_scheduler_edge.cpp)
 
-# -----------------------------------------------------------------------------
-# minix_test_fastpath
-# -----------------------------------------------------------------------------
-add_executable(minix_test_fastpath
-  test_fastpath.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_fastpath PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-add_test(NAME minix_test_fastpath COMMAND minix_test_fastpath)
-
-# -----------------------------------------------------------------------------
-# minix_test_fastpath_fallback
-# -----------------------------------------------------------------------------
-add_executable(minix_test_fastpath_fallback
-  test_fastpath_fallback.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_fastpath_fallback PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
-add_test(NAME minix_test_fastpath_fallback COMMAND minix_test_fastpath_fallback)
-
-# -----------------------------------------------------------------------------
-# minix_test_scheduler
-# -----------------------------------------------------------------------------
-add_executable(minix_test_scheduler
-  test_scheduler.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_scheduler PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_scheduler COMMAND minix_test_scheduler)
-
-# -----------------------------------------------------------------------------
-# minix_test_scheduler_deadlock
-# -----------------------------------------------------------------------------
-add_executable(minix_test_scheduler_deadlock
-  test_scheduler_deadlock.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_scheduler_deadlock PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_scheduler_deadlock COMMAND minix_test_scheduler_deadlock)
-
-# -----------------------------------------------------------------------------
-# minix_test_scheduler_edge
-# -----------------------------------------------------------------------------
-add_executable(minix_test_scheduler_edge
-  test_scheduler_edge.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_scheduler_edge PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_scheduler_edge COMMAND minix_test_scheduler_edge)
-
-# -----------------------------------------------------------------------------
-# minix_test_wait_graph
-# -----------------------------------------------------------------------------
 add_executable(minix_test_wait_graph
-  test_wait_graph.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
+    test_wait_graph.cpp
+    ${PROJECT_ROOT}/kernel/wait_graph.cpp
 )
-target_include_directories(minix_test_wait_graph PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
+target_include_directories(minix_test_wait_graph PRIVATE ${PROJECT_ROOT}/kernel ${PROJECT_ROOT}/include)
 add_test(NAME minix_test_wait_graph COMMAND minix_test_wait_graph)
 
-# -----------------------------------------------------------------------------
-# minix_test_service_contract
-# -----------------------------------------------------------------------------
-add_executable(minix_test_service_contract
-  test_service_contract.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_service_contract PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_service_contract COMMAND minix_test_service_contract)
+add_fastpath_test(minix_test_service_contract test_service_contract.cpp)
+add_fastpath_test(minix_test_service_manager_dag test_service_manager_dag.cpp)
+add_fastpath_test(minix_test_service_serialization test_service_serialization.cpp)
+add_fastpath_test(minix_test_service_manager_updates test_service_manager_updates.cpp)
 
 # -----------------------------------------------------------------------------
-# minix_test_fastpath_preconditions
+# svcctl Command Tests
 # -----------------------------------------------------------------------------
-add_executable(minix_test_fastpath_preconditions
-  test_fastpath_preconditions.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
+add_executable(minix_test_svcctl
+    test_svcctl.cpp
+    ${LATTICE_COMMON_SOURCES}
+    ${PROJECT_ROOT}/commands/svcctl.cpp
 )
-target_include_directories(minix_test_fastpath_preconditions PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_fastpath_preconditions COMMAND minix_test_fastpath_preconditions)
+target_include_directories(minix_test_svcctl PRIVATE ${XINIM_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(minix_test_svcctl PRIVATE EXTERN=extern SVCCTL_NO_MAIN SVCCTL_NO_WAIT)
+target_link_libraries(minix_test_svcctl PRIVATE pqcrypto Threads::Threads nlohmann_json::nlohmann_json)
+add_test(NAME minix_test_svcctl COMMAND minix_test_svcctl)
 
 # -----------------------------------------------------------------------------
-# minix_test_fastpath_cache_performance
-# -----------------------------------------------------------------------------
-add_executable(minix_test_fastpath_cache_performance
-  test_fastpath_cache_performance.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wormhole.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/schedule.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/service.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/wait_graph.cpp
-)
-target_include_directories(minix_test_fastpath_cache_performance PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_fastpath_cache_performance COMMAND minix_test_fastpath_cache_performance)
-
-# -----------------------------------------------------------------------------
-# minix_test_semantic_region
-# -----------------------------------------------------------------------------
-add_executable(minix_test_semantic_region
-  test_semantic_region.cpp
-)
-target_include_directories(minix_test_semantic_region PUBLIC
-  ${CMAKE_SOURCE_DIR}/include
-)
-add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice
+# Lattice IPC Tests
 # -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice test_lattice.cpp)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_send_recv
-# -----------------------------------------------------------------------------
 add_lattice_test(minix_test_lattice_send_recv test_lattice_send_recv.cpp)
+add_lattice_test(minix_test_lattice_blocking test_lattice_blocking.cpp)
+add_lattice_test(minix_test_lattice_ipc test_lattice_ipc.cpp ${PROJECT_ROOT}/crypto)
+add_lattice_test(minix_test_lattice_network test_lattice_network.cpp ${PROJECT_ROOT}/crypto)
+add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encrypted.cpp ${PROJECT_ROOT}/crypto)
+add_lattice_test(minix_test_lattice_ipv6 test_lattice_ipv6.cpp ${PROJECT_ROOT}/crypto)
+add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${PROJECT_ROOT}/crypto)
+add_lattice_test(minix_test_poll_network test_poll_network.cpp ${PROJECT_ROOT}/crypto)
 
 # -----------------------------------------------------------------------------
-# minix_test_lattice_ipc
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_ipc test_lattice_ipc.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_ipc PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_network
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_network test_lattice_network.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_network PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_lattice_network_encrypted
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_lattice_network_encrypted test_lattice_network_encrypted.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_lattice_network_encrypted PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_two_node
-# -----------------------------------------------------------------------------
-add_lattice_test(minix_test_net_two_node test_net_two_node.cpp ${CMAKE_SOURCE_DIR}/crypto)
-target_compile_definitions(minix_test_net_two_node PRIVATE EXTERN=extern)
-
-# -----------------------------------------------------------------------------
-# minix_test_net_driver
+# Network Driver Tests
 # -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver
-  test_net_driver.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+    test_net_driver.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
-target_include_directories(minix_test_net_driver PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
+target_include_directories(minix_test_net_driver PRIVATE ${PROJECT_ROOT}/kernel)
 target_link_libraries(minix_test_net_driver PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver COMMAND minix_test_net_driver)
 
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_overflow
-# -----------------------------------------------------------------------------
 add_executable(minix_test_net_driver_overflow
-  test_net_driver_overflow.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+    test_net_driver_overflow.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
-target_include_directories(minix_test_net_driver_overflow PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
+target_include_directories(minix_test_net_driver_overflow PRIVATE ${PROJECT_ROOT}/kernel)
 target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_overflow COMMAND minix_test_net_driver_overflow)
-# minix_test_net_driver_tcp
-# -----------------------------------------------------------------------------
+
+add_executable(minix_test_net_driver_drop
+    test_net_driver_drop.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_drop PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_drop PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_drop COMMAND minix_test_net_driver_drop)
+
+add_executable(minix_test_net_driver_drop_newest
+    test_net_driver_drop_newest.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_drop_newest PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_drop_newest PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_drop_newest COMMAND minix_test_net_driver_drop_newest)
+
 add_executable(minix_test_net_driver_tcp
-  test_net_driver_tcp.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+    test_net_driver_tcp.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
-target_include_directories(minix_test_net_driver_tcp PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
+target_include_directories(minix_test_net_driver_tcp PRIVATE ${PROJECT_ROOT}/kernel)
 target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
 
-# -----------------------------------------------------------------------------
-# minix_test_net_driver_autodetect
-# -----------------------------------------------------------------------------
+add_executable(minix_test_net_driver_reconnect
+    test_net_driver_reconnect.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_reconnect PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_reconnect PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_reconnect COMMAND minix_test_net_driver_reconnect)
+
+add_executable(minix_test_net_driver_loopback
+    test_net_driver_loopback.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_loopback PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
+
+add_executable(minix_test_net_driver_ipv6
+    test_net_driver_ipv6.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_ipv6 PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_ipv6 PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_ipv6 COMMAND minix_test_net_driver_ipv6)
+
+add_executable(minix_test_net_driver_concurrency
+    test_net_driver_concurrency.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_concurrency PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_concurrency PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_concurrency COMMAND minix_test_net_driver_concurrency)
+
+add_executable(minix_test_net_driver_persistent_id
+    test_net_driver_persistent_id.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_persistent_id PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_persistent_id COMMAND minix_test_net_driver_persistent_id)
+
+add_executable(minix_test_net_driver_socket_failure
+    test_net_driver_socket_failure.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_socket_failure PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_socket_failure PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_socket_failure COMMAND minix_test_net_driver_socket_failure)
+
+add_executable(minix_test_net_driver_unpriv_id
+    test_net_driver_unpriv_id.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
+)
+target_include_directories(minix_test_net_driver_unpriv_id PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_net_driver_unpriv_id PRIVATE Threads::Threads)
+add_test(NAME minix_test_net_driver_unpriv_id COMMAND minix_test_net_driver_unpriv_id)
+
 add_executable(minix_test_net_driver_autodetect
-  test_net_driver_autodetect.cpp
-  ${CMAKE_SOURCE_DIR}/kernel/net_driver.cpp
+    test_net_driver_autodetect.cpp
+    ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
-target_include_directories(minix_test_net_driver_autodetect PUBLIC
-  ${CMAKE_SOURCE_DIR}/kernel
-)
+target_include_directories(minix_test_net_driver_autodetect PRIVATE ${PROJECT_ROOT}/kernel)
 target_link_libraries(minix_test_net_driver_autodetect PRIVATE Threads::Threads)
 add_test(NAME minix_test_net_driver_autodetect COMMAND minix_test_net_driver_autodetect)
 
 # -----------------------------------------------------------------------------
-# Crypto subdirectory
+# Sort Merge Tests
 # -----------------------------------------------------------------------------
-add_subdirectory(crypto)
+add_executable(minix_test_sort_merge
+    test_sort_merge.cpp
+    ${PROJECT_ROOT}/commands/sort.cpp
+)
+target_include_directories(minix_test_sort_merge PRIVATE ${PROJECT_ROOT}/commands)
+target_compile_definitions(minix_test_sort_merge PRIVATE SORT_UTILITY_NO_MAIN)
+add_test(NAME minix_test_sort_merge COMMAND minix_test_sort_merge)
+
+# -----------------------------------------------------------------------------
+# Miscellaneous Tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_hypercomplex
+    test_hypercomplex.cpp
+)
+target_include_directories(minix_test_hypercomplex PRIVATE ${PROJECT_ROOT}/kernel)
+add_test(NAME minix_test_hypercomplex COMMAND minix_test_hypercomplex)
+
+add_executable(minix_test_fat_time
+    test_fat_time.cpp
+)
+target_include_directories(minix_test_fat_time PRIVATE ${PROJECT_ROOT}/include)
+add_test(NAME minix_test_fat_time COMMAND minix_test_fat_time)
+
+add_executable(minix_test_semantic_region
+    test_semantic_region.cpp
+)
+target_include_directories(minix_test_semantic_region PRIVATE ${PROJECT_ROOT}/include)
+add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
+
+# -----------------------------------------------------------------------------
+# Crypto Subdirectory
+# -----------------------------------------------------------------------------
+add_subdirectory(${PROJECT_ROOT}/crypto ${CMAKE_BINARY_DIR}/crypto)
+
+# -----------------------------------------------------------------------------
+# Recommendations
+# -----------------------------------------------------------------------------
+# - Ensure consistent include paths across all tests by centralizing XINIM_INCLUDES.
+# - Consider enabling disabled tests (minix_test_streams, minix_test_stream_foundation)
+#   after resolving dependencies or updating test cases.
+# - Add version checks for required libraries (e.g., pqcrypto, Threads) to ensure
+#   compatibility.
+# - Integrate tests into a CI pipeline with artifacts for test reports.
+# - Document test purposes and expected outcomes in a separate README or test guide.
+# - Validate cross-platform compatibility by testing on different compilers (e.g., GCC, Clang).

@@ -11,6 +11,8 @@ set(KYBER_IMPL_SOURCES
     kyber_impl/symmetric-shake.c
     kyber_impl/verify.c)
 
+# Determine repository root to allow standalone inclusion
+get_filename_component(REPO_ROOT ${CMAKE_CURRENT_LIST_DIR} DIRECTORY)
 
 find_package(OpenSSL REQUIRED)
 find_package(PkgConfig REQUIRED)
@@ -20,15 +22,15 @@ if(SODIUM_FOUND)
   # libsodium detected via pkg-config; use provided variables
 else()
   message(WARNING "libsodium not found; building with local stubs")
-  add_library(sodium_stub STATIC ${CMAKE_SOURCE_DIR}/tests/sodium_stub.cpp)
+  add_library(sodium_stub STATIC ${REPO_ROOT}/tests/sodium_stub.cpp)
   list(REMOVE_ITEM KYBER_IMPL_SOURCES kyber_impl/randombytes.c)
-  list(APPEND KYBER_IMPL_SOURCES ${CMAKE_SOURCE_DIR}/tests/randombytes_stub.c)
+  list(APPEND KYBER_IMPL_SOURCES ${REPO_ROOT}/tests/randombytes_stub.c)
   set(SODIUM_LIBRARIES sodium_stub)
-  set(SODIUM_INCLUDE_DIRS ${CMAKE_SOURCE_DIR}/tests)
+  set(SODIUM_INCLUDE_DIRS ${REPO_ROOT}/tests)
 endif()
 
 add_library(pqcrypto STATIC kyber.cpp pqcrypto_shared.cpp ${KYBER_IMPL_SOURCES}
-    ${CMAKE_SOURCE_DIR}/lib/abort.cpp)
+    ${REPO_ROOT}/lib/abort.cpp)
 
 set_target_properties(pqcrypto PROPERTIES
     CXX_STANDARD 23
@@ -41,7 +43,8 @@ target_compile_features(pqcrypto PRIVATE c_std_11)
 # expose header directory
 target_include_directories(pqcrypto PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
-    ${CMAKE_CURRENT_SOURCE_DIR}/kyber_impl)
+    ${CMAKE_CURRENT_SOURCE_DIR}/kyber_impl
+    ${REPO_ROOT}/include)
 
 target_link_libraries(pqcrypto PUBLIC OpenSSL::Crypto ${SODIUM_LIBRARIES})
 target_include_directories(pqcrypto PRIVATE ${SODIUM_INCLUDE_DIRS})
