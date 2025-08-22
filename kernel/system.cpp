@@ -83,6 +83,10 @@ PRIVATE char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
  *
  * Waits for system requests and routes them to the correct handler.
  * Runs continuously as a dedicated task and never returns.
+ *
+ * @pre Message passing system initialized; interrupts enabled.
+ * @post This routine never returns; termination indicates fatal error.
+ * @warning Lacks priority-based handling of competing system tasks.
  */
 PUBLIC void sys_task() noexcept { // Added void return, noexcept
     /* Main entry point of sys_task.  Get the message and dispatch on type. */

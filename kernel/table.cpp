@@ -46,6 +46,13 @@ extern void printer_task() noexcept;
  * The order of the names here MUST agree with the numerical values assigned to
  * the tasks in ../h/com.hpp.
  */
+/**
+ * @brief Kernel task start table.
+ *
+ * @pre Task entry points such as ::sys_task and ::clock_task are valid.
+ * @post Scheduler uses this table during boot to spawn tasks.
+ * @warning Placeholder @c nullptr entries remain for unimplemented tasks.
+ */
 // Changed array type from int(*)() to void(*)() noexcept
 void (*task[NR_TASKS + INIT_PROC_NR + 1])() noexcept = {
     printer_task,
