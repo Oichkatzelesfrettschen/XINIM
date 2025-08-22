@@ -15,16 +15,15 @@ The documentation is divided into several sections:
    :maxdepth: 2
    :caption: Contents
 
-   lattice_ipc
-   pq_crypto
-   scheduler
-   wait_graph
-   service
-   service_manager
-   precommit
-   networking
-   libsodium_tests
-   hypercomplex
+   api
    architecture
    compiler_driver
-   api
+   hypercomplex
+   lattice_ipc
+   libsodium_tests
+   networking
+   pq_crypto
+   scheduler
+   service
+   service_manager
+   wait_graph
