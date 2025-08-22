@@ -1,5 +1,7 @@
 # Project Status
 
+Refer to [REPOSITORY_HYGIENE.md](REPOSITORY_HYGIENE.md) for cleanup policies and artifact management guidelines.
+
 ## Initial Cleanup
 - Verified that no build artifacts (`build*/`, `builds/`, `*/CMakeFiles/`) remained in version control.
 - Added new ignore rules to `.gitignore` for these directories.

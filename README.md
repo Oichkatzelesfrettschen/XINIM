@@ -213,6 +213,8 @@ XINIM advances the state of microkernel operating systems through several key in
 
 ## Cleaning the Workspace
 
+See [REPOSITORY_HYGIENE.md](REPOSITORY_HYGIENE.md) for repository hygiene policies.
+
 ```bash
 # Remove all build artefacts and test outputs
 ./tools/clean.sh
