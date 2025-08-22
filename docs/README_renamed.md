@@ -63,29 +63,15 @@ users.
 ### Prerequisites
 
  - **Compiler**: GCC 13+ or Clang 18+ with the full LLVM 18 suite including lld and lldb (MSVC 19.36+ supported)
- - **Setup**: Run `tools/setup.sh` to install clang-18, lld-18, lldb-18, and related packages
+ - **Setup**: Follow [`tools/setup.md`](../tools/setup.md) to install clang-18,
+   lld-18, lldb-18, and related packages
  - **Build System**: Make (GNU Make recommended)
  - **Optional**: Doxygen for documentation, Valgrind for debugging
 
 ### Quick Start
 
-```bash
-# Clone the repository
-git clone <repository-url>
-cd XINIM
-
-# Install dependencies (LLVM 18, lld, etc.)
-tools/setup.sh
-
-# Build debug version (default)
-make
-
-# Build optimized release version
-make BUILD_MODE=release
-
-# Install system-wide
-sudo make install
-```
+Refer to [BUILDING.md](BUILDING.md) for the canonical Ninja/Clang workflow,
+including dependency installation and QEMU launch steps.
 
 ### Build Modes
 
@@ -107,12 +93,7 @@ only need to build a single component.
 Use **CMake** to build the entire system, enable optional drivers, or perform
 out-of-tree and cross-compilation builds.
 
-The CMake configuration defaults to the C++23 standard. Ensure GCC 13+ or Clang 18+ with the matching LLVM 18 suite (or MSVC 19.36+) is available for successful compilation. A typical CMake workflow is:
-
-```bash
-cmake -B build
-cmake --build build
-```
+The CMake configuration defaults to the C++23 standard. Ensure GCC 13+ or Clang 18+ with the matching LLVM 18 suite (or MSVC 19.36+) is available for successful compilation. Detailed invocation examples live in [BUILDING.md](BUILDING.md).
 
 
 ### Build Targets
@@ -131,27 +112,9 @@ make valgrind     # Run memory checking
 
 ### Cross Compilation
 
-Cross compilation is currently supported only for bare x86-64 targets.
-
-Build with CMake:
-
-```bash
-cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
-cmake --build build
-```
-
-The equivalent Make invocation is:
-
-```bash
-make CROSS_PREFIX=x86_64-elf-
-```
-
-The `CROSS_PREFIX` value selects the appropriate cross toolchain (e.g.
-`x86_64-elf-gcc`).
-
-To target additional architectures add a new `CROSS_COMPILE_<ARCH>` option to
-`CMakeLists.txt`, update the root `Makefile` with matching variables, and set
-`CMAKE_SYSTEM_NAME` and `CMAKE_SYSTEM_PROCESSOR` for the target.
+Cross compilation is currently supported only for bare x86-64 targets. Detailed
+CMake and Make invocations, along with guidance for other architectures, are
+available in [BUILDING.md](BUILDING.md).
 
 ## Usage
 

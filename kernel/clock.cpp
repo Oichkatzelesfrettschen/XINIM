@@ -83,7 +83,6 @@ static void init_clock() noexcept;
  * messages indicating timer events or requests from other system components
  * and dispatches them to the appropriate handlers.
  *
- * @return void
  */
 PUBLIC void clock_task() noexcept {
     /* Main program of clock task.  It determines which of the 4 possible
@@ -134,8 +133,7 @@ PUBLIC void clock_task() noexcept {
  * may request a callback function instead.
  *
  * @param m_ptr Message describing the alarm request.
- * @return void
- */
+*/
 static void do_setalarm(message *m_ptr) noexcept {
 
     struct proc *rp{};
@@ -175,7 +173,6 @@ static void do_setalarm(message *m_ptr) noexcept {
  * Places the current time expressed in seconds since boot into the
  * global reply message.
  *
- * @return void
  */
 static void do_get_time() noexcept {
     mc.m_type = REAL_TIME;
@@ -192,8 +189,7 @@ static void do_get_time() noexcept {
  * the supplied value. This call is normally restricted to privileged code.
  *
  * @param m_ptr Message containing the new time in seconds.
- * @return void
- */
+*/
 static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) - realtime / HZ; }
 
 /*===========================================================================*
@@ -206,7 +202,6 @@ static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) 
  * handles scheduling related bookkeeping. This function is invoked on
  * every timer interrupt.
  *
- * @return void
  */
 static void do_clocktick() noexcept {
 
@@ -273,7 +268,6 @@ static void do_clocktick() noexcept {
  * charged for the current tick. Depending on whether the system was in
  * user or kernel mode this function increments the corresponding counter.
  *
- * @return void
  */
 static void accounting() noexcept { // Changed (void) to ()
     /* Update user and system accounting times.  The variable 'bill_ptr' is always
@@ -297,7 +291,6 @@ static void accounting() noexcept { // Changed (void) to ()
  * Programs timer channel zero to generate periodic interrupts at the
  * system tick rate defined by @c HZ.
  *
- * @return void
  */
 static void init_clock() noexcept {
 
