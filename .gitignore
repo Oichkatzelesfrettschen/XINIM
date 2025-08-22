@@ -59,6 +59,8 @@ __pycache__/                  # Python byte-code cache
 *.swp
 *.bak
 *~                            # generic “tilde” backups
+* [0-9]                        # files with accidental numeric suffixes
+* [0-9].*                      # files with numeric suffixes before extension
 
 # ── 8. Local test artifacts ─────────────────────────────────────────────────
 ls_test                       # ad-hoc test binary

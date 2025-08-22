@@ -39,12 +39,8 @@ SUM:                            650          14005          19453         104708
 Have a non-directory at the top, so creating directory top_dir
 Adding /workspace/XINIM/./CMakeLists.txt to top_dir
 Adding /workspace/XINIM/./LICENSE to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 2.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 3.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 4.md to top_dir
 Adding /workspace/XINIM/./PROJECT_STATUS.md to top_dir
 Adding /workspace/XINIM/./README.md to top_dir
-Adding /workspace/XINIM/./SIMD_LIBRARY_COMPLETE 2.md to top_dir
 Adding /workspace/XINIM/./SIMD_LIBRARY_COMPLETE.md to top_dir
 Creating filelist for build
 Creating filelist for commands
@@ -52,7 +48,6 @@ Creating filelist for common
 Creating filelist for crypto
 Creating filelist for docs
 Creating filelist for fs
-Adding /workspace/XINIM/./grub 2.cfg to top_dir
 Adding /workspace/XINIM/./grub.cfg to top_dir
 Creating filelist for h
 Creating filelist for hooks
@@ -60,13 +55,10 @@ Creating filelist for include
 Creating filelist for kernel
 Adding /workspace/XINIM/./kr_cpp_summary.json to top_dir
 Creating filelist for lib
-Adding /workspace/XINIM/./linker 2.ld to top_dir
 Adding /workspace/XINIM/./linker.ld to top_dir
-Adding /workspace/XINIM/./migrate_to_simd 2.sh to top_dir
 Adding /workspace/XINIM/./migrate_to_simd.sh to top_dir
 Creating filelist for mm
 Adding /workspace/XINIM/./test_makefile to top_dir
-Adding /workspace/XINIM/./test_makefile 2 to top_dir
 Creating filelist for tests
 Creating filelist for tools
 Categorizing files.
@@ -187,12 +179,8 @@ Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
 ==8755== 
 CMakeLists.txt
 LICENSE
-PROJECT_STATUS 2.md
-PROJECT_STATUS 3.md
-PROJECT_STATUS 4.md
 PROJECT_STATUS.md
 README.md
-SIMD_LIBRARY_COMPLETE 2.md
 SIMD_LIBRARY_COMPLETE.md
 build
 commands
@@ -233,22 +221,22 @@ fs/inode.cpp:109:16: style: The scope of the variable 'minor' can be reduced. [v
 Flawfinder version 2.0.19, (C) 2001-2019 David A. Wheeler.
 Number of rules (primarily dangerous function names) in C/C++ ruleset: 222
 Examining ./tests/test_service_manager_dag.cpp
-Examining ./tests/test2 2.cpp
-Examining ./tests/test_lattice_send_error 2.cpp
+Examining ./tests/test2.cpp
+Examining ./tests/test_lattice_send_error.cpp
 Examining ./tests/t15a.cpp
 Examining ./tests/task_stubs.cpp
 Examining ./tests/test7.cpp
-Examining ./tests/test_lattice 2.cpp
-Examining ./tests/test6 2.cpp
-Examining ./tests/test_service_manager_updates 2.cpp
-Examining ./tests/t11b 2.cpp
-Examining ./tests/test4 2.cpp
-Examining ./tests/test5 2.cpp
+Examining ./tests/test_lattice.cpp
+Examining ./tests/test6.cpp
+Examining ./tests/test_service_manager_updates.cpp
+Examining ./tests/t11b.cpp
+Examining ./tests/test4.cpp
+Examining ./tests/test5.cpp
 Examining ./tests/test_streams.cpp
 Examining ./tests/test_lib.cpp
-Examining ./tests/test_net_driver_ipv6 2.cpp
+Examining ./tests/test_net_driver_ipv6.cpp
 Examining ./tests/sodium_stub.cpp
-Examining ./tests/test_net_driver_concurrency 2.cpp
+Examining ./tests/test_net_driver_concurrency.cpp
 Examining ./tests/t10a.cpp
 ```
 
@@ -265,9 +253,9 @@ There is NO WARRANTY, to the extent permitted by law.
 ## pylint
 
 ```text
-************* Module 2.py
-2.py:1:0: F0001: No module named 2.py (fatal)
-2.py:1:0: F0001: No module named 2.py (fatal)
+************* Module.py
+2.py:1:0: F0001: No module named.py (fatal)
+2.py:1:0: F0001: No module named.py (fatal)
 ************* Module conf
 docs/sphinx/conf.py:16:0: C0103: Constant name "project" doesn't conform to UPPER_CASE naming style (invalid-name)
 docs/sphinx/conf.py:20:0: C0103: Constant name "author" doesn't conform to UPPER_CASE naming style (invalid-name)
@@ -351,26 +339,7 @@ no js files
 ## jscpd
 
 ```text
-Clone found (cpp-header):
- - [1m[32minclude/xinim/simd/math 2.hpp[39m[22m [1:1 - 345:38] (344 lines, 2876 tokens)
-   [1m[32minclude/xinim/simd/math.hpp[39m[22m [1:1 - 345:38]
-
-Clone found (cpp-header):
- - [1m[32minclude/xinim/simd/detect 2.hpp[39m[22m [1:1 - 287:25] (286 lines, 2696 tokens)
-   [1m[32minclude/xinim/simd/detect.hpp[39m[22m [1:1 - 287:25]
-
-Clone found (cpp-header):
- - [1m[32minclude/xinim/simd/core 2.hpp[39m[22m [1:1 - 385:25] (384 lines, 2961 tokens)
-   [1m[32minclude/xinim/simd/core.hpp[39m[22m [1:1 - 385:25]
-
-Clone found (cpp-header):
- - [1m[32minclude/xinim/io/stream 2.hpp[39m[22m [3:1 - 66:23] (63 lines, 423 tokens)
-   [1m[32minclude/xinim/io/stream.hpp[39m[22m [3:1 - 66:23]
-
-Clone found (cpp-header):
- - [1m[32minclude/xinim/io/file_operations 2.hpp[39m[22m [3:1 - 55:23] (52 lines, 326 tokens)
-   [1m[32minclude/xinim/io/file_operations.hpp[39m[22m [3:1 - 55:23]
-
+No duplicate code segments detected.
 ```
 
 ## nyc

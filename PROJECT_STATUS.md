@@ -3,7 +3,7 @@
 ## Initial Cleanup
 - Verified that no build artifacts (`build*/`, `builds/`, `*/CMakeFiles/`) remained in version control.
 - Added new ignore rules to `.gitignore` for these directories.
-- Removed duplicate file `tools/README 2.md`.
+- Removed duplicate file `tools/README.md` that previously carried a numeric suffix.
 - Ensured all build outputs reside in ignored directories only.
 
 ## July 2025 Cleanup
