@@ -31,7 +31,7 @@
  *
  * @return Integer identifier or ErrorCode depending on the invoked call.
  */
-PUBLIC int do_getset() noexcept {
+[[nodiscard]] PUBLIC int do_getset() noexcept {
     // Handle GETUID, GETGID, GETPID, SETUID and SETGID. The three GET calls
     // place their primary results in 'r'. GETUID and GETGID additionally store
     // the effective IDs in 'result2'.

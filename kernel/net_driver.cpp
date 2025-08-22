@@ -1,6 +1,7 @@
 /**
  * @file net_driver.cpp
  * @brief Robust UDP/TCP networking backend for Lattice IPC (IPv4/IPv6, C++23).
+ * @warning Lacks zero-copy optimizations; consider io_uring for future refactor.
  */
 
 #include "net_driver.hpp"
@@ -143,6 +144,9 @@ void tcp_accept_loop() {
  * @param cfg Configuration parameters controlling socket ports and queue
  *            behaviour.
  * @throws std::system_error If socket creation or binding fails.
+ * @pre Network interfaces are up and accessible.
+ * @post I/O threads are spawned and sockets bound to @p cfg.port.
+ * @warning No hardware IRQ handling; relies solely on OS-level buffering.
  */
 void init(const Config &cfg) {
     g_cfg = cfg;

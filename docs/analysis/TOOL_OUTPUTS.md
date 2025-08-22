@@ -1,9 +1,26 @@
 <!-- markdownlint-disable MD013 MD010 -->
 # Tool Output Summary
 
-This document captures sample runs of key analysis utilities on the repository.
+This document captures sample runs of key analysis utilities on the repository. Each section is collapsible for easier navigation.
 
-## cloc
+## Table of Contents
+
+- [cloc](#cloc) - Lines of code analysis
+- [sloccount](#sloccount) - Source lines of code counting
+- [lizard](#lizard) - Cyclomatic complexity analysis
+- [cscope](#cscope) - Source code cross-reference
+- [diffoscope](#diffoscope) - File comparison and analysis
+- [valgrind](#valgrind) - Memory debugging and profiling
+- [cppcheck](#cppcheck) - Static code analysis for C/C++
+- [flawfinder](#flawfinder) - Security vulnerability detection
+- [gdb](#gdb) - GNU debugger information
+- [pylint](#pylint) - Python code analysis
+- [jscpd](#jscpd) - Copy-paste detection
+
+---
+
+<details>
+<summary><h2 id="cloc">cloc</h2></summary>
 
 ```text
 github.com/AlDanial/cloc v 1.98  T=0.46 s (1412.0 files/s, 300143.7 lines/s)
@@ -33,26 +50,29 @@ SUM:                            650          14005          19453         104708
 --------------------------------------------------------------------------------
 ```
 
-## sloccount
+</details>
+
+<details>
+<summary><h2 id="sloccount">sloccount</h2></summary>
 
 ```text
 Have a non-directory at the top, so creating directory top_dir
 Adding /workspace/XINIM/./CMakeLists.txt to top_dir
 Adding /workspace/XINIM/./LICENSE to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 2.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 3.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS 4.md to top_dir
-Adding /workspace/XINIM/./PROJECT_STATUS.md to top_dir
+Adding /workspace/XINIM/./project_status_2.md to top_dir
+Adding /workspace/XINIM/./project_status_3.md to top_dir
+Adding /workspace/XINIM/./project_status_4.md to top_dir
+Adding /workspace/XINIM/./project_status.md to top_dir
 Adding /workspace/XINIM/./README.md to top_dir
-Adding /workspace/XINIM/./SIMD_LIBRARY_COMPLETE 2.md to top_dir
-Adding /workspace/XINIM/./SIMD_LIBRARY_COMPLETE.md to top_dir
+Adding /workspace/XINIM/./simd_library_complete_2.md to top_dir
+Adding /workspace/XINIM/./simd_library_complete.md to top_dir
 Creating filelist for build
 Creating filelist for commands
 Creating filelist for common
 Creating filelist for crypto
 Creating filelist for docs
 Creating filelist for fs
-Adding /workspace/XINIM/./grub 2.cfg to top_dir
+Adding /workspace/XINIM/./grub_2.cfg to top_dir
 Adding /workspace/XINIM/./grub.cfg to top_dir
 Creating filelist for h
 Creating filelist for hooks
@@ -60,13 +80,13 @@ Creating filelist for include
 Creating filelist for kernel
 Adding /workspace/XINIM/./kr_cpp_summary.json to top_dir
 Creating filelist for lib
-Adding /workspace/XINIM/./linker 2.ld to top_dir
+Adding /workspace/XINIM/./linker_2.ld to top_dir
 Adding /workspace/XINIM/./linker.ld to top_dir
 Adding /workspace/XINIM/./migrate_to_simd 2.sh to top_dir
 Adding /workspace/XINIM/./migrate_to_simd.sh to top_dir
 Creating filelist for mm
 Adding /workspace/XINIM/./test_makefile to top_dir
-Adding /workspace/XINIM/./test_makefile 2 to top_dir
+Adding /workspace/XINIM/./test_makefile_2 to top_dir
 Creating filelist for tests
 Creating filelist for tools
 Categorizing files.
@@ -121,7 +141,10 @@ see the documentation for details.
 Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
 ```
 
-## lizard
+</details>
+
+<details>
+<summary><h2 id="lizard">lizard</h2></summary>
 
 ```text
 ================================================
@@ -146,13 +169,19 @@ Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
       23      6    169      1      40 last_dir@58-97@fs/path.cpp
 ```
 
-## cscope
+</details>
+
+<details>
+<summary><h2 id="cscope">cscope</h2></summary>
 
 ```text
 -rw-r--r-- 1 root root 4101706 Aug 12 19:41 cscope.out
 ```
 
-## diffoscope
+</details>
+
+<details>
+<summary><h2 id="diffoscope">diffoscope</h2></summary>
 
 ```text
 --- README.md
@@ -177,7 +206,10 @@ Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
 -4. [Cleaning the Workspace](#cleaning-the-workspace)  
 ```
 
-## valgrind
+</details>
+
+<details>
+<summary><h2 id="valgrind">valgrind</h2></summary>
 
 ```text
 ==8755== Memcheck, a memory error detector
@@ -187,13 +219,13 @@ Please credit this data as "generated using David A. Wheeler's 'SLOCCount'."
 ==8755== 
 CMakeLists.txt
 LICENSE
-PROJECT_STATUS 2.md
-PROJECT_STATUS 3.md
-PROJECT_STATUS 4.md
-PROJECT_STATUS.md
+project_status_2.md
+project_status_3.md
+project_status_4.md
+project_status.md
 README.md
-SIMD_LIBRARY_COMPLETE 2.md
-SIMD_LIBRARY_COMPLETE.md
+simd_library_complete_2.md
+simd_library_complete.md
 build
 commands
 common
@@ -202,7 +234,10 @@ cscope.in.out
 cscope.out
 ```
 
-## cppcheck
+</details>
+
+<details>
+<summary><h2 id="cppcheck">cppcheck</h2></summary>
 
 ```text
 fs/cache.cpp:1:1: error: The code contains unhandled character(s) (character code=226). Neither unicode nor extended ascii is supported. [syntaxError]
@@ -227,7 +262,10 @@ fs/inode.cpp:109:16: style: The scope of the variable 'minor' can be reduced. [v
     int major, minor; // For printf, int is fine
 ```
 
-## flawfinder
+</details>
+
+<details>
+<summary><h2 id="flawfinder">flawfinder</h2></summary>
 
 ```text
 Flawfinder version 2.0.19, (C) 2001-2019 David A. Wheeler.
@@ -252,7 +290,10 @@ Examining ./tests/test_net_driver_concurrency 2.cpp
 Examining ./tests/t10a.cpp
 ```
 
-## gdb
+</details>
+
+<details>
+<summary><h2 id="gdb">gdb</h2></summary>
 
 ```text
 GNU gdb (Ubuntu 15.0.50.20240403-0ubuntu1) 15.0.50.20240403-git
@@ -262,7 +303,10 @@ This is free software: you are free to change and redistribute it.
 There is NO WARRANTY, to the extent permitted by law.
 ```
 
-## pylint
+</details>
+
+<details>
+<summary><h2 id="pylint">pylint</h2></summary>
 
 ```text
 ************* Module 2.py
@@ -287,7 +331,10 @@ tools/classify_style.py:6:0: W0611: Unused import re (unused-import)
 tools/find_knr.py:12:0: C0413: Import "from classify_style import classify_file" should be placed at the top of the module (wrong-import-position)
 ```
 
-## flake8
+</details>
+
+<details>
+<summary><h2 id="flake8">flake8</h2></summary>
 
 ```text
 2.py:0:1: E902 FileNotFoundError: [Errno 2] No such file or directory: '2.py'
@@ -310,13 +357,19 @@ tools/modernize_kr_file.py:43:1: E302 expected 2 blank lines, found 1
 tools/modernize_kr_file.py:52:1: E305 expected 2 blank lines after class or function definition, found 1
 ```
 
-## mypy
+</details>
+
+<details>
+<summary><h2 id="mypy">mypy</h2></summary>
 
 ```text
 mypy: can't read file 'tools/classify_style': No such file or directory
 ```
 
-## semgrep
+</details>
+
+<details>
+<summary><h2 id="semgrep">semgrep</h2></summary>
 
 ```text
 /root/.local/lib/python3.12/site-packages/opentelemetry/instrumentation/dependencies.py:4: UserWarning: pkg_resources is deprecated as an API. See https://setuptools.pypa.io/en/latest/pkg_resources.html. The pkg_resources package is slated for removal as early as 2025-11-30. Refrain from using this package or pin to Setuptools<81.
@@ -336,19 +389,28 @@ mypy: can't read file 'tools/classify_style': No such file or directory
 
 ```
 
-## eslint
+</details>
+
+<details>
+<summary><h2 id="eslint">eslint</h2></summary>
 
 ```text
 no js files
 ```
 
-## jshint
+</details>
+
+<details>
+<summary><h2 id="jshint">jshint</h2></summary>
 
 ```text
 no js files
 ```
 
-## jscpd
+</details>
+
+<details>
+<summary><h2 id="jscpd">jscpd</h2></summary>
 
 ```text
 Clone found (cpp-header):
@@ -373,8 +435,13 @@ Clone found (cpp-header):
 
 ```
 
-## nyc
+</details>
+
+<details>
+<summary><h2 id="nyc">nyc</h2></summary>
 
 ```text
 17.1.0
 ```
+
+</details>

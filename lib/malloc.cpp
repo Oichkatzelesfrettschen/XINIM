@@ -3,6 +3,14 @@
 /**
  * @file malloc.cpp
  * @brief Thin wrappers around the C standard library allocation routines.
+ *
+ * @sideeffects Request and release heap memory.
+ * @thread_safety Follows the thread safety of the underlying allocator.
+ * @compat malloc(3), realloc(3), free(3)
+ * @example
+ * char *p = malloc(10);
+ * p = realloc(p, 20);
+ * free(p);
  */
 
 /// Allocate memory using the system allocator.

@@ -248,7 +248,7 @@ File                                                         blank        commen
 ./lib/regsub.cpp                                                 5             27             48
 ./mm/getset.cpp                                                  9             34             48
 ./tools/changeme                                                11             11             48
-./tools/setup.sh                                                 9             15             48
+./tools/setup.md                                                 9             15             60
 ./.github/workflows/build.yml                                    3              0             47
 ./fs/param.hpp                                                   1              2             47
 ./tools/modernize_kr_file.py                                     5              1             47

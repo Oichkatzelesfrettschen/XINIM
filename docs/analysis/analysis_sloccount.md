@@ -511,7 +511,7 @@ Computing results.
 6	sh	tools	/workspace/XINIM/tools/pre-commit-clang-format.sh
 78	sh	tools	/workspace/XINIM/tools/modernize_cpp17.sh
 47	sh	tools	/workspace/XINIM/tools/changeme
-47	sh	tools	/workspace/XINIM/tools/setup.sh
+60	markdown	tools	/workspace/XINIM/tools/setup.md
 51	makefile	tools	/workspace/XINIM/tools/minix/Makefile
 33	makefile	tools	/workspace/XINIM/tools/Makefile
 160	cpp	top_dir	/workspace/XINIM/./console.cpp

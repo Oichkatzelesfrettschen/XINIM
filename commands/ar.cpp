@@ -73,22 +73,28 @@ using UString = std::array<char, config::NAME_SIZE + 1>;
 using Buffer = std::array<char, config::IO_SIZE>;
 using TerminalBuffer = std::array<char, config::BLOCK_SIZE>;
 
-// File operation modes
+/**
+ * @brief File operation modes for archive manipulation.
+ */
 enum class FileMode { READ, CREATE, APPEND };
 
-// Archive member structure
+/**
+ * @brief Header metadata for an individual archive member.
+ */
 struct Member {
-    UString m_name{};
-    int16_t m_time_1{};
-    int16_t m_time_2{};
-    uint8_t m_uid{};
-    uint8_t m_gid{};
-    int16_t m_mode{};
-    int16_t m_size_1{};
-    int16_t m_size_2{};
+    UString m_name{};   ///< Null-terminated member name.
+    int16_t m_time_1{}; ///< Timestamp high word.
+    int16_t m_time_2{}; ///< Timestamp low word.
+    uint8_t m_uid{};    ///< Owning user identifier.
+    uint8_t m_gid{};    ///< Owning group identifier.
+    int16_t m_mode{};   ///< POSIX file mode bits.
+    int16_t m_size_1{}; ///< File size high word.
+    int16_t m_size_2{}; ///< File size low word.
 };
 
-// RAII-based archiver
+/**
+ * @brief RAII-based archiver handling archive operations.
+ */
 class Archiver {
   public:
     Archiver() = default;
@@ -161,8 +167,20 @@ thread_local Archiver *Archiver::instance_ = nullptr;
 [[nodiscard]] constexpr bool odd(int nr) { return nr & 0x01; }
 [[nodiscard]] constexpr int even(int nr) { return odd(nr) ? nr + 1 : nr; }
 
+/**
+ * @brief Display usage information and terminate execution.
+ */
 void Archiver::usage() { error(true, "Usage: ar [adprtxv] archive [file] ..."); }
 
+/**
+ * @brief Report an error message and optionally exit.
+ *
+ * @param quit Whether to terminate
+ * the program after reporting.
+ * @param str1 Primary error description.
+ * @param str2 Optional
+ * secondary detail.
+ */
 void Archiver::error(bool quit, std::string_view str1, std::string_view str2) {
     std::lock_guard lock(mtx_);
     write(descriptors::STDERR, str1.data(), str1.size());
@@ -176,6 +194,13 @@ void Archiver::error(bool quit, std::string_view str1, std::string_view str2) {
     }
 }
 
+/**
+ * @brief Extract basename component from a path.
+ *
+ * @param path Path string to process.
+ *
+ * @return Basename portion of @p path.
+ */
 std::string_view Archiver::ar_basename(std::string_view path) {
     auto last_slash = path.rfind('/');
     if (last_slash == std::string_view::npos)
@@ -186,10 +211,30 @@ std::string_view Archiver::ar_basename(std::string_view path) {
     return path.substr(last_slash + 1);
 }
 
+/**
+ * @brief Compare two archive member names for equality.
+ *
+ * @param str1 First name to
+ * compare.
+ * @param str2 Second name to compare.
+ * @return True if the names match up to @c
+ * config::NAME_SIZE characters.
+ */
 bool Archiver::equal(std::string_view str1, std::string_view str2) {
     return str1.substr(0, config::NAME_SIZE) == str2.substr(0, config::NAME_SIZE);
 }
 
+/**
+ * @brief Open an archive file in the specified mode.
+ *
+ * @param name Archive filename.
+ *
+ * @param mode Desired open mode.
+ * @return File descriptor for the opened archive.
+ *
+ * @throws
+ * std::runtime_error If the archive cannot be opened or is invalid.
+ */
 int Archiver::open_archive(std::string_view name, FileMode mode) {
     std::lock_guard lock(mtx_);
     int fd = -1;
@@ -246,6 +291,15 @@ Member *Archiver::get_member() {
     return &member;
 }
 
+/**
+ * @brief Swap two 16-bit words and return the combined 32-bit value.
+ *
+ * @param mem_1 First
+ * word (will contain @p mem_2).
+ * @param mem_2 Second word (will contain @p mem_1).
+ * @return
+ * Joined 32-bit integer.
+ */
 long Archiver::swap(int16_t &mem_1, int16_t &mem_2) {
     union Swapper {
         struct {
@@ -283,6 +337,12 @@ ssize_t Archiver::safe_write(int fd, const void *buffer, std::size_t size) {
     return bytes_written;
 }
 
+/**
+ * @brief Append text to the terminal buffer for batched output.
+ *
+ * @param str Text to
+ * write.
+ */
 void Archiver::print(std::string_view str) {
     std::lock_guard lock(mtx_);
     for (char c : str) {
@@ -308,6 +368,13 @@ void Archiver::flush() {
     }
 }
 
+/**
+ * @brief Display an operation character and member name.
+ *
+ * @param c Operation indicator
+ * (e.g., 'd' for delete).
+ * @param name Archive member name.
+ */
 void Archiver::show(char c, std::string_view name) {
     std::lock_guard lock(mtx_);
     write(descriptors::STDOUT, &c, 1);
@@ -316,6 +383,12 @@ void Archiver::show(char c, std::string_view name) {
     write(descriptors::STDOUT, "\n", 1);
 }
 
+/**
+ * @brief Print an archive member name padded to fixed width.
+ *
+ * @param mem_name Name
+ * extracted from archive header.
+ */
 void Archiver::p_name(std::string_view mem_name) {
     UString name{};
     std::ranges::copy_n(mem_name.begin(), std::min(mem_name.size(), config::NAME_SIZE),
@@ -323,6 +396,12 @@ void Archiver::p_name(std::string_view mem_name) {
     print(name.data());
 }
 
+/**
+ * @brief Emit symbolic POSIX permission bits for a file mode.
+ *
+ * @param mode Mode bits to
+ * display.
+ */
 void Archiver::print_mode(int mode) {
     std::array<char, 11> mode_buf{' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' ', ' '};
     int tmp = mode;
@@ -339,6 +418,13 @@ void Archiver::print_mode(int mode) {
     print(std::string_view(mode_buf.data(), mode_buf.size()));
 }
 
+/**
+ * @brief Print a long integer with optional padding.
+ *
+ * @param pad Minimum field width.
+ *
+ * @param number Value to output.
+ */
 void Archiver::litoa(int pad, long number) {
     std::array<char, 11> num_buf{};
     long pow = 1'000'000'000L;
@@ -358,6 +444,12 @@ void Archiver::litoa(int pad, long number) {
     print(std::string_view(start, num_buf.end()));
 }
 
+/**
+ * @brief Print a timestamp in a human-readable form.
+ *
+ * @param t Seconds since the Unix
+ * epoch.
+ */
 void Archiver::date(long t) {
     constexpr int mo[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     constexpr std::string_view moname[] = {" Jan ", " Feb ", " Mar ", " Apr ", " May ", " Jun ",
@@ -403,6 +495,9 @@ void Archiver::date(long t) {
     print(" ");
 }
 
+/**
+ * @brief Create a unique temporary archive filename.
+ */
 void Archiver::mktempname() {
     std::lock_guard lock(mtx_);
     auto result =
@@ -410,6 +505,14 @@ void Archiver::mktempname() {
     temp_arch_[result.out - temp_arch_.begin()] = '\0';
 }
 
+/**
+ * @brief Add a file to an archive.
+ *
+ * @param name Source filename.
+ * @param fd Target file
+ * descriptor.
+ * @param mess Operation indicator character.
+ */
 void Archiver::add(std::string_view name, int fd, char mess) {
     std::lock_guard lock(mtx_);
     struct stat status;
@@ -447,6 +550,12 @@ void Archiver::add(std::string_view name, int fd, char mess) {
     ::close(src_fd);
 }
 
+/**
+ * @brief Extract an archive member to the filesystem.
+ *
+ * @param member Member metadata to
+ * extract.
+ */
 void Archiver::extract(const Member &member) {
     std::lock_guard lock(mtx_);
     int fd = descriptors::STDOUT;
@@ -466,6 +575,14 @@ void Archiver::extract(const Member &member) {
     }
 }
 
+/**
+ * @brief Copy member data between file descriptors.
+ *
+ * @param member Member metadata
+ * describing size.
+ * @param from Source descriptor.
+ * @param to Destination descriptor.
+ */
 void Archiver::copy_member(const Member &member, int from, int to) {
     std::lock_guard lock(mtx_);
     long rest = mem_size_;
@@ -486,6 +603,13 @@ void Archiver::copy_member(const Member &member, int from, int to) {
     }
 }
 
+/**
+ * @brief Parse command line arguments and perform archive operations.
+ *
+ * @param argc
+ * Argument count.
+ * @param argv Argument vector.
+ */
 void Archiver::process(int argc, char *argv[]) {
     if (argc < 3)
         usage();

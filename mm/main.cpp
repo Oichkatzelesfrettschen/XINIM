@@ -1,16 +1,11 @@
-/* This file contains the main program of the memory manager and some related
- * procedures.  When MINIX starts up, the kernel runs for a little while,
- * initializing itself and its tasks, and then it runs MM.  MM at this point
- * does not know where FS is in memory and how big it is.  By convention, FS
- * must start at the click following MM, so MM can deduce where it starts at
- * least.  Later, when FS runs for the first time, FS makes a pseudo-call,
- * BRK2, to tell MM how big it is.  This allows MM to figure out where INIT
- * is.
+/**
+ * @file
+ * @brief Main program of the memory manager and related routines.
  *
- * The entry points into this file are:
- *   main:	starts MM running
- *   reply:	reply to a process making an MM system call
- *   do_brk2:	pseudo-call for FS to report its size
+ * When MINIX boots the kernel eventually hands control to MM, which then
+ * initializes memory accounting and waits for requests. The file also contains
+ * helpers for replying to calls and for the BRK2 pseudo-call from the file
+ * system.
  */
 
 #include "../h/callnr.hpp"
@@ -28,9 +23,10 @@
 #include <cstdio>  // For printf (used in do_brk2)
 // #include <inttypes.h> // Not strictly needed if only %d is used for int
 
-#define ENOUGH                                                                                     \
-    static_cast<uint64_t>(4096) /* any # > max(FS size, INIT size) (phys_clicks -> uint64_t) */
-#define CLICK_TO_K (1024L / CLICK_SIZE) /* convert clicks to K (CLICK_SIZE is int) */
+namespace {
+/// convert clicks to K (CLICK_SIZE is int)
+constexpr long CLICK_TO_K{1024L / CLICK_SIZE};
+} // namespace
 
 static uint64_t tot_mem;    // PRIVATE phys_clicks -> static uint64_t
 extern int (*call_vec[])(); // Assuming call_vec functions still return int
@@ -169,7 +165,7 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
  *
  * @return OK on success or an error code otherwise.
  */
-PUBLIC int do_brk2() noexcept { // Added int return type (was implicit), noexcept
+[[nodiscard]] PUBLIC int do_brk2() noexcept { // Added int return type (was implicit), noexcept
     /* This "call" is made once by FS during system initialization and then never
      * again by anyone.  It contains the origin and size of INIT, and the combined
      * size of the 1536 bytes of unused mem, MINIX and RAM disk.

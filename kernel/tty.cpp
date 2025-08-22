@@ -57,6 +57,8 @@
 #include <algorithm> // For std::min (used in rd_chars)
 #include <cstddef>   // For std::size_t, nullptr
 #include <cstdint>   // For uint64_t, uint16_t etc.
+#include <deque>
+#include <span>
 // #include <inttypes.h> // For printf format specifiers if needed later
 
 #define NR_TTYS 1         /* how many terminals can system handle */
@@ -83,6 +85,12 @@
 #define F10 68     /* scan code for function key F9 */
 #define TOP_ROW 14 /* codes below this are shifted if CTRL */
 
+/**
+ * @brief Kernel TTY state structure.
+ *
+ * Holds per-terminal state including I/O buffers and
+ * device parameters.
+ */
 PRIVATE struct tty_struct {
     /* Input queue.  Typed characters are stored here until read by a program. */
     char tty_inqueue[TTY_IN_BYTES]; /* array used to store the characters */
@@ -121,13 +129,13 @@ PRIVATE struct tty_struct {
     char tty_eof;   /* char used to stop output  (init CTRL-D) */
 
     /* Information about incomplete I/O requests is stored here. */
-    char tty_incaller;       /* process that made the call (usually FS) */
-    char tty_inproc;         /* process that wants to read from tty */
-    char *tty_in_vir;        /* virtual address where data is to go (char* is fine for address) */
-    std::size_t tty_inleft;  /* how many chars are still needed (was int) */
-    char tty_otcaller;       /* process that made the call (usually FS) */
-    char tty_outproc;        /* process that wants to write to tty */
-    char *tty_out_vir;       /* virtual address where data comes from (char* is fine for address) */
+    char tty_incaller;                    /* process that made the call (usually FS) */
+    char tty_inproc;                      /* process that wants to read from tty */
+    std::span<char> tty_in_span{};        /* destination buffer for input */
+    std::size_t tty_inleft;               /* how many chars are still needed (was int) */
+    char tty_otcaller;                    /* process that made the call (usually FS) */
+    char tty_outproc;                     /* process that wants to write to tty */
+    std::span<const char> tty_out_span{}; /* source buffer for output */
     uint64_t tty_phys;       /* physical address where data comes from (phys_bytes -> uint64_t) */
     std::size_t tty_outleft; /* # chars yet to be copied to tty_outqueue (was int) */
     std::size_t tty_cum;     /* # chars copied to tty_outqueue so far (was int) */
@@ -148,13 +156,13 @@ PRIVATE struct tty_struct {
 #define NOT_WAITING 0 /* no output process is hanging */
 #define WAITING 1     /* an output process is waiting for a reply */
 
-PRIVATE char tty_driver_buf[2 * MAX_OVERRUN + 2]; /* driver collects chars here */
-PRIVATE char tty_copy_buf[2 * MAX_OVERRUN];       /* copy buf used to avoid races */
-PRIVATE char tty_buf[TTY_BUF_SIZE];               /* scratch buffer to/from user space */
-PRIVATE int shift1, shift2, capslock, numlock;    /* keep track of shift keys */
-PRIVATE int control, alt;                         /* keep track of key statii */
-PUBLIC int color;                                 /* 1 if console is color, 0 if it is mono */
-PUBLIC scan_code;                                 /* scan code for '=' saved by bootstrap */
+PRIVATE std::deque<char> tty_driver_buf(2 * MAX_OVERRUN + 2); /* driver collects chars here */
+PRIVATE char tty_copy_buf[2 * MAX_OVERRUN];                   /* copy buf used to avoid races */
+PRIVATE char tty_buf[TTY_BUF_SIZE];            /* scratch buffer to/from user space */
+PRIVATE int shift1, shift2, capslock, numlock; /* keep track of shift keys */
+PRIVATE int control, alt;                      /* keep track of key statii */
+PUBLIC int color;                              /* 1 if console is color, 0 if it is mono */
+PUBLIC scan_code;                              /* scan code for '=' saved by bootstrap */
 
 /* Scan codes to ASCII for unshifted keys */
 PRIVATE char unsh[] = {0,    033,  '1',  '2',  '3',  '4',  '5',  '6',  '7',  '8',  '9',  '0',
@@ -197,6 +205,11 @@ PRIVATE char m24[] = {0,    033,  '!',  '"',  '#',  '$',  '%',  '&',  047,  '(',
 /*===========================================================================*
  *				tty_task				     *
  *===========================================================================*/
+/**
+ * @brief Terminal task main loop.
+ * @pre tty_init() has configured device tables.
+ * @post Runs indefinitely handling TTY requests and interrupts.
+ */
 PUBLIC void tty_task() noexcept { // Added void return, noexcept
     /* Main routine of the terminal task. */
 
@@ -506,6 +519,9 @@ chuck(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signatu
 /*===========================================================================*
  *				do_read					     *
  *===========================================================================*/
+/**
+   * @brief Service a read request for a terminal.
+   */
 static void do_read(struct tty_struct *tp,
                     message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to read from a terminal. */
@@ -519,10 +535,10 @@ static void do_read(struct tty_struct *tp,
 
     /* Copy information from the message to the tty struct. */
     // m_ptr->m_source, PROC_NR, COUNT are int. ADDRESS is char*.
-    // tty_incaller, tty_inproc are char. tty_in_vir is char*. tty_inleft is std::size_t.
+    // tty_incaller, tty_inproc are char. tty_in_span holds the destination buffer.
     tp->tty_incaller = static_cast<char>(m_ptr->m_source);
     tp->tty_inproc = static_cast<char>(proc_nr(*m_ptr));
-    tp->tty_in_vir = address(*m_ptr);
+    tp->tty_in_span = std::span<char>(address(*m_ptr), static_cast<std::size_t>(count(*m_ptr)));
     tp->tty_inleft = static_cast<std::size_t>(count(*m_ptr));
 
     /* Try to get chars.  This call either gets enough, or gets nothing. */
@@ -535,6 +551,9 @@ static void do_read(struct tty_struct *tp,
 /*===========================================================================*
  *				rd_chars				     *
  *===========================================================================*/
+/**
+ * @brief Copy available characters to the user buffer.
+ */
 static int
 rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to read from a terminal.  First check if enough data is
@@ -554,9 +573,9 @@ rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized sign
     cooked = ((tp->tty_mode & (RAW | CBREAK)) ? 0 : 1); /* 1 iff COOKED mode */
     if (tp->tty_incount == 0 || (cooked && tp->tty_lfct == 0))
         return (SUSPEND);
-    rp = proc_addr(tp->tty_inproc);                         // tty_inproc is char
-    in_vir = reinterpret_cast<std::size_t>(tp->tty_in_vir); // tty_in_vir is char*
-    left = tp->tty_inleft;                                  // tty_inleft is std::size_t
+    rp = proc_addr(tp->tty_inproc); // tty_inproc is char
+    in_vir = reinterpret_cast<std::size_t>(tp->tty_in_span.data());
+    left = tp->tty_inleft; // tty_inleft is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     if ((user_phys = umap(rp, D, in_vir, left)) == 0)
         return (ErrorCode::E_BAD_ADDR);
@@ -634,9 +653,14 @@ static void finish(struct tty_struct *tp,
 
 /*===========================================================================*
  *				do_write				     *
- *===========================================================================*/
-static void do_write(struct tty_struct *tp,
-                     message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+/**
+ * @brief Handle a write request for a terminal.
+ */
+*= == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == ==
+   == == == == ==
+   */ static void do_write(
+          struct tty_struct * tp,
+          message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to write on a terminal. */
 
     std::size_t out_vir, out_left; // vir_bytes -> std::size_t
@@ -645,19 +669,20 @@ static void do_write(struct tty_struct *tp,
 
     /* Copy message parameters to the tty structure. */
     // m_source, PROC_NR, COUNT are int. ADDRESS is char*.
-    // tty_otcaller, tty_outproc are char. tty_out_vir is char*.
+    // tty_otcaller, tty_outproc are char. tty_out_span views the source buffer.
     // tty_outleft, tty_cum are std::size_t.
     tp->tty_otcaller = static_cast<char>(m_ptr->m_source);
     tp->tty_outproc = static_cast<char>(proc_nr(*m_ptr));
-    tp->tty_out_vir = address(*m_ptr);
+    tp->tty_out_span =
+        std::span<const char>(address(*m_ptr), static_cast<std::size_t>(count(*m_ptr)));
     tp->tty_outleft = static_cast<std::size_t>(count(*m_ptr));
     tp->tty_waiting = WAITING;
     tp->tty_cum = 0;
 
     /* Compute the physical address where the data is in user space. */
-    rp = proc_addr(tp->tty_outproc);                          // tty_outproc is char
-    out_vir = reinterpret_cast<std::size_t>(tp->tty_out_vir); // tty_out_vir is char*
-    out_left = tp->tty_outleft;                               // tty_outleft is std::size_t
+    rp = proc_addr(tp->tty_outproc); // tty_outproc is char
+    out_vir = reinterpret_cast<std::size_t>(tp->tty_out_span.data());
+    out_left = tp->tty_outleft; // tty_outleft is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t. tp->tty_phys is uint64_t.
     if ((tp->tty_phys = umap(rp, D, out_vir, out_left)) == 0) {
         /* Buffer address provided by user is outside its address space. */
@@ -837,6 +862,11 @@ PRIVATE int vid_port;      /* I/O port for accessing 6845 */
 /*===========================================================================*
  *				keyboard				     *
  *===========================================================================*/
+/**
+ * @brief Interrupt handler for keyboard events.
+ * @pre Executing on keyboard IRQ with interrupts disabled.
+ * @post Raw scancode is acknowledged and queued for tty_task().
+ */
 PUBLIC keyboard() {
     /* A keyboard interrupt has occurred.  Process it. */
 
@@ -890,7 +920,7 @@ PUBLIC keyboard() {
 
         /* Build and send the interrupt message. */
         keybd_mess.m_type = TTY_CHAR_INT;
-        keybd_mess.ADDRESS = tty_driver_buf;
+        keybd_mess.ADDRESS = tty_driver_buf.data();
         interrupt(TTY, &keybd_mess); /* send a message to the tty task */
     } else {
         /* Too many characters have been buffered.  Discard excess. */
@@ -1166,6 +1196,12 @@ static void beep(int f) noexcept { // PRIVATE -> static, modernized signature, n
 /*===========================================================================*
  *				tty_init				     *
  *===========================================================================*/
+/**
+ * @brief Initialise TTY descriptor tables.
+ *
+ * @pre Console driver initialised.
+ * @post All TTY structures set to default line discipline.
+ */
 static void tty_init() noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Initialize the tty tables. */
 

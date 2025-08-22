@@ -9,31 +9,38 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 * **Educational**: Clean, well-documented code suitable for operating systems coursework.
 * **Security**: ML-KEM (Kyber) encryption, octonion-based capability algebra, and information flow control.
 
+***
+
 ## Key Features
 
 ### Post-Quantum Security
-- **ML-KEM (Kyber)**: NIST-standardized lattice-based key encapsulation for quantum-resistant IPC.
-- **XChaCha20-Poly1305**: Authenticated encryption for secure message channels.
-- **Constant-time operations**: Side-channel resistant cryptographic implementations.
+
+* **ML-KEM (Kyber)**: NIST-standardized lattice-based key encapsulation for quantum-resistant IPC.
+* **XChaCha20-Poly1305**: Authenticated encryption for secure message channels.
+* **Constant-time operations**: Side-channel resistant cryptographic implementations.
 
 ### Advanced Architecture
-- **Microkernel Design**: Minimal kernel with user-mode servers (PM, MM, FS, RS, DS).
-- **Lattice IPC**: Capability-based inter-process communication with security labels.
-- **DAG Scheduling**: Dependency-aware scheduling with deadlock detection.
-- **Service Resurrection**: Automatic fault detection and coordinated service restart.
+
+* **Microkernel Design**: Minimal kernel with user-mode servers (PM, MM, FS, RS, DS).
+* **Lattice IPC**: Capability-based inter-process communication with security labels.
+* **DAG Scheduling**: Dependency-aware scheduling with deadlock detection.
+* **Service Resurrection**: Automatic fault detection and coordinated service restart.
 
 ### Mathematical Foundations
-- **Octonion Algebra**: Non-associative algebra for capability delegation semantics.
-- **Security Lattice**: Information flow control with join/meet operations.
-- **Budget Semiring**: Resource accounting and execution cost modeling.
+
+* **Octonion Algebra**: Non-associative algebra for capability delegation semantics.
+* **Security Lattice**: Information flow lattice integrated into the kernel security model.
+* **Budget Semiring**: Resource accounting and execution cost modeling.
 
 ### Modern Implementation
-- **C++23**: Latest language features with strong type safety and RAII.
-- **Template Metaprogramming**: Compile-time optimizations and type safety.
-- **Comprehensive Testing**: Unit tests, integration tests, and property-based testing.
-- **Documentation**: Doxygen + Sphinx for comprehensive API documentation.
 
----
+* **C++23**: Latest language features with strong type safety and RAII.
+* **Template Metaprogramming**: Compile-time optimizations and type safety.
+* **Comprehensive Testing**: Unit tests, integration tests, and property-based testing.
+* **Documentation**: Doxygen + Sphinx for comprehensive API documentation.
+* **RAII Process Control**: `ScopedProcessSlot` manages process table entries via `std::span` for safe resource handling.
+
+***
 
 ## Architecture Overview
 
@@ -169,13 +176,13 @@ XINIM includes a comprehensive architecture verification demo that proves all do
 
 **This demo validates**:
 
-  - **85,813 lines of C++** with sophisticated implementation
-  - **Post-quantum cryptography** (Kyber512 + AES-256-GCM)
-  - **Octonion mathematics** (751+ implementations with Fano plane)
-  - **Lattice IPC** (92+ crypto integrations)
-  - **Service management** (133 comprehensive tests)
-  - **SIMD acceleration** (runtime feature detection)
-  - **Modern C++23** (concepts, ranges, constexpr throughout)
+  * **85,813 lines of C++** with sophisticated implementation.
+  * **Post-quantum cryptography** (Kyber512 + AES-256-GCM).
+  * **Octonion mathematics** (751+ implementations with Fano plane).
+  * **Lattice IPC** (92+ crypto integrations).
+  * **Service management** (133 comprehensive tests).
+  * **SIMD acceleration** (runtime feature detection).
+  * **Modern C++23** (concepts, ranges, constexpr throughout).
 
 **Implementation Status**: Far beyond a simple MINIX clone—this is a research-grade post-quantum microkernel demonstrating cutting-edge techniques in operating system security and mathematical computing.
 
@@ -187,27 +194,27 @@ XINIM advances the state of microkernel operating systems through several key in
 
 ### Post-Quantum Microkernel Security
 
-  - **First implementation** of ML-KEM (Kyber) in microkernel IPC.
-  - **Zero-copy encrypted messaging** with capability-based access control.
-  - **Side-channel resistant** constant-time cryptographic operations.
+  * **First implementation** of ML-KEM (Kyber) in microkernel IPC.
+  * **Zero-copy encrypted messaging** with capability-based access control.
+  * **Side-channel resistant** constant-time cryptographic operations.
 
 ### Mathematical Operating Systems
 
-  - **Octonion-based capability algebra** for non-associative delegation semantics.
-  - **Information flow lattice** integrated into the kernel security model.
-  - **Budget semiring** for resource accounting and fair scheduling.
+  * **Octonion-based capability algebra** for non-associative delegation semantics.
+  * **Information flow lattice** integrated into the kernel security model.
+  * **Budget semiring** for resource accounting and fair scheduling.
 
 ### Advanced Scheduling Architecture
 
-  - **DAG-based deadlock prevention** using wait-for graphs.
-  - **Service resurrection** with dependency-aware restart ordering.
-  - **Capability-mediated scheduling** with mathematical priority functions.
+  * **DAG-based deadlock prevention** using wait-for graphs.
+  * **Service resurrection** with dependency-aware restart ordering.
+  * **Capability-mediated scheduling** with mathematical priority functions.
 
 ### Educational Platform
 
-  - **Modern C++23 showcase** in systems programming context.
-  - **Clean microkernel pedagogy** with advanced features.
-  - **Research-grade implementation** suitable for academic study.
+  * **Modern C++23 showcase** in systems programming context.
+  * **Clean microkernel pedagogy** with advanced features.
+  * **Research-grade implementation** suitable for academic study.
 
 -----
 
@@ -232,7 +239,7 @@ rm -rf build/
 | Document                      | Description                               |
 |-------------------------------|-------------------------------------------|
 | `docs/BUILDING.md`            | Full build and flashing guide             |
-| `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](docs/sphinx/architecture.rst) |
+| `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](https://www.google.com/search?q=docs/sphinx/architecture.rst) |
 | `docs/TOOL_INSTALL.md`        | OS-specific dependency list               |
 | `docs/simd_migration.md`      | Manual SIMD migration procedure           |
 | `docs/sphinx/html/index.html` | Generated developer manual in HTML        |
