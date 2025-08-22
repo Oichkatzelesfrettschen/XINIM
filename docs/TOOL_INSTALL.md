@@ -103,7 +103,7 @@ examples correspond to the commands executed in
 | cloc              | apt                 | sudo apt install cloc                          | cloc .                                       |
 | cscope            | apt                 | sudo apt install cscope                        | cscope -Rbq                                   |
 | diffoscope        | pip                 | pip install diffoscope                         | diffoscope README.md docs/README_renamed.md   |
-| dtrace            | source              | git clone https://github.com/dtrace4linux/linux.git; cd linux; make; sudo make install | dtrace -l (requires manual build)              |
+| dtrace            | source              | # WARNING: Review the source code before installing. Cloning and installing from an unverified repository can be dangerous. git clone https://github.com/dtrace4linux/linux.git; cd linux; make; sudo make install | dtrace -l (requires manual build)              |
 | valgrind          | apt                 | sudo apt install valgrind                      | valgrind ls                                   |
 | cppcheck          | apt                 | sudo apt install cppcheck                      | cppcheck --enable=warning fs                  |
 | sloccount         | apt                 | sudo apt install sloccount                     | sloccount .                                   |
