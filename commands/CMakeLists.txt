@@ -17,9 +17,8 @@ add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 # This CMake file builds each userland command as a separate executable.
 
 file(GLOB CMD_SOURCES "*.cpp")
-# Consider excluding test source files if any are directly in commands/
-# list(FILTER CMD_SOURCES EXCLUDE REGEX ".*/test_.*\.cpp$")
-# For now, assume tests are neatly in commands/tests/
+# Exclude the compiler driver which has a dedicated target
+list(FILTER CMD_SOURCES EXCLUDE REGEX "cc\\.cpp$")
 
 # TODO: Exclude main files of multi-file applications like 'mined' from this generic loop.
 # They should have their own targets defined or be handled by a dedicated CMakeLists.txt
@@ -64,3 +63,12 @@ foreach(CMD_SOURCE_FILE ${CMD_SOURCES})
     "${CMAKE_SOURCE_DIR}/h"
   )
 endforeach()
+
+# Explicit compiler driver target
+add_executable(minix_cmd_cc cc.cpp)
+target_link_libraries(minix_cmd_cc PRIVATE minix_libc xinim_fs)
+target_include_directories(minix_cmd_cc PUBLIC
+  "."
+  "${CMAKE_SOURCE_DIR}/include"
+  "${CMAKE_SOURCE_DIR}/h"
+)
