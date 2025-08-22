@@ -132,6 +132,16 @@ PUBLIC void sys_task() noexcept { // Added void return, noexcept
 /*===========================================================================*
  *				do_fork					     *
  *===========================================================================*/
+/**
+ * @brief Handle a \c SYS_FORK request.
+ *
+ * Copies the parent process descriptor to the child and prepares the child
+ * for execution. The child is left in a non-runnable state until its memory
+ * map is installed.
+ *
+ * @param m_ptr Message describing the parent and child processes.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature
 static int do_fork(message *m_ptr) noexcept {
     /* Handle sys_fork().  'k1' has forked.  The child is 'k2'. */
@@ -175,6 +185,15 @@ static int do_fork(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_newmap				     *
  *===========================================================================*/
+/**
+ * @brief Install a new memory map for a process.
+ *
+ * The memory manager supplies a map which replaces the process' previous
+ * mapping. The process is made runnable once the new map is installed.
+ *
+ * @param m_ptr Message from the memory manager containing the new map.
+ * @return ::OK on success or an error code on failure.
+ */
 PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
 {
     /* Handle sys_newmap().  Fetch the memory map from MM. */
@@ -217,6 +236,15 @@ PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
 /*===========================================================================*
  *				do_exec					     *
  *===========================================================================*/
+/**
+ * @brief Finalize process state after a successful \c EXEC call.
+ *
+ * Resets stack pointer, program counter and capability token so that the
+ * newly loaded image can begin execution.
+ *
+ * @param m_ptr Message describing the process that executed a new image.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature
 static int do_exec(message *m_ptr) noexcept {
     /* Handle sys_exec().  A process has done a successful EXEC. Patch it up. */
@@ -246,6 +274,15 @@ static int do_exec(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_xit					     *
  *===========================================================================*/
+/**
+ * @brief Handle process termination for \c SYS_XIT.
+ *
+ * Updates parent accounting statistics, removes the process from queues and
+ * marks the process slot as free.
+ *
+ * @param m_ptr Message identifying the exiting process and its parent.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature
 static int do_xit(message *m_ptr) noexcept {
     /* Handle sys_xit().  A process has exited. */
@@ -300,6 +337,12 @@ static int do_xit(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_getsp				     *
  *===========================================================================*/
+/**
+ * @brief Retrieve the user stack pointer for \c SYS_GETSP.
+ *
+ * @param m_ptr Message identifying the process of interest.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature
 static int do_getsp(message *m_ptr) noexcept {
     /* Handle sys_getsp().  MM wants to know what sp is. */
@@ -319,6 +362,15 @@ static int do_getsp(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_times				     *
  *===========================================================================*/
+/**
+ * @brief Return accounting information for \c SYS_TIMES.
+ *
+ * Fills the message with user and system time statistics for the specified
+ * process.
+ *
+ * @param m_ptr Message identifying the process.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature
 static int do_times(message *m_ptr) noexcept {
     /* Handle sys_times().  Retrieve the accounting information. */
@@ -344,6 +396,14 @@ static int do_times(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_abort				     *
  *===========================================================================*/
+/**
+ * @brief Abort the system in response to \c SYS_ABORT.
+ *
+ * This routine never returns; it triggers a kernel panic.
+ *
+ * @param m_ptr Unused.
+ * @return Always ::OK to satisfy the compiler, though execution does not continue.
+ */
 // Modernized signature
 static int do_abort(message *m_ptr) noexcept {
     /* Handle sys_abort.  MINIX is unable to continue.  Terminate operation. */
@@ -355,6 +415,15 @@ static int do_abort(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_sig					     *
  *===========================================================================*/
+/**
+ * @brief Deliver a signal to a user process.
+ *
+ * Builds a stack frame so control will transfer to the user-space signal
+ * handler when returning from the kernel.
+ *
+ * @param m_ptr Message specifying the target process, signal number and handler.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature (already partially modernized for types)
 static int do_sig(message *m_ptr) noexcept {
     /* Handle sys_sig(). Signal a process.  The stack is known to be big enough. */
@@ -408,6 +477,15 @@ static int do_sig(message *m_ptr) noexcept {
 /*===========================================================================*
  *				do_copy					     *
  *===========================================================================*/
+/**
+ * @brief Copy a block of memory between processes.
+ *
+ * Virtual addresses are translated with ::umap and validated before the
+ * transfer occurs.
+ *
+ * @param m_ptr Message describing source and destination details.
+ * @return ::OK on success or an error code on failure.
+ */
 // Modernized signature (already partially modernized for types)
 static int do_copy(message *m_ptr) noexcept {
     /* Handle sys_copy().  Copy data for MM or FS. */
