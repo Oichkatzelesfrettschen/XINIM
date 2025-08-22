@@ -78,29 +78,29 @@ L1 - Kernel Contract
 L2 - Algorithmic Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Lattice IPC System** (:cpp:namespace:`lattice`)
+**Lattice IPC System** (``lattice``)
     Implements the :cpp:struct:`lattice::Channel` abstraction with
     :cpp:class:`lattice::Graph` for managing IPC endpoints.
 
-**Scheduler** (:cpp:namespace:`sched`)
+**Scheduler** (``sched``)
     Multi-level feedback queues with :cpp:class:`sched::Scheduler`
     implementing priority inheritance and dependency tracking.
 
-**Service Management** (:cpp:namespace:`svc`)
+**Service Management** (``svc``)
     :cpp:class:`svc::ServiceManager` provides resurrection capabilities
     with dependency-aware restart ordering.
 
 L3 - C++23 Implementation
 ~~~~~~~~~~~~~~~~~~~~~~~~~
 
-**Core Types** (:cpp:header:`xinim/core_types.hpp`)
+**Core Types** (``xinim/core_types.hpp``)
     Modern type definitions with platform abstraction and strong typing.
 
 **Mathematical Primitives**
     :cpp:struct:`lattice::Octonion` for capability tokens and
     constant-time operations for security.
 
-**Post-Quantum Cryptography** (:cpp:namespace:`pqcrypto`)
+**Post-Quantum Cryptography** (``pqcrypto``)
     ML-KEM implementation with :cpp:func:`pqcrypto::generate_keypair` and
     :cpp:func:`pqcrypto::compute_shared_secret`.
 
