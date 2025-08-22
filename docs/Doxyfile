@@ -106,10 +106,16 @@ WARN_LOGFILE           =
 #---------------------------------------------------------------------------
 # Configuration options related to the input files
 #---------------------------------------------------------------------------
-INPUT                  = kernel include
+INPUT                  = commands \
+                         fs \
+                         kernel \
+                         mm \
+                         lib \
+                         include
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.cpp \
                          *.hpp \
+                         *.c \
                          *.h \
                          *.cc \
                          *.cxx \
