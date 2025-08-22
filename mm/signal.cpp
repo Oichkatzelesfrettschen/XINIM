@@ -191,7 +191,7 @@ static int check_sig(int proc_id, int sig_nr, uint16_t send_uid) noexcept {
         sig_proc(rmp, sig_nr);
 
         /* If process is hanging on PAUSE, WAIT, tty, pipe, etc. release it. */
-        unpause(rmp - mproc); /* check to see if process is paused */
+        unpause(static_cast<int>(rmp - mproc.data())); /* check to see if process is paused */
         if (proc_id > 0)
             break; /* only one process being signalled */
     }
@@ -223,13 +223,14 @@ PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept {
     mask = static_cast<uint16_t>(1 << (sig_nr - 1)); // mp_catch is unshort (uint16_t)
     if (rmp->mp_catch & mask) {
         /* Signal should be caught. */
-        rmp->mp_catch &= ~mask;          /* disable further signals */
-        sys_getsp(rmp - mproc, &new_sp); // sys_getsp (kernel) expects std::size_t* for new_sp
-        new_sp -= SIG_PUSH_BYTES;        // SIG_PUSH_BYTES is int. new_sp is std::size_t.
+        rmp->mp_catch &= ~mask; /* disable further signals */
+        sys_getsp(static_cast<int>(rmp - mproc.data()),
+                  &new_sp);       // sys_getsp (kernel) expects std::size_t* for new_sp
+        new_sp -= SIG_PUSH_BYTES; // SIG_PUSH_BYTES is int. new_sp is std::size_t.
         // rmp->mp_seg[D].mem_len is vir_clicks (std::size_t). adjust takes std::size_t for clicks &
         // sp.
         if (adjust(rmp, rmp->mp_seg[D].mem_len, new_sp) == OK) {
-            sys_sig(rmp - mproc, sig_nr, rmp->mp_func, rmp->mp_token);
+            sys_sig(static_cast<int>(rmp - mproc.data()), sig_nr, rmp->mp_func, rmp->mp_token);
             return; /* successful signal */
         }
     }
@@ -357,7 +358,7 @@ static void dump_core(struct mproc *rmp) noexcept {
     extern char core_name[];
 
     /* Change to working directory of dumpee. */
-    slot = rmp - mproc; // int
+    slot = static_cast<int>(rmp - mproc.data()); // int
     tell_fs(CHDIR, slot, 0, 0);
 
     /* Can core file be written? */

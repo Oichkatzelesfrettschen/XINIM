@@ -136,7 +136,7 @@ PUBLIC int do_brk() {
                 rmp->mp_seg[D].mem_vir, rmp->mp_seg[S].mem_vir);
     if (r == OK) {
         if (changed)
-            sys_newmap(rmp - mproc, rmp->mp_seg);
+            sys_newmap(static_cast<int>(rmp - mproc.data()), rmp->mp_seg);
         return (OK);
     }
 
@@ -223,7 +223,7 @@ PRIVATE void stack_fault(int proc_nr) {
     std::size_t new_sp; // vir_bytes -> std::size_t
 
     rmp = &mproc[proc_nr];
-    sys_getsp(rmp - mproc, &new_sp); // new_sp is std::size_t*
+    sys_getsp(static_cast<int>(rmp - mproc.data()), &new_sp); // new_sp is std::size_t*
     r = adjust(rmp, rmp->mp_seg[D].mem_len, new_sp);
     if (r == OK)
         return;
