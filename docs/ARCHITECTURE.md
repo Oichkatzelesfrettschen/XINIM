@@ -2,6 +2,9 @@
 
 XINIM is a modern C++23 reimplementation of MINIX that extends the classic microkernel architecture with post-quantum cryptography, advanced mathematical foundations, and sophisticated scheduling. This document describes the layered architecture and key innovations.
 
+For in-depth API documentation and diagrams, see the
+[Sphinx architecture reference](sphinx/architecture.rst).
+
 ## Overview
 
 XINIM preserves MINIX's educational clarity while incorporating cutting-edge research in operating systems, cryptography, and mathematical computing. The system maintains the clean separation between a minimal kernel and user-mode servers while adding modern security and scheduling capabilities.

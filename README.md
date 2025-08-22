@@ -37,7 +37,10 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 
 ## Architecture Overview
 
-XINIM extends the classic MINIX microkernel with modern security and scheduling capabilities:
+XINIM extends the classic MINIX microkernel with modern security and scheduling
+capabilities. For a comprehensive discussion, see
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) or the
+[Sphinx architecture reference](docs/sphinx/architecture.rst):
 
 ```mermaid
 graph TD
@@ -229,7 +232,7 @@ rm -rf build/
 | Document                      | Description                               |
 |-------------------------------|-------------------------------------------|
 | `docs/BUILDING.md`            | Full build and flashing guide             |
-| `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](https://www.google.com/search?q=docs/sphinx/architecture.rst) |
+| `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](docs/sphinx/architecture.rst) |
 | `docs/TOOL_INSTALL.md`        | OS-specific dependency list               |
 | `docs/sphinx/html/index.html` | Generated developer manual in HTML        |
 
@@ -249,7 +252,7 @@ XINIM includes modern implementations of classic UNIX utilities with enhanced ca
 
 ## License
 
-Licensed under the **BSD-3-Clause** license. See `LICENSE` for details.
+Licensed under the **BSD-MODERNMOST** license. See `LICENSE` for details.
 
 -----
 
