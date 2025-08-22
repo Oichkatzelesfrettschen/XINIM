@@ -1,4 +1,5 @@
 # SPDX-License-Identifier: BSD-3-Clause
+# Licensed under the BSD-MODERNMOST license
 # ---------------------------------------------------------------------------
 #  Kernel Makefile (reconciled 2025-06-23)
 #

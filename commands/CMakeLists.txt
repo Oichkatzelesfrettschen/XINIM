@@ -16,60 +16,125 @@ add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
 
 # This CMake file builds each userland command as a separate executable.
 
-file(GLOB CMD_SOURCES "*.cpp")
-# Exclude files with spaces in their names to ensure valid target identifiers
-list(FILTER CMD_SOURCES EXCLUDE REGEX ".*[ \t].*")
-# Consider excluding test source files if any are directly in commands/
-# list(FILTER CMD_SOURCES EXCLUDE REGEX ".*/test_.*\.cpp$")
-# For now, assume tests are neatly in commands/tests/
+# -----------------------------------------------------------------------------
+# Explicit enumeration of standalone command sources. Using an explicit list
+# avoids accidentally building backup or experimental files and mirrors the
+# behaviour of traditional handwritten makefiles used in academia.
+# -----------------------------------------------------------------------------
+set(SINGLE_COMMANDS
+    ar
+    basename
+    cal
+    cat
+    cc
+    chmem
+    chmod
+    chown
+    clr
+    cmp
+    comm
+    cp
+    date
+    dd
+    df
+    dosread
+    echo
+    getlf
+    grep
+    gres
+    head
+    kill
+    libpack
+    libupack
+    ln
+    login
+    lpr
+    ls
+    make
+    mkdir
+    mkfs
+    mknod
+    mount
+    mv
+    od
+    passwd
+    pr
+    pr_modern
+    pwd
+    rev
+    rm
+    rmdir
+    roff
+    sh1
+    sh2
+    sh3
+    sh4
+    sh5
+    shar
+    size
+    sleep
+    sort
+    sort_modern
+    split
+    stty
+    su
+    sum
+    svcctl
+    sync
+    tail
+    tar
+    tar_modern
+    tee
+    time
+    touch
+    tr
+    umount
+    uniq
+    update
+    wc
+    x
+)
 
-# TODO: Exclude main files of multi-file applications like 'mined' from this generic loop.
-# They should have their own targets defined or be handled by a dedicated CMakeLists.txt
-# (e.g. if CMakeLists_mined.txt is integrated).
-# Example exclusion (adjust pattern as needed):
-# list(FILTER CMD_SOURCES EXCLUDE REGEX "mined.*\.cpp$")
-# list(FILTER CMD_SOURCES EXCLUDE REGEX "filesystem_ops\.cpp$") # if it were here by mistake
+foreach(COMMAND_NAME IN LISTS SINGLE_COMMANDS)
+    add_executable(minix_cmd_${COMMAND_NAME} ${COMMAND_NAME}.cpp)
+    target_link_libraries(minix_cmd_${COMMAND_NAME} PRIVATE minix_libc xinim_fs)
+    target_include_directories(minix_cmd_${COMMAND_NAME} PUBLIC
+      "."
+      "${CMAKE_SOURCE_DIR}/include"
+      "${CMAKE_SOURCE_DIR}/h"
+    )
+    # Apply a consistent set of rigorous compile options.
+    target_compile_options(minix_cmd_${COMMAND_NAME} PRIVATE
+      -O3
+      -Wall
+      -Wextra
+      -Wpedantic
+      -Werror
+    )
+endforeach()
 
-foreach(CMD_SOURCE_FILE ${CMD_SOURCES})
-  get_filename_component(COMMAND_NAME ${CMD_SOURCE_FILE} NAME_WE)
-  set(TARGET_NAME minix_cmd_${COMMAND_NAME})
+# -----------------------------------------------------------------------------
+# Multi-file command targets
+# -----------------------------------------------------------------------------
 
-  # Avoid creating targets for cpp files that are part of libraries or manually handled.
-  # This is a simple check; a more robust way is to explicitly list command sources
-  # or use a more refined GLOB/filtering.
-  # For this exercise, we assume single .cpp file per command for this loop.
-  # Files like 'filesystem_ops.cpp' are in their own library (xinim_fs)
-  # and test files are handled by commands/tests/CMakeLists.txt.
-  # If CMD_SOURCES picks up files from subdirectories like 'tests/', they need to be excluded.
-  # A simple way is to ensure GLOB doesn't recurse, or filter by path.
-  # For now, assume GLOB gets only top-level .cpp files in 'commands/'.
+# Modern MINED editor target with explicit dependencies.
+set(MINED_SOURCES
+    mined_main.cpp
+    mined_editor.cpp
+    mined.cpp
+)
 
-  # A more robust way to skip library sources if they were accidentally included:
-  # if (TARGET_NAME STREQUAL "minix_cmd_filesystem_ops" OR TARGET_NAME STREQUAL "minix_cmd_another_lib_file")
-  #   continue()
-  # endif()
-
-
-  add_executable(${TARGET_NAME} ${CMD_SOURCE_FILE})
-
-  # Link each command against the C library (minix_libc) and xinim_fs
-  target_link_libraries(${TARGET_NAME} PRIVATE minix_libc xinim_fs)
-
-  # Add include directories for each command
-  target_include_directories(${TARGET_NAME} PUBLIC
-    "."  # For any local headers specific to a command (rare)
-    # CMAKE_SOURCE_DIR here should be the root of the project if this commands/CMakeLists.txt
-    # is part of a larger build added via add_subdirectory() from a root CMakeLists.txt.
-    # If this commands/CMakeLists.txt IS the root, then CMAKE_SOURCE_DIR is commands/.
-    # Assuming it's part of a larger project, so CMAKE_SOURCE_DIR is the project root.
+add_executable(minix_cmd_mined ${MINED_SOURCES})
+target_link_libraries(minix_cmd_mined PRIVATE minix_libc xinim_fs)
+target_include_directories(minix_cmd_mined PUBLIC
+    "."
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/h"
-  )
-
-  target_compile_options(${TARGET_NAME} PRIVATE
+)
+target_compile_options(minix_cmd_mined PRIVATE
+    -O3
     -Wall
     -Wextra
     -Wpedantic
     -Werror
-  )
-endforeach()
+)
