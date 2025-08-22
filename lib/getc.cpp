@@ -1,40 +1,44 @@
 #include "../include/stdio.hpp"
+#include <ext/stdio_filebuf.h>
+#include <istream>
+#include <ranges>
 
+/**
+ * @file
+ * @brief Character retrieval using modern C++ streams and ranges.
+ */
 
+/**
+ * @brief Retrieve a single character from the given stream.
+ *
+ * The underlying file descriptor is wrapped in a GNU `stdio_filebuf` to expose
+ * a standard C++ `std::istream` interface.  A `std::ranges::istream_view` then
+ * pulls exactly one character from the stream.  On end-of-file or error the
+ * corresponding flags in @p iop are set and ::STDIO_EOF is returned.
+ *
+ * @param iop Pointer to the legacy FILE structure managing the descriptor.
+ * @return Next character as an unsigned char cast to int, or ::STDIO_EOF on
+ *         failure.
+ */
+int getc(FILE *iop) {
+    if (iop == nullptr || testflag(iop, (_EOF | _ERR))) {
+        return STDIO_EOF;
+    }
 
-/* Get a character from stream */
-int getc(FILE *iop)
-{
-	int ch;
+    __gnu_cxx::stdio_filebuf<char> buf{iop->_fd, std::ios::in};
+    std::istream stream{&buf};
 
-	if ( testflag(iop, (_EOF | _ERR )))
-		return (EOF); 
+    auto view = std::ranges::istream_view<char>(stream);
+    auto it = view.begin();
 
-	if ( !testflag(iop, READMODE) ) 
-		return (EOF);
+    if (it == view.end()) {
+        if (stream.eof()) {
+            iop->_flags |= _EOF;
+        } else {
+            iop->_flags |= _ERR;
+        }
+        return STDIO_EOF;
+    }
 
-	if (--iop->_count <= 0){
-
-		if ( testflag(iop, UNBUFF) )
-			iop->_count = read(iop->_fd,&ch,1);
-		else 
-			iop->_count = read(iop->_fd,iop->_buf,BUFSIZ);
-
-		if (iop->_count <= 0){
-			if (iop->_count == 0)
-				iop->_flags |= _EOF;
-			else 
-				iop->_flags |= _ERR;
-
-			return (EOF);
-		}
-		else 
-			iop->_ptr = iop->_buf;
-	}
-
-	if (testflag(iop,UNBUFF))
-		return (ch & CMASK);
-	else
-		return (*iop->_ptr++ & CMASK);
+    return static_cast<unsigned char>(*it);
 }
-
