@@ -26,6 +26,7 @@
 #include "param.hpp"
 #include <cstddef> // For std::size_t
 #include <cstdint> // For int64_t
+#include <span>    // For std::span
 
 constexpr int DATA_CHANGED = 1;  /* flag value when data segment size changed */
 constexpr int STACK_CHANGED = 2; /* flag value when stack size changed */
@@ -91,42 +92,42 @@ PUBLIC int do_brk() {
      * negative, the adjustment of data or stack fails and ErrorCode::ENOMEM is returned.
      */
 
-    struct mem_map *mem_sp, *mem_dp;
-    std::size_t sp_click, gap_base, lower, old_clicks; // vir_clicks -> std::size_t
+    std::span<mem_map> heap_segments{rmp->mp_seg + D, 2}; /**< View of data and stack segments. */
+    auto &mem_dp = heap_segments[0];                      /**< Data segment map. */
+    auto &mem_sp = heap_segments[1];                      /**< Stack segment map. */
+    std::size_t sp_click, gap_base, lower, old_clicks;    // vir_clicks -> std::size_t
     int changed, r, ft;
     int64_t base_of_stack, delta; // Changed from long for clarity and defined width
 
-    mem_dp = &rmp->mp_seg[D]; /* pointer to data segment map */
-    mem_sp = &rmp->mp_seg[S]; /* pointer to stack segment map */
-    changed = 0;              /* set when either segment changed */
+    changed = 0; /* set when either segment changed */
 
     /* See if stack size has gone negative (i.e., sp too close to 0xFFFF...) */
     // mem_vir and mem_len are std::size_t (from vir_clicks in mem_map)
-    base_of_stack = static_cast<int64_t>(mem_sp->mem_vir) + static_cast<int64_t>(mem_sp->mem_len);
+    base_of_stack = static_cast<int64_t>(mem_sp.mem_vir) + static_cast<int64_t>(mem_sp.mem_len);
     sp_click = sp >> CLICK_SHIFT; /* click containing sp (sp is std::size_t) */
     if (sp_click >= static_cast<std::size_t>(base_of_stack)) // Compare compatible types
         return (ErrorCode::ENOMEM);                          /* sp too high */
 
     /* Compute size of gap between stack and data segments. */
-    delta = static_cast<int64_t>(mem_sp->mem_vir) - static_cast<int64_t>(sp_click);
+    delta = static_cast<int64_t>(mem_sp.mem_vir) - static_cast<int64_t>(sp_click);
     // lower and gap_base are std::size_t. Ensure delta comparison is safe or types are consistent.
-    lower = (delta > 0 ? sp_click : mem_sp->mem_vir);
-    gap_base = mem_dp->mem_vir + data_clicks;
+    lower = (delta > 0 ? sp_click : mem_sp.mem_vir);
+    gap_base = mem_dp.mem_vir + data_clicks;
     if (lower < gap_base)
         return (ErrorCode::ENOMEM); /* data and stack collided */
 
     /* Update data length (but not data orgin) on behalf of brk() system call. */
-    old_clicks = mem_dp->mem_len;
-    if (data_clicks != mem_dp->mem_len) {
-        mem_dp->mem_len = data_clicks;
+    old_clicks = mem_dp.mem_len;
+    if (data_clicks != mem_dp.mem_len) {
+        mem_dp.mem_len = data_clicks;
         changed |= DATA_CHANGED;
     }
 
     /* Update stack length and origin due to change in stack pointer. */
     if (delta > 0) {
-        mem_sp->mem_vir -= delta;
-        mem_sp->mem_phys -= delta;
-        mem_sp->mem_len += delta;
+        mem_sp.mem_vir -= delta;
+        mem_sp.mem_phys -= delta;
+        mem_sp.mem_len += delta;
         changed |= STACK_CHANGED;
     }
 
@@ -142,11 +143,11 @@ PUBLIC int do_brk() {
 
     /* New sizes don't fit or require too many page/segment registers. Restore.*/
     if (changed & DATA_CHANGED)
-        mem_dp->mem_len = old_clicks;
+        mem_dp.mem_len = old_clicks;
     if (changed & STACK_CHANGED) {
-        mem_sp->mem_vir += delta;
-        mem_sp->mem_phys += delta;
-        mem_sp->mem_len -= delta;
+        mem_sp.mem_vir += delta;
+        mem_sp.mem_phys += delta;
+        mem_sp.mem_len -= delta;
     }
     return (ErrorCode::ENOMEM);
 }
