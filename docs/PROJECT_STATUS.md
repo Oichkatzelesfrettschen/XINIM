@@ -27,4 +27,6 @@ This document tracks repository maintenance and cleanup activities.
 ## 2025-08-06
 - Expanded Doxygen coverage for paging interfaces and miscellaneous file-system routines.
 - Generated API reference with Doxygen and attempted Sphinx build (errors remain in legacy `.rst` files).
-
+## 2025-08-22
+- Documented kernel system services with granular Doxygen comments.
+- Regenerated API reference via Doxygen and verified Sphinx+Breathe integration.
