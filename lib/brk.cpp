@@ -20,6 +20,7 @@ char *brk(char *addr) {
 char *sbrk(int incr) {
     char *newsize, *oldsize;
     extern int endv, dorgv;
+    (void)endv; (void)dorgv;  // Mark as intentionally unused
 
     oldsize = brksize;
     newsize = brksize + incr;

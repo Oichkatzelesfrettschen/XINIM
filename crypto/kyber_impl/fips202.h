@@ -15,6 +15,14 @@
 extern "C" {
 #endif
 
+#define SHAKE128_RATE 168
+#define SHAKE256_RATE 136
+
+typedef struct {
+    uint64_t s[25];
+    unsigned int pos;
+} keccak_state;
+
 /**
  * @brief SHAKE128 extendable output function
  * @param out Output buffer
@@ -32,6 +40,38 @@ void shake128(uint8_t *out, size_t outlen, const uint8_t *in, size_t inlen);
  * @param inlen Length of input
  */
 void shake256(uint8_t *out, size_t outlen, const uint8_t *in, size_t inlen);
+
+/**
+ * @brief SHAKE128 squeeze blocks
+ * @param out Output buffer
+ * @param nblocks Number of blocks to output
+ * @param state SHAKE state
+ */
+void shake128_squeezeblocks(uint8_t *out, size_t nblocks, keccak_state *state);
+
+/**
+ * @brief SHAKE128 absorb
+ * @param state SHAKE state  
+ * @param in Input buffer
+ * @param inlen Length of input
+ */
+void shake128_absorb(keccak_state *state, const uint8_t *in, size_t inlen);
+
+/**
+ * @brief SHAKE256 squeeze blocks
+ * @param out Output buffer
+ * @param nblocks Number of blocks to output
+ * @param state SHAKE state
+ */
+void shake256_squeezeblocks(uint8_t *out, size_t nblocks, keccak_state *state);
+
+/**
+ * @brief SHAKE256 squeeze
+ * @param out Output buffer
+ * @param outlen Length of output
+ * @param state SHAKE state
+ */
+void shake256_squeeze(uint8_t *out, size_t outlen, keccak_state *state);
 
 /**
  * @brief SHA3-256 hash function
