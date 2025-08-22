@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 project(minix1 CXX C)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -116,7 +116,7 @@ endif()
 # ─────────────────────────────────────────────────────────────────────────────
 # 7. Build sub-components
 # ─────────────────────────────────────────────────────────────────────────────
-option(BUILD_SYSTEM "Build full Minix system components" OFF)
+option(BUILD_SYSTEM "Build full Minix system components" ON)
 
 if(BUILD_SYSTEM)
   add_subdirectory(lib)
@@ -132,7 +132,7 @@ add_subdirectory(crypto)
 # ─────────────────────────────────────────────────────────────────────────────
 # 8. Unit tests
 # ─────────────────────────────────────────────────────────────────────────────
-option(ENABLE_UNIT_TESTS "Build unit tests" OFF)
+option(ENABLE_UNIT_TESTS "Build unit tests" ON)
 
 if(ENABLE_UNIT_TESTS)
   enable_testing()

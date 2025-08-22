@@ -2,10 +2,24 @@
 /**
  * @file net_driver.hpp
  * @brief UDP/TCP network driver interface for Lattice IPC (POSIX sockets, C++23).
+ *
+ * This interface provides asynchronous, multi-threaded UDP/TCP message transport
+ * between nodes in a Lattice IPC system. Messages are framed with the sender's
+ * node ID and routed using a mutex-protected peer registry.
+ *
+ * Usage:
+ *   net::init({0, 12000});                               // autodetect node_id
+ *   net::add_remote(2, "192.168.1.4", 12000, Protocol::TCP);
+ *   net::send(2, payload);                               // sends [local_node|payload]
+ *   while (net::recv(pkt)) { // process pkt }
+ *   net::shutdown();
+ *
+ * Thread Safety: All APIs are thread-safe and may be called from multiple threads.
  */
 
 #include <cstddef>
 #include <cstdint>
+#include <filesystem>
 #include <functional>
 #include <netinet/in.h>
 #include <span>
@@ -15,10 +29,14 @@
 
 namespace net {
 
-using node_t = int; ///< Integer identifier representing a logical network node.
+/** Integer identifier representing a logical network node. */
+using node_t = int;
 
 /**
  * @brief In-memory representation of a framed message.
+ *
+ * Messages sent via send() are prepended with the sender node ID. On receipt
+ * they appear as a Packet with src_node and payload.
  */
 struct Packet {
     node_t src_node;                ///< Originating node ID

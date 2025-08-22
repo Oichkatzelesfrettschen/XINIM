@@ -323,10 +323,8 @@ add_executable(minix_test_semantic_region
 target_include_directories(minix_test_semantic_region PRIVATE ${PROJECT_ROOT}/include)
 add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 
-# -----------------------------------------------------------------------------
-# Crypto Subdirectory
-# -----------------------------------------------------------------------------
-add_subdirectory(${PROJECT_ROOT}/crypto ${CMAKE_BINARY_DIR}/crypto)
+# Crypto library is built by main CMakeLists.txt
+# No need to add_subdirectory here as it creates conflicts
 
 # -----------------------------------------------------------------------------
 # Recommendations
