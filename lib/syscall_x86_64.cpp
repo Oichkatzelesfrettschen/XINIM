@@ -1,4 +1,8 @@
 #ifdef __x86_64__
+/**
+ * @file syscall_x86_64.cpp
+ * @brief User-space syscall wrappers for x86_64.
+ */
 #include "../h/com.hpp"
 #include "../h/const.hpp"
 #include "../h/type.hpp"
