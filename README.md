@@ -32,6 +32,7 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **Template Metaprogramming**: Compile-time optimizations and type safety.
 - **Comprehensive Testing**: Unit tests, integration tests, and property-based testing.
 - **Documentation**: Doxygen + Sphinx for comprehensive API documentation.
+- **RAII Process Control**: `ScopedProcessSlot` manages process table entries via `std::span` for safe resource handling.
 
 ---
 
