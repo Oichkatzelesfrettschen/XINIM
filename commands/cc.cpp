@@ -54,11 +54,11 @@
 
 // Modern constants with clear semantic meaning
 namespace config {
-constexpr std::size_t MAXARGC = 64;                  /**< Maximum arguments in a list */
-constexpr std::size_t USTR_SIZE = 64;                /**< Maximum string variable length */
-constexpr std::size_t MAX_FILES = 32;                /**< Maximum number of input files */
+constexpr std::size_t MAXARGC = 64;           /**< Maximum arguments in a list */
+constexpr std::size_t USTR_SIZE = 64;         /**< Maximum string variable length */
+constexpr std::size_t MAX_FILES = 32;         /**< Maximum number of input files */
 constexpr std::size_t BUFSIZE = USTR_SIZE * MAXARGC; /**< Total buffer size */
-constexpr std::size_t TEMP_NAME_SIZE = 15;           /**< Temporary filename buffer size */
+constexpr std::size_t TEMP_NAME_SIZE = 15;    /**< Temporary filename buffer size */
 } // namespace config
 
 // Modern type aliases for clarity
@@ -151,8 +151,7 @@ namespace file_utils {
  * @param name Short
  * name of the library without prefix or extension.
  * @return Pointer to a newly allocated C-string
- * containing the full path
- *         (e.g., "/usr/lib/libc.a").
+ * (e.g., "/usr/lib/libc.a").
  */
 [[nodiscard]] inline char *create_library_path(std::string_view name) {
     if (name.empty())
@@ -237,22 +236,6 @@ template <typename... Args> [[nodiscard]] char *mkstr(UString &dst, Args &&...ar
     return dst.data();
 }
 
-/**
- * @brief Concatenate two string fragments into a raw character buffer.
- *
- * @param dst
- * Destination C-string buffer.
- * @param a   First fragment.
- * @param b   Second fragment.
- *
- * @return Pointer to the destination buffer.
- */
-[[nodiscard]] inline char *mkstr(char *dst, std::string_view a, std::string_view b) {
-    const auto formatted = std::string(a) + std::string(b);
-    std::memcpy(dst, formatted.c_str(), formatted.size() + 1);
-    return dst;
-}
-
 void basename(std::string_view str, UString &dst) {
     auto last_slash = str.rfind('/');
     auto base = last_slash == std::string_view::npos ? str : str.substr(last_slash + 1);
@@ -283,6 +266,17 @@ void basename(std::string_view str, UString &dst) {
 inline const char *ProgCall = nullptr;
 
 // RAII-based compiler driver
+/**
+ * @brief Thread-safe RAII compilation orchestrator.
+ *
+ * Encapsulates all compiler state that
+ * was previously handled via global
+ * structures. Each instance manages its own temporary files
+ * and flags,
+ * ensuring clean teardown and providing a foundation for concurrent
+ * compilation
+ * tasks.
+ */
 class CompilerDriver {
   public:
     /**
@@ -326,6 +320,7 @@ class CompilerDriver {
     [[nodiscard]] auto &base() noexcept { return BASE; }
     [[nodiscard]] auto &tmpdir() noexcept { return tmpdir_; }
     [[nodiscard]] auto tmpname_buf() noexcept { return std::span<char>{tmpname}; }
+    [[nodiscard]] std::string &o_file() noexcept { return o_file_; }
 #ifdef DEBUG
     [[nodiscard]] auto &noexec() noexcept { return noexec_; }
 #endif
@@ -402,26 +397,32 @@ class CompilerDriver {
         std::ignore = file_utils::cleanup_temp(ofile_.data());
     }
 
-    struct arglist SRCFILES {};        /**< Source files to process */
-    struct arglist LDFILES {};         /**< Object files for linking */
-    struct arglist GEN_LDFILES {};     /**< Generated temporary files */
-    struct arglist PP_FLAGS {};        /**< Preprocessor flags */
-    struct arglist CEM_FLAGS {};       /**< Compiler flags */
-    struct arglist OPT_FLAGS {};       /**< Optimizer flags */
-    struct arglist CG_FLAGS {};        /**< Code generator flags */
-    struct arglist ASLD_FLAGS {};      /**< Assembler/linker flags */
-    struct arglist DEBUG_FLAGS {};     /**< Debug flags */
-    std::array<arglist, 2> CALL_VEC{}; /**< Command execution vectors */
-    int RET_CODE{0};                   /**< Return code accumulator */
-    bool o_flag_{false};               /**< Output file specified */
-    bool S_flag_{false};               /**< Stop after compilation */
-    bool v_flag_{false};               /**< Verbose mode */
-    bool F_flag_{false};               /**< Use files instead of pipes */
+    struct arglist SRCFILES {};
+    struct arglist LDFILES {};
+    struct arglist GEN_LDFILES {};
+    struct arglist PP_FLAGS {};
+    struct arglist CEM_FLAGS {};
+    struct arglist OPT_FLAGS {};
+    struct arglist CG_FLAGS {};
+    struct arglist ASLD_FLAGS {};
+    struct arglist DEBUG_FLAGS {};
+    struct arglist LD_HEAD{1, {const_cast<char *>("/usr/lib/crtso.s")}};
+    struct arglist LD_TAIL{2,
+                             {const_cast<char *>("/usr/lib/libc.a"),
+                              const_cast<char *>("/usr/lib/end.s")}};
+    std::array<arglist, 2> CALL_VEC{};
+    int RET_CODE{0};
+    bool o_flag_{false};
+    bool S_flag_{false};
+    bool v_flag_{false};
+    bool F_flag_{false};
     UString ifile_{}, kfile_{}, sfile_{}, mfile_{}, ofile_{}, BASE{};
+    std::string o_file_{
+        std::string(toolchain_config::DEFAULT_OUTPUT)};
     const char *tmpdir_{toolchain_config::TEMP_DIR.data()};
     char tmpname[config::TEMP_NAME_SIZE]{};
 #ifdef DEBUG
-    bool noexec_{false}; /**< Debug: don't execute commands */
+    bool noexec_{false};
 #endif
     mutable std::mutex mtx_{};
     /**
@@ -579,7 +580,7 @@ void CompilerDriver::perform_linking() {
     append(call, ASLD);
     concat(call, ASLD_FLAGS);
     append(call, "-o");
-    append(call, o_FILE);
+    append(call, o_file_);
     concat(call, LD_HEAD);
     concat(call, LDFILES);
     concat(call, LD_TAIL);
@@ -701,7 +702,7 @@ void CompilerDriver::ex_vec(arglist &vec) {
 int main(int argc, char *argv[]) {
     try {
         CompilerDriver driver;
-        ProgCall = *argv++;
+        ++argv;
         --argc;
         signal(SIGHUP, CompilerDriver::trapcc);
         signal(SIGINT, CompilerDriver::trapcc);
@@ -733,7 +734,7 @@ int main(int argc, char *argv[]) {
             case 'o':
                 driver.o_flag() = true;
                 if (argc > 1) {
-                    o_FILE = *++argv;
+                    driver.o_file() = *++argv;
                     --argc;
                 } else {
                     panic("Option -o requires an argument");
