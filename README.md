@@ -231,6 +231,7 @@ rm -rf build/
 | `docs/BUILDING.md`            | Full build and flashing guide             |
 | `docs/ARCHITECTURE.md`        | Subsystem overview; see [`docs/sphinx/architecture.rst`](https://www.google.com/search?q=docs/sphinx/architecture.rst) |
 | `docs/TOOL_INSTALL.md`        | OS-specific dependency list               |
+| `docs/simd_migration.md`      | Manual SIMD migration procedure           |
 | `docs/sphinx/html/index.html` | Generated developer manual in HTML        |
 
 -----

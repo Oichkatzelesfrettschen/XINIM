@@ -26,4 +26,5 @@ The documentation is divided into several sections:
    libsodium_tests
    hypercomplex
    architecture
+   compiler_driver
    api

@@ -35,7 +35,7 @@ int main() {
     const auto temp_dir = fs::temp_directory_path();
     const auto file1 = temp_dir / "sort_merge_input1.txt";
     const auto file2 = temp_dir / "sort_merge_input2.txt";
-    const auto file3 = temp_dir / "sort_merge_input3.txt";
+    const auto file3 = temp_dir / "sort_merge_input3.txt"; // Added for 3-way merge test
     const auto outfile = temp_dir / "sort_merge_output.txt";
 
     // Test Case 1: Basic merge without uniqueness
@@ -100,8 +100,7 @@ int main() {
         SortUtilityApp app{cfg};
         auto result = app.run();
         assert(!result && "Merge with single file should fail");
-        assert(result.error().find("At least two input sources are required for merge") !=
-                   std::string::npos &&
+        assert(result.error().find("at least two input sources") != std::string::npos &&
                "Expected error message for single file merge not found");
     }
 
@@ -111,7 +110,7 @@ int main() {
         // Simulate stdin input by redirecting a string stream
         std::stringstream ss;
         ss << "apricot\nblueberry\n";
-        auto *orig_buf = std::cin.rdbuf(ss.rdbuf());
+        auto *const old_buf = std::cin.rdbuf(ss.rdbuf());
 
         SortConfig cfg;
         cfg.global_flags = SortFlag::Merge;
@@ -134,10 +133,10 @@ int main() {
         assert(merged == expected && "Merge with stdin output does not match expected");
 
         // Restore stdin
-        std::cin.rdbuf(orig_buf);
+        std::cin.rdbuf(old_buf);
     }
 
-    // Test Case 5: Merge three input files
+    // Test Case 5: Merge three input files (from eirikr branch)
     {
         create_temp_file(file1, {"apple", "orange"});
         create_temp_file(file2, {"banana", "pear"});
@@ -171,10 +170,3 @@ int main() {
 
     return 0;
 }
-
-// Recommendations:
-// - Add tests for additional merge scenarios, such as empty files or invalid inputs.
-// - Implement logging for test failures to aid debugging.
-// - Integrate with CI pipeline to run tests automatically and generate reports.
-// - Consider parameterized tests for different sort flags (e.g., -r, -n) in combination with merge.
-// - Validate cross-platform behavior, especially for temporary file handling.
