@@ -26,6 +26,16 @@ bin/                          # root-level binaries
 *.out                         # Unix executables
 *.elf                         # ELF binaries
 *.bin                         # raw binaries
+*.so                         # shared objects
+*.dylib                      # macOS dynamic libraries
+*.dll                        # Windows dynamic libraries
+*.obj                        # MSVC object files
+*.pdb                        # Windows debug symbols
+*.lib                        # MSVC libraries
+*.lo                         # libtool object files
+*.la                         # libtool archives
+*.gcda                       # GCC coverage data
+*.gcno                       # GCC coverage notes
 
 # ── 3. CMake generated files ─────────────────────────────────────────────────
 CMakeFiles/
@@ -57,9 +67,13 @@ __pycache__/                  # Python byte-code cache
 
 # ── 7. Editor & IDE backups ──────────────────────────────────────────────────
 *.idx
-*.swp
+*.sw?                         # Vim swap files
 *.bak
 *~                            # generic “tilde” backups
+#*#                           # Emacs autosave files
+.#*                           # Emacs lock files
+*.orig                        # merge conflict backups
+*.rej                         # patch rejections
 
 # ── 8. Local test artifacts ─────────────────────────────────────────────────
 ls_test                       # ad-hoc test binary
