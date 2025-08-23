@@ -569,6 +569,12 @@ private:
 
 } // namespace xinim::commands::ls
 
+/**
+ * @brief Entry point for the ls utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char* argv[]) { /* ... same ... */
     // Set locale to user's preference to ensure correct time formatting, character sets, etc.
     // std::locale::global(std::locale("")); // Potentially controversial, might affect other parts if XINIM is a library

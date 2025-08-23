@@ -32,6 +32,12 @@ static void encode_stream(std::istream &in);
 /// \param argc Number of command line arguments.
 /// \param argv Argument vector.
 /// \return Zero on success, non–zero otherwise.
+/**
+ * @brief Entry point for the shar utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: shar file...\n";

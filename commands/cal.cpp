@@ -57,6 +57,12 @@ constexpr std::array<std::string_view, 13> monthname = {
  * year, or specific month within a year. Handles argument ambiguity
  * intelligently based on value ranges.
  */
+/**
+ * @brief Entry point for the cal utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     if (argc <= 1) {
         usage(usage_msg);

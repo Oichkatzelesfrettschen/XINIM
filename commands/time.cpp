@@ -20,6 +20,12 @@ struct time_buf {
 int digit_seen;
 char a[12] = {"        . \n"};
 // Entry point with modern parameters
+/**
+ * @brief Entry point for the time utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
 
     struct time_buf pre_buf, post_buf;

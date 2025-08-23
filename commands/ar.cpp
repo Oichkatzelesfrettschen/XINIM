@@ -736,6 +736,12 @@ void Archiver::process(int argc, char *argv[]) {
     ::close(ar_fd_);
 }
 
+/**
+ * @brief Entry point for the ar utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     try {
         Archiver archiver;
