@@ -22,7 +22,6 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_FLAGS_DEBUG "-g3 -O0 -fsanitize=address,undefined")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -flto -march=x86-64-v1 -mtune=generic")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
-add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 
 # Enable testing
 enable_testing()
@@ -70,7 +69,7 @@ function(add_lattice_test target source)
         ${CMAKE_CURRENT_SOURCE_DIR}
     )
     target_compile_definitions(${target} PRIVATE EXTERN=extern)
-    target_link_libraries(${target} PRIVATE pqcrypto Threads::Threads nlohmann_json::nlohmann_json)
+    target_link_libraries(${target} PRIVATE pqcrypto Threads::Threads nlohmann_json::nlohmann_json xinim_common)
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
 
@@ -84,7 +83,7 @@ function(add_fastpath_test target source)
         ${PROJECT_ROOT}/kernel
         ${PROJECT_ROOT}/include
     )
-    target_link_libraries(${target} PRIVATE nlohmann_json::nlohmann_json)
+    target_link_libraries(${target} PRIVATE nlohmann_json::nlohmann_json xinim_common)
     add_test(NAME ${target} COMMAND ${target})
 endfunction()
 
@@ -99,12 +98,14 @@ add_executable(minix_test_lib
 )
 target_include_directories(minix_test_lib PRIVATE ${XINIM_INCLUDES})
 target_compile_options(minix_test_lib PRIVATE -fno-builtin)
+target_link_libraries(minix_test_lib PRIVATE xinim_common)
 add_test(NAME minix_test_lib COMMAND minix_test_lib)
 
 add_executable(minix_test_syscall
     test_syscall.cpp
 )
 target_include_directories(minix_test_syscall PRIVATE ${XINIM_INCLUDES})
+target_link_libraries(minix_test_syscall PRIVATE xinim_common)
 add_test(NAME minix_test_syscall COMMAND minix_test_syscall)
 
 add_executable(minix_test_memory_stream
@@ -112,6 +113,7 @@ add_executable(minix_test_memory_stream
     ${PROJECT_ROOT}/lib/io/src/memory_stream.cpp
 )
 target_include_directories(minix_test_memory_stream PRIVATE ${XINIM_INCLUDES})
+target_link_libraries(minix_test_memory_stream PRIVATE xinim_common)
 add_test(NAME minix_test_memory_stream COMMAND minix_test_memory_stream)
 
 # -----------------------------------------------------------------------------
@@ -123,13 +125,14 @@ add_executable(minix_test_fs_compat
     ${PROJECT_ROOT}/lib/safe_alloc.cpp
 )
 target_include_directories(minix_test_fs_compat PRIVATE ${XINIM_INCLUDES} ${PROJECT_ROOT}/fs)
+target_link_libraries(minix_test_fs_compat PRIVATE xinim_common)
 add_test(NAME minix_test_fs_compat COMMAND minix_test_fs_compat)
 
 # Optional stream tests (disabled by default)
 add_executable(minix_test_streams
     test_streams.cpp
 )
-target_link_libraries(minix_test_streams PRIVATE minix_libc)
+target_link_libraries(minix_test_streams PRIVATE minix_libc xinim_common)
 target_include_directories(minix_test_streams PRIVATE ${XINIM_INCLUDES})
 set_target_properties(minix_test_streams PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_streams COMMAND minix_test_streams)
@@ -145,6 +148,7 @@ target_include_directories(minix_test_stream_foundation PRIVATE ${PROJECT_ROOT}/
 set_target_properties(minix_test_stream_foundation PROPERTIES EXCLUDE_FROM_ALL TRUE)
 add_test(NAME minix_test_stream_foundation COMMAND minix_test_stream_foundation)
 set_tests_properties(minix_test_stream_foundation PROPERTIES DISABLED TRUE)
+target_link_libraries(minix_test_stream_foundation PRIVATE xinim_common)
 
 # -----------------------------------------------------------------------------
 # Fastpath and Scheduler Tests
@@ -162,6 +166,7 @@ add_executable(minix_test_wait_graph
     ${PROJECT_ROOT}/kernel/wait_graph.cpp
 )
 target_include_directories(minix_test_wait_graph PRIVATE ${PROJECT_ROOT}/kernel ${PROJECT_ROOT}/include)
+target_link_libraries(minix_test_wait_graph PRIVATE xinim_common)
 add_test(NAME minix_test_wait_graph COMMAND minix_test_wait_graph)
 
 add_fastpath_test(minix_test_service_contract test_service_contract.cpp)
@@ -179,7 +184,7 @@ add_executable(minix_test_svcctl
 )
 target_include_directories(minix_test_svcctl PRIVATE ${XINIM_INCLUDES} ${CMAKE_CURRENT_SOURCE_DIR})
 target_compile_definitions(minix_test_svcctl PRIVATE EXTERN=extern SVCCTL_NO_MAIN SVCCTL_NO_WAIT)
-target_link_libraries(minix_test_svcctl PRIVATE pqcrypto Threads::Threads nlohmann_json::nlohmann_json)
+target_link_libraries(minix_test_svcctl PRIVATE pqcrypto Threads::Threads nlohmann_json::nlohmann_json xinim_common)
 add_test(NAME minix_test_svcctl COMMAND minix_test_svcctl)
 
 # -----------------------------------------------------------------------------
@@ -203,7 +208,7 @@ add_executable(minix_test_net_driver
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver COMMAND minix_test_net_driver)
 
 add_executable(minix_test_net_driver_overflow
@@ -211,7 +216,7 @@ add_executable(minix_test_net_driver_overflow
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_overflow PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_overflow PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_overflow COMMAND minix_test_net_driver_overflow)
 
 add_executable(minix_test_net_driver_drop
@@ -219,7 +224,7 @@ add_executable(minix_test_net_driver_drop
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_drop PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_drop PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_drop PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_drop COMMAND minix_test_net_driver_drop)
 
 add_executable(minix_test_net_driver_drop_newest
@@ -227,7 +232,7 @@ add_executable(minix_test_net_driver_drop_newest
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_drop_newest PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_drop_newest PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_drop_newest PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_drop_newest COMMAND minix_test_net_driver_drop_newest)
 
 add_executable(minix_test_net_driver_tcp
@@ -235,7 +240,7 @@ add_executable(minix_test_net_driver_tcp
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_tcp PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_tcp PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_tcp COMMAND minix_test_net_driver_tcp)
 
 add_executable(minix_test_net_driver_reconnect
@@ -243,7 +248,7 @@ add_executable(minix_test_net_driver_reconnect
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_reconnect PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_reconnect PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_reconnect PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_reconnect COMMAND minix_test_net_driver_reconnect)
 
 add_executable(minix_test_net_driver_loopback
@@ -251,7 +256,7 @@ add_executable(minix_test_net_driver_loopback
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_loopback PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_loopback PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_loopback COMMAND minix_test_net_driver_loopback)
 
 add_executable(minix_test_net_driver_ipv6
@@ -259,7 +264,7 @@ add_executable(minix_test_net_driver_ipv6
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_ipv6 PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_ipv6 PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_ipv6 PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_ipv6 COMMAND minix_test_net_driver_ipv6)
 
 add_executable(minix_test_net_driver_concurrency
@@ -267,7 +272,7 @@ add_executable(minix_test_net_driver_concurrency
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_concurrency PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_concurrency PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_concurrency PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_concurrency COMMAND minix_test_net_driver_concurrency)
 
 add_executable(minix_test_net_driver_persistent_id
@@ -275,7 +280,7 @@ add_executable(minix_test_net_driver_persistent_id
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_persistent_id PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_persistent_id PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_persistent_id COMMAND minix_test_net_driver_persistent_id)
 
 add_executable(minix_test_net_driver_socket_failure
@@ -283,7 +288,7 @@ add_executable(minix_test_net_driver_socket_failure
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_socket_failure PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_socket_failure PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_socket_failure PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_socket_failure COMMAND minix_test_net_driver_socket_failure)
 
 add_executable(minix_test_net_driver_unpriv_id
@@ -291,7 +296,7 @@ add_executable(minix_test_net_driver_unpriv_id
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_unpriv_id PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_unpriv_id PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_unpriv_id PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_unpriv_id COMMAND minix_test_net_driver_unpriv_id)
 
 add_executable(minix_test_net_driver_autodetect
@@ -299,7 +304,7 @@ add_executable(minix_test_net_driver_autodetect
     ${PROJECT_ROOT}/kernel/net_driver.cpp
 )
 target_include_directories(minix_test_net_driver_autodetect PRIVATE ${PROJECT_ROOT}/kernel)
-target_link_libraries(minix_test_net_driver_autodetect PRIVATE Threads::Threads)
+target_link_libraries(minix_test_net_driver_autodetect PRIVATE Threads::Threads xinim_common)
 add_test(NAME minix_test_net_driver_autodetect COMMAND minix_test_net_driver_autodetect)
 
 # -----------------------------------------------------------------------------
@@ -311,6 +316,7 @@ add_executable(minix_test_sort_merge
 )
 target_include_directories(minix_test_sort_merge PRIVATE ${PROJECT_ROOT}/commands)
 target_compile_definitions(minix_test_sort_merge PRIVATE SORT_UTILITY_NO_MAIN)
+target_link_libraries(minix_test_sort_merge PRIVATE xinim_common)
 add_test(NAME minix_test_sort_merge COMMAND minix_test_sort_merge)
 
 # -----------------------------------------------------------------------------
@@ -320,18 +326,21 @@ add_executable(minix_test_hypercomplex
     test_hypercomplex.cpp
 )
 target_include_directories(minix_test_hypercomplex PRIVATE ${PROJECT_ROOT}/kernel)
+target_link_libraries(minix_test_hypercomplex PRIVATE xinim_common)
 add_test(NAME minix_test_hypercomplex COMMAND minix_test_hypercomplex)
 
 add_executable(minix_test_fat_time
     test_fat_time.cpp
 )
 target_include_directories(minix_test_fat_time PRIVATE ${PROJECT_ROOT}/include)
+target_link_libraries(minix_test_fat_time PRIVATE xinim_common)
 add_test(NAME minix_test_fat_time COMMAND minix_test_fat_time)
 
 add_executable(minix_test_semantic_region
     test_semantic_region.cpp
 )
 target_include_directories(minix_test_semantic_region PRIVATE ${PROJECT_ROOT}/include)
+target_link_libraries(minix_test_semantic_region PRIVATE xinim_common)
 add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 
 # Crypto library is built by main CMakeLists.txt

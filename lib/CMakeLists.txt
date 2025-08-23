@@ -46,4 +46,6 @@ target_include_directories(minix_libc PRIVATE
 )
 
 # Link against OpenSSL's crypto library to expose SHA-256
-target_link_libraries(minix_libc PUBLIC OpenSSL::Crypto)
+target_link_libraries(minix_libc
+  PUBLIC OpenSSL::Crypto
+  PRIVATE xinim_common)
