@@ -1,4 +1,3 @@
-````markdown
 # XINIM: Post-Quantum Microkernel Operating System
 
 XINIM is an advanced C++23 reimplementation of MINIX that extends the classic microkernel architecture with post-quantum cryptography, lattice-based IPC, and sophisticated mathematical foundations. This research operating system demonstrates modern systems programming while maintaining educational clarity.
