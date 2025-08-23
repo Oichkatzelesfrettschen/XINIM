@@ -110,7 +110,8 @@ INPUT                  = @DOXYGEN_INPUT@ commands \
                          fs \
                          kernel \
                          mm \
-                         lib
+                         lib \
+                         include
 INPUT_ENCODING         = UTF-8
 FILE_PATTERNS          = *.cpp \
                          *.hpp \
