@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.10)
+cmake_minimum_required(VERSION 3.20)
 project(minix1 CXX C)
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -39,20 +39,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Global include paths
-# ─────────────────────────────────────────────────────────────────────────────
-include_directories(
-  h
-  include
-  commands
-  fs
-  kernel
-  mm
-  lib
-)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Cross-compilation support
+# 3. Cross-compilation support
 # ─────────────────────────────────────────────────────────────────────────────
 option(CROSS_COMPILE_X86_64 "Cross-compile for freestanding x86-64" OFF)
 set(CROSS_PREFIX "" CACHE STRING "Prefix for cross-compilation toolchain")
@@ -75,10 +62,47 @@ if(CROSS_COMPILE_X86_64)
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
 endif()
 
-# ─────────────────────────────────────────────────────────────────────────────
+# ##############################################################################
+# 4. Build profiles and optional tooling
+# ##############################################################################
+if(NOT CMAKE_BUILD_TYPE)
+  set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
+endif()
+set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Performance" "Release")
+
+set(XINIM_COMPILE_FEATURES)
+if(CMAKE_BUILD_TYPE STREQUAL "Debug")
+  list(APPEND XINIM_COMPILE_FEATURES -O0 -g)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Performance")
+  list(APPEND XINIM_COMPILE_FEATURES -O3 -g -DNDEBUG)
+elseif(CMAKE_BUILD_TYPE STREQUAL "Release")
+  list(APPEND XINIM_COMPILE_FEATURES -O3 -DNDEBUG)
+endif()
+
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
+option(ENABLE_LTO "Enable link time optimisation" OFF)
+
+set(XINIM_LINK_FEATURES)
+if(ENABLE_ASAN AND CMAKE_BUILD_TYPE MATCHES "Debug|Performance")
+  list(APPEND XINIM_COMPILE_FEATURES -fsanitize=address)
+  list(APPEND XINIM_LINK_FEATURES -fsanitize=address)
+endif()
+
+if(ENABLE_UBSAN AND CMAKE_BUILD_TYPE MATCHES "Debug|Performance")
+  list(APPEND XINIM_COMPILE_FEATURES -fsanitize=undefined)
+  list(APPEND XINIM_LINK_FEATURES -fsanitize=undefined)
+endif()
+
+if(ENABLE_LTO AND CMAKE_BUILD_TYPE MATCHES "Release|Performance")
+  list(APPEND XINIM_COMPILE_FEATURES -flto)
+  list(APPEND XINIM_LINK_FEATURES -flto)
+endif()
+
+# ##############################################################################
 # 5. Baseline optimisation flags (native or cross)
 #    x86-64-v1: MMX + SSE + SSE2, widest deployable subset.
-# ─────────────────────────────────────────────────────────────────────────────
+# ##############################################################################
 set(BASE_CPU_FLAGS
     "-march=x86-64"
     "-mtune=generic"
@@ -87,14 +111,24 @@ set(BASE_CPU_FLAGS
     "-msse2"
 )
 
-# Baseline warnings treated as errors for a clean build
-add_compile_options(
-    ${BASE_CPU_FLAGS}
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Werror
+set(XINIM_INCLUDE_DIRS
+    ${CMAKE_SOURCE_DIR}/h
+    ${CMAKE_SOURCE_DIR}/include
+    ${CMAKE_SOURCE_DIR}/commands
+    ${CMAKE_SOURCE_DIR}/fs
+    ${CMAKE_SOURCE_DIR}/kernel
+    ${CMAKE_SOURCE_DIR}/mm
+    ${CMAKE_SOURCE_DIR}/lib
 )
+
+add_library(xinim_common INTERFACE)
+target_compile_options(xinim_common INTERFACE
+    ${BASE_CPU_FLAGS}
+    -Wall -Wextra -Wpedantic -Werror
+    ${XINIM_COMPILE_FEATURES}
+)
+target_link_options(xinim_common INTERFACE ${XINIM_LINK_FEATURES})
+target_include_directories(xinim_common INTERFACE ${XINIM_INCLUDE_DIRS})
 
 
 # ─────────────────────────────────────────────────────────────────────────────

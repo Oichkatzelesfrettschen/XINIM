@@ -31,4 +31,5 @@ The documentation is divided into several sections:
     wait_graph
     precommit
     process_control
+    testing
     wini

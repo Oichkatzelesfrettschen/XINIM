@@ -211,6 +211,12 @@ private:
 
 } // namespace xinim::commands::mv
 
+/**
+ * @brief Entry point for the mv utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char* argv[]) noexcept {
     try {
         if (argc < 3) {

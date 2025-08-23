@@ -42,8 +42,6 @@ PUBLIC void interrupt(int task, message *m_ptr) {
 
     int i, n, old_map, this_bit;
 
-#endif
-
     /* Try to send the interrupt message to the indicated task. */
     this_bit = 1 << (-task);
     if (mini_send(HARDWARE, task, m_ptr) != OK) {
@@ -108,17 +106,17 @@ PUBLIC void sys_call(int function, int caller, int src_dest, message *m_ptr) {
      * both).
      */
 
-    register struct proc *rp;
+    struct proc *rp;
     int n;
 
     /* Check for bad system call parameters. */
     rp = proc_addr(caller);
     if (src_dest < -NR_TASKS || (src_dest >= NR_PROCS && src_dest != ANY)) {
-        rp->p_reg[RET_REG] = ErrorCode::E_BAD_SRC;
+        rp->p_reg[RET_REG] = static_cast<uint64_t>(ErrorCode::E_BAD_SRC);
         return;
     }
     if (function != BOTH && caller >= LOW_USER) {
-        rp->p_reg[RET_REG] = ErrorCode::E_NO_PERM; /* users only do BOTH */
+        rp->p_reg[RET_REG] = static_cast<uint64_t>(ErrorCode::E_NO_PERM); /* users only do BOTH */
         return;
     }
 

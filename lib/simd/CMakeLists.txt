@@ -117,9 +117,9 @@ elseif(CMAKE_SYSTEM_PROCESSOR MATCHES "riscv64")
 endif()
 
 # Link libraries
-target_link_libraries(${SIMD_MATH_LIB} PUBLIC
-    m  # Math library
-)
+target_link_libraries(${SIMD_MATH_LIB}
+    PUBLIC m
+    PRIVATE xinim_common)
 
 # Threading support
 find_package(Threads REQUIRED)
