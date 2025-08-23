@@ -1,0 +1,22 @@
+# Pre-commit configuration for XINIM
+# Delegates style and static-analysis checks to wrapper scripts under tools/
+# ensuring consistent project-wide formatting and diagnostics.
+
+repos:
+  - repo: local
+    hooks:
+      - id: clang-format
+        name: clang-format wrapper
+        entry: tools/pre-commit-clang-format.sh
+        language: system
+        pass_filenames: false
+      - id: clang-tidy
+        name: clang-tidy wrapper
+        entry: tools/run_clang_tidy.sh
+        language: system
+        pass_filenames: false
+      - id: cppcheck
+        name: cppcheck wrapper
+        entry: tools/run_cppcheck.sh
+        language: system
+        pass_filenames: false
