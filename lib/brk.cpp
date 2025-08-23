@@ -34,7 +34,8 @@ class ProgramBreakManager final {
 };
 
 inline std::expected<void, int> ProgramBreakManager::set(char *addr) noexcept {
-    if (auto k = callm1(MM, BRK, 0, 0, 0, addr, NIL_PTR, NIL_PTR); k == OK) {
+    auto k = callm1(MM, BRK, 0, 0, 0, addr, NIL_PTR, NIL_PTR);
+    if (k == OK) {
         brksize = M.m2_p1();
         return {};
     }
@@ -44,7 +45,8 @@ inline std::expected<void, int> ProgramBreakManager::set(char *addr) noexcept {
 inline std::expected<char *, int> ProgramBreakManager::increment(int incr) noexcept {
     char *oldsize = brksize;
     char *newsize = brksize + incr;
-    if (auto result = set(newsize); result) {
+    auto result = set(newsize);
+    if (result) {
         return oldsize;
     }
     return std::unexpected(result.error());

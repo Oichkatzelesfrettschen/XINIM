@@ -13,7 +13,8 @@ BUILD_DIR="build"
 # Create build directory and compile database if missing
 if [ ! -f "$BUILD_DIR/compile_commands.json" ]; then
     echo "Generating compile_commands.json..."
-    cmake -S . -B "$BUILD_DIR" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+    # Tests disabled to avoid external dependency requirements.
+    cmake -S . -B "$BUILD_DIR" -DCMAKE_EXPORT_COMPILE_COMMANDS=ON -DBUILD_TESTING=OFF -DENABLE_UNIT_TESTS=OFF
 fi
 
 CRASHING_FILES=(
@@ -43,10 +44,11 @@ find . -name '*.cpp' -not -path "./$BUILD_DIR/*" | while read -r file; do
         echo "--- SKIPPING known crashing file: $file ---"
     else
         echo "--- Processing file: $file ---"
-        if clang-tidy -p "$BUILD_DIR" -fix -format-style=none -extra-arg=-std=c++23 "$file"; then
+        # Diagnostics-only; fixes are not applied automatically.
+        if clang-tidy -p "$BUILD_DIR" -format-style=none -extra-arg=-std=c++23 "$file"; then
             echo "Successfully processed (or no changes needed for) $file"
         else
-            echo "Error or warnings reported for $file by clang-tidy. Exit code: $?. Fixes might not have been applied if errors were severe."
+            echo "Error or warnings reported for $file by clang-tidy. Exit code: $?."
         fi
     fi
 done

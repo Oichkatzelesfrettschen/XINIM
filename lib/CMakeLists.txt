@@ -18,6 +18,7 @@ list(REMOVE_ITEM LIB_SRC
     "${CMAKE_CURRENT_LIST_DIR}/signal.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/sleep.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/sprintf.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/catchsig.cpp"  # Temporarily excluded due to signal conflicts
     "${CMAKE_CURRENT_LIST_DIR}/stb.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/syslib.cpp"
     "${CMAKE_CURRENT_LIST_DIR}/ungetc.cpp"
@@ -45,4 +46,6 @@ target_include_directories(minix_libc PRIVATE
 )
 
 # Link against OpenSSL's crypto library to expose SHA-256
-target_link_libraries(minix_libc PUBLIC OpenSSL::Crypto)
+target_link_libraries(minix_libc
+  PUBLIC OpenSSL::Crypto
+  PRIVATE xinim_common)

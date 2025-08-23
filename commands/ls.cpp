@@ -60,6 +60,12 @@ namespace xinim::commands::ls {
 using namespace std::literals;
 
 namespace {
+    /**
+     * @brief Convert C++23 <filesystem> permissions and type to POSIX mode bits.
+     * @param p Permission mask from std::filesystem::perms.
+     * @param type File classification supplied by std::filesystem::file_type.
+     * @return mode_t POSIX-style mode value combining type and permissions.
+     */
     mode_t to_posix_mode_from_fs_perms(std::filesystem::perms p, std::filesystem::file_type type = std::filesystem::file_type::regular) {
         mode_t modeval = 0;
         switch(type) {
@@ -88,7 +94,13 @@ namespace {
     }
 }
 
-namespace simd_ops { /* ... same ... */
+namespace simd_ops {
+    /**
+     * @brief Compare two strings using SIMD-friendly operations where profitable.
+     * @param lhs Left-hand string view.
+     * @param rhs Right-hand string view.
+     * @return int Negative, zero, or positive akin to std::strcmp semantics.
+     */
     [[nodiscard]] inline int compare_strings_simd(std::string_view lhs, std::string_view rhs) noexcept {
         const auto min_len = std::min(lhs.size(), rhs.size());
         if (min_len >= 32) { // Threshold for SIMD effectiveness, adjust based on architecture
@@ -103,6 +115,11 @@ namespace simd_ops { /* ... same ... */
         if (lhs.size() > rhs.size()) return 1;
         return 0;
     }
+    /**
+     * @brief Split POSIX mode into discrete user/group/other permission fields.
+     * @param mode Mode bits typically produced from std::filesystem metadata.
+     * @return std::array<std::uint8_t,3> Permission trinity for further formatting.
+     */
     [[nodiscard]] constexpr std::array<std::uint8_t, 3> extract_permission_bits(std::uint16_t mode) noexcept {
         return {
             static_cast<std::uint8_t>((mode >> 6) & 0x7), // User
@@ -112,12 +129,19 @@ namespace simd_ops { /* ... same ... */
     }
 }
 
-namespace constants { /* ... same ... */
+namespace constants {
     inline constexpr std::size_t MAX_FILES{256};
     inline constexpr std::int64_t SECONDS_PER_YEAR{365L * 24L * 3600L};
 }
 
-class FileInfo final { /* ... same ... */
+/**
+ * @brief Metadata facade wrapping xinim::fs and std::filesystem results.
+ *
+ * Stores attributes gathered from <filesystem> calls and exposes typed
+ * accessors for the ls utility, enabling C++23 features such as std::print
+ * for diagnostics.
+ */
+class FileInfo final {
 public:
     using TimePoint = std::chrono::system_clock::time_point;
     using FileSize = std::uintmax_t;
@@ -141,20 +165,73 @@ private:
     bool stat_performed_{false};
 
 public:
+    /**
+     * @brief Construct metadata with an initial name reference.
+     * @param name File or directory name provided by the caller.
+     */
     explicit FileInfo(std::string name) noexcept : name_(std::move(name)) {}
 
+    /**
+     * @brief Obtain stored file name.
+     * @return const std::string& Immutable reference to the path segment.
+     */
     [[nodiscard]] const std::string& name() const noexcept { return name_; }
+    /**
+     * @brief POSIX mode bits mapped from std::filesystem permissions.
+     * @return FileMode Combined mode flags.
+     */
     [[nodiscard]] FileMode mode() const noexcept { return mode_; }
+    /**
+     * @brief Numeric user identifier.
+     * @return UserId UID retrieved via <filesystem>.
+     */
     [[nodiscard]] UserId uid() const noexcept { return uid_; }
+    /**
+     * @brief Numeric group identifier.
+     * @return GroupId GID from underlying file status.
+     */
     [[nodiscard]] GroupId gid() const noexcept { return gid_; }
+    /**
+     * @brief Inode number for filesystems that expose it.
+     * @return InodeNumber Underlying inode value.
+     */
     [[nodiscard]] InodeNumber inode() const noexcept { return inode_; }
+    /**
+     * @brief Last modification timestamp.
+     * @return const TimePoint& Time of last content change.
+     */
     [[nodiscard]] const TimePoint& modification_time() const noexcept { return modification_time_; }
+    /**
+     * @brief Last access timestamp.
+     * @return const TimePoint& Time of last read operation.
+     */
     [[nodiscard]] const TimePoint& access_time() const noexcept { return access_time_; }
+    /**
+     * @brief Last status change timestamp.
+     * @return const TimePoint& Time metadata was last altered.
+     */
     [[nodiscard]] const TimePoint& status_change_time() const noexcept { return status_change_time_; }
+    /**
+     * @brief Size in bytes or device identifier.
+     * @return FileSize File length or encoded device number.
+     */
     [[nodiscard]] FileSize size() const noexcept { return size_; }
+    /**
+     * @brief Count of hard links to the file.
+     * @return LinkCount Number of directory entries.
+     */
     [[nodiscard]] LinkCount link_count() const noexcept { return link_count_; }
+    /**
+     * @brief Check if metadata retrieval succeeded.
+     * @return bool True when <filesystem> status was populated.
+     */
     [[nodiscard]] bool is_stat_performed() const noexcept { return stat_performed_; }
 
+    /**
+     * @brief Update members from an extended xinim::fs status structure.
+     * @param xinim_status Result of xinim::fs::get_status bridging std::filesystem.
+     * @return void
+     */
     void update_from_xinim_status(const xinim::fs::file_status_ex& xinim_status) {
         mode_ = static_cast<FileMode>(to_posix_mode_from_fs_perms(xinim_status.permissions, xinim_status.type));
         uid_ = static_cast<UserId>(xinim_status.uid);
@@ -173,11 +250,19 @@ public:
         stat_performed_ = xinim_status.is_populated;
     }
 
+    /**
+     * @brief Determine if entry represents a directory.
+     * @return bool True when mode denotes a directory.
+     */
     [[nodiscard]] bool is_directory() const noexcept { return S_ISDIR(mode_); }
+    /**
+     * @brief Determine if entry is a character or block device.
+     * @return bool True when mode denotes a device file.
+     */
     [[nodiscard]] bool is_device() const noexcept { return S_ISCHR(mode_) || S_ISBLK(mode_); }
 };
 
-class PermissionFormatter final { /* ... same ... */
+class PermissionFormatter final {
 private:
     static constexpr std::array permission_strings{ "---"sv, "--x"sv, "-w-"sv, "-wx"sv, "r--"sv, "r-x"sv, "rw-"sv, "rwx"sv };
     static constexpr std::array setuid_strings{ "---"sv, "--x"sv, "-w-"sv, "-wx"sv, "r--"sv, "r-x"sv, "rw-"sv, "rwx"sv, "--S"sv, "--s"sv, "-wS"sv, "-ws"sv, "r-S"sv, "r-s"sv, "rwS"sv, "rws"sv };
@@ -212,16 +297,28 @@ private:
     }
 };
 
-enum class ListingFlags : std::uint64_t { /* ... same ... */
+enum class ListingFlags : std::uint64_t {
     ShowAll       = 1ULL << ('a' - 'a'), ShowBlocks    = 1ULL << ('s' - 'a'), LongFormat    = 1ULL << ('l' - 'a'),
     ShowInodes    = 1ULL << ('i' - 'a'), SortByTime    = 1ULL << ('t' - 'a'), ReverseSort   = 1ULL << ('r' - 'a'),
     NoSort        = 1ULL << ('f' - 'a'), DirectoryOnly = 1ULL << ('d' - 'a'), ShowGroup     = 1ULL << ('g' - 'a'),
     UseAccessTime = 1ULL << ('u' - 'a'), UseChangeTime = 1ULL << ('c' - 'a')
 };
+/**
+ * @brief Bitwise OR for ListingFlags.
+ * @param lhs Left operand.
+ * @param rhs Right operand.
+ * @return ListingFlags Union of flag sets.
+ */
 constexpr ListingFlags operator|(ListingFlags lhs, ListingFlags rhs) noexcept { return static_cast<ListingFlags>(static_cast<std::underlying_type_t<ListingFlags>>(lhs) | static_cast<std::underlying_type_t<ListingFlags>>(rhs)); }
+/**
+ * @brief Bitwise AND for ListingFlags.
+ * @param lhs Left operand.
+ * @param rhs Right operand.
+ * @return ListingFlags Intersection of flag sets.
+ */
 constexpr ListingFlags operator&(ListingFlags lhs, ListingFlags rhs) noexcept { return static_cast<ListingFlags>(static_cast<std::underlying_type_t<ListingFlags>>(lhs) & static_cast<std::underlying_type_t<ListingFlags>>(rhs)); }
 
-struct UserGroupCache { /* ... same ... */
+struct UserGroupCache {
 private:
     mutable std::unordered_map<std::uint16_t, std::string> uid_cache_;
     mutable std::unordered_map<std::uint16_t, std::string> gid_cache_;
@@ -254,7 +351,7 @@ public:
         sort_indices_.reserve(constants::MAX_FILES);
     }
 
-    [[nodiscard]] int process_arguments(int argc, char* argv[]) { /* ... same argument parsing ... */
+    [[nodiscard]] int process_arguments(int argc, char* argv[]) {
         overall_exit_status_ = 0;
         try {
             const auto parsed_flags = parse_command_line(argc, argv);
@@ -276,7 +373,7 @@ public:
 
 private:
     struct ParsedArguments { ListingFlags flags; std::vector<std::string> file_arguments; };
-    [[nodiscard]] ParsedArguments parse_command_line(int argc, char* argv[]) const { /* ... same ... */
+    [[nodiscard]] ParsedArguments parse_command_line(int argc, char* argv[]) const {
         ParsedArguments result{}; std::uint64_t flag_bits = 0;
         for (int i = 1; i < argc; ++i) {
             const std::string_view arg{argv[i]};
@@ -285,7 +382,7 @@ private:
                     const char flag_char = arg[j];
                     const std::string_view valid_flag_chars = "adfgilrstuc";
                     if (valid_flag_chars.find(flag_char) == std::string_view::npos) {
-                         throw std::invalid_argument(std::format("invalid option -- '{}'", flag_char));
+                            throw std::invalid_argument(std::format("invalid option -- '{}'", flag_char));
                     }
                     flag_bits |= (1ULL << (flag_char - 'a'));
                 }
@@ -323,7 +420,7 @@ private:
         sort_files_and_print_listing();
     }
 
-    void process_multiple_paths(const std::vector<std::string>& paths) { /* ... same ... */
+    void process_multiple_paths(const std::vector<std::string>& paths) {
         std::vector<FileInfo> file_args; std::vector<FileInfo> dir_args;
         for (const auto& path_str : paths) {
             FileInfo current_file_info(path_str);
@@ -389,7 +486,7 @@ private:
             std::size_t file_count_in_dir = 0;
             for (const auto& entry : std::filesystem::directory_iterator(directory_path)) {
                 if (files_.size() + file_count_in_dir >= constants::MAX_FILES) {
-                     throw std::runtime_error("Too many files to process in directory listing");
+                    throw std::runtime_error("Too many files to process in directory listing");
                 }
                 const auto filename = entry.path().filename().string();
                 if (!has_flag(flags_, ListingFlags::ShowAll) && filename.starts_with('.')) {
@@ -407,11 +504,10 @@ private:
                     // If -l (LongFormat), we want info about symlink itself, not target.
                     // Otherwise (not -l), we effectively "follow" it by statting the target if it's a directory entry.
                     // std::filesystem::directory_iterator does not follow symlinks itself.
-                    // entry.status() or entry.symlink_status() could be used if not for xinim::fs.
                     // Here, we check if the entry is a symlink. If so, and -l, don't follow.
                     entry_ctx.follow_symlinks = true; // Default
                     if (has_flag(flags_, ListingFlags::LongFormat) && entry.is_symlink()) {
-                         entry_ctx.follow_symlinks = false;
+                            entry_ctx.follow_symlinks = false;
                     }
 
                     auto status_result = xinim::fs::get_status(full_entry_path, entry_ctx);
@@ -420,7 +516,7 @@ private:
                     } else {
                         // Only print error if it's not a hidden file or if hidden files are shown
                         if (!filename.starts_with('.') || has_flag(flags_, ListingFlags::ShowAll)) {
-                             std::println(std::cerr, "ls: cannot access '{}': {}", full_entry_path.string(), status_result.error().message());
+                                std::println(std::cerr, "ls: cannot access '{}': {}", full_entry_path.string(), status_result.error().message());
                         }
                         overall_exit_status_ = 1; // EXIT_FAILURE
                         new_file_info.update_from_xinim_status({}); // Populate with defaults
@@ -432,19 +528,37 @@ private:
             std::println(std::cerr, "ls: cannot read directory '{}': {} ({})", directory_path, e.what(), e.code().message());
             overall_exit_status_ = 1; // EXIT_FAILURE
         }
-        // POSIX fallback removed as it's not fully updated and std::filesystem should be preferred.
     }
 
     // read_directory_posix is removed as it's a fallback and not fully aligned with xinim::fs.
     // If std::filesystem::directory_iterator fails, the exception is caught.
 
-    void sort_files() { /* ... same ... */
-        if (has_flag(flags_, ListingFlags::NoSort) && files_.size() > 0) { sort_indices_.resize(files_.size()); std::iota(sort_indices_.begin(), sort_indices_.end(), 0); return; }
-        if (files_.empty()) { sort_indices_.clear(); return; }
-        sort_indices_.resize(files_.size()); std::iota(sort_indices_.begin(), sort_indices_.end(), 0);
+    void sort_files() {
+        if (has_flag(flags_, ListingFlags::NoSort) && files_.size() > 0) {
+            sort_indices_.resize(files_.size());
+            std::iota(sort_indices_.begin(), sort_indices_.end(), 0);
+            return;
+        }
+        if (files_.empty()) {
+            sort_indices_.clear();
+            return;
+        }
+        sort_indices_.resize(files_.size());
+        std::iota(sort_indices_.begin(), sort_indices_.end(), 0);
         const auto use_parallel = files_.size() > 1000;
+        /**
+         * @brief Lambda retrieving a file reference for a given index.
+         * @param index Position within the internal file vector.
+         * @return const FileInfo& Reference to the selected FileInfo.
+         */
         auto get_file_ref = [&](std::size_t index) -> const FileInfo& { return files_[index]; };
         if (has_flag(flags_, ListingFlags::SortByTime)) {
+            /**
+             * @brief Comparator ordering entries by time then name.
+             * @param a Index of first element.
+             * @param b Index of second element.
+             * @return bool True if @p a should precede @p b.
+             */
             const auto time_comparator = [&](std::size_t a, std::size_t b) {
                 const auto& file_a = get_file_ref(a); const auto& file_b = get_file_ref(b);
                 auto time_a = get_sort_time(file_a); auto time_b = get_sort_time(file_b);
@@ -455,6 +569,12 @@ private:
             if (use_parallel) std::sort(std::execution::par_unseq, sort_indices_.begin(), sort_indices_.end(), time_comparator);
             else std::ranges::sort(sort_indices_, time_comparator);
         } else {
+            /**
+             * @brief Lexicographical comparator for filenames.
+             * @param a Index of first element.
+             * @param b Index of second element.
+             * @return bool True if @p a precedes @p b alphabetically.
+             */
             const auto name_comparator = [&](std::size_t a, std::size_t b) {
                 const auto cmp_result = simd_ops::compare_strings_simd(get_file_ref(a).name(), get_file_ref(b).name());
                 bool result = cmp_result < 0;
@@ -465,47 +585,53 @@ private:
         }
     }
 
-    [[nodiscard]] std::chrono::system_clock::time_point get_sort_time(const FileInfo& file_info) const { /* ... same ... */
+    [[nodiscard]] std::chrono::system_clock::time_point get_sort_time(const FileInfo& file_info) const {
         if (has_flag(flags_, ListingFlags::UseAccessTime)) return file_info.access_time();
         if (has_flag(flags_, ListingFlags::UseChangeTime)) return file_info.status_change_time();
         return file_info.modification_time();
     }
 
-    void print_listing() const { /* ... same ... */
+    void print_listing() const {
         if ((has_flag(flags_, ListingFlags::LongFormat) || has_flag(flags_, ListingFlags::ShowBlocks)) && !files_.empty() && files_.at(0).is_stat_performed()) {
              // Only print total blocks if stats were actually performed for at least one file.
              // And if there are files to list.
-            bool any_stat_performed = false;
-            for(const auto& index : sort_indices_){ if(files_[index].is_stat_performed()) { any_stat_performed = true; break; } }
-            if(any_stat_performed) print_total_blocks();
+             bool any_stat_performed = false;
+             for(const auto& index : sort_indices_){ if(files_[index].is_stat_performed()) { any_stat_performed = true; break; } }
+             if(any_stat_performed) print_total_blocks();
         }
         for (const auto& index : sort_indices_) { print_file_line(files_[index]); }
     }
 
-    void print_total_blocks() const { /* ... same ... */
+    void print_total_blocks() const {
         if (!has_flag(flags_, ListingFlags::LongFormat) && !has_flag(flags_, ListingFlags::ShowBlocks)) return;
         const auto total_blocks = std::accumulate(sort_indices_.begin(), sort_indices_.end(), 0ULL,
-            [&](std::uintmax_t sum, std::size_t index) {
-                const auto& file_info = files_[index];
-                // Only count blocks for files/dirs that were successfully stat'd.
-                // For -d on a directory, its own size might be listed as blocks.
-                // Standard ls usually shows 0 for directories unless -s on directory argument.
-                // This logic is simplified: if stat'd, and not a directory OR -d is set, count its blocks.
-                if (file_info.is_stat_performed() && (!file_info.is_directory() || has_flag(flags_, ListingFlags::DirectoryOnly)) ) {
+             /**
+              * @brief Accumulates 512-byte blocks for each listed file.
+              * @param sum Running block total.
+              * @param index Index of current file entry.
+              * @return std::uintmax_t Updated block count.
+              */
+             [&](std::uintmax_t sum, std::size_t index) {
+                 const auto& file_info = files_[index];
+                 // Only count blocks for files/dirs that were successfully stat'd.
+                 // For -d on a directory, its own size might be listed as blocks.
+                 // Standard ls usually shows 0 for directories unless -s on directory argument.
+                 // This logic is simplified: if stat'd, and not a directory OR -d is set, count its blocks.
+                 if (file_info.is_stat_performed() && (!file_info.is_directory() || has_flag(flags_, ListingFlags::DirectoryOnly)) ) {
                      return sum + calculate_blocks(file_info.size());
-                }
-                return sum;
-            });
+                 }
+                 return sum;
+             });
         std::println(std::cout, "total {}", total_blocks);
     }
 
-    void print_file_line(const FileInfo& file_info) const { /* ... same ... */
+    void print_file_line(const FileInfo& file_info) const {
         std::string line_buffer;
         if (has_flag(flags_, ListingFlags::ShowInodes)) { line_buffer += std::format("{:5} ", file_info.is_stat_performed() ? std::to_string(file_info.inode()) : "?"s); }
         if (has_flag(flags_, ListingFlags::ShowBlocks)) { line_buffer += std::format("{:4} ", file_info.is_stat_performed() ? std::to_string(calculate_blocks(file_info.size())) : "?"s); }
         if (has_flag(flags_, ListingFlags::LongFormat)) {
             if (file_info.is_stat_performed()) { line_buffer += get_long_format_string(file_info); }
-            else { line_buffer += "-????????? ? ?        ?              ? "; } // Placeholder for files that couldn't be stat'd
+            else { line_buffer += "-????????? ? ?        ?             ? "; } // Placeholder for files that couldn't be stat'd
         }
         line_buffer += file_info.name();
         // TODO: Handle symlink target display for -l: "symlink_name -> target"
@@ -522,7 +648,7 @@ private:
         std::println(std::cout, "{}", line_buffer);
     }
 
-    [[nodiscard]] std::string get_long_format_string(const FileInfo& file_info) const { /* ... same ... */
+    [[nodiscard]] std::string get_long_format_string(const FileInfo& file_info) const {
         std::string part;
         part.reserve(60); // Pre-allocate
         part += std::format("{} {:2} ", PermissionFormatter::format_permissions(file_info.mode()), file_info.link_count());
@@ -539,7 +665,7 @@ private:
         return part;
     }
 
-    [[nodiscard]] std::string get_formatted_time_string(const std::chrono::system_clock::time_point& time) const { /* ... same ... */
+    [[nodiscard]] std::string get_formatted_time_string(const std::chrono::system_clock::time_point& time) const {
         const auto time_t_val = std::chrono::system_clock::to_time_t(time);
         // Using thread-safe localtime_r or gmtime_r is preferred in multi-threaded contexts,
         // but for ls, which is typically single-threaded per invocation, std::localtime is common.
@@ -561,7 +687,7 @@ private:
         return time_str;
     }
 
-    [[nodiscard]] static constexpr std::uintmax_t calculate_blocks(FileInfo::FileSize size) noexcept { /* ... same ... */
+    [[nodiscard]] static constexpr std::uintmax_t calculate_blocks(FileInfo::FileSize size) noexcept {
         constexpr std::uintmax_t FS_BLOCK_SIZE = 512; // This is a common convention for blocks in `ls`
         return (size + FS_BLOCK_SIZE - 1) / FS_BLOCK_SIZE;
     }
@@ -575,18 +701,13 @@ private:
  * @param argv Array of command-line argument strings.
  * @return Exit status as specified by C++23 [basic.start.main].
  */
-int main(int argc, char* argv[]) { /* ... same ... */
+int main(int argc, char* argv[]) {
+    using namespace xinim::commands::ls;
     // Set locale to user's preference to ensure correct time formatting, character sets, etc.
     // std::locale::global(std::locale("")); // Potentially controversial, might affect other parts if XINIM is a library
     // For a standalone command, this is more common.
     // However, std::println and std::format are locale-independent by default.
     // Time formatting via std::localtime is locale-dependent.
-
-    using namespace xinim::commands::ls;
-    // Consider EXIT_SUCCESS and EXIT_FAILURE from <cstdlib>
-    // int exit_status_success = 0; // Typically EXIT_SUCCESS
-    // int exit_status_minor_problems = 1; // Typically EXIT_FAILURE for some tools
-    // int exit_status_serious_trouble = 2; // Typically EXIT_FAILURE or distinct code for others
 
     try {
         DirectoryLister lister{static_cast<ListingFlags>(0)};

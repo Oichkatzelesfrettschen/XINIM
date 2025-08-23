@@ -34,3 +34,4 @@ target_include_directories(minix_kernel PUBLIC
     "${CMAKE_SOURCE_DIR}/h"       # For global includes from h/
     "${CMAKE_SOURCE_DIR}/kernel/minix" # For console.hpp and related headers
 )
+target_link_libraries(minix_kernel PRIVATE xinim_common)

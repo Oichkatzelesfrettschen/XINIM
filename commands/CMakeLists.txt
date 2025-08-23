@@ -1,5 +1,5 @@
 # commands/CMakeLists.txt
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.20)
 project(MinixCommands CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -96,20 +96,7 @@ set(SINGLE_COMMANDS
 
 foreach(COMMAND_NAME IN LISTS SINGLE_COMMANDS)
     add_executable(minix_cmd_${COMMAND_NAME} ${COMMAND_NAME}.cpp)
-    target_link_libraries(minix_cmd_${COMMAND_NAME} PRIVATE minix_libc xinim_fs)
-    target_include_directories(minix_cmd_${COMMAND_NAME} PUBLIC
-      "."
-      "${CMAKE_SOURCE_DIR}/include"
-      "${CMAKE_SOURCE_DIR}/h"
-    )
-    # Apply a consistent set of rigorous compile options.
-    target_compile_options(minix_cmd_${COMMAND_NAME} PRIVATE
-      -O3
-      -Wall
-      -Wextra
-      -Wpedantic
-      -Werror
-    )
+    target_link_libraries(minix_cmd_${COMMAND_NAME} PRIVATE minix_libc xinim_fs xinim_common)
 endforeach()
 
 # -----------------------------------------------------------------------------
@@ -124,16 +111,4 @@ set(MINED_SOURCES
 )
 
 add_executable(minix_cmd_mined ${MINED_SOURCES})
-target_link_libraries(minix_cmd_mined PRIVATE minix_libc xinim_fs)
-target_include_directories(minix_cmd_mined PUBLIC
-    "."
-    "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_SOURCE_DIR}/h"
-)
-target_compile_options(minix_cmd_mined PRIVATE
-    -O3
-    -Wall
-    -Wextra
-    -Wpedantic
-    -Werror
-)
+target_link_libraries(minix_cmd_mined PRIVATE minix_libc xinim_fs xinim_common)
