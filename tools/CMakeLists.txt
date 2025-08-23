@@ -10,12 +10,5 @@ foreach(TOOL_SOURCE_FILE ${TOOL_SOURCES})
 
   # Link each tool against the C library (minix_libc)
   # Some tools might have more specific linking needs later.
-  target_link_libraries(${TARGET_NAME} PRIVATE minix_libc)
-
-  # Add include directories for each tool
-  target_include_directories(${TARGET_NAME} PUBLIC
-    "."  # For any local headers specific to a tool (e.g., diskio.hpp)
-    "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_SOURCE_DIR}/h"
-  )
+  target_link_libraries(${TARGET_NAME} PRIVATE minix_libc xinim_common)
 endforeach()

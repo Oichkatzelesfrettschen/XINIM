@@ -1,5 +1,5 @@
 # commands/tests/CMakeLists.txt
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.20)
 project(XinimCommandsTests CXX)
 
 set(CMAKE_CXX_STANDARD 23)
@@ -26,10 +26,6 @@ set(MODE_PARSER_TEST_SOURCES
 # Assuming this CMakeLists.txt is in commands/tests/
 # and headers are in <project_root>/include/
 # and xinim_fs library is defined by CMakeLists.txt in ../../lib/xinim_fs
-include_directories(
-    "${CMAKE_PROJECT_SOURCE_DIR}/include"
-    # Add other necessary include paths, e.g., for ModeParser if it becomes a lib
-)
 
 # Build and register tests for xinim::fs methods
 foreach(TEST_SOURCE_FILE ${XINIM_FS_TEST_SOURCES})
@@ -38,7 +34,7 @@ foreach(TEST_SOURCE_FILE ${XINIM_FS_TEST_SOURCES})
     # Link against xinim_fs (defined in lib/xinim_fs/CMakeLists.txt)
     # and std::filesystem (often needed explicitly for older CMake or some toolchains)
     # Modern CMake with C++17+ usually links std::filesystem automatically if <filesystem> is included.
-    target_link_libraries(${TEST_NAME} PRIVATE xinim_fs stdc++fs) # stdc++fs for GCC/Clang if needed
+    target_link_libraries(${TEST_NAME} PRIVATE xinim_fs stdc++fs xinim_common) # stdc++fs for GCC/Clang if needed
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endforeach()
 
@@ -49,7 +45,7 @@ foreach(TEST_SOURCE_FILE ${MODE_PARSER_TEST_SOURCES})
     # ModeParser tests might not need xinim_fs if ModeParser is self-contained
     # or included directly. If ModeParser becomes part of a utility library, link that.
     # For now, assuming it might need std::filesystem if it uses types from there.
-    target_link_libraries(${TEST_NAME} PRIVATE stdc++fs) # Link std::filesystem if needed
+    target_link_libraries(${TEST_NAME} PRIVATE stdc++fs xinim_common) # Link std::filesystem if needed
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endforeach()
 
