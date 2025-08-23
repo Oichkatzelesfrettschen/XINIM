@@ -17,6 +17,8 @@ build*/                       # other top-level build dirs
 */CMakeFiles/                 # per-dir CMake state
 bin/                          # root-level binaries
 */bin/                        # per-module bin/
+setup*/                       # ad-hoc setup folders
+**/setup*/                    # nested setup folders
 
 # ── 2. Compiler outputs & binaries ───────────────────────────────────────────
 *.o                           # object files
@@ -49,6 +51,7 @@ perf.csv
 output.txt
 *_output.txt
 *.txt
+*_summary.json                # generated summaries
 
 # ── 6. Language & tool caches ─────────────────────────────────────────────────
 __pycache__/                  # Python byte-code cache
@@ -64,6 +67,14 @@ __pycache__/                  # Python byte-code cache
 # ── 8. Local test artifacts ─────────────────────────────────────────────────
 ls_test                       # ad-hoc test binary
 **/ls_test                    # ignore in subdirectories
+test_architecture_demo
+test_makefile
+commands/mined_final*
+!commands/mined_final*.cpp
+!commands/mined_final*.hpp
+tests/t[0-9]*
+!tests/t[0-9]*.cpp
+!tests/t[0-9]*.hpp
 
 # Redundant guard lines to ensure build artifacts remain excluded
 build*/

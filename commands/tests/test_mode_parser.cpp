@@ -9,7 +9,8 @@
 #include <ranges>       // For std::ranges::all_of (C++20)
 #include <charconv>     // For std::from_chars
 #include <cstdlib>      // For EXIT_SUCCESS, EXIT_FAILURE
-#include <print>        // For std::println (C++23)
+#include <format>      // For std::format (C++20/23)
+#include <iostream>    // For std::cout
 #include <optional>     // For std::optional
 
 #include "xinim/mode_parser.hpp" // The externalized ModeParser
@@ -26,38 +27,38 @@ struct TestCase {
     std::string expected_error_msg_part; // For error cases
 
     void run(const xinim::util::ModeParser& parser, int& failures) const { // Use namespaced parser
-        std::print(std::cout, "Test Case: {} ('{}')... ", name, mode_str);
+        std::cout << std::format("Test Case: {} ('{}')... ", name, mode_str);
         xinim::util::ModeParser::ParseResult result = parser.parse(mode_str, current_perms); // Use namespaced parser
 
         if (result.has_value()) {
             if (expect_success) {
                 if (result.value() == expected_perms) {
-                    std::println(std::cout, "PASS");
+                    std::cout << "PASS\n";
                 } else {
-                    std::println(std::cout, "FAIL");
-                    std::println(std::cerr, "  Path: {} Mode: '{}'", name, mode_str);
-                    std::println(std::cerr, "  Expected: 0{:o}, Got: 0{:o}",
+                    std::cout << "FAIL\n";
+                    std::cerr << std::format("  Path: {} Mode: '{}'\n", name, mode_str);
+                    std::cerr << std::format("  Expected: 0{:o}, Got: 0{:o}\n",
                                static_cast<unsigned int>(expected_perms),
                                static_cast<unsigned int>(result.value()));
                     failures++;
                 }
             } else {
-                std::println(std::cout, "FAIL (expected error, got success: 0{:o})", static_cast<unsigned int>(result.value()));
-                std::println(std::cerr, "  Path: {} Mode: '{}'", name, mode_str);
+                std::cout << std::format("FAIL (expected error, got success: 0{:o})\n", static_cast<unsigned int>(result.value()));
+                std::cerr << std::format("  Path: {} Mode: '{}'\n", name, mode_str);
                 failures++;
             }
         } else { // Error case
             if (expect_success) {
-                std::println(std::cout, "FAIL (expected success, got error: {})", result.error());
-                std::println(std::cerr, "  Path: {} Mode: '{}'", name, mode_str);
+                std::cout << std::format("FAIL (expected success, got error: {})\n", result.error());
+                std::cerr << std::format("  Path: {} Mode: '{}'\n", name, mode_str);
                 failures++;
             } else {
                 if (expected_error_msg_part.empty() || result.error().find(expected_error_msg_part) != std::string::npos) {
-                    std::println(std::cout, "PASS (got expected error: {})", result.error());
+                    std::cout << std::format("PASS (got expected error: {})\n", result.error());
                 } else {
-                    std::println(std::cout, "FAIL");
-                    std::println(std::cerr, "  Path: {} Mode: '{}'", name, mode_str);
-                    std::println(std::cerr, "  Expected error containing: '{}', Got: '{}'", expected_error_msg_part, result.error());
+                    std::cout << "FAIL\n";
+                    std::cerr << std::format("  Path: {} Mode: '{}'\n", name, mode_str);
+                    std::cerr << std::format("  Expected error containing: '{}', Got: '{}'\n", expected_error_msg_part, result.error());
                     failures++;
                 }
             }
@@ -124,10 +125,10 @@ int main() {
     }
 
     if (failures > 0) {
-        std::println(std::cerr, "\n{} MODE PARSER TEST(S) FAILED.", failures);
+        std::cerr << std::format("\n{} MODE PARSER TEST(S) FAILED.\n", failures);
         return EXIT_FAILURE;
     }
 
-    std::println(std::cout, "\nALL MODE PARSER TESTS PASSED.");
+    std::cout << "\nALL MODE PARSER TESTS PASSED.\n";
     return EXIT_SUCCESS;
 }
