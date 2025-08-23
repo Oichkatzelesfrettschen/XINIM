@@ -107,7 +107,17 @@ For detailed platform-specific instructions, see [`docs/TOOL_INSTALL.md`](https:
 
 ### Build Process
 
-**CMake (Recommended)**:
+Use the bundled helper to configure and compile with sensible defaults:
+
+```bash
+./build.sh --profile=developer       # Debug with sanitizers (default)
+./build.sh --profile=release         # Optimized build
+```
+
+Artifacts are written to `build/` unless `--build-dir` is supplied. Extra CMake
+flags may be passed after `--`.
+
+**CMake (Manual)**:
 
 ```bash
 mkdir build && cd build
