@@ -42,6 +42,19 @@ Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 
 ## 3 · Building with CMake
 
+The repository ships a helper script that abstracts the configure and
+compile steps. Select an optimization profile and let it drive CMake
+and Ninja:
+
+```sh
+./build.sh --profile=developer    # Debug + sanitizers
+./build.sh --profile=performance  # Profiling instrumentation
+./build.sh --profile=release      # Maximum optimization
+```
+
+Artifacts default to `build/`; override with `--build-dir` and pass extra
+CMake options after `--`.
+
 ```sh
 # Configure (Debug build by default)
 cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
