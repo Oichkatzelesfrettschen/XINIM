@@ -66,7 +66,6 @@ set(SINGLE_COMMANDS
     rmdir
     roff
     sh1
-    sh2
     sh3
     sh4
     sh5

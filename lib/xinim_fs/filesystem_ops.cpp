@@ -578,7 +578,7 @@ std::expected<void, std::error_code> copy(
 
     // Main copy logic based on 'from' type (which could be the target type if 'from' was a followed symlink)
     if (from_stat.type == std::filesystem::file_type::directory) {
-        if (!(options & std::filesystem::copy_options::recursive)) {
+        if ((options & std::filesystem::copy_options::recursive) == std::filesystem::copy_options::none) {
             return std::unexpected(std::make_error_code(std::errc::is_a_directory));
         }
 
@@ -596,7 +596,7 @@ std::expected<void, std::error_code> copy(
             }
         }
 
-        if (options & std::filesystem::copy_options::recursive) {
+        if ((options & std::filesystem::copy_options::recursive) != std::filesystem::copy_options::none) {
             std::error_code ec_iter;
             for (const auto& entry : std::filesystem::directory_iterator(from, ec_iter)) {
                 if (ec_iter) return std::unexpected(ec_iter);

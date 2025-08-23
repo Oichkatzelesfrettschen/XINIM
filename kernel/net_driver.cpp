@@ -18,12 +18,33 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstring>
 #include <deque>
 #include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <span>
+
+namespace net {
+
+// Connection state management for robust networking
+enum class ConnectionState { 
+    Disconnected, 
+    Connecting, 
+    Connected, 
+    Failed, 
+    Reconnecting 
+};
+
+struct Remote {
+    sockaddr_in addr{};
+    Protocol proto = Protocol::UDP;
+    int tcp_fd = -1;
+    ConnectionState state = ConnectionState::Disconnected;
+    std::chrono::steady_clock::time_point last_attempt{};
+    int retry_count = 0;
+};
 #include <system_error>
 #include <thread>
 #include <unordered_map>
