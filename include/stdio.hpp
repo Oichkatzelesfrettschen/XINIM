@@ -47,7 +47,7 @@ extern struct _io_buf {
 
 // Flush the buffer associated with the given stream.
 extern "C" int fflush(FILE *stream);
-extern "C" int fputs(const char *s, FILE *stream);
+extern "C" int xinim_fputs(const char *s, FILE *stream);
 /**
  * @brief Print formatted text to @c stdout.
  */
