@@ -25,6 +25,12 @@
  *
  * Usage: basename string [suffix]
  */
+/**
+ * @brief Entry point for the basename utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: basename string [suffix]" << std::endl;
