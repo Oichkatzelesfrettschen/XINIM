@@ -370,7 +370,7 @@ add_test(NAME minix_test_strlen_property COMMAND minix_test_strlen_property)
 # No need to add_subdirectory here as it creates conflicts
 
 # -----------------------------------------------------------------------------
-# Recommendations
+# Recommendations for @copilot TODOs and AI Agent FIXMEs: 
 # -----------------------------------------------------------------------------
 # - Ensure consistent include paths across all tests by centralizing XINIM_INCLUDES.
 # - Consider enabling disabled tests (minix_test_streams, minix_test_stream_foundation)

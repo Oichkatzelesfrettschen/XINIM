@@ -1,8 +1,5 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+#ifndef LIBC_CTYPE_HPP
+#define LIBC_CTYPE_HPP
 
 extern char ctype_[]; /* global character classification table */
 
@@ -29,3 +26,5 @@ inline bool isalnum(int c) noexcept { return (ctype_ + 1)[c] & (U | L | N); }
 inline bool isprint(int c) noexcept { return (ctype_ + 1)[c] & (P | U | L | N); }
 inline bool iscntrl(int c) noexcept { return (ctype_ + 1)[c] & C; }
 inline bool isascii(int c) noexcept { return static_cast<unsigned>(c) <= 0177; }
+
+#endif // LIBC_CTYPE_H

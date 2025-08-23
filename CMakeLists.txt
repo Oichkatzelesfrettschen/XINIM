@@ -65,7 +65,6 @@ endif()
 # ##############################################################################
 # 4. Build profiles and optional tooling
 # ##############################################################################
-
 if(NOT CMAKE_BUILD_TYPE)
   set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
 endif()

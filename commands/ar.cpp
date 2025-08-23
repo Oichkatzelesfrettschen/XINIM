@@ -273,9 +273,9 @@ int Archiver::open_archive(std::string_view name, FileMode mode) {
  *
  * @return Pointer to a static Member
  * instance representing the next
- *         archive entry, or nullptr when the end of the archive
+ * archive entry, or nullptr when the end of the archive
  * is
- *         reached.
+ * reached.
  */
 Member *Archiver::get_member() {
     std::lock_guard lock(mtx_);
@@ -321,11 +321,11 @@ long Archiver::swap(int16_t &mem_1, int16_t &mem_2) {
  * @param buffer Pointer to the data to write.
  * @param size Number
  * of bytes to be written.
- * @return       Number of bytes successfully written.
+ * @return      Number of bytes successfully written.
  *
  * @note This
  * function invokes ::error and terminates the program
- *       if the requested number of bytes
+ * if the requested number of bytes
  * cannot be written.
  */
 ssize_t Archiver::safe_write(int fd, const void *buffer, std::size_t size) {
@@ -453,7 +453,7 @@ void Archiver::litoa(int pad, long number) {
 void Archiver::date(long t) {
     constexpr int mo[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     constexpr std::string_view moname[] = {" Jan ", " Feb ", " Mar ", " Apr ", " May ", " Jun ",
-                                           " Jul ", " Aug ", " Sep ", " Oct ", " Nov ", " Dec "};
+                                             " Jul ", " Aug ", " Sep ", " Oct ", " Nov ", " Dec "};
     int year = 1970;
     long original = t;
     while (t > 0) {

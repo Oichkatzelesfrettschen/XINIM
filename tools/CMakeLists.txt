@@ -8,7 +8,13 @@ foreach(TOOL_SOURCE_FILE ${TOOL_SOURCES})
 
   add_executable(${TARGET_NAME} ${TOOL_SOURCE_FILE})
 
-  # Link each tool against the C library (minix_libc)
-  # Some tools might have more specific linking needs later.
+  # Link each tool against the C library (minix_libc) and the common project settings.
+  # The `xinim_common` library provides project-wide compiler flags and include paths.
   target_link_libraries(${TARGET_NAME} PRIVATE minix_libc xinim_common)
+
+  # Add include directories for each tool
+  target_include_directories(${TARGET_NAME} PUBLIC
+    "." # For any local headers specific to a tool (e.g., diskio.hpp)
+    # The global include paths from include/ and h/ are provided by xinim_common.
+  )
 endforeach()
