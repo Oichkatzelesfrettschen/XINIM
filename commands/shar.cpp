@@ -1,5 +1,5 @@
 /// \file shar.cpp
-/// \brief Generate a shell archive from one or more files.
+/// @brief Generate a shell archive from one or more files.
 ///
 /// This utility reproduces the classic `shar` program using modern
 /// C++23 facilities.  Each input file is emitted as a sequence of shell
@@ -20,18 +20,20 @@ namespace fs = std::filesystem;
 /// Size of the internal I/O buffer used when copying data.
 inline constexpr std::size_t IO_SIZE = 10 * BLOCK_SIZE;
 
-/// \brief Emit archive commands for a single file.
-/// \param path Path to the file that will be archived.
+/// @brief Emit archive commands for a single file leveraging C++23 `std::filesystem` utilities.
+/// @param path Path to the file that will be archived.
+/// @return void; writes shell reconstruction commands to standard output.
 static void emit_archive(const fs::path &path);
 
-/// \brief Encode an input stream for inclusion in the archive.
-/// \param in Stream from which to read the file contents.
+/// @brief Encode an input stream for inclusion in the archive using C++23 I/O stream facilities.
+/// @param in Stream from which to read the file contents.
+/// @return void; encoded data lines are written to standard output.
 static void encode_stream(std::istream &in);
 
-/// \brief Program entry point.
-/// \param argc Number of command line arguments.
-/// \param argv Argument vector.
-/// \return Zero on success, non–zero otherwise.
+/// @brief Program entry point.
+/// @param argc Number of command line arguments.
+/// @param argv Argument vector.
+/// @return Zero on success, non–zero otherwise.
 int main(int argc, char *argv[]) {
     if (argc < 2) {
         std::cerr << "Usage: shar file...\n";
