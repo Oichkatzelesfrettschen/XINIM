@@ -11,6 +11,11 @@
  * @param s Null-terminated string to search.
  * @param c Character to locate.
  * @return Pointer to located character or `nullptr`.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @compat index(3)
+ * @example
+ * char *p = index(str, ':');
  */
 char *index(char *s, int c) {
     do {

@@ -64,16 +64,64 @@
 #include "glo.hpp"
 #include "proc.hpp" // Includes NIL_PROC definition
 #include "type.hpp"
+#include <algorithm>
+#include <array>
 #include <cstddef> // For std::size_t, nullptr
 #include <cstdint>
 #include <cstdint> // For uint64_t, uintptr_t
+#include <ranges>
+#include <utility>
 
 #define COPY_UNIT 65534L /* max bytes to copy at once */
 
 // extern phys_bytes umap(); // umap is defined later in this file, now returns uint64_t
 
-PRIVATE message m;                      // Global message buffer, used by some functions here
-PRIVATE char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
+// Forward declarations for system call handlers.
+static int do_fork(message *m_ptr) noexcept;
+static int do_newmap(message *m_ptr) noexcept;
+static int do_exec(message *m_ptr) noexcept;
+static int do_xit(message *m_ptr) noexcept;
+static int do_getsp(message *m_ptr) noexcept;
+static int do_times(message *m_ptr) noexcept;
+static int do_abort(message *m_ptr) noexcept;
+static int do_sig(message *m_ptr) noexcept;
+static int do_copy(message *m_ptr) noexcept;
+
+/**
+ * @brief Enumerates supported system call identifiers.
+ */
+enum class SysCall : int {
+    Fork = SYS_FORK,     /**< Handle process creation. */
+    NewMap = SYS_NEWMAP, /**< Install a new memory map. */
+    Exec = SYS_EXEC,     /**< Finalize an exec() call. */
+    Xit = SYS_XIT,       /**< Process termination. */
+    GetSp = SYS_GETSP,   /**< Retrieve stack pointer. */
+    Times = SYS_TIMES,   /**< Fetch accounting times. */
+    Abort = SYS_ABORT,   /**< Abort the system. */
+    Sig = SYS_SIG,       /**< Deliver a signal. */
+    Copy = SYS_COPY      /**< Copy memory between processes. */
+};
+
+/**
+ * @brief Function pointer type for system call handlers.
+ */
+using SysHandler = int (*)(message *) noexcept;
+
+/**
+ * @brief Dispatch table mapping system call identifiers to handler routines.
+ */
+constinit std::array<std::pair<SysCall, SysHandler>, 9> kSysDispatch{
+    std::pair{SysCall::Fork, do_fork},   std::pair{SysCall::NewMap, do_newmap},
+    std::pair{SysCall::Exec, do_exec},   std::pair{SysCall::Xit, do_xit},
+    std::pair{SysCall::GetSp, do_getsp}, std::pair{SysCall::Times, do_times},
+    std::pair{SysCall::Abort, do_abort}, std::pair{SysCall::Sig, do_sig},
+    std::pair{SysCall::Copy, do_copy},
+};
+
+/** @brief Global message buffer shared across system call handlers. */
+PRIVATE message m;
+/** @brief Temporary buffer for signal delivery. */
+PRIVATE char sig_stuff[SIG_PUSH_BYTES];
 
 /*===========================================================================*
  *				sys_task				     *
@@ -83,44 +131,25 @@ PRIVATE char sig_stuff[SIG_PUSH_BYTES]; /* used to send signals to processes */
  *
  * Waits for system requests and routes them to the correct handler.
  * Runs continuously as a dedicated task and never returns.
+ *
+ * @pre Message passing system initialized; interrupts enabled.
+ * @post This routine never returns; termination indicates fatal error.
+ * @warning Lacks priority-based handling of competing system tasks.
  */
 PUBLIC void sys_task() noexcept { // Added void return, noexcept
     /* Main entry point of sys_task.  Get the message and dispatch on type. */
 
-    register int r;
+    int r{};
 
-    while (TRUE) {
+    while (true) {
         receive(ANY, &m);
 
-        switch (m.m_type) { /* which system call */
-        case SYS_FORK:
-            r = do_fork(&m);
-            break;
-        case SYS_NEWMAP:
-            r = do_newmap(&m);
-            break;
-        case SYS_EXEC:
-            r = do_exec(&m);
-            break;
-        case SYS_XIT:
-            r = do_xit(&m);
-            break;
-        case SYS_GETSP:
-            r = do_getsp(&m);
-            break;
-        case SYS_TIMES:
-            r = do_times(&m);
-            break;
-        case SYS_ABORT:
-            r = do_abort(&m);
-            break;
-        case SYS_SIG:
-            r = do_sig(&m);
-            break;
-        case SYS_COPY:
-            r = do_copy(&m);
-            break;
-        default:
+        const auto type = static_cast<SysCall>(m.m_type);
+        if (const auto it =
+                std::ranges::find(kSysDispatch, type, &std::pair<SysCall, SysHandler>::first);
+            it != kSysDispatch.end()) {
+            r = it->second(&m);
+        } else {
             r = ErrorCode::E_BAD_FCN;
         }
 

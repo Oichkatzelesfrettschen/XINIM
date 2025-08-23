@@ -5,7 +5,7 @@
 #endif
 
 #include "randombytes.h"
-#include "../../include/xinim/abort.h"
+#include "../../include/xinim/abort.hpp"
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>

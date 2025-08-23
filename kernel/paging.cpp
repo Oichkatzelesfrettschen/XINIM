@@ -19,6 +19,9 @@ static uint64_t next_kernel_va;   // PRIVATE -> static
  *===========================================================================*/
 /**
  * @brief Initialize kernel paging structures.
+ *
+ * @pre Boot memory allocator is operational.
+ * @post Kernel PML4 cleared and higher-half mapping base set.
  */
 PUBLIC void paging_init() noexcept { // (void) -> (), noexcept
     int i;
@@ -37,6 +40,9 @@ PUBLIC void paging_init() noexcept { // (void) -> (), noexcept
  * @param bytes Size in bytes to allocate.
  * @param flags Allocation flags (unused).
  * @return Pointer to allocated virtual address space.
+ *
+ * @pre ::paging_init has prepared @c next_kernel_va.
+ * @post Reserved region is advanced by requested number of pages.
  */
 // bytes is u64_t (uint64_t)
 PUBLIC void *alloc_virtual(uint64_t bytes, int flags) noexcept {
@@ -60,6 +66,10 @@ PUBLIC void *alloc_virtual(uint64_t bytes, int flags) noexcept {
  * @param pa    Physical address to map to.
  * @param flags Mapping attributes (unused).
  * @return OK on success.
+ *
+ * @pre Corresponding PML4 entry has been allocated.
+ * @post Lower level page tables remain unallocated (stub).
+ * @todo Implement full 4-level page table population.
  */
 // va, pa are virt_addr64, phys_addr64 (both uint64_t)
 PUBLIC int map_page(uint64_t va, uint64_t pa, int flags) noexcept {
