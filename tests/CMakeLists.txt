@@ -28,6 +28,17 @@ add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 enable_testing()
 find_package(Threads REQUIRED)
 find_package(nlohmann_json REQUIRED)
+include(FetchContent)
+
+# -----------------------------------------------------------------------------
+# Property-based testing framework: RapidCheck
+# -----------------------------------------------------------------------------
+FetchContent_Declare(
+    rapidcheck
+    GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(rapidcheck)
 
 # Common include directories
 set(XINIM_INCLUDES
@@ -333,6 +344,17 @@ add_executable(minix_test_semantic_region
 )
 target_include_directories(minix_test_semantic_region PRIVATE ${PROJECT_ROOT}/include)
 add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
+
+# -----------------------------------------------------------------------------
+# Property-based Tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_strlen_property
+    test_strlen_property.cpp
+)
+target_include_directories(minix_test_strlen_property PRIVATE ${XINIM_INCLUDES})
+target_link_libraries(minix_test_strlen_property PRIVATE rapidcheck)
+target_compile_options(minix_test_strlen_property PRIVATE -Wno-error=deprecated-declarations)
+add_test(NAME minix_test_strlen_property COMMAND minix_test_strlen_property)
 
 # Crypto library is built by main CMakeLists.txt
 # No need to add_subdirectory here as it creates conflicts
