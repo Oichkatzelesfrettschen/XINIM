@@ -14,10 +14,9 @@ The codebase is **work in progress**, aiming to reproduce classic Minix simplici
   * **POSIX make + sh** for the classic Makefiles.
   * **libsodium** development headers for the crypto subsystem.
 
-Install everything with:
+Install everything with (see [tools/setup.md](../tools/setup.md) for the step-by-step package list):
 
 ```sh
-# See tools/setup.md for the step-by-step package list
 sudo apt-get update && sudo apt-get install -y \
     build-essential cmake ninja-build clang-18 lld-18 lldb-18 \
     libsodium-dev nlohmann-json3-dev
@@ -41,6 +40,19 @@ Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 -----
 
 ## 3 · Building with CMake
+
+The repository ships a helper script that abstracts the configure and
+compile steps. Select an optimization profile and let it drive CMake
+and Ninja:
+
+```sh
+./build.sh --profile=developer    # Debug + sanitizers
+./build.sh --profile=performance  # Profiling instrumentation
+./build.sh --profile=release      # Maximum optimization
+```
+
+Artifacts default to `build/`; override with `--build-dir` and pass extra
+CMake options after `--`.
 
 ```sh
 # Configure (Debug build by default)

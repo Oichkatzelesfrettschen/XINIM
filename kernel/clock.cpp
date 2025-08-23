@@ -231,7 +231,7 @@ static void do_clocktick() noexcept {
                      */
                     proc_nr = &entry - proc - NR_TASKS;
                     if (proc_nr >= 0)
-                        cause_sig(proc_nr, SIGALRM);
+                        cause_sig(proc_nr, xinim::signals::SIGALRM);
                     else
                         (*watch_dog[-proc_nr])();
                     entry.p_alarm = 0;

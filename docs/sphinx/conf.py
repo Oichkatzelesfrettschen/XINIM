@@ -25,6 +25,7 @@ release = "0.1.0"  # Full version string including patch level
 extensions = [
     "breathe",      # Integrates Doxygen XML output for API reference
     "myst_parser",  # Enables CommonMark and MyST markdown support
+    "sphinx.ext.coverage",  # Enables coverage reporting for documentation
 ]
 
 # Allow Sphinx to parse both reStructuredText and Markdown sources.

@@ -33,12 +33,8 @@ set(FS_SRC
 add_executable(minix_fs_server ${FS_SRC})
 
 # Link against the Minix C library implemented in lib/
-target_link_libraries(minix_fs_server PRIVATE minix_libc)
+target_link_libraries(minix_fs_server PRIVATE minix_libc xinim_common)
 
-# Public include paths required by the file system sources and their consumers
-target_include_directories(minix_fs_server PUBLIC
-    .
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/h
-)
+# Include paths specific to the file system sources
+target_include_directories(minix_fs_server PRIVATE .)
 
