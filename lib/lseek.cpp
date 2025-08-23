@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Reposition the read/write file offset for descriptor 'fd'.
 long lseek(int fd, long offset, int whence) {

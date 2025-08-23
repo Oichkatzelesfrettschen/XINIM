@@ -1,71 +1,64 @@
-#include "../include/lib.hpp" // C++17 header
-#include "../include/stdio.h"
+#include "../include/lib.hpp" // C++23 header
+#include "../include/stdio.hpp"
+#include <cerrno>
+#include <expected>
+#include <fcntl.h>
+#include <filesystem>
+#include <memory>
+#include <string_view>
 
-#define PMODE 0644
+namespace {
+constexpr auto kFileMode = 0644;
 
-/*
- * Open a file as a stream.
- *
- * Supported modes:
- *      "w" - create/truncate for writing
- *      "a" - open for appending (create if needed)
- *      "r" - open for reading
- */
-FILE *fopen(const char *name, const char *mode) {
-    int i;         /* index into _io_table */
-    FILE *fp;      /* resulting stream */
-    int fd;        /* file descriptor from open/creat */
-    int flags = 0; /* stream flags */
+[[nodiscard]] std::expected<int, std::errc> open_file(const std::filesystem::path &path,
+                                                      std::string_view mode) noexcept {
+    int fd = -1;
+    if (mode == "w") {
+        fd = ::creat(path.c_str(), kFileMode);
+    } else if (mode == "a") {
+        fd = ::open(path.c_str(), O_WRONLY | O_CREAT, kFileMode);
+        if (fd >= 0) {
+            ::lseek(fd, 0L, SEEK_END);
+        }
+    } else if (mode == "r") {
+        fd = ::open(path.c_str(), O_RDONLY);
+    } else {
+        return std::unexpected(std::errc::invalid_argument);
+    }
+    if (fd < 0) {
+        return std::unexpected(static_cast<std::errc>(errno));
+    }
+    return fd;
+}
+} // namespace
 
-    /* Locate a free slot in the open file table. */
-    for (i = 0; _io_table[i] != 0; i++) {
-        if (i >= NFILES)
-            return NULL;
+[[nodiscard]] FILE *fopen(const char *name, const char *mode) {
+    int i = 0;
+    for (; _io_table[i] != nullptr; ++i) {
+        if (i >= NFILES) {
+            return nullptr;
+        }
     }
 
-    /* Decide how to open or create the file. */
-    switch (*mode) {
-    case 'w':
-        /* Create or truncate the file for writing. */
-        flags |= WRITEMODE;
-        fd = creat(name, PMODE);
-        if (fd < 0)
-            return NULL;
-        break;
+    const std::filesystem::path path{name};
+    const std::string_view mode_sv{mode ? mode : ""};
+    const int flags = (mode_sv == "r") ? READMODE : WRITEMODE;
 
-    case 'a':
-        /* Open for appending; create if necessary. */
-        flags |= WRITEMODE;
-        fd = open(name, 1);
-        if (fd < 0)
-            return NULL;
-        lseek(fd, 0L, 2);
-        break;
-
-    case 'r':
-        /* Open an existing file for reading. */
-        flags |= READMODE;
-        fd = open(name, 0);
-        if (fd < 0)
-            return NULL;
-        break;
-
-    default:
-        /* Unrecognized mode. */
-        return NULL;
+    auto fd_res = open_file(path, mode_sv);
+    if (!fd_res) {
+        return nullptr;
     }
 
-    /* Allocate the FILE structure. */
-    fp = (FILE *)safe_malloc(sizeof(FILE));
+    auto fp = std::make_unique<FILE>();
+    auto buffer = std::make_unique<char[]>(BUFSIZ);
 
-    /* Initialize the stream structure. */
     fp->_count = 0;
-    fp->_fd = fd;
-    fp->_flags = flags;
-    fp->_buf = safe_malloc(BUFSIZ);
-    fp->_flags |= IOMYBUF;
-
+    fp->_fd = fd_res.value();
+    fp->_flags = flags | IOMYBUF;
+    fp->_buf = buffer.get();
     fp->_ptr = fp->_buf;
-    _io_table[i] = fp;
-    return fp;
+
+    _io_table[i] = fp.get();
+    buffer.release();
+    return fp.release();
 }

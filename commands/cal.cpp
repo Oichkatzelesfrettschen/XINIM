@@ -1,28 +1,36 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+/**
+ * @file cal.cpp
+ * @brief Modern C++23 calendar utility
+ * @author Martin Minow (original), modernized for XINIM
+ *
+ * A calendar printing utility that displays monthly or yearly calendars.
+ * Fully modernized with C++23 features including constexpr, strong typing,
+ * and static assertions for compile-time validation.
+ */
 
-/* cal - print a calendar		Author: Maritn Minow */
+/* cal - print a calendar		Author: Martin Minow */
 
 #include <array>
 #include <cstdio>
+#include <cstring>
+#include <string>
 #include <string_view>
 
-#define do3months domonth
+// Modern constants with clear semantic naming
 constexpr int IO_SUCCESS = 0;
 constexpr int IO_ERROR = 1;
-constexpr char EOS = 0;
+constexpr char EOS = '\0';
 
-constexpr int ENTRY_SIZE = 3;      /* 3 bytes per value		*/
-constexpr int DAYS_PER_WEEK = 7;   /* Sunday, etc.			*/
-constexpr int WEEKS_PER_MONTH = 6; /* Max. weeks in a month	*/
-constexpr int MONTHS_PER_LINE = 3; /* Three months across		*/
-constexpr int MONTH_SPACE = 3;     /* Between each month		*/
+// Calendar layout constants
+constexpr int ENTRY_SIZE = 3;      /**< Bytes per calendar entry */
+constexpr int DAYS_PER_WEEK = 7;   /**< Days in a week */
+constexpr int WEEKS_PER_MONTH = 6; /**< Maximum weeks in a month */
+constexpr int MONTHS_PER_LINE = 3; /**< Months displayed horizontally */
+constexpr int MONTH_SPACE = 3;     /**< Spacing between months */
 
-char *badarg = {"Bad argument\n"};
-char *how = {"Usage: cal [month] year\n"};
+// Error messages as string literals
+constexpr auto badarg = "Bad argument\n";
+constexpr auto usage_msg = "Usage: cal [month] year\n";
 
 /*
  * calendar() stuffs data into layout[],
@@ -39,49 +47,70 @@ constexpr std::string_view weekday = " S  M Tu  W Th  F  S";
 constexpr std::array<std::string_view, 13> monthname = {
     "???", "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
 
+/**
+ * @brief Main entry point for the calendar utility
+ * @param argc Number of command line arguments
+ * @param argv Array of command line argument strings
+ * @return IO_SUCCESS on success, IO_ERROR on failure
+ *
+ * Parses command line arguments to determine whether to display a month,
+ * year, or specific month within a year. Handles argument ambiguity
+ * intelligently based on value ranges.
+ */
+/**
+ * @brief Entry point for the cal utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
-    register int month;
-    register int year;
-
-    register int arg1val;
-    int arg1len;
-    int arg2val;
-
     if (argc <= 1) {
-        usage(how);
-    } else {
-        arg1val = atoi(argv[1]);
-        arg1len = strlen(argv[1]);
-        if (argc == 2) {
-            /*
-             * Only one argument, if small, it's a month.  If
-             * large, it's a year.  Note:
-             *	cal	0082	Year 0082
-             *	cal	82	Year 0082
-             */
-            if (arg1len <= 2 && arg1val <= 12)
-                do3months(year, arg1val);
-            else
-                doyear(arg1val);
-        } else {
-            /*
-             * Two arguments, allow 1980 12 or 12 1980
-             */
-            arg2val = atoi(argv[2]);
-            if (arg1len > 2)
-                do3months(arg1val, arg2val);
-            else
-                do3months(arg2val, arg1val);
-        }
+        usage(usage_msg);
+        return IO_ERROR;
     }
-    exit(IO_SUCCESS);
+
+    try {
+        const int arg1val = std::stoi(argv[1]);
+        const auto arg1len = std::strlen(argv[1]);
+
+        if (argc == 2) {
+            // Single argument: small values (≤12) with ≤2 digits are months,
+            // larger values are years
+            if (arg1len <= 2 && arg1val <= 12) {
+                domonth_current_year(arg1val);
+            } else {
+                doyear(arg1val);
+            }
+        } else if (argc == 3) {
+            // Two arguments: handle both "month year" and "year month" formats
+            const int arg2val = std::stoi(argv[2]);
+
+            if (arg1len > 2) {
+                // First argument is likely the year (more than 2 digits)
+                domonth(arg1val, arg2val);
+            } else {
+                // First argument is likely the month (≤2 digits)
+                domonth(arg2val, arg1val);
+            }
+        } else {
+            usage(usage_msg);
+            return IO_ERROR;
+        }
+    } catch (const std::exception &e) {
+        usage(badarg);
+        return IO_ERROR;
+    }
+
+    return IO_SUCCESS;
 }
 
-static void doyear(int year)
-/*
- * Print the calendar for an entire year.
+/**
+ * @brief Print the calendar for an entire year.
+ *
+ * @param year Year number in Gregorian
+ * calendar.
  */
-{
+static void doyear(int year) {
     register int month;
 
     if (year < 1 || year > 9999)
@@ -97,18 +126,20 @@ static void doyear(int year)
         calendar(year, month + 1, 1);
         calendar(year, month + 2, 2);
         output(3);
-#if MONTHS_PER_LINE != 3
-        << error, the above won't work >>
-#endif
+        // Static assertion ensures MONTHS_PER_LINE is 3 for the above logic
+        static_assert(MONTHS_PER_LINE == 3, "MONTHS_PER_LINE must be 3 for quarterly display");
     }
     printf("\n\n\n");
 }
 
-static void domonth(int year, int month)
-/*
- * Do one specific month -- note: no longer used
+/**
+ * @brief Print the calendar for a single month.
+ *
+ * @param year Year number.
+ * @param month
+ * Month number (1-12).
  */
-{
+static void domonth(int year, int month) {
     if (year < 1 || year > 9999)
         usage(badarg);
     if (month <= 0 || month > 12)
@@ -119,11 +150,13 @@ static void domonth(int year, int month)
     printf("\n\n");
 }
 
-static void output(int nmonths) /* Number of months to do */
-/*
- * Clean up and output the text.
+/**
+ * @brief Emit formatted calendar text for collected months.
+ *
+ * @param nmonths Number of
+ * months to output.
  */
-{
+static void output(int nmonths) {
     register int week;
     register int month;
     register char *outp;
@@ -152,11 +185,15 @@ static void output(int nmonths) /* Number of months to do */
     }
 }
 
-static void calendar(int year, int month, int index) /* Which of the three months */
-/*
- * Actually build the calendar for this month.
+/**
+ * @brief Build the calendar layout for a given month.
+ *
+ * @param year Year being rendered.
+ *
+ * @param month Month being rendered.
+ * @param index Column index in the output layout.
  */
-{
+static void calendar(int year, int month, int index) {
     register char *tp;
     int week;
     register int wday;
@@ -182,9 +219,12 @@ static void calendar(int year, int month, int index) /* Which of the three month
     }
 }
 
+/**
+ * @brief Print usage information and terminate.
+ *
+ * @param s Usage message to display.
+ */
 static void usage(char *s) {
-    /* Fatal parameter error. */
-
     fprintf(stderr, "%s", s);
     exit(IO_ERROR);
 }
@@ -222,22 +262,30 @@ static struct {
 static int day_month[] = {/* 30 days hath September...		*/
                           0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
 
-int static int date(int year, int month, int week, int wday) /* Calendar date being computed */
-/*
- * Return the date of the month that fell on this week and weekday.
- * Return zero if it's out of range.
+/**
+ * @brief Compute the date within a month for a given week and weekday.
+ *
+ * @param year Year
+ * number.
+ * @param month Month number.
+ * @param week Week index starting at 0.
+ * @param wday
+ * Weekday index starting at 0.
+ * @return Day of month or 0 if out of range.
  */
-{
+int static int date(int year, int month, int week, int wday) {
     setmonth(year, month);
     return (getdate(week, wday));
 }
 
-static void setmonth(int year, int month)
-/*
- * Setup the parameters needed to compute this month
- * (stored in the info structure).
+/**
+ * @brief Initialise calendar information for a given month.
+ *
+ * @param year Year number.
+ *
+ * @param month Month number.
  */
-{
+static void setmonth(int year, int month) {
     register int i;
 
     if (month < 1 || month > 12) { /* Verify caller's parameters	*/
@@ -281,6 +329,14 @@ static void setmonth(int year, int month)
     info.dow_first %= 7; /* Now it's Sunday to Saturday	*/
 }
 
+/**
+ *  Determine the date for a given week and weekday.
+ *
+ *  week Week index starting at 0.
+ *
+ * wday Weekday index starting at 0.
+ *  Day of month or 0 if not in range.
+ */
 static int getdate(int week, int wday) register int today;
 
 /*

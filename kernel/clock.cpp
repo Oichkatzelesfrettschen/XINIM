@@ -29,12 +29,23 @@
 #include "../h/com.hpp"
 #include "../h/const.hpp"
 #include "../h/error.hpp"
-#include "../h/signal.h"
+#include "../h/signal.hpp"
 #include "../h/type.hpp"
+#include "../include/lib.hpp" // for send/receive primitives
+#include "../include/shared/signal_constants.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include <cstddef> // For std::size_t, nullptr (though not directly used here for ptr)
+#include <cstdint> // For int64_t
+
+// External interfaces provided by other kernel modules
+extern "C" void panic(const char *msg, int code) noexcept;
+void sched();
+void pr_char();
+void port_out(unsigned port, unsigned value) noexcept;
+void cause_sig(int proc_nr, int sig_nr) noexcept;
 
 /* Constant definitions. */
 #define MILLISEC 100                      /* how often to call the scheduler (msec) */
@@ -47,24 +58,33 @@
 #define SQUARE_WAVE 0x36  /* mode for generating square wave */
 
 /* Clock task variables. */
-PRIVATE real_time boot_time;              /* time in seconds of system boot */
-PRIVATE real_time next_alarm;             /* probable time of next alarm */
+static int64_t boot_time;                 // real_time -> int64_t
+static int64_t next_alarm;                // real_time -> int64_t
 PRIVATE int sched_ticks = SCHED_RATE;     /* counter: when 0, call scheduler */
 PRIVATE struct proc *prev_ptr;            /* last user process run by clock task */
 PRIVATE message mc;                       /* message buffer for both input and output */
 PRIVATE int (*watch_dog[NR_TASKS + 1])(); /* watch_dog functions to call */
+
 /* Forward declarations for internal helpers. */
-PRIVATE void do_setalarm(message *m_ptr);
-PRIVATE void do_get_time(void);
-PRIVATE void do_set_time(message *m_ptr);
-PRIVATE void do_clocktick(void);
-PRIVATE void accounting(void);
-PRIVATE void init_clock(void);
+static void do_setalarm(message *m_ptr) noexcept;
+static void do_get_time() noexcept;
+static void do_set_time(message *m_ptr) noexcept;
+static void do_clocktick() noexcept;
+static void accounting() noexcept;
+static void init_clock() noexcept;
 
 /*===========================================================================*
  *				clock_task				     *
  *===========================================================================*/
-PUBLIC clock_task() {
+/**
+ * @brief Entry point for the clock task.
+ *
+ * This function forms the main loop of the clock task. It waits for
+ * messages indicating timer events or requests from other system components
+ * and dispatches them to the appropriate handlers.
+ *
+ */
+PUBLIC void clock_task() noexcept {
     /* Main program of clock task.  It determines which of the 4 possible
      * calls this is by looking at 'mc.m_type'.   Then it dispatches.
      */
@@ -105,92 +125,121 @@ PUBLIC clock_task() {
 /*===========================================================================*
  *				do_setalarm				     *
  *===========================================================================*/
-PRIVATE void do_setalarm(message *m_ptr) {
-    /* A process wants an alarm signal or a task wants a given watch_dog function
-     * called after a specified interval.  Record the request and check to see
-     * it is the very next alarm needed.
-     */
+/**
+ * @brief Program an alarm for a process or schedule a watchdog callback.
+ *
+ * When a user process requests an alarm the process receives a @c SIGALRM
+ * signal once the specified number of clock ticks has elapsed. Kernel tasks
+ * may request a callback function instead.
+ *
+ * @param m_ptr Message describing the alarm request.
+*/
+static void do_setalarm(message *m_ptr) noexcept {
 
-    register struct proc *rp;
-    int proc_nr;       /* which process wants the alarm */
-    long delta_ticks;  /* in how many clock ticks does he want it? */
-    int (*function)(); /* function to call (tasks only) */
+    struct proc *rp{};
+    int proc_nr{};             /* which process wants the alarm */
+    int64_t delta_ticks_val{}; // interval in ticks
+    int (*function)(){};       /* function to call (tasks only) */
 
     /* Extract the parameters from the message. */
-    proc_nr = m_ptr->CLOCK_PROC_NR;   /* process to interrupt later */
-    delta_ticks = m_ptr->DELTA_TICKS; /* how many ticks to wait */
-    function = m_ptr->FUNC_TO_CALL;   /* function to call (tasks only) */
+    proc_nr = clock_proc_nr(*m_ptr);         /* process to interrupt later */
+    delta_ticks_val = ::delta_ticks(*m_ptr); /* how many ticks to wait */
+    function = func_to_call(*m_ptr);         /* function to call (tasks only) */
     rp = proc_addr(proc_nr);
-    mc.SECONDS_LEFT = (rp->p_alarm == 0L ? 0 : (rp->p_alarm - realtime) / HZ);
-    rp->p_alarm = (delta_ticks == 0L ? 0L : realtime + delta_ticks);
-    if (proc_nr < 0)
+    // mc is global message. SECONDS_LEFT (m2_l1) is int64_t. p_alarm, realtime are int64_t. HZ is
+    // int.
+    seconds_left(mc) = (rp->p_alarm == 0LL ? 0LL : (rp->p_alarm - realtime) / HZ);
+    rp->p_alarm = (delta_ticks_val == 0LL ? 0LL : realtime + delta_ticks_val); // p_alarm is int64_t
+    if (proc_nr < 0) // Assuming tasks are negative proc_nr
         watch_dog[-proc_nr] = function;
 
     /* Which alarm is next? */
+    // MAX_P_LONG is int32_t. next_alarm is int64_t. Use INT64_MAX for true max.
+    // For now, keep existing logic, but this might not represent the "latest possible" alarm.
     next_alarm = MAX_P_LONG;
-    for (rp = &proc[0]; rp < &proc[NR_TASKS + NR_PROCS]; rp++)
-        if (rp->p_alarm != 0 && rp->p_alarm < next_alarm)
-            next_alarm = rp->p_alarm;
+    for (auto &entry : proc) {
+        if (entry.p_alarm != 0LL && entry.p_alarm < next_alarm) {
+            next_alarm = entry.p_alarm;
+        }
+    }
 }
 
 /*===========================================================================*
  *				do_get_time				     *
  *===========================================================================*/
-PRIVATE void do_get_time(void) {
-    /* Get and return the current clock time in ticks. */
-
-    mc.m_type = REAL_TIME;                   /* set message type for reply */
-    mc.NEW_TIME = boot_time + realtime / HZ; /* current real time */
+/**
+ * @brief Handle a GET_TIME request.
+ *
+ * Places the current time expressed in seconds since boot into the
+ * global reply message.
+ *
+ */
+static void do_get_time() noexcept {
+    mc.m_type = REAL_TIME;
+    new_time(mc) = boot_time + realtime / HZ; /* current real time */
 }
 
 /*===========================================================================*
  *				do_set_time				     *
  *===========================================================================*/
-PRIVATE void do_set_time(message *m_ptr) {
-    /* Set the real time clock.  Only the superuser can use this call. */
-
-    boot_time = m_ptr->NEW_TIME - realtime / HZ;
-}
+/**
+ * @brief Set the system real time.
+ *
+ * Updates the base boot time so that subsequent calls to GET_TIME return
+ * the supplied value. This call is normally restricted to privileged code.
+ *
+ * @param m_ptr Message containing the new time in seconds.
+*/
+static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) - realtime / HZ; }
 
 /*===========================================================================*
  *				do_clocktick				     *
  *===========================================================================*/
-PRIVATE void do_clocktick(void) {
-    /* This routine called on every clock tick. */
+/**
+ * @brief Handle a single clock tick interrupt.
+ *
+ * Updates the system tick counters, processes expired alarms and
+ * handles scheduling related bookkeeping. This function is invoked on
+ * every timer interrupt.
+ *
+ * @pre Programmable interval timer was configured by ::init_clock.
+ * @post Pending alarms are dispatched and scheduler counters updated.
+ */
+static void do_clocktick() noexcept {
 
-    register struct proc *rp;
-    register int t, proc_nr;
+    int t{}, proc_nr{};
     extern int pr_busy, pcount, cum_count, prev_ct;
 
     /* To guard against race conditions, first copy 'lost_ticks' to a local
      * variable, add this to 'realtime', and then subtract it from 'lost_ticks'.
      */
-    t = lost_ticks;    /* 'lost_ticks' counts missed interrupts */
-    realtime += t + 1; /* update the time of day */
+    t = lost_ticks;    /* 'lost_ticks' (int) counts missed interrupts */
+    realtime += t + 1; /* update the time of day (realtime is int64_t) */
     lost_ticks -= t;   /* these interrupts are no longer missed */
 
-    if (next_alarm <= realtime) {
+    if (next_alarm <= realtime) { // Both int64_t
         /* An alarm may have gone off, but proc may have exited, so check. */
-        next_alarm = MAX_P_LONG; /* start computing next alarm */
-        for (rp = &proc[0]; rp < &proc[NR_TASKS + NR_PROCS]; rp++) {
-            if (rp->p_alarm != (real_time)0) {
+        next_alarm =
+            MAX_P_LONG; /* start computing next alarm (MAX_P_LONG is int32_t, next_alarm int64_t) */
+        for (auto &entry : proc) {
+            if (entry.p_alarm != 0LL) {
                 /* See if this alarm time has been reached. */
-                if (rp->p_alarm <= realtime) {
+                if (entry.p_alarm <= realtime) {
                     /* A timer has gone off.  If it is a user proc,
                      * send it a signal.  If it is a task, call the
                      * function previously specified by the task.
                      */
-                    proc_nr = rp - proc - NR_TASKS;
+                    proc_nr = &entry - proc - NR_TASKS;
                     if (proc_nr >= 0)
-                        cause_sig(proc_nr, SIGALRM);
+                        cause_sig(proc_nr, xinim::signals::SIGALRM);
                     else
                         (*watch_dog[-proc_nr])();
-                    rp->p_alarm = 0;
+                    entry.p_alarm = 0;
                 }
 
                 /* Work on determining which alarm is next. */
-                if (rp->p_alarm != 0 && rp->p_alarm < next_alarm)
-                    next_alarm = rp->p_alarm;
+                if (entry.p_alarm != 0 && entry.p_alarm < next_alarm)
+                    next_alarm = entry.p_alarm;
             }
         }
     }
@@ -200,7 +249,11 @@ PRIVATE void do_clocktick(void) {
     /* If a user process has been running too long, pick another one. */
     if (--sched_ticks == 0) {
         if (bill_ptr == prev_ptr)
-            sched();              /* process has run too long */
+            /**
+             * @brief Round-robin scheduling decision.
+             * @warning Assumes a single CPU; SMP fairness needs review.
+             */
+            sched(); /* process has run too long */
         sched_ticks = SCHED_RATE; /* reset quantum */
         prev_ptr = bill_ptr;      /* new previous process */
 
@@ -214,7 +267,15 @@ PRIVATE void do_clocktick(void) {
 /*===========================================================================*
  *				accounting				     *
  *===========================================================================*/
-PRIVATE void accounting(void) {
+/**
+ * @brief Update user and system accounting statistics.
+ *
+ * The global variable @c bill_ptr designates the process that should be
+ * charged for the current tick. Depending on whether the system was in
+ * user or kernel mode this function increments the corresponding counter.
+ *
+ */
+static void accounting() noexcept { // Changed (void) to ()
     /* Update user and system accounting times.  The variable 'bill_ptr' is always
      * kept pointing to the process to charge for CPU usage.  If the CPU was in
      * user code prior to this clock tick, charge the tick as user time, otherwise
@@ -230,8 +291,17 @@ PRIVATE void accounting(void) {
 /*===========================================================================*
  *				init_clock				     *
  *===========================================================================*/
-PRIVATE void init_clock(void) {
-    /* Initialize channel 2 of the 8253A timer to e.g. 60 Hz. */
+/**
+ * @brief Initialise the programmable interval timer.
+ *
+ * Programs timer channel zero to generate periodic interrupts at the
+ * system tick rate defined by @c HZ.
+ *
+ * @pre I/O ports @c TIMER0 and @c TIMER_MODE must be accessible.
+ * @post Timer generates square-wave interrupts at @c HZ frequency.
+ * @todo Replace legacy PIT with HPET/APIC timer for higher precision.
+ */
+static void init_clock() noexcept {
 
     unsigned int count, low_byte, high_byte;
 

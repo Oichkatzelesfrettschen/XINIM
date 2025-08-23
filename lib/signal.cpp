@@ -1,5 +1,5 @@
-#include "../include/signal.h"
-#include "../include/lib.hpp" // C++17 header
+#include "../include/signal.hpp"
+#include "../include/lib.hpp" // C++23 header
 
 sighandler_t vectab[NR_SIGS]; /* array of functions to catch signals */
 

@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 struct tbuf {
     long b1, b2, b3, b4;

@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
 /* FS must occasionally print some message.  It uses the standard library
  * routine printf(), which calls putc() and flush. Library
  * versions of these routines do printing by sending messages to FS.  Here

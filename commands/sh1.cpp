@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 #include "errno.hpp"
@@ -34,9 +34,14 @@ char search[] = ":/bin:/usr/bin";
 
 int (*qflag)() = SIG_IGN;
 
-main(argc, argv) int argc;
-register char **argv;
-{
+// Entry point for the shell command
+/**
+ * @brief Entry point for the sh1 utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
     register int f;
     register char *s;
     int cflag;
@@ -250,6 +255,7 @@ onecommand() {
         if (talking)
             signal(SIGINT, SIG_IGN);
     }
+    return 0;
 }
 
 void fail() {

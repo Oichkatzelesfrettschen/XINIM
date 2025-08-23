@@ -4,10 +4,12 @@
 #include "../h/error.hpp"
 #include "../h/type.hpp"
 #include "../include/lib.hpp" // for message structure and constants
-#include <signal.h>
+#include "../include/signal.hpp"
+#include <cstdint>
 
 #ifndef sighandler_t
-typedef void (*sighandler_t)(int);
+// Converted to a C++ using alias
+using sighandler_t = void (*)(int);
 #endif
 
 extern int errno;
@@ -29,31 +31,66 @@ void sys_getsp(int proc, vir_bytes *newsp) {
     /* Ask the kernel what the sp is. */
 
     callm1(SYSTASK, SYS_GETSP, proc, 0, 0, NIL_PTR, NIL_PTR, NIL_PTR);
-    *newsp = (vir_bytes)M.STACK_PTR;
+    *newsp = (vir_bytes)stack_ptr(M);
 }
 
-// Signal process 'proc' with signal 'sig'.
-void sys_sig(int proc, int sig, sighandler_t sighandler) {
-    /* A proc has to be signaled.  Tell the kernel. */
+/**
+ * @brief Request delivery of a signal to a process.
+ *
+ * @param proc       Destination process number.
+ * @param sig        Signal number to deliver.
+ * @param sighandler Handler address for catching the signal.
+ * @param token      Capability token authorising the action.
+ * @sideeffects Traps into the kernel to deliver a signal.
+ * @thread_safety Thread-safe; kernel serialises signal delivery.
+ */
+void sys_sig(int proc, int sig, sighandler_t sighandler, std::uint64_t token) {
 
     M.m6_i1() = proc;
     M.m6_i2() = sig;
     M.m6_f1() = sighandler;
+    set_token(M, token);
     callx(SYSTASK, SYS_SIG);
 }
 
-// Tell the kernel a process has forked.
-void sys_fork(int parent, int child, int pid) {
-    /* A proc has forked.  Tell the kernel. */
+/**
+ * @brief Inform the kernel that a process forked.
+ *
+ * @param parent Parent process number.
+ * @param child  Child process slot number.
+ * @param pid    PID assigned to the child.
+ * @param token  Capability token for the new process.
+ * @sideeffects Performs a synchronous kernel call allocating a new process.
+ * @thread_safety Thread-safe as per kernel semantics.
+ */
+void sys_fork(int parent, int child, int pid, std::uint64_t token) {
 
-    callm1(SYSTASK, SYS_FORK, parent, child, pid, NIL_PTR, NIL_PTR, NIL_PTR);
+    message m{};
+    m.m_type = SYS_FORK;
+    proc1(m) = parent;
+    proc2(m) = child;
+    pid(m) = pid;
+    set_token(m, token);
+    sendrec(SYSTASK, &m);
 }
 
-// Tell the kernel a process has exec'd.
-void sys_exec(int proc, char *ptr) {
-    /* A proc has exec'd.  Tell the kernel. */
+/**
+ * @brief Notify the kernel that a process executed a new image.
+ *
+ * @param proc  Process number performing exec.
+ * @param ptr   Stack pointer value for the new program.
+ * @param token Newly generated capability token.
+ * @sideeffects Replaces the process image in kernel.
+ * @thread_safety Thread-safe; affects only the targeted process.
+ */
+void sys_exec(int proc, char *ptr, std::uint64_t token) {
 
-    callm1(SYSTASK, SYS_EXEC, proc, 0, 0, ptr, NIL_PTR, NIL_PTR);
+    message m{};
+    m.m_type = SYS_EXEC;
+    proc1(m) = proc;
+    stack_ptr(m) = ptr;
+    set_token(m, token);
+    sendrec(SYSTASK, &m);
 }
 
 // Notify the kernel of a new memory map for 'proc'.

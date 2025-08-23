@@ -1,5 +1,11 @@
 #pragma once
-// Modernized for C++17
+/**
+ * @file com.hpp
+ * @brief Common constants for message passing and system call numbers.
+ */
+
+#include "const.hpp"
+#include "type.hpp"
 
 /* System call function codes used with sendrec(). */
 inline constexpr int SEND = 1;             /* function code for sending messages */
@@ -51,96 +57,249 @@ inline constexpr int TTY_IOCTL = 5;    /* fcn code for ioctl */
 inline constexpr int SUSPEND = -998;   /* used in interrupts when tty has no data */
 
 /* Accessors for messages sent to the CLOCK task. */
-inline long &delta_ticks(message &m) { return m.m6_l1; }  /* alarm interval in clock ticks */
-inline auto &func_to_call(message &m) { return m.m6_f1; } /* pointer to function to call */
-inline long &new_time(message &m) { return m.m6_l1; }     /* value to set clock to (SET_TIME) */
-inline int &clock_proc_nr(message &m) {
-    return m.m6_i1;
-} /* which proc (or task) wants the alarm? */
-inline long &seconds_left(message &m) { return m.m6_l1; } /* how many seconds were remaining */
+// Message struct fields mX_lN are int64_t after h/type.hpp modernization
+/**
+ * @brief Accessor for the clock alarm interval.
+ * @param m Reference to the message to access.
+ * @return Reference to the tick interval field.
+ */
+inline int64_t &delta_ticks(message &m) noexcept { return m.m6_l1(); }
+/**
+ * @brief Accessor for the callback function pointer.
+ * @param m Reference to the message to access.
+ * @return Reference to the function pointer field.
+ */
+inline int (*&func_to_call(message &m) noexcept)() { return m.m6_f1(); }
+/**
+ * @brief Accessor for the new time value.
+ * @param m Reference to the message to access.
+ * @return Reference to the new time field.
+ */
+inline int64_t &new_time(message &m) noexcept { return m.m6_l1(); }
+/**
+ * @brief Accessor for the requesting process number.
+ * @param m Reference to the message to access.
+ * @return Reference to the process number field.
+ */
+inline int &clock_proc_nr(message &m) noexcept { return m.m6_i1(); }
+/**
+ * @brief Accessor for the remaining seconds field.
+ * @param m Reference to the message to access.
+ * @return Reference to the seconds left field.
+ */
+inline int64_t &seconds_left(message &m) noexcept { return m.m6_l1(); }
 
 /* Accessors for block and character task messages. */
-inline int &device(message &m) { return m.m2_i1; }    /* major-minor device */
-inline int &proc_nr(message &m) { return m.m2_i2; }   /* which (proc) wants I/O? */
-inline int &count(message &m) { return m.m2_i3; }     /* how many bytes to transfer */
-inline long &position(message &m) { return m.m2_l1; } /* file offset */
-inline char *&address(message &m) { return m.m2_p1; } /* core buffer address */
+/**
+ * @brief Accessor for the device identifier.
+ * @param m Reference to the message to access.
+ * @return Reference to the device field.
+ */
+inline int &device(message &m) noexcept { return m.m2_i1(); }
+/**
+ * @brief Accessor for the process number field.
+ * @param m Reference to the message to access.
+ * @return Reference to the process number field.
+ */
+inline int &proc_nr(message &m) noexcept { return m.m2_i2(); }
+/**
+ * @brief Accessor for the byte count field.
+ * @param m Reference to the message to access.
+ * @return Reference to the count field.
+ */
+inline int &count(message &m) noexcept { return m.m2_i3(); }
+/**
+ * @brief Accessor for the file position.
+ * @param m Reference to the message to access.
+ * @return Reference to the position field.
+ */
+inline int64_t &position(message &m) noexcept { return m.m2_l1(); }
+/**
+ * @brief Accessor for the user buffer address.
+ * @param m Reference to the message to access.
+ * @return Reference to the address field.
+ */
+inline char *&address(message &m) noexcept { return m.m2_p1(); }
 
 /* Accessors for TTY task messages. */
-inline int &tty_line(message &m) { return m.m2_i1; }    /* terminal line */
-inline int &tty_request(message &m) { return m.m2_i3; } /* ioctl request code */
-inline long &tty_spek(message &m) { return m.m2_l1; }   /* ioctl speed, erasing */
-inline long &tty_flags(message &m) { return m.m2_l2; }  /* ioctl tty mode */
+/**
+ * @brief Accessor for the terminal line number.
+ * @param m Reference to the message to access.
+ * @return Reference to the line number field.
+ */
+inline int &tty_line(message &m) noexcept { return m.m2_i1(); }
+/**
+ * @brief Accessor for the TTY request code.
+ * @param m Reference to the message to access.
+ * @return Reference to the request field.
+ */
+inline int &tty_request(message &m) noexcept { return m.m2_i3(); }
+/**
+ * @brief Accessor for the TTY speed field.
+ * @param m Reference to the message to access.
+ * @return Reference to the speed field.
+ */
+inline int64_t &tty_spek(message &m) noexcept { return m.m2_l1(); }
+/**
+ * @brief Accessor for the TTY flags field.
+ * @param m Reference to the message to access.
+ * @return Reference to the flags field.
+ */
+inline int64_t &tty_flags(message &m) noexcept { return m.m2_l2(); }
 
 /* Accessors for reply messages from tasks. */
-inline int &rep_proc_nr(message &m) { return m.m2_i1; } /* proc for which I/O was done */
-inline int &rep_status(message &m) { return m.m2_i2; }  /* bytes transferred or error */
+/**
+ * @brief Accessor for the reply process number.
+ * @param m Reference to the message to access.
+ * @return Reference to the process number field.
+ */
+inline int &rep_proc_nr(message &m) noexcept { return m.m2_i1(); }
+/**
+ * @brief Accessor for the reply status field.
+ * @param m Reference to the message to access.
+ * @return Reference to the status field.
+ */
+inline int &rep_status(message &m) noexcept { return m.m2_i2(); }
 
 /* Accessors for SYSTASK copy messages. */
-inline char &src_space(message &m) { return m.m5_c1; }  /* T or D space */
-inline int &src_proc_nr(message &m) { return m.m5_i1; } /* process to copy from */
-inline long &src_buffer(message &m) { return m.m5_l1; } /* virtual address source */
-inline char &dst_space(message &m) { return m.m5_c2; }  /* T or D space */
-inline int &dst_proc_nr(message &m) { return m.m5_i2; } /* process to copy to */
-inline long &dst_buffer(message &m) { return m.m5_l2; } /* virtual address dest */
-inline long &copy_bytes(message &m) { return m.m5_l3; } /* number of bytes to copy */
-
-/* Names of message fields for messages to CLOCK task. */
-#define DELTA_TICKS m6_l1()   /* alarm interval in clock ticks */
-#define FUNC_TO_CALL m6_f1()  /* pointer to function to call */
-#define NEW_TIME m6_l1()      /* value to set clock to (SET_TIME) */
-#define CLOCK_PROC_NR m6_i1() /* which proc (or task) wants the alarm? */
-#define SECONDS_LEFT m6_l1()  /* how many seconds were remaining */
-
-/* Names of message fields used for messages to block and character tasks. */
-#define DEVICE m2_i1()   /* major-minor device */
-#define PROC_NR m2_i2()  /* which (proc) wants I/O? */
-#define COUNT m2_i3()    /* how many bytes to transfer */
-#define POSITION m2_l1() /* file offset */
-#define ADDRESS m2_p1()  /* core buffer address */
-
-/* Names of message fields for messages to TTY task. */
-#define TTY_LINE m2_i1()    /* message parameter: terminal line */
-#define TTY_REQUEST m2_i3() /* message parameter: ioctl request code */
-#define TTY_SPEK m2_l1()    /* message parameter: ioctl speed, erasing */
-#define TTY_FLAGS m2_l2()   /* message parameter: ioctl tty mode */
-
-/* Names of messages fields used in reply messages from tasks. */
-#define REP_PROC_NR m2_i1() /* # of proc on whose behalf I/O was done */
-#define REP_STATUS m2_i2()  /* bytes transferred or error number */
-
-/* Names of fields for copy message to SYSTASK. */
-#define SRC_SPACE m5_c1()   /* T or D space (stack is also D) */
-#define SRC_PROC_NR m5_i1() /* process to copy from */
-#define SRC_BUFFER m5_l1()  /* virtual address where data come from */
-#define DST_SPACE m5_c2()   /* T or D space (stack is also D) */
-#define DST_PROC_NR m5_i2() /* process to copy to */
-#define DST_BUFFER m5_l2()  /* virtual address where data go to */
-#define COPY_BYTES m5_l3()  /* number of bytes to copy */
+/**
+ * @brief Accessor for the source memory space specifier.
+ * @param m Reference to the message to access.
+ * @return Reference to the source space field.
+ */
+inline char &src_space(message &m) noexcept { return m.m5_c1(); }
+/**
+ * @brief Accessor for the source process number.
+ * @param m Reference to the message to access.
+ * @return Reference to the source process field.
+ */
+inline int &src_proc_nr(message &m) noexcept { return m.m5_i1(); }
+/**
+ * @brief Accessor for the source buffer address.
+ * @param m Reference to the message to access.
+ * @return Reference to the source buffer field.
+ */
+inline int64_t &src_buffer(message &m) noexcept { return m.m5_l1(); }
+/**
+ * @brief Accessor for the destination memory space specifier.
+ * @param m Reference to the message to access.
+ * @return Reference to the destination space field.
+ */
+inline char &dst_space(message &m) noexcept { return m.m5_c2(); }
+/**
+ * @brief Accessor for the destination process number.
+ * @param m Reference to the message to access.
+ * @return Reference to the destination process field.
+ */
+inline int &dst_proc_nr(message &m) noexcept { return m.m5_i2(); }
+/**
+ * @brief Accessor for the destination buffer address.
+ * @param m Reference to the message to access.
+ * @return Reference to the destination buffer field.
+ */
+inline int64_t &dst_buffer(message &m) noexcept { return m.m5_l2(); }
+/**
+ * @brief Accessor for the copy byte count.
+ * @param m Reference to the message to access.
+ * @return Reference to the byte count field.
+ */
+inline int64_t &copy_bytes(message &m) noexcept { return m.m5_l3(); }
 
 /* Accessors for accounting and miscellaneous fields. */
-inline long &user_time(message &m) { return m.m4_l1; }   /* user time consumed */
-inline long &system_time(message &m) { return m.m4_l2; } /* system time consumed */
-inline long &child_utime(message &m) { return m.m4_l3; } /* user time of children */
-inline long &child_stime(message &m) { return m.m4_l4; } /* system time of children */
+/**
+ * @brief Accessor for user time consumed.
+ * @param m Reference to the message to access.
+ * @return Reference to the user time field.
+ */
+inline int64_t &user_time(message &m) noexcept { return m.m4_l1(); }
+/**
+ * @brief Accessor for system time consumed.
+ * @param m Reference to the message to access.
+ * @return Reference to the system time field.
+ */
+inline int64_t &system_time(message &m) noexcept { return m.m4_l2(); }
+/**
+ * @brief Accessor for the children's user time.
+ * @param m Reference to the message to access.
+ * @return Reference to the child user time field.
+ */
+inline int64_t &child_utime(message &m) noexcept { return m.m4_l3(); }
+/**
+ * @brief Accessor for the children's system time.
+ * @param m Reference to the message to access.
+ * @return Reference to the child system time field.
+ */
+inline int64_t &child_stime(message &m) noexcept { return m.m4_l4(); }
 
-inline int &proc1(message &m) { return m.m1_i1; }       /* indicates a process */
-inline int &proc2(message &m) { return m.m1_i2; }       /* indicates a process */
-inline int &pid(message &m) { return m.m1_i3; }         /* process id passed from MM */
-inline char *&stack_ptr(message &m) { return m.m1_p1; } /* stack pointer */
-inline int &pr(message &m) { return m.m6_i1; }          /* process number for sys_sig */
-inline int &signum(message &m) { return m.m6_i2; }      /* signal number for sys_sig */
-inline auto &func(message &m) { return m.m6_f1; }       /* function pointer for sys_sig */
-inline char *&mem_ptr(message &m) { return m.m1_p1; }   /* memory map pointer */
-inline constexpr int CANCEL = 0;                        /* request to cancel */
-inline int &sig_map(message &m) { return m.m1_i2; }     /* signal bit map */
-#define PROC1 m1_i1()     /* indicates a process */
-#define PROC2 m1_i2()     /* indicates a process */
-#define PID m1_i3()       /* process id passed from MM to kernel */
-#define STACK_PTR m1_p1() /* used for stack ptr in sys_exec, sys_getsp */
-#define PR m6_i1()        /* process number for sys_sig */
-#define SIGNUM m6_i2()    /* signal number for sys_sig */
-#define FUNC m6_f1()      /* function pointer for sys_sig */
-#define MEM_PTR m1_p1()   /* tells where memory map is for sys_newmap */
-#define CANCEL 0          /* general request to force a task to cancel */
-#define SIG_MAP m1_i2()   /* used by kernel for passing signal bit map */
+/**
+ * @brief Accessor for the first process identifier field.
+ * @param m Reference to the message to access.
+ * @return Reference to the first process field.
+ */
+inline int &proc1(message &m) noexcept { return m.m1_i1(); }
+/**
+ * @brief Accessor for the second process identifier field.
+ * @param m Reference to the message to access.
+ * @return Reference to the second process field.
+ */
+inline int &proc2(message &m) noexcept { return m.m1_i2(); }
+/**
+ * @brief Accessor for the process ID passed from MM.
+ * @param m Reference to the message to access.
+ * @return Reference to the PID field.
+ */
+inline int &pid(message &m) noexcept { return m.m1_i3(); }
+/**
+ * @brief Accessor for the stack pointer field.
+ * @param m Reference to the message to access.
+ * @return Reference to the stack pointer field.
+ */
+inline char *&stack_ptr(message &m) noexcept { return m.m1_p1(); }
+/**
+ * @brief Set capability token.
+ * @param m    Message to update.
+ * @param val  Token value.
+ */
+inline void set_token(message &m, std::uint64_t val) noexcept {
+    m.m1_p2() = reinterpret_cast<char *>(val);
+}
+/**
+ * @brief Retrieve capability token from a message.
+ * @param m Message carrying the token.
+ * @return Stored token value.
+ */
+inline std::uint64_t token(const message &m) noexcept {
+    return reinterpret_cast<std::uint64_t>(m.m1_p2());
+}
+/**
+ * @brief Accessor for the process number used by sys_sig.
+ * @param m Reference to the message to access.
+ * @return Reference to the process number field.
+ */
+inline int &pr(message &m) noexcept { return m.m6_i1(); }
+/**
+ * @brief Accessor for the signal number.
+ * @param m Reference to the message to access.
+ * @return Reference to the signal number field.
+ */
+inline int &signum(message &m) noexcept { return m.m6_i2(); }
+/**
+ * @brief Accessor for the signal handler function pointer.
+ * @param m Reference to the message to access.
+ * @return Reference to the function pointer field.
+ */
+inline int (*&func(message &m) noexcept)() { return m.m6_f1(); }
+/**
+ * @brief Accessor for the memory map pointer.
+ * @param m Reference to the message to access.
+ * @return Reference to the memory map pointer field.
+ */
+inline char *&mem_ptr(message &m) noexcept { return m.m1_p1(); }
+/** Constant indicating a cancel request. */
+inline constexpr int CANCEL = 0;
+/**
+ * @brief Accessor for the signal bit map.
+ * @param m Reference to the message to access.
+ * @return Reference to the signal map field.
+ */
+inline int &sig_map(message &m) noexcept { return m.m1_i2(); }

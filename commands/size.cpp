@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* size - tell size of an object file		Author: Andy Tanenbaum */
@@ -17,23 +17,27 @@
 int heading; /* set when heading printed */
 int error;
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point using modern parameters
+/**
+ * @brief Entry point for the size utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
     int i;
 
     if (argc == 1) {
         size("a.out");
-        exit(error);
+        return error;
     }
 
     for (i = 1; i < argc; i++)
         size(argv[i]);
-    exit(error);
+    return error;
 }
 
-size(name) char *name;
-{
+static void size(const char *name) {
     int fd, separate;
     long head[HLONG], dynam, allmem;
 
@@ -66,8 +70,7 @@ size(name) char *name;
     close(fd);
 }
 
-stderr3(s1, s2, s3) char *s1, *s2, *s3;
-{
+static void stderr3(const char *s1, const char *s2, const char *s3) {
     std_err(s1);
     std_err(s2);
     std_err(s3);

@@ -1,13 +1,18 @@
-#include "../include/stdio.h"
+// clang-format off
+#include "../include/stdio.hpp"
+// clang-format on
 
-FILE *freopen(name,mode,stream)
-char *name,*mode;
-FILE *stream;
-{
-	FILE *fopen();
+// Forward declarations for stream functions.
+FILE *fopen(const char *name, const char *mode);
+int fclose(FILE *fp);
 
-	if ( fclose(stream) != 0 )
-		return NULL;
+// Reopen an existing stream using a new file name and mode.
+FILE *freopen(const char *name, const char *mode, FILE *stream) {
+    // Close the current stream and release resources.
+    if (fclose(stream) != 0) {
+        return nullptr;
+    }
 
-	return fopen(name,mode);
+    // Delegate to fopen to create the new stream instance.
+    return fopen(name, mode);
 }

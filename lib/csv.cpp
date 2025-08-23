@@ -1,7 +1,14 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
-/*
- * Empty csv stub for compatibility.
+/**
+ * @file csv.cpp
+ * @brief Placeholder implementation for the csv utility.
+ *
+ * @sideeffects None.
+ * @thread_safety Thread-safe.
+ * @example
+ * csv();
  */
-// Empty csv stub for compatibility.
+
+/// Placeholder csv function used during early bootstrapping.
 void csv() {}

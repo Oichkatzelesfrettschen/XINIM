@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
 /* The following names are synonyms for the variables in the input message. */
 #define acc_time m.m2_l1()
 #define addr m.m1_i3()

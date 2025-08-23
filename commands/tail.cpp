@@ -1,12 +1,23 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* tail - print the end of a file */
 
+/**
+ * @file tail.cpp
+ * @brief Print the end of a file using C++ iostreams.
+ */
+
 #include "stdio.hpp"
+#include <array>
+#include <cstdlib>
+#include <fstream>
+#include <iostream>
+#include <span>
+
 #define TRUE 1
 #define FALSE 0
 #define BLANK ' '
@@ -14,16 +25,18 @@
 #define NEWL '\n'
 
 int lines, chars;
-char buff[BUFSIZ];
 
-main(argc, argv) int argc;
-char *argv[];
-{
+static int stoi(char *s);
+static void tail(std::istream &in, int goal);
+[[noreturn]] static void done(int n);
+
+/**
+ * @brief Entry point processing command-line arguments.
+ */
+int main(int argc, char *argv[]) {
     char *s;
-    FILE *input, *fopen();
+    std::ifstream input;
     int count;
-
-    setbuf(stdout, buff);
     argc--;
     argv++;
     lines = TRUE;
@@ -31,7 +44,7 @@ char *argv[];
     count = -10;
 
     if (argc == 0) {
-        tail(stdin, count);
+        tail(std::cin, count);
         done(0);
     }
 
@@ -48,7 +61,7 @@ char *argv[];
             chars = TRUE;
             lines = FALSE;
         } else if (*s != 'l' && *s != NULL) {
-            fprintf(stderr, "tail: unknown option %c\n", *s);
+            std::cerr << "tail: unknown option " << *s << "\n";
             argc = 0;
         }
         argc--;
@@ -56,28 +69,33 @@ char *argv[];
     }
 
     if (argc < 0) {
-        fprintf(stderr, "Usage: tail [+/-[number][lc]] [files]\n");
+        std::cerr << "Usage: tail [+/-[number][lc]] [files]\n";
         done(1);
     }
 
     if (argc == 0)
-        tail(stdin, count);
+        tail(std::cin, count);
 
-    else if ((input = fopen(*argv, "r")) == NULL) {
-        fprintf(stderr, "tail: can't open %s\n", *argv);
-        done(1);
-    } else {
+    else {
+        input.open(*argv);
+        if (!input.is_open()) {
+            std::cerr << "tail: can't open " << *argv << "\n";
+            done(1);
+        }
         tail(input, count);
-        fclose(input);
+        input.close();
     }
 
     done(0);
+    return 0; // Unreachable
 }
 
 /* stoi - convert string to integer */
 
-stoi(s) char *s;
-{
+/**
+ * @brief Convert a string to integer respecting sign.
+ */
+static int stoi(char *s) {
     int n, sign;
 
     while (*s == BLANK || *s == NEWL || *s == TAB)
@@ -97,55 +115,48 @@ stoi(s) char *s;
 
 /* tail - print 'count' lines/chars */
 
-#define INCR(p)                                                                                    \
-    if (p >= end)                                                                                  \
-        p = cbuf;                                                                                  \
-    else                                                                                           \
-        p++
 #define BUF_SIZE 4098
 
-char cbuf[BUF_SIZE];
-
-tail(in, goal) FILE *in;
-int goal;
-{
-    int c, count;
-    char *start, *finish, *end;
-
-    count = 0;
+/**
+ * @brief Print the last part of the input stream.
+ *
+ * @param in    Input stream.
+ * @param goal  Positive to skip first N, negative to print last N.
+ */
+static void tail(std::istream &in, int goal) {
+    int c, count = 0;
+    std::array<char, BUF_SIZE> cbuf{};
+    std::span<char> buf{cbuf};
+    char *start = buf.data();
+    char *finish = buf.data();
+    char *end = buf.data() + buf.size() - 1;
+    auto incr = [&](char *&p) { p = (p >= end) ? buf.data() : p + 1; };
 
     if (goal > 0) { /* skip */
-
-        if (lines) /* lines */
-            while ((c = getc(in)) != EOF) {
+        if (lines)  /* lines */
+            while ((c = in.get()) != EOF) {
                 if (c == NEWL)
                     count++;
                 if (count >= goal)
                     break;
             }
         else /* chars */
-            while (getc(in) != EOF) {
+            while (in.get() != EOF) {
                 count++;
                 if (count >= goal)
                     break;
             }
         if (count >= goal)
-            while ((c = getc(in)) != EOF)
-                putc(c, stdout);
-    }
-
-    else { /* tail */
-
+            while ((c = in.get()) != EOF)
+                std::cout.put(static_cast<char>(c));
+    } else { /* tail */
         goal = -goal;
-        start = finish = cbuf;
-        end = &cbuf[BUF_SIZE - 1];
-
-        while ((c = getc(in)) != EOF) {
-            *finish = c;
-            INCR(finish);
+        while ((c = in.get()) != EOF) {
+            *finish = static_cast<char>(c);
+            incr(finish);
 
             if (start == finish)
-                INCR(start);
+                incr(start);
             if (!lines || c == NEWL)
                 count++;
 
@@ -153,23 +164,22 @@ int goal;
                 count = goal;
                 if (lines)
                     while (*start != NEWL)
-                        INCR(start);
-                INCR(start);
+                        incr(start);
+                incr(start);
             }
-
-        } /* end while */
-
-        while (start != finish) {
-            putc(*start, stdout);
-            INCR(start);
         }
 
-    } /* end else */
+        while (start != finish) {
+            std::cout.put(*start);
+            incr(start);
+        }
+    }
+}
 
-} /* end tail */
-
-done(n) int n;
-{
+/**
+ * @brief Terminate the program, flushing stdio buffers.
+ */
+[[noreturn]] static void done(int n) {
     _cleanup(); /* flush stdio's internal buffers */
-    exit(n);
+    std::exit(n);
 }

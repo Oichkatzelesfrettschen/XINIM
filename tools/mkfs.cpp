@@ -86,9 +86,8 @@ char gwarning[] = {65, 46, 83, 46, 84, 97, 110, 101, 110, 98, 97, 117, 109, 10};
  *                    mkfs  -  make filesystem
  *===============================================================*/
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point for the mkfs tool
+int main(int argc, char *argv[]) {
     int i, blocks, zones, inodes, mode, usrid, grpid, badusage = 0;
     char *token[MAX_TOKENS], buf[BLOCK_SIZE];
     int testb[2];
@@ -107,7 +106,7 @@ char *argv[];
     }
     if (badusage) {
         write(2, "Usage: mkfs [-L] special proto\n", 31);
-        exit(1);
+        return 1;
     }
     while (--argc) {
         switch (argv[argc][0]) {
@@ -210,7 +209,7 @@ char *argv[];
     if (print)
         print_fs();
     flush();
-    exit(0);
+    return 0;
 
 } /* end main */
 

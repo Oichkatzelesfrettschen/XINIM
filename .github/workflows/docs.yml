@@ -1,0 +1,39 @@
+# GitHub Actions workflow for documentation
+# Runs Doxygen and Sphinx on every push
+
+name: Documentation
+
+on:
+  push:
+    branches: ["**"]
+
+jobs:
+  build-docs:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen python3-sphinx
+          pip install breathe sphinx_rtd_theme
+
+      - name: Run Doxygen
+        run: doxygen Doxyfile
+
+      - name: Build Sphinx HTML
+        run: sphinx-build docs/sphinx docs/sphinx/_build/html
+
+      - name: Upload Doxygen HTML
+        uses: actions/upload-artifact@v3
+        with:
+          name: doxygen-html
+          path: docs/doxygen/html
+
+      - name: Upload Sphinx HTML
+        uses: actions/upload-artifact@v3
+        with:
+          name: sphinx-html
+          path: docs/sphinx/_build/html

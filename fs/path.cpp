@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
 /* This file contains the procedures that look up path names in the directory
  * system and determine the inode number that goes with a given path name.
  *
@@ -26,6 +20,9 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 
 /*===========================================================================*
  *				eat_path				     *
@@ -248,7 +245,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
         b = read_map(ldir_ptr, pos); /* get block number */
 
         /* Since directories don't have holes, 'b' cannot be NO_BLOCK. */
-        bp = get_block(ldir_ptr->i_dev, b, NORMAL); /* get a dir block */
+        bp = get_block(ldir_ptr->i_dev, b, IoMode::Normal); /* get a dir block */
 
         /* Search a directory block. */
         for (dp = &bp->b_dir[0]; dp < &bp->b_dir[NR_DIR_ENTRIES]; dp++) {
@@ -265,7 +262,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
                     ldir_ptr->i_modtime = clock_time();
                 } else
                     *numb = dp->d_inum; /* 'flag' is LOOK_UP */
-                put_block(bp, DIRECTORY_BLOCK);
+                put_block(bp, BlockType::Directory);
                 return (OK);
             }
 
@@ -278,8 +275,8 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
 
         /* The whole block has been searched or ENTER has a free slot. */
         if (e_hit)
-            break;                      /* e_hit set if ENTER can be performed now */
-        put_block(bp, DIRECTORY_BLOCK); /* otherwise, continue searching dir */
+            break;                           /* e_hit set if ENTER can be performed now */
+        put_block(bp, BlockType::Directory); /* otherwise, continue searching dir */
     }
 
     /* The whole directory has now been searched. */
@@ -302,7 +299,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
     copy(dp->d_name, string, NAME_SIZE);
     dp->d_inum = *numb;
     bp->b_dirt = DIRTY;
-    put_block(bp, DIRECTORY_BLOCK);
+    put_block(bp, BlockType::Directory);
     ldir_ptr->i_modtime = clock_time();
     if (new_slots > old_slots)
         compat_set_size(ldir_ptr, (file_pos)new_slots * DIR_ENTRY_SIZE);

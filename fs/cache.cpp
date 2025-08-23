@@ -1,21 +1,6 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
-/* The file system maintains a buffer cache to reduce the number of disk
- * accesses needed.  Whenever a read or write to the disk is done, a check is
- * first made to see if the block is in the cache.  This file manages the
- * cache.
- *
- * The entry points into this file are:
- *   get_block:	  request to fetch a block for reading or writing from cache
- *   put_block:	  return a block previously requested with get_block
- *   alloc_zone:  allocate a new zone (to increase the length of a file)
- *   free_zone:	  release a zone (when a file is removed)
- *   rw_block:	  read or write a block from the disk itself
- *   invalidate:  remove all the cache blocks on some device
+/**
+ * @file cache.cpp
+ * @brief Buffer cache implementation providing block I/O caching.
  */
 
 #include "../h/const.hpp"
@@ -23,282 +8,311 @@
 #include "../h/type.hpp"
 #include "buf.hpp"
 #include "const.hpp"
-#include "file.hpp"
-#include "fproc.hpp"
+#include "dev.hpp"
 #include "glo.hpp"
-#include "inode.hpp"
 #include "super.hpp"
-#include "type.hpp"
+#include <algorithm>
+#include <cstddef>
+#include <cstdint>
+#include <type_traits>
+#include <utility>
 
-/*===========================================================================*
- *				get_block				     *
- *===========================================================================*/
-PUBLIC struct buf *get_block(dev, block, only_search)
-register dev_nr dev;     /* on which device is the block? */
-register block_nr block; /* which block is wanted? */
-int only_search;         /* if NO_READ, don't read, else act normal */
-{
-    /* Check to see if the requested block is in the block cache.  If so, return
-     * a pointer to it.  If not, evict some other block and fetch it (unless
-     * 'only_search' is 1).  All blocks in the cache, whether in use or not,
-     * are linked together in a chain, with 'front' pointing to the least recently
-     * used block and 'rear' to the most recently used block.  If 'only_search' is
-     * 1, the block being requested will be overwritten in its entirety, so it is
-     * only necessary to see if it is in the cache; if it is not, any free buffer
-     * will do.  It is not necessary to actually read the block in from disk.
-     * In addition to the LRU chain, there is also a hash chain to link together
-     * blocks whose block numbers end with the same bit strings, for fast lookup.
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
+
+/** @brief Forward declaration for put_block used by BufferGuard. */
+void put_block(struct buf *bp, BlockType block_type);
+
+/**
+ * @class BufferGuard
+ * @brief RAII wrapper that releases a buffer when leaving scope.
+ *
+ * @param bp   Managed buffer pointer.
+ * @param type Usage hint for ::put_block upon destruction.
+ */
+class BufferGuard {
+    struct buf *bp_;
+    BlockType type_;
+
+  public:
+    /**
+     * @brief Construct a guard for a buffer.
+     * @param bp   Pointer to the buffer to manage.
+     * @param type Usage hint passed to ::put_block on destruction.
      */
+    explicit BufferGuard(struct buf *bp = NIL_BUF, BlockType type = BlockType::FullData) noexcept
+        : bp_{bp}, type_{type} {}
 
-    register struct buf *bp, *prev_ptr;
-
-    /* Search the list of blocks not currently in use for (dev, block). */
-    bp = buf_hash[block & (NR_BUF_HASH - 1)]; /* search the hash chain */
-    if (dev != kNoDev) {
-        while (bp != NIL_BUF) {
-            if (bp->b_blocknr == block && bp->b_dev == dev) {
-                /* Block needed has been found. */
-                if (bp->b_count == 0)
-                    bufs_in_use++;
-                bp->b_count++; /* record that block is in use */
-                return (bp);
-            } else {
-                /* This block is not the one sought. */
-                bp = bp->b_hash; /* move to next block on hash chain */
-            }
+    /** @brief Release the buffer on destruction. */
+    ~BufferGuard() {
+        if (bp_ != NIL_BUF) {
+            put_block(bp_, type_);
         }
     }
 
-    /* Desired block is not on available chain.  Take oldest block ('front').
-     * However, a block that is aready in use (b_count > 0) may not be taken.
-     */
-    if (bufs_in_use == NR_BUFS)
-        panic("All buffers in use", NR_BUFS);
-    bufs_in_use++; /* one more buffer in use now */
-    bp = front;
-    while (bp->b_count > 0 && bp->b_next != NIL_BUF)
-        bp = bp->b_next;
-    if (bp == NIL_BUF || bp->b_count > 0)
-        panic("No free buffer", NO_NUM);
+    BufferGuard(const BufferGuard &) = delete;
+    BufferGuard &operator=(const BufferGuard &) = delete;
 
-    /* Remove the block that was just taken from its hash chain. */
-    prev_ptr = buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)];
-    if (prev_ptr == bp) {
-        buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)] = bp->b_hash;
-    } else {
-        /* The block just taken is not on the front of its hash chain. */
-        while (prev_ptr->b_hash != NIL_BUF)
-            if (prev_ptr->b_hash == bp) {
-                prev_ptr->b_hash = bp->b_hash; /* found it */
-                break;
-            } else {
-                prev_ptr = prev_ptr->b_hash; /* keep looking */
+    /**
+     * @brief Move constructor.
+     * @param other Guard to move from.
+     */
+    BufferGuard(BufferGuard &&other) noexcept
+        : bp_{std::exchange(other.bp_, NIL_BUF)}, type_{other.type_} {}
+
+    /**
+     * @brief Move assignment operator.
+     * @param other Guard to move from.
+     * @return Reference to this guard.
+     */
+    BufferGuard &operator=(BufferGuard &&other) noexcept {
+        if (this != &other) {
+            if (bp_ != NIL_BUF) {
+                put_block(bp_, type_);
             }
+            bp_ = std::exchange(other.bp_, NIL_BUF);
+            type_ = other.type_;
+        }
+        return *this;
     }
 
-    /* If the  block taken is dirty, make it clean by rewriting it to disk. */
-    if (bp->b_dirt == DIRTY && bp->b_dev != kNoDev)
-        rw_block(bp, WRITING);
+    /**
+     * @brief Obtain the managed buffer.
+     * @return Raw buffer pointer.
+     */
+    [[nodiscard]] struct buf *get() const noexcept { return bp_; }
 
-    /* Fill in block's parameters and add it to the hash chain where it goes. */
-    bp->b_dev = dev;       /* fill in device number */
-    bp->b_blocknr = block; /* fill in block number */
-    bp->b_count++;         /* record that block is being used */
-    bp->b_hash = buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)];
-    buf_hash[bp->b_blocknr & (NR_BUF_HASH - 1)] = bp; /* add to hash list */
+    /**
+     * @brief Release ownership without calling ::put_block.
+     * @return Raw buffer pointer previously managed.
+     */
+    [[nodiscard]] struct buf *release() noexcept { return std::exchange(bp_, NIL_BUF); }
+};
 
-    /* Go get the requested block, unless only_search = NO_READ. */
-    if (dev != kNoDev && only_search == NORMAL)
-        rw_block(bp, READING);
-    return (bp); /* return the newly acquired block */
+namespace {
+/** @brief Hash mask assuming ::kNrBufHash is power of two. */
+constexpr std::size_t kHashMask = static_cast<std::size_t>(kNrBufHash - 1);
+
+/**
+ * @brief Compute hash table index for a block number.
+ * @param block Block number.
+ * @return Hash table index.
+ */
+constexpr std::size_t hash_index(block_nr block) noexcept {
+    return static_cast<std::size_t>(block) & kHashMask;
 }
 
-/*===========================================================================*
- *				put_block				     *
- *===========================================================================*/
-PUBLIC put_block(bp, block_type)
-register struct buf *bp; /* pointer to the buffer to be released */
-int block_type;          /* INODE_BLOCK, DIRECTORY_BLOCK, or whatever */
-{
-    /* Return a block to the list of available blocks.   Depending on 'block_type'
-     * it may be put on the front or rear of the LRU chain.  Blocks that are
-     * expected to be needed again shortly (e.g., partially full data blocks)
-     * go on the rear; blocks that are unlikely to be needed again shortly
-     * (e.g., full data blocks) go on the front.  Blocks whose loss can hurt
-     * the integrity of the file system (e.g., inode blocks) are written to
-     * disk immediately if they are dirty.
-     */
+/**
+ * @brief Check whether a ::BlockType contains a specific flag.
+ * @param type Block type to test.
+ * @param flag Flag to look for.
+ * @return True if the flag is set.
+ */
+constexpr bool has_flag(BlockType type, BlockType flag) noexcept {
+    using Under = std::underlying_type_t<BlockType>;
+    return (static_cast<Under>(type) & static_cast<Under>(flag)) != 0;
+}
 
-    register struct buf *next_ptr, *prev_ptr;
-
-    if (bp == NIL_BUF)
-        return; /* it is easier to check here than in caller */
-
-    /* If block is no longer in use, first remove it from LRU chain. */
-    bp->b_count--; /* there is one use fewer now */
-    if (bp->b_count > 0)
-        return; /* block is still in use */
-
-    bufs_in_use--;         /* one fewer block buffers in use */
-    next_ptr = bp->b_next; /* successor on LRU chain */
-    prev_ptr = bp->b_prev; /* predecessor on LRU chain */
-    if (prev_ptr != NIL_BUF)
-        prev_ptr->b_next = next_ptr;
-    else
-        front = next_ptr; /* this block was at front of chain */
-
-    if (next_ptr != NIL_BUF)
-        next_ptr->b_prev = prev_ptr;
-    else
-        rear = prev_ptr; /* this block was at rear of chain */
-
-    /* Put this block back on the LRU chain.  If the ONE_SHOT bit is set in
-     * 'block_type', the block is not likely to be needed again shortly, so put
-     * it on the front of the LRU chain where it will be the first one to be
-     * taken when a free buffer is needed later.
-     */
-    if (block_type & ONE_SHOT) {
-        /* Block probably won't be needed quickly. Put it on front of chain.
-         * It will be the next block to be evicted from the cache.
-         */
-        bp->b_prev = NIL_BUF;
-        bp->b_next = front;
-        if (front == NIL_BUF)
-            rear = bp; /* LRU chain was empty */
-        else
-            front->b_prev = bp;
-        front = bp;
+/**
+ * @brief Detach a buffer from the LRU list.
+ * @param bp Buffer to detach.
+ */
+void remove_from_lru(struct buf *bp) noexcept {
+    if (bp->b_prev) {
+        bp->b_prev->b_next = bp->b_next;
     } else {
-        /* Block probably will be needed quickly.  Put it on rear of chain.
-         * It will not be evicted from the cache for a long time.
-         */
-        bp->b_prev = rear;
-        bp->b_next = NIL_BUF;
-        if (rear == NIL_BUF)
-            front = bp;
-        else
-            rear->b_next = bp;
+        front = bp->b_next;
+    }
+    if (bp->b_next) {
+        bp->b_next->b_prev = bp->b_prev;
+    } else {
+        rear = bp->b_prev;
+    }
+    bp->b_next = bp->b_prev = NIL_BUF;
+}
+
+/**
+ * @brief Insert a buffer at the front of the LRU list.
+ * @param bp Buffer to insert.
+ */
+void insert_at_front(struct buf *bp) noexcept {
+    bp->b_prev = NIL_BUF;
+    bp->b_next = front;
+    if (front) {
+        front->b_prev = bp;
+    } else {
         rear = bp;
     }
-
-    /* Some blocks are so important (e.g., inodes, indirect blocks) that they
-     * should be written to the disk immediately to avoid messing up the file
-     * system in the event of a crash.
-     */
-    if ((block_type & WRITE_IMMED) && bp->b_dirt == DIRTY && bp->b_dev != kNoDev)
-        rw_block(bp, WRITING);
-
-    /* Super blocks must not be cached, lest mount use cached block. */
-    if (block_type == ZUPER_BLOCK)
-        bp->b_dev = kNoDev;
+    front = bp;
 }
 
-/*===========================================================================*
- *				alloc_zone				     *
- *===========================================================================*/
-PUBLIC zone_nr alloc_zone(dev, z)
-dev_nr dev; /* device where zone wanted */
-zone_nr z;  /* try to allocate new zone near this one */
-{
-    /* Allocate a new zone on the indicated device and return its number. */
-
-    bit_nr b, bit;
-    struct super_block *sp;
-    int major, minor;
-    extern bit_nr alloc_bit();
-    extern struct super_block *get_super();
-
-    /* Note that the routine alloc_bit() returns 1 for the lowest possible
-     * zone, which corresponds to sp->s_firstdatazone.  To convert a value
-     * between the bit number, 'b', used by alloc_bit() and the zone number, 'z',
-     * stored in the inode, use the formula:
-     *     z = b + sp->s_firstdatazone - 1
-     * Alloc_bit() never returns 0, since this is used for NO_BIT (failure).
-     */
-    sp = get_super(dev); /* find the super_block for this device */
-    bit = (bit_nr)z - (sp->s_firstdatazone - 1);
-    b = alloc_bit(sp->s_zmap, (bit_nr)sp->s_nzones - sp->s_firstdatazone + 1, sp->s_zmap_blocks,
-                  bit);
-    if (b == NO_BIT) {
-        err_code = ErrorCode::ENOSPC;
-        major = (int)(sp->s_dev >> MAJOR) & BYTE;
-        minor = (int)(sp->s_dev >> MINOR) & BYTE;
-        if (sp->s_dev == ROOT_DEV)
-            printf("No space on root device (RAM disk)\n");
-        else
-            printf("No space on device %d/%d\n", major, minor);
-        return (NO_ZONE);
+/**
+ * @brief Insert a buffer at the rear of the LRU list.
+ * @param bp Buffer to insert.
+ */
+void insert_at_rear(struct buf *bp) noexcept {
+    bp->b_next = NIL_BUF;
+    bp->b_prev = rear;
+    if (rear) {
+        rear->b_next = bp;
+    } else {
+        front = bp;
     }
-    return (sp->s_firstdatazone - 1 + (zone_nr)b);
+    rear = bp;
 }
 
-/*===========================================================================*
- *				free_zone				     *
- *===========================================================================*/
-PUBLIC free_zone(dev, numb)
-dev_nr dev;   /* device where zone located */
-zone_nr numb; /* zone to be returned */
-{
-    /* Return a zone. */
-
-    register struct super_block *sp;
-    extern struct super_block *get_super();
-
-    if (numb == NO_ZONE)
-        return; /* checking here easier than in caller */
-
-    /* Locate the appropriate super_block and return bit. */
-    sp = get_super(dev);
-    free_bit(sp->s_zmap, (bit_nr)numb - (sp->s_firstdatazone - 1));
+/**
+ * @brief Remove a buffer from its hash chain.
+ * @param bp Buffer to remove.
+ */
+void remove_from_hash(struct buf *bp) noexcept {
+    auto &head = buf_hash[hash_index(bp->b_blocknr)];
+    struct buf **cur = &head;
+    while (*cur && *cur != bp) {
+        cur = &(*cur)->b_hash;
+    }
+    if (*cur == bp) {
+        *cur = bp->b_hash;
+    }
+    bp->b_hash = NIL_BUF;
 }
 
-/*===========================================================================*
- *				rw_block				     *
- *===========================================================================*/
-PUBLIC rw_block(bp, rw_flag)
-register struct buf *bp; /* buffer pointer */
-int rw_flag;             /* READING or WRITING */
-{
-    /* Read or write a disk block. This is the only routine in which actual disk
-     * I/O is invoked.  If an error occurs, a message is printed here, but the error
-     * is not reported to the caller.  If the error occurred while purging a block
-     * from the cache, it is not clear what the caller could do about it anyway.
-     */
+/**
+ * @brief Insert a buffer into its hash chain.
+ * @param bp Buffer to insert.
+ */
+void insert_into_hash(struct buf *bp) noexcept {
+    auto &head = buf_hash[hash_index(bp->b_blocknr)];
+    bp->b_hash = head;
+    head = bp;
+}
+} // namespace
 
-    int r;
-    long pos;
-    dev_nr dev;
-    extern int rdwt_err;
+/**
+ * @brief Perform device I/O on a buffer.
+ * @param bp      Buffer to operate on.
+ * @param rw_flag Either ::READING or ::WRITING.
+ * @return ::OK on success or an error code from ::dev_io.
+ */
+int rw_block(struct buf *bp, int rw_flag) {
+    const long position = static_cast<long>(bp->b_blocknr) * BLOCK_SIZE;
+    const int r = dev_io(rw_flag, bp->b_dev, position, BLOCK_SIZE, FS_PROC_NR, bp->b_data);
+    if (r == OK && rw_flag == WRITING) {
+        bp->b_dirt = CLEAN;
+    }
+    return r;
+}
 
-    if (bp->b_dev != kNoDev) {
-        pos = (long)bp->b_blocknr * BLOCK_SIZE;
-        r = dev_io(rw_flag, bp->b_dev, pos, BLOCK_SIZE, FS_PROC_NR, bp->b_data);
-        if (r < 0) {
-            dev = bp->b_dev;
-            if (r != EOF) {
-                printf("Unrecoverable disk error on device %d/%d, block %d\n",
-                       (dev >> MAJOR) & BYTE, (dev >> MINOR) & BYTE, bp->b_blocknr);
-            } else {
-                bp->b_dev = kNoDev; /* invalidate block */
+/**
+ * @brief Acquire a block from the buffer cache.
+ * @param dev   Device number containing the block.
+ * @param block Block number on the device.
+ * @param mode  I/O mode controlling on-disk reads.
+ * @return Pointer to the cached buffer or ::NIL_BUF on failure.
+ */
+[[nodiscard]] struct buf *get_block(dev_nr dev, block_nr block, IoMode mode) {
+    auto *bp = buf_hash[hash_index(block)];
+    while (bp != NIL_BUF) {
+        if (bp->b_blocknr == block && bp->b_dev == dev) {
+            if (++bp->b_count == 1) {
+                ++bufs_in_use;
             }
-            rdwt_err = r; /* report error to interested parties */
+            remove_from_lru(bp);
+            insert_at_rear(bp);
+            return bp;
+        }
+        bp = bp->b_hash;
+    }
+
+    bp = front;
+    while (bp != NIL_BUF && bp->b_count != 0) {
+        bp = bp->b_next;
+    }
+    if (bp == NIL_BUF) {
+        return NIL_BUF; /* no free buffers */
+    }
+
+    remove_from_lru(bp);
+    remove_from_hash(bp);
+
+    if (bp->b_dirt == DIRTY) {
+        rw_block(bp, WRITING);
+    }
+
+    bp->b_blocknr = block;
+    bp->b_dev = dev;
+    bp->b_dirt = CLEAN;
+    bp->b_count = 1;
+
+    if (mode == IoMode::Normal && dev != kNoDev) {
+        if (rw_block(bp, READING) != OK) {
+            bp->b_dev = kNoDev;
+            bp->b_blocknr = kNoBlock;
+            bp->b_count = 0;
+            insert_at_front(bp);
+            insert_into_hash(bp);
+            return NIL_BUF;
         }
     }
 
-    bp->b_dirt = CLEAN;
+    insert_into_hash(bp);
+    insert_at_rear(bp);
+    ++bufs_in_use;
+    return bp;
 }
 
-/*===========================================================================*
- *				invalidate				     *
- *===========================================================================*/
-PUBLIC invalidate(device)
-dev_nr device; /* device whose blocks are to be purged */
-{
-    /* Remove all the blocks belonging to some device from the cache. */
+/**
+ * @brief Release a buffer, optionally writing it back to disk.
+ * @param bp        Buffer to release.
+ * @param block_type Usage hint guiding cache eviction.
+ */
+void put_block(struct buf *bp, BlockType block_type) {
+    if (bp == NIL_BUF) {
+        return;
+    }
+    if (bp->b_count == 0) {
+        return; /* already free */
+    }
+    if (--bp->b_count > 0) {
+        return;
+    }
+    --bufs_in_use;
 
-    register struct buf *bp;
+    if (has_flag(block_type, BlockType::WriteImmediate) && bp->b_dirt == DIRTY) {
+        rw_block(bp, WRITING);
+    }
 
-    for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++)
-        if (bp->b_dev == device)
+    remove_from_lru(bp);
+    if (has_flag(block_type, BlockType::OneShot)) {
+        insert_at_front(bp);
+    } else {
+        insert_at_rear(bp);
+    }
+}
+
+/**
+ * @brief Invalidate all cache entries for a device.
+ * @param dev Device whose blocks should be purged.
+ */
+void invalidate(dev_nr dev) {
+    for (auto *bp = &buf[0]; bp < &buf[NR_BUFS]; ++bp) {
+        if (bp->b_dev == dev) {
+            remove_from_hash(bp);
             bp->b_dev = kNoDev;
+            bp->b_blocknr = kNoBlock;
+            bp->b_dirt = CLEAN;
+        }
+    }
+}
+
+/**
+ * @brief Convenience factory creating a ::BufferGuard for a block.
+ * @param dev   Device number containing the block.
+ * @param block Block number on the device.
+ * @param mode  I/O mode controlling on-disk reads.
+ * @param type  Usage hint passed to ::put_block.
+ * @return Guard managing the buffer.
+ */
+[[nodiscard]] BufferGuard make_buffer_guard(dev_nr dev, block_nr block, IoMode mode,
+                                            BlockType type = BlockType::FullData) {
+    return BufferGuard{get_block(dev, block, mode), type};
 }

@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* roff - text justifier	Author: George Sicherman */
@@ -69,9 +69,14 @@ struct sgttyb tty;
 
 FILE *fopen();
 
-main(argc, argv) int argc;
-char **argv;
-{
+// Entry point for the roff command
+/**
+ * @brief Entry point for the roff utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
     if (!isatty(1))
         setbuf(stdout, cumbuf);
     while (--argc)
@@ -125,6 +130,7 @@ endargs:
         blankpage();
     mesg(1); /* ALLOW MESSAGES */
     done(0);
+    return 0;
 }
 
 mesg(f) int f;

@@ -9,19 +9,19 @@
  * perform real context switching.
  */
 
-extern void sys_call(int function, int caller, int src_dest, message *m_ptr);
-extern void keyboard(void);
-extern void pr_char(void);
-extern void interrupt(int task, message *m_ptr);
-extern void unexpected_int(void);
-extern void trap(void);
-extern void div_trap(void);
+extern void sys_call(int function, int caller, int src_dest, message *m_ptr); // Assuming sys_call is noexcept or handled
+extern void keyboard() noexcept;
+extern void pr_char() noexcept;
+extern void interrupt(int task, message *m_ptr); // Assuming interrupt is noexcept or handled
+extern void unexpected_int() noexcept;
+extern void trap() noexcept;
+extern void div_trap() noexcept;
 
 /*===========================================================================*
  *                              save                                         *
  *===========================================================================*/
 /* Stub saving of process context. */
-PUBLIC void save(void) {
+PUBLIC void save() noexcept { // (void) -> (), added noexcept
     /* Real hardware register saving is not performed in this portable C
      * version.  The function only exists so that higher level code can
      * compile without change.
@@ -32,7 +32,7 @@ PUBLIC void save(void) {
  *                              restart                                      *
  *===========================================================================*/
 /* Stub restart after interrupt. */
-PUBLIC void restart(void) {
+PUBLIC void restart() noexcept { // (void) -> (), added noexcept
     /* Normally restores a process context and returns from interrupt.  In this
      * stub nothing is done.
      */
@@ -56,51 +56,51 @@ PUBLIC void s_call(int function, int src_dest, message *m_ptr) {
  *                              tty_int                                      *
  *===========================================================================*/
 /* Keyboard interrupt handler stub. */
-PUBLIC void tty_int(void) {
-    save();
-    keyboard();
-    restart();
+PUBLIC void tty_int() noexcept { // (void) -> (), added noexcept
+    save(); // noexcept
+    keyboard(); // noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              lpr_int                                      *
  *===========================================================================*/
 /* Printer interrupt handler stub. */
-PUBLIC void lpr_int(void) {
-    save();
-    pr_char();
-    restart();
+PUBLIC void lpr_int() noexcept { // (void) -> (), added noexcept
+    save(); // noexcept
+    pr_char(); // noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              disk_int                                     *
  *===========================================================================*/
 /* Floppy disk interrupt handler stub. */
-PUBLIC void disk_int(void) {
+PUBLIC void disk_int() noexcept { // (void) -> (), added noexcept
     message m;
-    save();
+    save(); // noexcept
     m.m_type = DISKINT;
-    interrupt(FLOPPY, &m);
-    restart();
+    interrupt(FLOPPY, &m); // Assuming noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              wini_int                                     *
  *===========================================================================*/
 /* Winchester disk interrupt handler stub. */
-PUBLIC void wini_int(void) {
+PUBLIC void wini_int() noexcept { // (void) -> (), added noexcept
     message m;
-    save();
+    save(); // noexcept
     m.m_type = DISKINT;
-    interrupt(WINI, &m);
-    restart();
+    interrupt(WINI, &m); // Assuming noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              clock_int                                    *
  *===========================================================================*/
 /* Clock tick interrupt handler stub. */
-PUBLIC void clock_int(void) {
+PUBLIC void clock_int() noexcept { // (void) -> (), added noexcept
     message m;
     save();
     m.m_type = CLOCK_TICK;
@@ -112,37 +112,37 @@ PUBLIC void clock_int(void) {
  *                              surprise                                     *
  *===========================================================================*/
 /* Unexpected interrupt handler stub. */
-PUBLIC void surprise(void) {
-    save();
-    unexpected_int();
-    restart();
+PUBLIC void surprise() noexcept { // (void) -> (), added noexcept
+    save(); // noexcept
+    unexpected_int(); // noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              trp                                          *
  *===========================================================================*/
 /* General trap handler stub. */
-PUBLIC void trp(void) {
-    save();
-    trap();
-    restart();
+PUBLIC void trp() noexcept { // (void) -> (), added noexcept
+    save(); // noexcept
+    trap(); // noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              divide                                       *
  *===========================================================================*/
 /* Divide trap handler stub. */
-PUBLIC void divide(void) {
-    save();
-    div_trap();
-    restart();
+PUBLIC void divide() noexcept { // (void) -> (), added noexcept
+    save(); // noexcept
+    div_trap(); // noexcept
+    restart(); // noexcept
 }
 
 /*===========================================================================*
  *                              idle                                         *
  *===========================================================================*/
 /* Simple halt loop when no work is available. */
-PUBLIC void idle(void) {
+PUBLIC void idle() noexcept { // (void) -> (), added noexcept
     /* Idle loop executed when no work is available. */
     for (;;) {
         asm volatile("hlt");

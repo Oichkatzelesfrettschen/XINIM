@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* tee - pipe fitting		Author: Paul Polderman */
 
@@ -9,9 +9,14 @@
 
 int fd[MAXFD];
 
-main(argc, argv) int argc;
-char **argv;
-{
+// Entry point with modern arguments
+/**
+ * @brief Entry point for the tee utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
     char iflag = 0, aflag = 0;
     char buf[BLOCK_SIZE];
     int i, s, n;
@@ -60,5 +65,5 @@ char **argv;
 
     for (i = 0; i < s; i++) /* Close all fd's */
         close(fd[i]);
-    exit(0);
+    return 0;
 }

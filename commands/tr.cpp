@@ -1,176 +1,179 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+// tr.cpp - Modern C++23 implementation of the POSIX tr utility
+// Author: Modernized by GitHub Copilot
 
-/* tr - translate characters		Author: Michiel Huisjes */
-/* Usage: tr [-cds] [string1 [string2]]
- * 	c: take complement of string1
- * 	d: delete input characters coded string1
- * 	s: squeeze multiple output characters of string2 into one character
+#include <iostream>
+#include <vector>
+#include <array>
+#include <string>
+#include <string_view>
+#include <algorithm>
+#include <iterator>
+#include <cctype>
+#include <ranges>
+#include <span>
+#include <optional>
+#include <stdexcept>
+
+constexpr size_t ASCII_SIZE = 256;
+constexpr size_t BUFFER_SIZE = 4096;
+
+struct TrOptions {
+    bool complement = false;
+    bool delete_mode = false;
+    bool squeeze = false;
+    std::string_view set1;
+    std::string_view set2;
+};
+
+class TrTranslator {
+public:
+    TrTranslator(const TrOptions& opts)
+        : options(opts)
+    {
+        build_translation();
+    }
+
+    void process(std::istream& in, std::ostream& out) {
+        std::array<unsigned char, BUFFER_SIZE> inbuf{};
+        std::array<unsigned char, BUFFER_SIZE> outbuf{};
+        size_t outpos = 0;
+        std::optional<unsigned char> last_output;
+
+        while (in) {
+            in.read(reinterpret_cast<char*>(inbuf.data()), inbuf.size());
+            std::streamsize n = in.gcount();
+            for (std::streamsize i = 0; i < n; ++i) {
+                unsigned char c = inbuf[i];
+                if (options.delete_mode && in_set[c])
+                    continue;
+                unsigned char mapped = translation[c];
+                if (options.squeeze && last_output && *last_output == mapped && out_set[mapped])
+                    continue;
+                outbuf[outpos++] = mapped;
+                last_output = mapped;
+                if (outpos == outbuf.size()) {
+                    out.write(reinterpret_cast<const char*>(outbuf.data()), outpos);
+                    outpos = 0;
+                }
+            }
+        }
+        if (outpos > 0)
+            out.write(reinterpret_cast<const char*>(outbuf.data()), outpos);
+    }
+
+private:
+    TrOptions options;
+    std::array<unsigned char, ASCII_SIZE> translation{};
+    std::array<bool, ASCII_SIZE> in_set{};
+    std::array<bool, ASCII_SIZE> out_set{};
+
+    static std::vector<unsigned char> expand_set(std::string_view str) {
+        std::vector<unsigned char> result;
+        for (size_t i = 0; i < str.size(); ) {
+            if (str[i] == '\\' && i + 1 < str.size()) {
+                // Octal or escaped char
+                if (std::isdigit(str[i+1]) && str[i+1] < '8') {
+                    int val = 0, count = 0;
+                    ++i;
+                    while (count < 3 && i < str.size() && str[i] >= '0' && str[i] <= '7') {
+                        val = (val << 3) + (str[i] - '0');
+                        ++i; ++count;
+                    }
+                    result.push_back(static_cast<unsigned char>(val));
+                } else {
+                    result.push_back(static_cast<unsigned char>(str[i+1]));
+                    i += 2;
+                }
+            } else if (i + 2 < str.size() && str[i+1] == '-' && str[i] != '\\' && str[i+2] != '\0') {
+                // Range: a-z
+                unsigned char start = str[i];
+                unsigned char end = str[i+2];
+                if (start > end)
+                    throw std::runtime_error("Invalid range in set");
+                for (unsigned char c = start; c <= end; ++c)
+                    result.push_back(c);
+                i += 3;
+            } else {
+                result.push_back(static_cast<unsigned char>(str[i]));
+                ++i;
+            }
+        }
+        return result;
+    }
+
+    void build_translation() {
+        // Step 1: Expand sets
+        std::vector<unsigned char> set1 = expand_set(options.set1);
+        std::vector<unsigned char> set2 = expand_set(options.set2);
+
+        // Step 2: Complement if needed
+        if (options.complement) {
+            std::array<bool, ASCII_SIZE> present{};
+            for (unsigned char c : set1)
+                present[c] = true;
+            set1.clear();
+            for (size_t i = 0; i < ASCII_SIZE; ++i)
+                if (!present[i])
+                    set1.push_back(static_cast<unsigned char>(i));
+        }
+
+        // Step 3: Build translation table
+        for (size_t i = 0; i < ASCII_SIZE; ++i)
+            translation[i] = static_cast<unsigned char>(i);
+
+        if (!set1.empty()) {
+            unsigned char last = set2.empty() ? set1.back() : set2.back();
+            size_t n = set2.size();
+            for (size_t i = 0; i < set1.size(); ++i) {
+                translation[set1[i]] = (i < n) ? set2[i] : last;
+            }
+        }
+
+        // Step 4: Build in_set and out_set for delete/squeeze
+        for (unsigned char c : set1)
+            in_set[c] = true;
+        for (unsigned char c : set2)
+            out_set[c] = true;
+    }
+};
+
+TrOptions parse_args(int argc, char* argv[]) {
+    TrOptions opts;
+    int idx = 1;
+    if (idx < argc && argv[idx][0] == '-') {
+        for (const char* p = argv[idx] + 1; *p; ++p) {
+            switch (*p) {
+                case 'c': opts.complement = true; break;
+                case 'd': opts.delete_mode = true; break;
+                case 's': opts.squeeze = true; break;
+                default:
+                    std::cerr << "Usage: tr [-cds] [string1 [string2]]\n";
+                    std::exit(1);
+            }
+        }
+        ++idx;
+    }
+    if (idx < argc)
+        opts.set1 = argv[idx++];
+    if (idx < argc)
+        opts.set2 = argv[idx++];
+    return opts;
+}
+
+/**
+ * @brief Entry point for the tr utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
  */
-
-#define BUFFER_SIZE 1024
-#define ASCII 0377
-
-typedef char BOOL;
-#define TRUE 1
-#define FALSE 0
-
-#define NIL_PTR ((char *)0)
-
-BOOL com_fl, del_fl, sq_fl;
-
-unsigned char output[BUFFER_SIZE], input[BUFFER_SIZE];
-unsigned char vector[ASCII + 1];
-BOOL invec[ASCII + 1], outvec[ASCII + 1];
-
-short in_index, out_index;
-
-main(argc, argv) int argc;
-char *argv[];
-{
-    register unsigned char *ptr;
-    int index = 1;
-    short i;
-
-    if (argc > 1 && argv[index][0] == '-') {
-        for (ptr = &argv[index][1]; *ptr; ptr++) {
-            switch (*ptr) {
-            case 'c':
-                com_fl = TRUE;
-                break;
-            case 'd':
-                del_fl = TRUE;
-                break;
-            case 's':
-                sq_fl = TRUE;
-                break;
-            default:
-                write(2, "Usage: tr [-cds] [string1 [string2]].\n", 38);
-                exit(1);
-            }
-        }
-        index++;
+int main(int argc, char* argv[]) {
+    try {
+        TrOptions opts = parse_args(argc, argv);
+        TrTranslator tr(opts);
+        tr.process(std::cin, std::cout);
+    } catch (const std::exception& ex) {
+        std::cerr << "tr: " << ex.what() << '\n';
+        return 1;
     }
-
-    for (i = 0; i <= ASCII; i++) {
-        vector[i] = i;
-        invec[i] = outvec[i] = FALSE;
-    }
-
-    if (argv[index] != NIL_PTR) {
-        expand(argv[index++], input);
-        if (com_fl)
-            complement(input);
-        if (argv[index] != NIL_PTR)
-            expand(argv[index], output);
-        if (argv[index] != NIL_PTR)
-            map(input, output);
-        for (ptr = input; *ptr; ptr++)
-            invec[*ptr] = TRUE;
-        for (ptr = output; *ptr; ptr++)
-            outvec[*ptr] = TRUE;
-    }
-    convert();
-}
-
-convert() {
-    short read_chars = 0;
-    short c, coded;
-    short last = -1;
-
-    for (;;) {
-        if (in_index == read_chars) {
-            if ((read_chars = read(0, input, BUFFER_SIZE)) <= 0) {
-                if (write(1, output, out_index) != out_index)
-                    write(2, "Bad write\n", 10);
-                exit(0);
-            }
-            in_index = 0;
-        }
-        c = input[in_index++];
-        coded = vector[c];
-        if (del_fl && invec[c])
-            continue;
-        if (sq_fl && last == coded && outvec[coded])
-            continue;
-        output[out_index++] = last = coded;
-        if (out_index == BUFFER_SIZE) {
-            if (write(1, output, out_index) != out_index) {
-                write(2, "Bad write\n", 10);
-                exit(1);
-            }
-            out_index = 0;
-        }
-    }
-
-    /* NOTREACHED */
-}
-
-map(string1, string2) register unsigned char *string1, *string2;
-{
-    unsigned char last;
-
-    while (*string1) {
-        if (*string2 == '\0')
-            vector[*string1] = last;
-        else
-            vector[*string1] = last = *string2++;
-        string1++;
-    }
-}
-
-expand(arg, buffer) register char *arg;
-register unsigned char *buffer;
-{
-    int i, ac;
-
-    while (*arg) {
-        if (*arg == '\\') {
-            arg++;
-            i = ac = 0;
-            if (*arg >= '0' && *arg <= '7') {
-                do {
-                    ac = (ac << 3) + *arg++ - '0';
-                    i++;
-                } while (i < 4 && *arg >= '0' && *arg <= '7');
-                *buffer++ = ac;
-            } else if (*arg != '\0')
-                *buffer++ = *arg;
-        } else if (*arg == '[') {
-            arg++;
-            i = *arg++;
-            if (*arg++ != '-') {
-                *buffer++ = '[';
-                *buffer++ = i;
-                *buffer++ = '-';
-                continue;
-            }
-            ac = *arg++;
-            while (i <= ac)
-                *buffer++ = i++;
-            arg++; /* Skip ']' */
-        } else
-            *buffer++ = *arg++;
-    }
-}
-
-complement(buffer) unsigned char *buffer;
-{
-    register unsigned char *ptr;
-    register short i, index;
-    unsigned char conv[ASCII + 2];
-
-    index = 0;
-    for (i = 1; i <= ASCII; i++) {
-        for (ptr = buffer; *ptr; ptr++)
-            if (*ptr == i)
-                break;
-        if (*ptr == '\0')
-            conv[index++] = i & ASCII;
-    }
-    conv[index] = '\0';
-    strcpy(buffer, conv);
+    return 0;
 }

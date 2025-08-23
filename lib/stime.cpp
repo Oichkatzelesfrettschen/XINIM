@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Set the system time to the value pointed to by 'top'.
 int stime(long *top) {

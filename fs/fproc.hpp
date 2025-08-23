@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
 /* This is the per-process information.  A slot is reserved for each potential
  * process. Thus NR_PROCS must be the same as in the kernel. It is not possible
  * or even necessary to tell when a slot is free here.

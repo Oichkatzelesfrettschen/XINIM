@@ -6,10 +6,10 @@
  * error handling and 32/64-bit portability. Implements RAII patterns
  * for resource management and strong typing for safety.
  *
- * @author C++17 conversion team
+ * @author C++23 conversion team
  * @version 2.0
  * @date 2024
- * @copyright MIT License
+ * @copyright BSD-MODERNMOST
  */
 
 #pragma once

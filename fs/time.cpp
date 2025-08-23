@@ -1,16 +1,9 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
-/* This file takes care of those system calls that deal with time.
+/**
+ * @file time.cpp
+ * @brief Implementation of time-related system calls for the file system server.
  *
- * The entry points into this file are
- *   do_utime:	perform the UTIME system call
- *   do_time:	perform the TIME system call
- *   do_stime:	perform the STIME system call
- *   do_tims:	perform the TIMES system call
+ * This translation unit contains implementations of the utime, time, stime, and
+ * times system calls. The logic has been modernized to employ C++23 features.
  */
 
 #include "../h/callnr.hpp"
@@ -25,26 +18,28 @@
 #include "inode.hpp"
 #include "param.hpp"
 #include "type.hpp"
+#include <array>
 
-PRIVATE message clock_mess;
+namespace minix::fs {
+namespace {
+/** @brief Scratch message for clock task communication. */
+message clock_mess{};
+} // namespace
 
-/*===========================================================================*
- *				do_utime				     *
- *===========================================================================*/
-PUBLIC int do_utime() {
-    /* Perform the utime(name, timep) system call. */
-
-    register struct inode *rip;
-    register int r;
+/**
+ * @brief Handle the utime system call.
+ * @return ::OK on success or an error code.
+ */
+[[nodiscard]] auto do_utime() -> int {
     extern struct inode *eat_path();
+    struct inode *rip{};
+    auto r = int{};
 
-    /* Temporarily open the file. */
     if (fetch_name(utime_file, utime_length, M1) != OK)
-        return (err_code);
+        return err_code;
     if ((rip = eat_path(user_path)) == NIL_INODE)
-        return (err_code);
+        return err_code;
 
-    /* Only the owner of a file or the super_user can change its time. */
     r = OK;
     if (rip->i_uid != fp->fp_effuid && !super_user)
         r = ErrorCode::EPERM;
@@ -52,54 +47,47 @@ PUBLIC int do_utime() {
         rip->i_modtime = update_time;
         rip->i_dirt = DIRTY;
     }
-
     put_inode(rip);
-    return (r);
+    return r;
 }
 
-/*===========================================================================*
- *				do_time					     *
- *===========================================================================*/
-PUBLIC int do_time()
-
-{
-    /* Perform the time(tp) system call. */
-
+/**
+ * @brief Handle the time system call.
+ * @return ::OK on success.
+ */
+[[nodiscard]] auto do_time() -> int {
     extern real_time clock_time();
-
-    reply_l1 = clock_time(); /* return time in seconds */
-    return (OK);
+    reply_l1 = clock_time();
+    return OK;
 }
 
-/*===========================================================================*
- *				do_stime				     *
- *===========================================================================*/
-PUBLIC int do_stime() {
-    /* Perform the stime(tp) system call. */
-
-    register int k;
-
+/**
+ * @brief Handle the stime system call.
+ * @return ::OK on success or an error code.
+ */
+[[nodiscard]] auto do_stime() -> int {
     if (!super_user)
-        return (ErrorCode::EPERM);
+        return ErrorCode::EPERM;
     clock_mess.m_type = SET_TIME;
-    clock_mess.NEW_TIME = (long)tp;
-    if ((k = sendrec(CLOCK, &clock_mess)) != OK)
+    new_time(clock_mess) = static_cast<long>(tp);
+    if (auto k = sendrec(CLOCK, &clock_mess); k != OK) {
         panic("do_stime error", k);
-    return (OK);
+    }
+    return OK;
 }
 
-/*===========================================================================*
- *				do_tims					     *
- *===========================================================================*/
-PUBLIC int do_tims() {
-    /* Perform the times(buffer) system call. */
-
-    real_time t[4];
-
-    sys_times(who, t);
+/**
+ * @brief Handle the times system call.
+ * @return ::OK on success.
+ */
+[[nodiscard]] auto do_tims() -> int {
+    std::array<real_time, 4> t{};
+    sys_times(who, t.data());
     reply_t1 = t[0];
     reply_t2 = t[1];
     reply_t3 = t[2];
     reply_t4 = t[3];
-    return (OK);
+    return OK;
 }
+
+} // namespace minix::fs

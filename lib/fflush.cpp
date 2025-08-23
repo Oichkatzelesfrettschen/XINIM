@@ -1,6 +1,16 @@
 #include "../include/stdio.hpp"
 
-// Flush the buffer associated with the given stream.
+/**
+ * @brief Flush the buffer associated with the given stream.
+ *
+ * @param iop Stream to flush.
+ * @return Bytes written or ::STDIO_EOF on error.
+ * @sideeffects Writes buffered data to the underlying file descriptor.
+ * @thread_safety Relies on stdio's internal locking.
+ * @compat fflush(3)
+ * @example
+ * fflush(stdout);
+ */
 int __fflush(FILE *iop) {
     int count;
 
@@ -18,7 +28,17 @@ int __fflush(FILE *iop) {
         return count;
     }
 
-    iop->_flags |= _ERR;
-    return EOF;
+    iop->_flags |= ERR;
+    return STDIO_EOF;
 }
 
+/**
+ * @brief Public interface wrapper for ::__fflush.
+ *
+ * @param stream Stream to flush.
+ * @return Bytes written or ::STDIO_EOF on error.
+ * @sideeffects Flushes @p stream.
+ * @thread_safety See ::__fflush.
+ * @compat fflush(3)
+ */
+int fflush(FILE *stream) { return __fflush(stream); }

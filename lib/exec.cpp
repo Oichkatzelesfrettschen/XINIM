@@ -1,15 +1,14 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
+#include <cstdint>  // For std::uintptr_t
 
 // Helper used when no arguments or environment pointers are passed.
-static char *null_argv[] = { nullptr };
+static char *null_argv[] = {nullptr};
 
 // Forward declaration for the main exec implementation.
 int execve(const char *name, char *argv[], char *envp[]);
 
 // Execute a file with a single argument list terminated by a null pointer.
-int execl(const char *name, char *arg0) {
-    return execve(name, &arg0, null_argv);
-}
+int execl(const char *name, char *arg0) { return execve(name, &arg0, null_argv); }
 
 // Execute a file with the provided argument list followed by the environment
 // pointers located after the terminating null of the argument list.
@@ -22,9 +21,7 @@ int execle(const char *name, char *argv) {
 }
 
 // Execute a file using the argument vector 'argv'.
-int execv(const char *name, char *argv[]) {
-    return execve(name, argv, null_argv);
-}
+int execv(const char *name, char *argv[]) { return execve(name, argv, null_argv); }
 
 // Execute a file using both argument and environment vectors.
 int execve(const char *name, char *argv[], char *envp[]) {
@@ -48,12 +45,12 @@ int execve(const char *name, char *argv[], char *envp[]) {
     if (hp + nargs + nenvps >= &stack[MAX_ISTACK_BYTES])
         return static_cast<int>(ErrorCode::E2BIG);
     ap = (char **)stack;
-    *ap++ = (char *)nargs;
+    *ap++ = reinterpret_cast<char *>(static_cast<std::uintptr_t>(nargs));
 
     /* Prepare the argument pointers and strings. */
     for (i = 0; i < nargs; i++) {
         offset = hp - stack;
-        *ap++ = (char *)offset;
+        *ap++ = reinterpret_cast<char *>(static_cast<std::uintptr_t>(offset));
         p = *argv++;
         while (*p) {
             *hp++ = *p++;
@@ -67,7 +64,7 @@ int execve(const char *name, char *argv[], char *envp[]) {
     /* Prepare the environment pointers and strings. */
     for (i = 0; i < nenvps; i++) {
         offset = hp - stack;
-        *ap++ = (char *)offset;
+        *ap++ = reinterpret_cast<char *>(static_cast<std::uintptr_t>(offset));
         p = *envp++;
         while (*p) {
             *hp++ = *p++;
@@ -94,6 +91,6 @@ int execn(const char *name) {
     stack[1] = 0;
     stack[2] = 0;
     stack[3] = 0;
-    return callm1(MM_PROC_NR, EXEC, len(const_cast<char *>(name)), 4, 0,
-                  const_cast<char *>(name), stack, NIL_PTR);
+    return callm1(MM_PROC_NR, EXEC, len(const_cast<char *>(name)), 4, 0, const_cast<char *>(name),
+                  stack, NIL_PTR);
 }

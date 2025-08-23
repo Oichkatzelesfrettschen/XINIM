@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file contains the heart of the mechanism used to read (and write)
  * files.  Read and write requests are split up into chunks that do not cross
@@ -27,6 +27,12 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
+#include <algorithm> // For std::min
+#include <cstddef>   // For std::size_t
+#include <cstdint>   // For uint16_t, int32_t, int64_t etc.
 
 #define FD_MASK 077 /* max file descriptor is 63 */
 
@@ -36,22 +42,33 @@ PUBLIC int rdwt_err;   /* set to ErrorCode::EIO if disk error occurs */
 /*===========================================================================*
  *				do_read					     *
  *===========================================================================*/
+/**
+ * @brief Perform the READ system call.
+ */
 PUBLIC int do_read() { return (read_write(READING)); }
 
 /*===========================================================================*
  *				read_write				     *
  *===========================================================================*/
-PUBLIC int read_write(rw_flag)
-int rw_flag; /* READING or WRITING */
-{
+/**
+ * @brief Core routine for reading and writing files.
+ *
+ * @param rw_flag READING or WRITING.
+
+ * * @return Bytes transferred or error code.
+ */
+PUBLIC int read_write(int rw_flag) { // Modernized signature
     /* Perform read(fd, buffer, nbytes) or write(fd, buffer, nbytes) call. */
 
-    register struct inode *rip;
-    register struct filp *f;
-    register file_pos bytes_left, f_size;
-    register unsigned off, cum_io;
-    file_pos position;
-    int r, chunk, virg, mode_word, usr, seg;
+    struct inode *rip;
+    struct filp *f;
+    int32_t bytes_left;      // file_pos -> int32_t
+    int64_t f_size;          // To match compat_get_size, was file_pos
+    std::size_t off, cum_io; // Was unsigned
+    int32_t position;        // file_pos -> int32_t
+    int r;
+    std::size_t chunk;             // Was int, for bytes count
+    int virg, mode_word, usr, seg; // virg is bool-like
     struct filp *wf;
     extern struct super_block *get_super();
     extern struct filp *find_filp(), *get_filp();
@@ -69,20 +86,21 @@ int rw_flag; /* READING or WRITING */
 
     /* If the file descriptor is valid, get the inode, size and mode. */
     if (nbytes == 0)
-        return (0); /* so char special files need not check for 0*/
-    if (who != MM_PROC_NR && nbytes < 0)
-        return (ErrorCode::EINVAL); /* only MM > 32K */
-    if ((f = get_filp(fd)) == NIL_FILP)
+        return (0);                      /* so char special files need not check for 0*/
+    if (who != MM_PROC_NR && nbytes < 0) // nbytes is int from message
+        return (ErrorCode::EINVAL);      /* only MM > 32K */
+    if ((f = get_filp(fd)) == nullptr)   // NIL_FILP -> nullptr
         return (err_code);
-    if (((f->filp_mode) & (rw_flag == READING ? R_BIT : W_BIT)) == 0)
+    if (((f->filp_mode) & (rw_flag == READING ? R_BIT : W_BIT)) ==
+        0) // filp_mode is mask_bits (uint16_t)
         return (ErrorCode::EBADF);
-    position = f->filp_pos;
-    if (position < (file_pos)0)
+    position = f->filp_pos; // filp_pos is file_pos (int32_t)
+    if (position < 0)       // Compare with 0 directly
         return (ErrorCode::EINVAL);
     rip = f->filp_ino;
-    f_size = compat_get_size(rip);
+    f_size = compat_get_size(rip); // returns file_pos64 (int64_t)
     r = OK;
-    cum_io = 0;
+    cum_io = 0; // std::size_t
     virg = TRUE;
     mode_word = rip->i_mode & I_TYPE;
     if (mode_word == I_BLOCK_SPECIAL && f_size == 0)
@@ -90,16 +108,20 @@ int rw_flag; /* READING or WRITING */
     rdwt_err = OK; /* set to ErrorCode::EIO if disk error occurs */
 
     /* Check for character special files. */
-    if (mode_word == I_CHAR_SPECIAL) {
-        if ((r = dev_io(rw_flag, (dev_nr)rip->i_zone[0], (long)position, nbytes, who, buffer)) >=
-            0) {
-            cum_io = r;
-            position += r;
+    if (mode_word == I_CHAR_SPECIAL) { // I_CHAR_SPECIAL is int
+        // dev_io expects dev_nr, long, int, int, char*
+        // rip->i_zone[0] is zone_nr (uint16_t). position is int32_t. nbytes is int. buffer is
+        // char*.
+        if ((r = dev_io(rw_flag, static_cast<uint16_t>(rip->i_zone[0]), static_cast<long>(position),
+                        nbytes, who, buffer)) >= 0) {
+            cum_io = static_cast<std::size_t>(r);
+            position += r; // position is int32_t
             r = OK;
         }
     } else {
         if (rw_flag == WRITING && mode_word != I_BLOCK_SPECIAL) {
             /* Check in advance to see if file will grow too big. */
+            // position is int32_t, s_max_size is file_pos (int32_t), nbytes is int
             if (position > get_super(rip->i_dev)->s_max_size - nbytes)
                 return (ErrorCode::EFBIG);
 
@@ -107,29 +129,42 @@ int rw_flag; /* READING or WRITING */
              * to be created.  This is necessary because all unwritten
              * blocks prior to the EOF must read as zeros.
              */
-            if (position > f_size)
-                clear_zone(rip, f_size, 0);
+            if (position > f_size) // f_size is int64_t, position is int32_t
+                clear_zone(rip, static_cast<int32_t>(f_size),
+                           0); // clear_zone expects file_pos (int32_t)
         }
 
         /* Pipes are a little different.  Check. */
+        // nbytes is int. position is int32_t*.
         if (rip->i_pipe && (r = pipe_check(rip, rw_flag, virg, nbytes, &position)) <= 0)
             return (r);
 
         /* Split the transfer into chunks that don't span two blocks. */
         while (nbytes != 0) {
-            off = position % BLOCK_SIZE; /* offset within a block */
-            chunk = min(nbytes, BLOCK_SIZE - off);
-            if (chunk < 0)
-                chunk = BLOCK_SIZE - off;
+            off = static_cast<std::size_t>(
+                position %
+                BLOCK_SIZE); // position is int32_t, BLOCK_SIZE is int. off is std::size_t.
+            // nbytes is int, BLOCK_SIZE is int, off is std::size_t. chunk is std::size_t.
+            chunk = std::min(static_cast<std::size_t>(nbytes),
+                             static_cast<std::size_t>(BLOCK_SIZE) - off);
+            // Original logic: if (chunk < 0) chunk = BLOCK_SIZE - off; This implies chunk could be
+            // int. If nbytes is int, chunk should be int. chunk = std::min(nbytes,
+            // static_cast<int>(BLOCK_SIZE - off)); if (chunk < 0) chunk =
+            // static_cast<int>(BLOCK_SIZE - off); For safety, let's keep chunk as std::size_t as
+            // it's a count of bytes. The negative check was likely for an old definition of min or
+            // types.
 
             if (rw_flag == READING) {
-                if ((bytes_left = f_size - position) <= 0)
+                // f_size is int64_t, position is int32_t. bytes_left is int32_t.
+                bytes_left = static_cast<int32_t>(f_size - position);
+                if (bytes_left <= 0)
                     break;
-                else if (chunk > bytes_left)
-                    chunk = bytes_left;
+                else if (chunk > static_cast<std::size_t>(bytes_left)) // chunk is std::size_t
+                    chunk = static_cast<std::size_t>(bytes_left);
             }
 
             /* Read or write 'chunk' bytes. */
+            // position is int32_t, off is std::size_t, chunk is std::size_t.
             r = rw_chunk(rip, position, off, chunk, rw_flag, buffer, seg, usr);
             if (r != OK)
                 break; /* EOF reached */
@@ -137,87 +172,104 @@ int rw_flag; /* READING or WRITING */
                 break;
 
             /* Update counters and pointers. */
-            buffer += chunk;   /* user buffer address */
-            nbytes -= chunk;   /* bytes yet to be read */
-            cum_io += chunk;   /* bytes read so far */
-            position += chunk; /* position within the file */
-            virg = FALSE;      /* tells pipe_check() that data has been copied */
+            buffer += chunk;                   /* user buffer address */
+            nbytes -= static_cast<int>(chunk); /* bytes yet to be read (nbytes is int) */
+            cum_io += chunk;                   /* bytes read so far (cum_io is std::size_t) */
+            position +=
+                static_cast<int32_t>(chunk); /* position within the file (position is int32_t) */
+            virg = FALSE;                    /* tells pipe_check() that data has been copied */
         }
     }
 
     /* On write, update file size and access time. */
     if (rw_flag == WRITING) {
+        // position is int32_t, f_size is int64_t
         if (mode_word != I_CHAR_SPECIAL && mode_word != I_BLOCK_SPECIAL && position > f_size)
-            compat_set_size(rip, position);
-        rip->i_modtime = clock_time();
+            compat_set_size(
+                rip, static_cast<int64_t>(position)); // compat_set_size takes file_pos64 (int64_t)
+        rip->i_modtime = clock_time();                // clock_time returns real_time (int64_t)
         rip->i_dirt = DIRTY;
     } else {
-        if (rip->i_pipe && position >= compat_get_size(rip)) {
+        // position is int32_t, compat_get_size returns file_pos64 (int64_t)
+        if (rip->i_pipe && static_cast<int64_t>(position) >= compat_get_size(rip)) {
             /* Reset pipe pointers. */
-            compat_set_size(rip, 0); /* no data left */
-            position = 0;            /* reset reader(s) */
-            if ((wf = find_filp(rip, W_BIT)) != NIL_FILP)
-                wf->filp_pos = 0;
+            compat_set_size(rip, 0);                     /* no data left */
+            position = 0;                                /* reset reader(s) */
+            if ((wf = find_filp(rip, W_BIT)) != nullptr) // NIL_FILP -> nullptr
+                wf->filp_pos = 0;                        // filp_pos is file_pos (int32_t)
         }
     }
-    f->filp_pos = position;
+    f->filp_pos = position; // position is int32_t
 
     /* Check to see if read-ahead is called for, and if so, set it up. */
     if (rw_flag == READING && rip->i_seek == NO_SEEK && position % BLOCK_SIZE == 0 &&
         (mode_word == I_REGULAR || mode_word == I_DIRECTORY)) {
         rdahed_inode = rip;
-        rdahedpos = position;
+        rdahedpos = position; // rdahedpos is file_pos (int32_t)
     }
     if (mode_word == I_REGULAR)
         rip->i_seek = NO_SEEK;
 
     if (rdwt_err != OK)
-        r = rdwt_err; /* check for disk error */
-    if (rdwt_err == EOF)
-        r = cum_io;
-    return (r == OK ? cum_io : r);
+        r = rdwt_err;    /* check for disk error */
+    if (rdwt_err == EOF) // cum_io is std::size_t, r is int
+        r = static_cast<int>(cum_io);
+    return (r == OK ? static_cast<int>(cum_io) : r); // cum_io is std::size_t
 }
 
 /*===========================================================================*
  *				rw_chunk				     *
  *===========================================================================*/
-PRIVATE int rw_chunk(rip, position, off, chunk, rw_flag, buff, seg, usr)
-register struct inode *rip; /* pointer to inode for file to be rd/wr */
-file_pos position;          /* position within file to read or write */
-unsigned off;               /* off within the current block */
-int chunk;                  /* number of bytes to read or write */
-int rw_flag;                /* READING or WRITING */
-char *buff;                 /* virtual address of the user buffer */
-int seg;                    /* T or D segment in user space */
-int usr;                    /* which user process */
-{
+// Modernized signature
+/**
+ * @brief Transfer a partial block between user space and the buffer cache.
+ *
+ * @param rip
+ * Inode representing the file.
+ * @param position Starting byte position.
+ * @param off Offset
+ * within the block.
+ * @param chunk Number of bytes to transfer.
+ * @param rw_flag Direction of
+ * transfer.
+ * @param buff User buffer.
+ * @param seg  Segment for copy.
+ * @param usr  Process
+ * number.
+ * @return ::OK or error code.
+ */
+static int rw_chunk(struct inode *rip, int32_t position, std::size_t off, std::size_t chunk,
+                    int rw_flag, char *buff, int seg, int usr) {
     /* Read or write (part of) a block. */
 
-    register struct buf *bp;
-    register int r;
+    struct buf *bp;
+    int r;
     int dir, n, block_spec;
-    block_nr b;
-    dev_nr dev;
-    extern struct buf *get_block(), *new_block();
-    extern block_nr read_map();
+    uint16_t b;   // block_nr -> uint16_t
+    uint16_t dev; // dev_nr -> uint16_t
+    extern struct buf *get_block(),
+        *new_block(); // Assuming new_block exists or is a typo for something else
+    extern uint16_t read_map(struct inode * rip, int32_t position); // Modernized read_map
 
-    block_spec = (rip->i_mode & I_TYPE) == I_BLOCK_SPECIAL;
+    block_spec = (rip->i_mode & I_TYPE) == I_BLOCK_SPECIAL; // i_mode is mask_bits (uint16_t)
     if (block_spec) {
-        b = position / BLOCK_SIZE;
-        dev = (dev_nr)rip->i_zone[0];
+        // position is int32_t, BLOCK_SIZE is int. b is uint16_t.
+        b = static_cast<uint16_t>(static_cast<uint32_t>(position) / BLOCK_SIZE);
+        dev = static_cast<uint16_t>(rip->i_zone[0]); // i_zone[0] is zone_nr (uint16_t)
     } else {
-        b = read_map(rip, position);
-        dev = rip->i_dev;
+        b = read_map(rip, position); // read_map returns block_nr (uint16_t)
+        dev = rip->i_dev;            // i_dev is dev_nr (uint16_t)
     }
 
-    if (!block_spec && b == kNoBlock) {
+    if (!block_spec && b == kNoBlock) { // kNoBlock is block_nr (uint16_t)
         if (rw_flag == READING) {
             /* Reading from a nonexistent block.  Must read as all zeros. */
-            bp = get_block(kNoDev, kNoBlock, NORMAL); /* get a buffer */
+            bp = get_block(kNoDev, kNoBlock, IoMode::Normal);
+            /* get a buffer */ // kNoDev is dev_nr (uint16_t)
             zero_block(bp);
         } else {
             /* Writing to a nonexistent block. Create and enter in inode. */
-            if ((bp = new_block(rip, position)) == NIL_BUF)
+            if ((bp = new_block(rip, position)) == NIL_BUF) // NIL_BUF is (struct buf*)nullptr
                 return (err_code);
         }
     } else {
@@ -225,21 +277,30 @@ int usr;                    /* which user process */
          * in.  However, a full block need not be read in.  If it is already in
          * the cache, acquire it, otherwise just acquire a free buffer.
          */
-        n = (rw_flag == WRITING && chunk == BLOCK_SIZE ? NO_READ : NORMAL);
-        if (rw_flag == WRITING && off == 0 && position >= compat_get_size(rip))
-            n = NO_READ;
-        bp = get_block(dev, b, n);
+        // chunk is std::size_t, BLOCK_SIZE is int
+        n = (rw_flag == WRITING && chunk == static_cast<std::size_t>(BLOCK_SIZE) ? IoMode::NoRead
+                                                                                 : IoMode::Normal);
+        // position is int32_t, compat_get_size returns file_pos64 (int64_t), off is std::size_t
+        if (rw_flag == WRITING && off == 0 &&
+            static_cast<int64_t>(position) >= compat_get_size(rip))
+            n = IoMode::NoRead;
+        bp = get_block(dev, b, n); // dev, b are uint16_t
     }
 
     /* In all cases, bp now points to a valid buffer. */
-    if (rw_flag == WRITING && chunk != BLOCK_SIZE && !block_spec &&
-        position >= compat_get_size(rip) && off == 0)
+    // chunk is std::size_t, BLOCK_SIZE is int, position is int32_t, off is std::size_t
+    if (rw_flag == WRITING && chunk != static_cast<std::size_t>(BLOCK_SIZE) && !block_spec &&
+        static_cast<int64_t>(position) >= compat_get_size(rip) && off == 0)
         zero_block(bp);
     dir = (rw_flag == READING ? TO_USER : FROM_USER);
-    r = rw_user(seg, usr, (vir_bytes)buff, (vir_bytes)chunk, bp->b_data + off, dir);
+    // buff is char*. chunk is std::size_t. bp->b_data is char*. off is std::size_t.
+    // rw_user expects (..., std::size_t vir, std::size_t bytes, ...)
+    r = rw_user(seg, usr, reinterpret_cast<std::size_t>(buff), chunk, bp->b_data + off, dir);
     if (rw_flag == WRITING)
         bp->b_dirt = DIRTY;
-    n = (off + chunk == BLOCK_SIZE ? FULL_DATA_BLOCK : PARTIAL_DATA_BLOCK);
+    // off and chunk are std::size_t, BLOCK_SIZE is int
+    n = (off + chunk == static_cast<std::size_t>(BLOCK_SIZE) ? BlockType::FullData
+                                                             : BlockType::PartialData);
     put_block(bp, n);
     return (r);
 }
@@ -247,77 +308,101 @@ int usr;                    /* which user process */
 /*===========================================================================*
  *				read_map				     *
  *===========================================================================*/
-PUBLIC block_nr read_map(rip, position)
-register struct inode *rip; /* ptr to inode to map from */
-file_pos position;          /* position in file whose blk wanted */
-{
+// Modernized signature
+/**
+ * @brief Map a file position to a disk block.
+ *
+ * @param rip Inode pointer.
+ * @param
+ * position Byte offset within the file.
+ * @return Block number or kNoBlock.
+ */
+PUBLIC uint16_t read_map(struct inode *rip,
+                         int32_t position) { // block_nr -> uint16_t, file_pos -> int32_t
     /* Given an inode and a position within the corresponding file, locate the
      * block (not zone) number in which that position is to be found and return
      * it.
      */
 
-    register struct buf *bp;
-    register zone_nr z;
-    register block_nr b;
-    register long excess, zone, block_pos;
-    register int scale, boff;
+    struct buf *bp;
+    uint16_t z;                      // zone_nr -> uint16_t
+    uint16_t b;                      // block_nr -> uint16_t
+    int32_t excess, zone, block_pos; // Were long, but derived from file_pos (int32_t)
+    int scale, boff;                 // scale_factor returns int. boff is offset in block.
     extern struct buf *get_block();
 
-    scale = scale_factor(rip);          /* for block-zone conversion */
-    block_pos = position / BLOCK_SIZE;  /* relative blk # in file */
-    zone = block_pos >> scale;          /* position's zone */
-    boff = block_pos - (zone << scale); /* relative blk # within zone */
+    scale = scale_factor(rip);          /* for block-zone conversion (returns int) */
+    block_pos = position / BLOCK_SIZE;  /* position is int32_t, BLOCK_SIZE is int -> int32_t */
+    zone = block_pos >> scale;          /* int32_t >> int -> int32_t */
+    boff = block_pos - (zone << scale); /* int32_t */
 
     /* Is 'position' to be found in the inode itself? */
-    if (zone < NR_DZONE_NUM) {
-        if ((z = rip->i_zone[zone]) == kNoZone)
-            return (kNoBlock);
-        b = ((block_nr)z << scale) + boff;
+    if (zone < NR_DZONE_NUM) { // NR_DZONE_NUM is int
+        // rip->i_zone is zone_nr[] (uint16_t[]). zone is int32_t, but should be small index.
+        if ((z = rip->i_zone[static_cast<std::size_t>(zone)]) ==
+            kNoZone)           // kNoZone is zone_nr (uint16_t)
+            return (kNoBlock); // kNoBlock is block_nr (uint16_t)
+        // z is uint16_t, scale is int, boff is int32_t. b is uint16_t.
+        b = static_cast<uint16_t>((static_cast<uint32_t>(z) << scale) + boff);
         return (b);
     }
 
     /* It is not in the inode, so it must be single or double indirect. */
-    excess = zone - NR_DZONE_NUM; /* first NR_DZONE_NUM don't count */
+    excess = zone - NR_DZONE_NUM; /* first NR_DZONE_NUM don't count (excess is int32_t) */
 
-    if (excess < NR_INDIRECTS) {
+    if (excess < NR_INDIRECTS) { // NR_INDIRECTS is std::size_t (was int)
         /* 'position' can be located via the single indirect block. */
-        z = rip->i_zone[NR_DZONE_NUM];
+        z = rip->i_zone[NR_DZONE_NUM]; // z is uint16_t
     } else {
         /* 'position' can be located via the double indirect block. */
         if ((z = rip->i_zone[NR_DZONE_NUM + 1]) == kNoZone)
             return (kNoBlock);
-        excess -= NR_INDIRECTS; /* single indir doesn't count */
-        b = (block_nr)z << scale;
-        bp = get_block(rip->i_dev, b, NORMAL); /* get double indirect block */
-        z = bp->b_ind[excess / NR_INDIRECTS];  /* z is zone # for single ind */
-        put_block(bp, INDIRECT_BLOCK);         /* release double ind block */
-        excess = excess % NR_INDIRECTS;        /* index into single ind blk */
+        excess -= static_cast<int32_t>(NR_INDIRECTS); /* single indir doesn't count */
+        // z is uint16_t, b is uint16_t
+        b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
+        bp = get_block(rip->i_dev, b, IoMode::Normal);
+        /* get double indirect block */ // rip->i_dev is dev_nr (uint16_t)
+        // bp->b_ind is zone_nr[] (uint16_t[]). excess / NR_INDIRECTS is int32_t / size_t.
+        z = bp->b_ind[static_cast<std::size_t>(excess / static_cast<int32_t>(NR_INDIRECTS))];
+        put_block(bp, BlockType::Indirect);                   /* release double ind block */
+        excess = excess % static_cast<int32_t>(NR_INDIRECTS); /* index into single ind blk */
     }
 
     /* 'z' is zone number for single indirect block; 'excess' is index into it. */
     if (z == kNoZone)
         return (kNoBlock);
-    b = (block_nr)z << scale;
-    bp = get_block(rip->i_dev, b, NORMAL); /* get single indirect block */
-    z = bp->b_ind[excess];
-    put_block(bp, INDIRECT_BLOCK); /* release single indirect blk */
+    // z is uint16_t, b is uint16_t
+    b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
+    bp = get_block(rip->i_dev, b, IoMode::Normal);   /* get single indirect block */
+    z = bp->b_ind[static_cast<std::size_t>(excess)]; // excess is int32_t
+    put_block(bp, BlockType::Indirect);              /* release single indirect blk */
     if (z == kNoZone)
         return (kNoBlock);
-    b = ((block_nr)z << scale) + boff;
+    // z is uint16_t, boff is int32_t. b is uint16_t.
+    b = static_cast<uint16_t>((static_cast<uint32_t>(z) << scale) + boff);
     return (b);
 }
 
 /*===========================================================================*
  *				rw_user					     *
  *===========================================================================*/
-PUBLIC int rw_user(s, u, vir, bytes, buff, direction)
-int s;           /* D or T space (stack is also D) */
-int u;           /* process number to r/w (usually = 'who') */
-vir_bytes vir;   /* virtual address to move to/from */
-vir_bytes bytes; /* how many bytes to move */
-char *buff;      /* pointer to FS space */
-int direction;   /* TO_USER or FROM_USER */
-{
+// Modernized signature
+/**
+ * @brief Copy data between user space and the file system.
+ *
+ * @param s Source segment.
+ *
+ * @param u Source process.
+ * @param vir Virtual address.
+ * @param bytes Number of bytes.
+ *
+ * @param buff Buffer pointer.
+ * @param direction TO_USER or FROM_USER.
+ * @return Result of
+ * sys_copy.
+ */
+PUBLIC int rw_user(int s, int u, std::size_t vir, std::size_t bytes, char *buff, int direction) {
+    // s, u, direction are int. vir, bytes are std::size_t (vir_bytes). buff is char*.
     /* Transfer a block of data.  Two options exist, depending on 'direction':
      *     TO_USER:     Move from FS space to user virtual space
      *     FROM_USER:   Move from user virtual space to FS space
@@ -325,23 +410,28 @@ int direction;   /* TO_USER or FROM_USER */
 
     if (direction == TO_USER) {
         /* Write from FS space to user space. */
-        umess.SRC_SPACE = D;
-        umess.SRC_PROC_NR = FS_PROC_NR;
-        umess.SRC_BUFFER = (long)buff;
-        umess.DST_SPACE = s;
-        umess.DST_PROC_NR = u;
-        umess.DST_BUFFER = (long)vir;
+        src_space(umess) = D;
+        src_proc_nr(umess) = FS_PROC_NR;
+        // SRC_BUFFER is a macro for message field (char* type, e.g. m1p1)
+        // buff is char*
+        src_buffer(umess) = buff;
+        dst_space(umess) = s;
+        dst_proc_nr(umess) = u;
+        // DST_BUFFER is char*. vir is std::size_t (pointer value).
+        dst_buffer(umess) = reinterpret_cast<char *>(vir);
     } else {
         /* Read from user space to FS space. */
-        umess.SRC_SPACE = s;
-        umess.SRC_PROC_NR = u;
-        umess.SRC_BUFFER = (long)vir;
-        umess.DST_SPACE = D;
-        umess.DST_PROC_NR = FS_PROC_NR;
-        umess.DST_BUFFER = (long)buff;
+        src_space(umess) = s;
+        src_proc_nr(umess) = u;
+        src_buffer(umess) = reinterpret_cast<char *>(vir);
+        dst_space(umess) = D;
+        dst_proc_nr(umess) = FS_PROC_NR;
+        dst_buffer(umess) = buff;
     }
 
-    umess.COPY_BYTES = (long)bytes;
+    // COPY_BYTES is a macro for message field (int type, e.g. m1i2)
+    // bytes is std::size_t. This is a potential narrowing if bytes > INT_MAX.
+    copy_bytes(umess) = static_cast<int>(bytes);
     sys_copy(&umess);
     return (umess.m_type);
 }
@@ -349,18 +439,23 @@ int direction;   /* TO_USER or FROM_USER */
 /*===========================================================================*
  *				read_ahead				     *
  *===========================================================================*/
-PUBLIC read_ahead() {
+/**
+ * @brief Prefetch the next block for sequential reads.
+ */
+PUBLIC void read_ahead() { // Modernized signature (was already using ())
     /* Read a block into the cache before it is needed. */
 
-    register struct inode *rip;
+    struct inode *rip;
     struct buf *bp;
-    block_nr b;
+    uint16_t b; // block_nr -> uint16_t
     extern struct buf *get_block();
 
-    rip = rdahed_inode;       /* pointer to inode to read ahead from */
-    rdahed_inode = NIL_INODE; /* turn off read ahead */
-    if ((b = read_map(rip, rdahedpos)) == NO_BLOCK)
-        return; /* at EOF */
-    bp = get_block(rip->i_dev, b, NORMAL);
+    rip = rdahed_inode;     /* pointer to inode to read ahead from */
+    rdahed_inode = nullptr; /* turn off read ahead (NIL_INODE -> nullptr) */
+    // rdahedpos is file_pos (int32_t). read_map takes int32_t, returns block_nr (uint16_t).
+    if ((b = read_map(rip, rdahedpos)) == kNoBlock) // kNoBlock is block_nr (uint16_t)
+        return;                                     /* at EOF */
+    // rip->i_dev is dev_nr (uint16_t). b is uint16_t.
+    bp = get_block(rip->i_dev, b, IoMode::Normal);
     put_block(bp, PARTIAL_DATA_BLOCK);
 }

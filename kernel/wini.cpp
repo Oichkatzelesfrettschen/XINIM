@@ -26,6 +26,11 @@
 #include "const.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include <algorithm> // For std::min if needed, though not apparent yet
+#include <array>
+#include <cstddef> // For std::size_t, nullptr
+#include <cstdint> // For uint64_t, uint16_t etc.
+#include <span>
 
 /* RAII helper ensuring critical sections use lock/unlock */
 class ScopedPortLock {
@@ -35,73 +40,77 @@ class ScopedPortLock {
 };
 
 /* I/O Ports used by winchester disk task. */
-#define WIN_DATA 0x320   /* winchester disk controller data register */
-#define WIN_STATUS 0x321 /* winchester disk controller status register */
-#define WIN_SELECT 0x322 /* winchester disk controller select port */
-#define WIN_DMA 0x323    /* winchester disk controller dma register */
-#define DMA_ADDR 0x006   /* port for low 16 bits of DMA address */
-#define DMA_TOP 0x082    /* port for top 4 bits of 20-bit DMA addr */
-#define DMA_COUNT 0x007  /* port for DMA count (count =  bytes - 1) */
-#define DMA_M2 0x00C     /* DMA status port */
-#define DMA_M1 0x00B     /* DMA status port */
-#define DMA_INIT 0x00A   /* DMA init port */
+inline constexpr std::uint16_t WIN_DATA{0x320};   //!< Winchester disk controller data register
+inline constexpr std::uint16_t WIN_STATUS{0x321}; //!< Winchester disk controller status register
+inline constexpr std::uint16_t WIN_SELECT{0x322}; //!< Winchester disk controller select port
+inline constexpr std::uint16_t WIN_DMA{0x323};    //!< Winchester disk controller DMA register
+inline constexpr std::uint16_t DMA_ADDR{0x006};   //!< Port for low 16 bits of DMA address
+inline constexpr std::uint16_t DMA_TOP{0x082};    //!< Port for top 4 bits of 20-bit DMA addr
+inline constexpr std::uint16_t DMA_COUNT{0x007};  //!< Port for DMA count (count = bytes - 1)
+inline constexpr std::uint16_t DMA_M2{0x00C};     //!< DMA status port
+inline constexpr std::uint16_t DMA_M1{0x00B};     //!< DMA status port
+inline constexpr std::uint16_t DMA_INIT{0x00A};   //!< DMA init port
 
 /* Winchester disk controller command bytes. */
-#define WIN_RECALIBRATE 0x01 /* command for the drive to recalibrate */
-#define WIN_SENSE 0x03       /* command for the controller to get its status */
-#define WIN_READ 0x08        /* command for the drive to read */
-#define WIN_WRITE 0x0a       /* command for the drive to write */
-#define WIN_SPECIFY 0x0C     /* command for the controller to accept params */
-#define WIN_ECC_READ 0x0D    /* command for the controller to read ecc length */
+inline constexpr int WIN_RECALIBRATE{0x01}; //!< Command for the drive to recalibrate
+inline constexpr int WIN_SENSE{0x03};       //!< Command for the controller to get its status
+inline constexpr int WIN_READ{0x08};        //!< Command for the drive to read
+inline constexpr int WIN_WRITE{0x0A};       //!< Command for the drive to write
+inline constexpr int WIN_SPECIFY{0x0C};     //!< Command for the controller to accept params
+inline constexpr int WIN_ECC_READ{0x0D};    //!< Command for the controller to read ECC length
 
-#define DMA_INT 3    /* Command with dma and interrupt */
-#define INT 2        /* Command with interrupt, no dma */
-#define NO_DMA_INT 0 /* Command without dma and interrupt */
-#define CTRL_BYTE 5  /* Control byte for controller */
+inline constexpr int DMA_INT{3};    //!< Command with DMA and interrupt
+inline constexpr int INT{2};        //!< Command with interrupt, no DMA
+inline constexpr int NO_DMA_INT{0}; //!< Command without DMA and interrupt
+inline constexpr int CTRL_BYTE{5};  //!< Control byte for controller
 
 /* DMA channel commands. */
-#define DMA_READ 0x47  /* DMA read opcode */
-#define DMA_WRITE 0x4B /* DMA write opcode */
+inline constexpr int DMA_READ{0x47};  //!< DMA read opcode
+inline constexpr int DMA_WRITE{0x4B}; //!< DMA write opcode
 
 /* Parameters for the disk drive. */
-#define SECTOR_SIZE 512 /* physical sector size in bytes */
-#define NR_SECTORS 0x11 /* number of sectors per track */
+inline constexpr int SECTOR_SIZE{512}; //!< Physical sector size in bytes
+inline constexpr int NR_SECTORS{0x11}; //!< Number of sectors per track
 
 /* Error codes */
-#define ERR -1 /* general error */
+inline constexpr int ERR{-1}; //!< General error
 
 /* Miscellaneous. */
-#define MAX_ERRORS 4        /* how often to try rd/wt before quitting */
-#define MAX_RESULTS 4       /* max number of bytes controller returns */
-#define NR_DEVICES 10       /* maximum number of drives */
-#define MAX_WIN_RETRY 10000 /* max # times to try to output to WIN */
-#define PART_TABLE 0x1C6    /* IBM partition table starts here in sect 0 */
-#define DEV_PER_DRIVE 5     /* hd0 + hd1 + hd2 + hd3 + hd4 = 5 */
+inline constexpr int MAX_ERRORS{4};        //!< How often to try rd/wt before quitting
+inline constexpr int MAX_RESULTS{4};       //!< Max number of bytes controller returns
+inline constexpr int NR_DEVICES{10};       //!< Maximum number of drives
+inline constexpr int MAX_WIN_RETRY{10000}; //!< Max # times to try to output to WIN
+inline constexpr int PART_TABLE{0x1C6};    //!< IBM partition table starts here in sect 0
+inline constexpr int DEV_PER_DRIVE{5};     //!< hd0 + hd1 + hd2 + hd3 + hd4 = 5
 
 /* Variables. */
-PRIVATE struct wini {             /* main drive struct, one entry per drive */
-    int wn_opcode;                /* DISK_READ or DISK_WRITE */
-    int wn_procnr;                /* which proc wanted this operation? */
-    int wn_drive;                 /* drive number addressed */
-    int wn_cylinder;              /* cylinder number addressed */
-    int wn_sector;                /* sector addressed */
-    int wn_head;                  /* head number addressed */
-    int wn_heads;                 /* maximum number of heads */
-    long wn_low;                  /* lowest cylinder of partition */
-    long wn_size;                 /* size of partition in blocks */
-    int wn_count;                 /* byte count */
-    vir_bytes wn_address;         /* user virtual address */
-    char wn_results[MAX_RESULTS]; /* the controller can give lots of output */
+/**
+ * @brief Drive descriptor holding state for each physical device.
+ */
+PRIVATE struct wini {
+    int wn_opcode;                              //!< DISK_READ or DISK_WRITE
+    int wn_procnr;                              //!< Which proc wanted this operation?
+    int wn_drive;                               //!< Drive number addressed
+    int wn_cylinder;                            //!< Cylinder number addressed
+    int wn_sector;                              //!< Sector addressed
+    int wn_head;                                //!< Head number addressed
+    int wn_heads;                               //!< Maximum number of heads
+    uint64_t wn_low;                            //!< Lowest cylinder of partition (block offset)
+    uint64_t wn_size;                           //!< Size of partition in blocks
+    std::size_t wn_count;                       //!< Byte count
+    std::size_t wn_address;                     //!< User virtual address
+    std::array<char, MAX_RESULTS> wn_results{}; //!< Controller can give lots of output
 } wini[NR_DEVICES];
 
-PRIVATE int w_need_reset = FALSE; /* set to 1 when controller must be reset */
-PRIVATE int nr_drives;            /* Number of drives */
+PRIVATE int w_need_reset = FALSE; //!< Set to 1 when controller must be reset
+PRIVATE int nr_drives;            //!< Number of drives
 
-PRIVATE message w_mess; /* message buffer for in and out */
+PRIVATE message w_mess; //!< Message buffer for in and out
 
-PRIVATE int command[6]; /* Common command block */
+/** Common command block issued to the controller. */
+PRIVATE std::array<int, 6> command{};
 
-PRIVATE unsigned char buf[BLOCK_SIZE]; /* Buffer used by the startup routine */
+PRIVATE unsigned char buf[BLOCK_SIZE]; //!< Buffer used by the startup routine
 
 PRIVATE struct param {
     int nr_cyl;     /* Number of cylinders */
@@ -114,7 +123,7 @@ PRIVATE struct param {
 /*===========================================================================*
  *				winchester_task				     *
  *===========================================================================*/
-PUBLIC winchester_task() {
+PUBLIC void winchester_task() noexcept { // Added void return, noexcept
     /* Main program of the winchester disk driver task. */
 
     int r, caller, proc_nr;
@@ -159,36 +168,47 @@ PUBLIC winchester_task() {
 /*===========================================================================*
  *				w_do_rdwt					     *
  *===========================================================================*/
-/* Handle a read or write request from the disk. */
-static int w_do_rdwt(message *m_ptr) {
+/**
+ * @brief Handle a read or write request from the disk.
+ *
+ * @param m_ptr Message describing
+ * the operation.
+ * @return Number of bytes transferred or error code.
+ */
+static int w_do_rdwt(message *m_ptr) noexcept {
     /* Carry out a read or write request from the disk. */
     register struct wini *wn;
     int r, device, errors = 0;
-    long sector;
+    int64_t sector; // Was long, for m_ptr->POSITION (int64_t)
 
     /* Decode the w_message parameters. */
-    device = m_ptr->DEVICE;
+    device = device(*m_ptr);
     if (device < 0 || device >= NR_DEVICES)
         return (ErrorCode::EIO);
-    if (m_ptr->COUNT != BLOCK_SIZE)
+    if (count(*m_ptr) != BLOCK_SIZE)
         return (ErrorCode::EINVAL);
     wn = &wini[device];                    /* 'wn' points to entry for this drive */
     wn->wn_drive = device / DEV_PER_DRIVE; /* save drive number */
     if (wn->wn_drive >= nr_drives)
         return (ErrorCode::EIO);
     wn->wn_opcode = m_ptr->m_type; /* DISK_READ or DISK_WRITE */
-    if (m_ptr->POSITION % BLOCK_SIZE != 0)
+    // m_ptr->POSITION is int64_t (modernized message field for m2_l1)
+    // BLOCK_SIZE is int.
+    if (position(*m_ptr) % BLOCK_SIZE != 0)
         return (ErrorCode::EINVAL);
-    sector = m_ptr->POSITION / SECTOR_SIZE;
-    if ((sector + BLOCK_SIZE / SECTOR_SIZE) > wn->wn_size)
+    sector = position(*m_ptr) / SECTOR_SIZE; // SECTOR_SIZE is int
+    // wn_size is uint64_t. Result of division will be small.
+    if ((sector + static_cast<int64_t>(BLOCK_SIZE / SECTOR_SIZE)) >
+        static_cast<int64_t>(wn->wn_size))
         return (EOF);
-    sector += wn->wn_low;
-    wn->wn_cylinder = sector / (wn->wn_heads * NR_SECTORS);
-    wn->wn_sector = (sector % NR_SECTORS);
-    wn->wn_head = (sector % (wn->wn_heads * NR_SECTORS)) / NR_SECTORS;
-    wn->wn_count = m_ptr->COUNT;
-    wn->wn_address = (vir_bytes)m_ptr->ADDRESS;
-    wn->wn_procnr = m_ptr->PROC_NR;
+    sector += static_cast<int64_t>(wn->wn_low); // wn_low is uint64_t
+    // Result of arithmetic should fit in int for cylinder/sector/head.
+    wn->wn_cylinder = static_cast<int>(sector / (wn->wn_heads * NR_SECTORS));
+    wn->wn_sector = static_cast<int>(sector % NR_SECTORS);
+    wn->wn_head = static_cast<int>((sector % (wn->wn_heads * NR_SECTORS)) / NR_SECTORS);
+    wn->wn_count = static_cast<std::size_t>(count(*m_ptr));
+    wn->wn_address = reinterpret_cast<std::size_t>(address(*m_ptr));
+    wn->wn_procnr = proc_nr(*m_ptr);
 
     /* This loop allows a failed operation to be repeated. */
     while (errors <= MAX_ERRORS) {
@@ -215,30 +235,43 @@ static int w_do_rdwt(message *m_ptr) {
 /*===========================================================================*
  *				w_dma_setup				     *
  *===========================================================================*/
-/* Prepare the DMA chip for a transfer. */
-static void w_dma_setup(wini *wn) {
-    /* The IBM PC can perform DMA operations by using the DMA chip.  To use it,
-     * the DMA (Direct Memory Access) chip is loaded with the 20-bit memory address
-     * to by read from or written to, the byte count minus 1, and a read or write
-     * opcode.  This routine sets up the DMA chip.  Note that the chip is not
-     * capable of doing a DMA across a 64K boundary (e.g., you can't read a
+/**
+ * @brief Prepare the DMA chip for a transfer.
+ *
+ * @param wn Drive parameters governing the
+ * transfer.
+ */
+static void w_dma_setup(struct wini *wn) noexcept {
+    /* The IBM PC can perform DMA operations by using the DMA chip. To use it,
+     * the DMA
+     * (Direct Memory Access) chip is loaded with the 20-bit memory address
+     * to be read from
+     * or written to, the byte count minus 1, and a read or write
+     * opcode. This routine sets
+     * up the DMA chip. Note that the chip is not
+     * capable of doing a DMA across a 64K
+     * boundary (e.g., you can't read a
      * 512-byte block starting at physical address 65520).
+
      */
 
     int mode, low_addr, high_addr, top_addr, low_ct, high_ct, top_end;
-    vir_bytes vir, ct;
-    phys_bytes user_phys;
-    extern phys_bytes umap();
+    std::size_t vir, ct; // vir_bytes -> std::size_t
+    uint64_t user_phys;  // phys_bytes -> uint64_t
+    // extern phys_bytes umap(); // umap returns uint64_t
 
     mode = (wn->wn_opcode == DISK_READ ? DMA_READ : DMA_WRITE);
-    vir = (vir_bytes)wn->wn_address;
-    ct = (vir_bytes)wn->wn_count;
+    vir = wn->wn_address; // wn_address is std::size_t
+    ct = wn->wn_count;    // wn_count is std::size_t
+    // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     user_phys = umap(proc_addr(wn->wn_procnr), D, vir, ct);
-    low_addr = (int)user_phys & BYTE;
-    high_addr = (int)(user_phys >> 8) & BYTE;
-    top_addr = (int)(user_phys >> 16) & BYTE;
-    low_ct = (int)(ct - 1) & BYTE;
-    high_ct = (int)((ct - 1) >> 8) & BYTE;
+    // BYTE is int (0377). user_phys is uint64_t.
+    low_addr = static_cast<int>(user_phys & BYTE);
+    high_addr = static_cast<int>((user_phys >> 8) & BYTE);
+    top_addr = static_cast<int>((user_phys >> 16) &
+                                BYTE); // This implies physical addresses are <= 20 bits for DMA
+    low_ct = static_cast<int>((ct - 1) & BYTE); // ct is std::size_t
+    high_ct = static_cast<int>(((ct - 1) >> 8) & BYTE);
 
     /* Check to see if the transfer will require the DMA address counter to
      * go from one 64K segment to another.  If so, do not even start it, since
@@ -246,10 +279,11 @@ static void w_dma_setup(wini *wn) {
      * Also check for bad buffer address.  These errors mean FS contains a bug.
      */
     if (user_phys == 0)
-        panic("FS gave winchester disk driver bad addr", (int)vir);
-    top_end = (int)(((user_phys + ct - 1) >> 16) & BYTE);
+        panic("FS gave winchester disk driver bad addr",
+              static_cast<int>(vir)); // vir is std::size_t, panic takes int
+    top_end = static_cast<int>(((user_phys + ct - 1) >> 16) & BYTE);
     if (top_end != top_addr)
-        panic("Trying to DMA across 64K boundary", top_addr);
+        panic("Trying to DMA across 64K boundary", top_addr); // top_addr is int
 
     /* Now set up the DMA registers. */
     {
@@ -267,18 +301,24 @@ static void w_dma_setup(wini *wn) {
 /*===========================================================================*
  *				w_transfer				     *
  *===========================================================================*/
-/* Transfer one block after the drive is positioned. */
-static int w_transfer(wini &wn) {
+/**
+ * @brief Transfer one block after the drive is positioned.
+ *
+ * @param wn Drive parameters.
+ *
+ * @return OK on success or ERR on failure.
+ */
+static int w_transfer(struct wini &wn) noexcept {
     /* The drive is now on the proper cylinder. Read or write one block. */
 
-    /* The command is issued by outputing 6 bytes to the controller chip. */
+    /* The command is issued by outputting 6 bytes to the controller chip. */
     command[0] = (wn->wn_opcode == DISK_READ ? WIN_READ : WIN_WRITE);
     command[1] = (wn->wn_head | (wn->wn_drive << 5));
     command[2] = (((wn->wn_cylinder & 0x0300) >> 2) | wn->wn_sector);
     command[3] = (wn->wn_cylinder & 0xFF);
     command[4] = BLOCK_SIZE / SECTOR_SIZE;
     command[5] = CTRL_BYTE;
-    if (com_out(DMA_INT) != OK)
+    if (com_out(command, DMA_INT) != OK)
         return (ERR);
 
     port_out(DMA_INIT, 3); /* initialize DMA */
@@ -298,8 +338,14 @@ static int w_transfer(wini &wn) {
 /*===========================================================================*
  *				win_results				     *
  *===========================================================================*/
-static int win_results(wini &wn) {
-    /* Extract results from the controller after an operation. */
+/**
+ * @brief Extract results from the controller after an operation.
+ *
+ * @param wn Drive
+ * context.
+ * @return OK on success or ERR on failure.
+ */
+static int win_results(struct wini &wn) noexcept {
 
     register int i;
     int status;
@@ -310,15 +356,15 @@ static int win_results(wini &wn) {
         return (OK);
     command[0] = WIN_SENSE;
     command[1] = (wn->wn_drive << 5);
-    if (com_out(NO_DMA_INT) != OK)
+    if (com_out(command, NO_DMA_INT) != OK)
         return (ERR);
 
     /* Loop, extracting bytes from WIN */
-    for (i = 0; i < MAX_RESULTS; i++) {
+    for (auto &res : std::span<char, MAX_RESULTS>{wn.wn_results}) {
         if (hd_wait(1) != OK)
             return (ERR);
         port_in(WIN_DATA, &status);
-        wn->wn_results[i] = status & BYTE;
+        res = static_cast<char>(status & BYTE);
     }
     if (wn->wn_results[0] & 63)
         return (ERR);
@@ -330,7 +376,7 @@ static int win_results(wini &wn) {
  *				win_out					     *
  *===========================================================================*/
 /* Output a byte to the winchester disk controller. */
-static void win_out(int val) {
+static void win_out(int val) noexcept { // Added noexcept
     /* Output a byte to the controller.  This is not entirely trivial, since you
      * can only write to it when it is listening, and it decides when to listen.
      * If the controller refuses to listen, the WIN chip is given a hard reset.
@@ -345,7 +391,7 @@ static void win_out(int val) {
 /*===========================================================================*
  *				w_reset					     *
  *===========================================================================*/
-static int w_reset() {
+static int w_reset() noexcept { // Added noexcept
     /* Issue a reset to the controller.  This is done after any catastrophe,
      * like the controller refusing to respond.
      */
@@ -373,14 +419,14 @@ static int w_reset() {
 /*===========================================================================*
  *				win_init				     *
  *===========================================================================*/
-static int win_init() {
+static int win_init() noexcept { // Added noexcept
     /* Routine to initialize the drive parameters after boot or reset */
 
     register int i;
 
-    command[0] = WIN_SPECIFY;      /* Specify some parameters */
-    command[1] = 0;                /* Drive 0 */
-    if (com_out(NO_DMA_INT) != OK) /* Output command block */
+    command[0] = WIN_SPECIFY;               /* Specify some parameters */
+    command[1] = 0;                         /* Drive 0 */
+    if (com_out(command, NO_DMA_INT) != OK) /* Output command block */
         return (ERR);
     {
         ScopedPortLock guard; // lock controller while specifying drive 0
@@ -416,8 +462,8 @@ static int win_init() {
     }
 
     if (nr_drives > 1) {
-        command[1] = (1 << 5);         /* Drive 1 */
-        if (com_out(NO_DMA_INT) != OK) /* Output command block */
+        command[1] = (1 << 5);                  /* Drive 1 */
+        if (com_out(command, NO_DMA_INT) != OK) /* Output command block */
             return (ERR);
         {
             ScopedPortLock guard; // lock controller while specifying drive 1
@@ -455,7 +501,7 @@ static int win_init() {
         command[0] = WIN_RECALIBRATE;
         command[1] = i << 5;
         command[5] = CTRL_BYTE;
-        if (com_out(INT) != OK)
+        if (com_out(command, INT) != OK)
             return (ERR);
         receive(HARDWARE, &w_mess);
         if (win_results(wini[i * DEV_PER_DRIVE]) != OK) {
@@ -469,7 +515,7 @@ static int win_init() {
 /*============================================================================*
  *				check_init				      *
  *============================================================================*/
-static int check_init() {
+static int check_init() noexcept { // Added noexcept
     /* Routine to check if controller accepted the parameters */
     int r;
 
@@ -485,13 +531,13 @@ static int check_init() {
 /*============================================================================*
  *				read_ecc				      *
  *============================================================================*/
-static int read_ecc() {
+static int read_ecc() noexcept { // Added noexcept
     /* Read the ecc burst-length and let the controller correct the data */
 
     int r;
 
     command[0] = WIN_ECC_READ;
-    if (com_out(NO_DMA_INT) == OK && hd_wait(1) == OK) {
+    if (com_out(command, NO_DMA_INT) == OK && hd_wait(1) == OK) {
         port_in(WIN_DATA, &r);
         if (hd_wait(1) == OK) {
             port_in(WIN_DATA, &r);
@@ -505,7 +551,7 @@ static int read_ecc() {
 /*============================================================================*
  *				hd_wait					      *
  *============================================================================*/
-static int hd_wait(int bit) {
+static int hd_wait(int bit) noexcept { // Added noexcept
     /* Wait until the controller is ready to receive a command or send status */
 
     register int i = 0;
@@ -526,14 +572,21 @@ static int hd_wait(int bit) {
 /*============================================================================*
  *				com_out					      *
  *============================================================================*/
-static int com_out(int mode) {
-    /* Output the command block to the winchester controller and return status */
-
-    register int i = 0;
+/**
+ * @brief Output a command block to the winchester controller.
+ *
+ * @param cmd  Sequence of
+ * command bytes to send.
+ * @param mode DMA/interrupt mode selector.
+ * @return Status code from
+ * controller.
+ */
+static int com_out(std::span<const int> cmd, int mode) noexcept {
     int r;
 
     port_out(WIN_SELECT, mode);
     port_out(WIN_DMA, mode);
+    int i = 0;
     for (i = 0; i < MAX_WIN_RETRY; i++) {
         port_in(WIN_STATUS, &r);
         if ((r & 0x0F) == 0x0D)
@@ -545,28 +598,28 @@ static int com_out(int mode) {
     }
     {
         ScopedPortLock guard; // ensure ports locked during writes
-        for (i = 0; i < 6; i++)
-            port_out(WIN_DATA, command[i]);
+        for (const auto val : cmd)
+            port_out(WIN_DATA, val);
     }
     port_in(WIN_STATUS, &r);
     if (r & 1) {
         w_need_reset = TRUE;
         return (ERR);
-    } else
-        return (OK);
+    }
+    return (OK);
 }
 
 /*============================================================================*
  *				init_params				      *
  *============================================================================*/
-static void init_params() {
+static void init_params() noexcept { // Added noexcept
     /* This routine is called at startup to initialize the partition table,
      * the number of drives and the controller
      */
     unsigned int i, segment, offset;
     int type_0, type_1;
-    phys_bytes address;
-    extern phys_bytes umap();
+    uint64_t address; // phys_bytes -> uint64_t
+    // extern phys_bytes umap(); // umap returns uint64_t
     extern int vec_table[];
 
     /* Read the switches from the controller */
@@ -581,16 +634,25 @@ static void init_params() {
     segment = vec_table[2 * 0x41 + 1];
 
     /* Calculate the address off the parameters and copy them to buf */
-    address = ((long)segment << 4) + offset;
-    phys_copy(address, umap(proc_addr(WINCHESTER), D, buf, 64), 64L);
+    address = (static_cast<uint64_t>(segment) << 4) + offset;
+    // phys_copy takes (uint64_t, uint64_t, uint64_t)
+    // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
+    // buf is unsigned char[].
+    phys_copy(address,
+              umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf),
+                   static_cast<std::size_t>(64)),
+              64ULL);
 
     /* Copy the parameters to the structures */
-    copy_param((&buf[type_0 * 16]), &param0);
+    copy_params((&buf[type_0 * 16]), &param0); // Renamed copy_param to copy_params
     copy_param((&buf[type_1 * 16]), &param1);
 
     /* Get the nummer of drives from the bios */
-    phys_copy(0x475L, umap(proc_addr(WINCHESTER), D, buf, 1), 1L);
-    nr_drives = (int)*buf;
+    phys_copy(0x475ULL,
+              umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf),
+                   static_cast<std::size_t>(1)),
+              1ULL);
+    nr_drives = static_cast<int>(*buf);
 
     /* Set the parameters in the drive structure */
     for (i = 0; i < 5; i++)
@@ -606,28 +668,31 @@ static void init_params() {
         nr_drives = 0;
 
     /* Read the partition table for each drive and save them */
-    for (i = 0; i < nr_drives; i++) {
-        device(w_mess) = i * 5;
-        position(w_mess) = 0L;
-        count(w_mess) = BLOCK_SIZE;
-        address(w_mess) = (char *)buf;
-        proc_nr(w_mess) = WINCHESTER;
+    for (i = 0; i < nr_drives; i++) {             // i is unsigned int
+        device(w_mess) = static_cast<int>(i * 5); // device is int msg field
+        position(w_mess) = 0LL;                   // position is int64_t msg field
+        count(w_mess) = BLOCK_SIZE;               // count is int msg field, BLOCK_SIZE is int
+        address(w_mess) = reinterpret_cast<char *>(buf); // address is char* msg field
+        proc_nr(w_mess) = WINCHESTER;                    // proc_nr is int msg field
         w_mess.m_type = DISK_READ;
-        if (w_do_rdwt(&w_mess) != BLOCK_SIZE)
-            panic("Can't read partition table of winchester ", i);
-        copy_prt(i * 5);
+        if (w_do_rdwt(&w_mess) != BLOCK_SIZE) // w_do_rdwt is noexcept
+            panic("Can't read partition table of winchester ",
+                  static_cast<int>(i)); // panic is noexcept
+        copy_prt(static_cast<int>(i * 5));
     }
 }
 
 /*============================================================================*
  *				copy_params				      *
  *============================================================================*/
-static void copy_params(unsigned char *src, struct param *dest) {
+static void copy_params(unsigned char *src, struct param *dest) noexcept { // Added noexcept
     /* This routine copies the parameters from src to dest
      * and sets the parameters for partition 0 and 5
      */
 
-    dest->nr_cyl = *(int *)src;
+    // This relies on direct memory interpretation. Using memcpy would be safer.
+    // Assuming struct param members are int or compatible.
+    dest->nr_cyl = *reinterpret_cast<int *>(src);
     dest->nr_heads = (int)src[2];
     dest->reduced_wr = *(int *)&src[3];
     dest->wr_precomp = *(int *)&src[5];
@@ -637,44 +702,58 @@ static void copy_params(unsigned char *src, struct param *dest) {
 /*============================================================================*
  *				copy_prt				      *
  *============================================================================*/
-static void copy_prt(int drive) {
+static void copy_prt(int drive) noexcept { // Added noexcept
     /* This routine copies the partition table for the selected drive to
      * the variables wn_low and wn_size
      */
 
     register int i, offset;
     struct wini *wn;
-    long adjust;
+    uint64_t temp_val; // For reading long from buf before assigning to uint64_t
+    int64_t adjust64;  // Was long, for arithmetic with wn_low/wn_size
 
     for (i = 0; i < 4; i++) {
-        adjust = 0;
-        wn = &wini[i + drive + 1];
+        adjust64 = 0;
+        wn = &wini[i + drive + 1]; // wini elements have wn_low, wn_size as uint64_t
         offset = PART_TABLE + i * 0x10;
-        wn->wn_low = *(long *)&buf[offset];
+        // Safely read a long (assuming 32-bit from buf) and then assign to uint64_t
+        // This assumes buf contains 32-bit little-endian longs for partition table entries.
+        // For robustness, memcpy is preferred over reinterpret_cast if alignment is uncertain.
+        // temp_val = *reinterpret_cast<long *>(&buf[offset]); // Original logic
+        // wn->wn_low = static_cast<uint64_t>(temp_val);
+        // A safer approach (though original code did direct cast):
+        memcpy(&temp_val, &buf[offset], sizeof(long)); // Assuming long is what's in buf
+        wn->wn_low = static_cast<uint64_t>(temp_val);
+
         if ((wn->wn_low % (BLOCK_SIZE / SECTOR_SIZE)) != 0) {
-            adjust = wn->wn_low;
+            adjust64 = static_cast<int64_t>(wn->wn_low);
             wn->wn_low = (wn->wn_low / (BLOCK_SIZE / SECTOR_SIZE) + 1) * (BLOCK_SIZE / SECTOR_SIZE);
-            adjust = wn->wn_low - adjust;
+            adjust64 = static_cast<int64_t>(wn->wn_low) - adjust64;
         }
-        wn->wn_size = *(long *)&buf[offset + sizeof(long)] - adjust;
+        // wn->wn_size = *(long *)&buf[offset + sizeof(long)] - adjust;
+        memcpy(&temp_val, &buf[offset + sizeof(long)], sizeof(long));
+        wn->wn_size = static_cast<uint64_t>(temp_val) - static_cast<uint64_t>(adjust64);
     }
     sort(&wini[drive + 1]);
 }
 
 /* Sort drive order */
-static void sort(register struct wini *wn) {
-    register int i, j;
+static void sort(struct wini *wn) noexcept { // Removed register, added noexcept
+    register int i,
+        j; // Keep register for loop counters if desired, though modern compilers often ignore
 
     for (i = 0; i < 4; i++)
         for (j = 0; j < 3; j++)
             if ((wn[j].wn_low == 0) && (wn[j + 1].wn_low != 0))
                 swap(&wn[j], &wn[j + 1]);
-            else if (wn[j].wn_low > wn[j + 1].wn_low && wn[j + 1].wn_low != 0)
+            else if (wn[j].wn_low > wn[j + 1].wn_low &&
+                     wn[j + 1].wn_low != 0) // uint64_t comparison
                 swap(&wn[j], &wn[j + 1]);
 }
 
 /* Swap two wini structures */
-static void swap(register struct wini *first, register struct wini *second) {
+static void swap(struct wini *first,
+                 struct wini *second) noexcept { // Removed register, added noexcept
     register struct wini tmp;
 
     tmp = *first;

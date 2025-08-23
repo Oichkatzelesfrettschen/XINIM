@@ -1,5 +1,5 @@
 #!/bin/sh
-# modernize_cpp17.sh - Prepare the codebase for C++17 modernization.
+# modernize_cpp17.sh - Prepare the codebase for C++23 modernization.
 # This script renames source files to .cpp/.hpp, updates include statements,
 # and inserts a temporary modernization header at the top of each file.
 # It does not overwrite existing headers if they already contain the marker.
@@ -17,7 +17,7 @@ changed_asm=""
 MOD_HEADER_C='/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/'
 
 MOD_HEADER_ASM='; <<< WORK-IN-PROGRESS MODERNIZATION HEADER

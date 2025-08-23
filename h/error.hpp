@@ -2,7 +2,46 @@
 #ifndef H_ERROR_HPP
 #define H_ERROR_HPP
 
-// Modernized for C++17
+// Modernized for C++23
+#include "../include/defs.hpp" // Added for consistency and potential common types
+
+// Avoid clashes with system errno macros
+#ifdef EPERM
+#undef EPERM
+#undef ENOENT
+#undef ESRCH
+#undef EINTR
+#undef EIO
+#undef ENXIO
+#undef E2BIG
+#undef ENOEXEC
+#undef EBADF
+#undef ECHILD
+#undef EAGAIN
+#undef ENOMEM
+#undef EACCES
+#undef EFAULT
+#undef ENOTBLK
+#undef EBUSY
+#undef EEXIST
+#undef EXDEV
+#undef ENODEV
+#undef ENOTDIR
+#undef EISDIR
+#undef EINVAL
+#undef ENFILE
+#undef EMFILE
+#undef ENOTTY
+#undef ETXTBSY
+#undef EFBIG
+#undef ENOSPC
+#undef ESPIPE
+#undef EROFS
+#undef EMLINK
+#undef EPIPE
+#undef EDOM
+#undef ERANGE
+#endif
 
 /* Error codes.  They are negative since a few system calls, such as READ, can
  * either return a positive number indicating success, or an error code.
@@ -12,7 +51,7 @@
 constexpr int NERROR = 34;
 
 // Success value used throughout the system
-constexpr int OK = 0;
+constexpr int OK = 0; // Consistent with xinim::OK
 
 // Scoped enumeration of error codes.  All values are negative so that system
 // calls can return either a positive result or an error code.

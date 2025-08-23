@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* split - split a file		Author: Michiel Huisjes */
@@ -13,9 +13,14 @@ int infile;
 char out_file[100];
 char *suffix;
 
-main(argc, argv) int argc;
-char **argv;
-{
+// Entry point with modern parameters
+/**
+ * @brief Entry point for the split utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
     unsigned short i;
 
     out_file[0] = 'x';
@@ -48,10 +53,10 @@ char **argv;
     /* Appendix now points to last `a' of "aa". We have to decrement it by one */
     *suffix = 'a' - 1;
     split();
-    exit(0);
+    return 0;
 }
 
-split() {
+static void split() {
     char buf[BLOCK_SIZE];
     register char *index, *base;
     register int n;
@@ -76,7 +81,7 @@ split() {
     }
 }
 
-newfile() {
+static int newfile() {
     int fd;
 
     if (++*suffix > 'z') { /* Increment letter */
@@ -92,12 +97,12 @@ newfile() {
     return fd;
 }
 
-usage() {
+[[noreturn]] static void usage() {
     std_err("Usage: split [-n] [file [name]].\n");
     exit(1);
 }
 
-quit() {
+[[noreturn]] static void quit() {
     std_err("split: write error\n");
     exit(1);
 }

@@ -1,9 +1,27 @@
-char *index(s, c)
-register char *s, c;
-{
-  do {
-	if (*s == c)
-		return(s);
-  } while (*s++ != 0);
-  return(0);
+#include <cstddef>
+
+/**
+ * @brief Locate character @p c in string @p s.
+ *
+ * This function mirrors the historical BSD `index` routine used by
+ * the original MINIX utilities. It returns a pointer to the first
+ * occurrence of @p c within @p s or `nullptr` if the character is not
+ * found.
+ *
+ * @param s Null-terminated string to search.
+ * @param c Character to locate.
+ * @return Pointer to located character or `nullptr`.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @compat index(3)
+ * @example
+ * char *p = index(str, ':');
+ */
+char *index(char *s, int c) {
+    do {
+        if (*s == c) {
+            return s;
+        }
+    } while (*s++ != 0);
+    return nullptr;
 }

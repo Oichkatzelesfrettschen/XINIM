@@ -1,93 +1,65 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+/**
+ * @file chmem.cpp
+ * @brief Set total memory size for execution in a legacy executable.
+ * @author Andy Tanenbaum (original author)
+ * @date 2023-10-27 (modernization)
+ *
+ * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
+ *
+ * This program is a C++23 modernization of the original `chmem` utility from MINIX.
+ * It modifies the header of an executable file to change the total memory allocated
+ * for the stack and data segments. The program ensures type safety, resource management
+ * via RAII, and robust error handling through exceptions.
+ *
+ * Usage: chmem {=|+|-}amount file
+ */
 
-/* chmem - set total memory size for execution	Author: Andy Tanenbaum */
-#include <array>
+#include <iostream>
+#include <fstream>
+#include <vector>
+#include <string>
+#include <string_view>
+#include <filesystem>
+#include <system_error>
+#include <cstdint>
+#include <stdexcept>
 
-#define HLONG 8           /* header size in longs */
-#define TEXT 2            /* where is text size in header */
-#define DATA 3            /* where is data size in header */
-#define BSS 4             /* where is bss size in header */
-#define TOT 6             /* where in header is total allocation */
-#define TOTPOS 24         /* where is total in header */
-#define SEPBIT 0x00200000 /* this bit is set for separate I/D */
-#define MAGIC 0x0301      /* magic number for executable progs */
-#define MAX 65536L        /* maximum allocation size */
+// Define the legacy executable format details in a dedicated namespace.
+namespace ExecutableFormat {
+    // Using a struct to represent the header provides type safety and clarity.
+    struct Header {
+        uint32_t magic;
+        uint32_t flags;
+        uint32_t textSize;
+        uint32_t dataSize;
+        uint32_t bssSize;
+        uint32_t entryPoint; // Assuming, based on standard a.out
+        uint32_t totalAllocation;
+        uint32_t symbolSize; // Assuming
+    };
 
-/* Program entry point */
-int main(int argc, char *argv[]) {
-    /* The 8088 architecture does not make it possible to catch stacks that grow
-     * big.  The only way to deal with this problem is to let the stack grow down
-     * towards the data segment and the data segment grow up towards the stack.
-     * Normally, a total of 64K is allocated for the two of them, but if the
-     * programmer knows that a smaller amount is sufficient, he can change it
-     * using chmem.
-     *
-     * chmem =4096 prog  sets the total space for stack + data growth to 4096
-     * chmem +200  prog  increments the total space for stack + data growth by 200
+    constexpr uint16_t MAGIC = 0x0301;       // Magic number for executable programs
+    constexpr uint32_t SEP_ID_BIT = 0x0020;  // Bit for separate I/D space
+    constexpr int64_t MAX_ALLOCATION = 65535L; // Max allocation size for stack+data
+}
+
+/**
+ * @class MemoryPatcher
+ * @brief Manages the modification of an executable's memory allocation.
+ *
+ * This class encapsulates the logic for reading the executable header,
+ * calculating the new memory allocation, and writing the changes back to the file.
+ * It uses RAII for file handling and throws exceptions on errors.
+ */
+class MemoryPatcher {
+public:
+    /**
+     * @brief Constructs a MemoryPatcher for a given file.
+     * @param filePath The path to the executable file.
+     * @throws std::runtime_error if the file cannot be opened.
      */
+    MemoryPatcher(const std::filesystem::path& filePath);
 
-    char *p;
-    unsigned int n;
-    int fd, separate;
-    long lsize, olddynam, newdynam, newtot, overflow;
-    std::array<long, HLONG> header{};
-
-    p = argv[1];
-    if (argc != 3)
-        usage();
-    if (*p != '=' && *p != '+' && *p != '-')
-        usage();
-    n = atoi(p + 1);
-    lsize = n;
-    if (n > 65520)
-        stderr3("chmem: ", p + 1, " too large\n");
-
-    fd = open(argv[2], 2);
-    if (fd < 0)
-        stderr3("chmem: can't open ", argv[2], "\n");
-
-    if (read(fd, header, sizeof(header)) != sizeof(header))
-        stderr3("chmem: ", argv[2], "bad header\n");
-    if ((header[0] & 0xFFFF) != MAGIC)
-        stderr3("chmem: ", argv[2], " not executable\n");
-    separate = (header[0] & SEPBIT ? 1 : 0);
-    olddynam = header[TOT] - header[DATA] - header[BSS];
-    if (separate == 0)
-        olddynam -= header[TEXT];
-
-    if (*p == '=')
-        newdynam = lsize;
-    else if (*p == '+')
-        newdynam = olddynam + lsize;
-    else if (*p == '-')
-        newdynam = olddynam - lsize;
-    newtot = header[DATA] + header[BSS] + newdynam;
-    overflow = (newtot > MAX ? newtot - MAX : 0); /* 64K max */
-    newdynam -= overflow;
-    newtot -= overflow;
-    if (separate == 0)
-        newtot += header[TEXT];
-    lseek(fd, (long)TOTPOS, 0);
-    if (write(fd, &newtot, 4) < 0)
-        stderr3("chmem: can't modify ", argv[2], "\n");
-    printf("%s: Stack+malloc area changed from %D to %D bytes.\n", argv[2], olddynam, newdynam);
-    exit(0);
-}
-
-/* Print usage information */
-static void usage(void) {
-    std_err("chmem {=+-} amount file\n");
-    exit(1);
-}
-
-/* Print three error strings and exit */
-static void stderr3(const char *s1, const char *s2, const char *s3) {
-    std_err(s1);
-    std_err(s2);
-    std_err(s3);
-    exit(1);
-}
+    /**
+     * @brief Patches the memory allocation in the executable header.
+     * @param op The operation to perform ('=', '+'

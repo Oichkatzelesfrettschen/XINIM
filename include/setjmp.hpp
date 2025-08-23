@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 #ifndef SETJMP_H
@@ -16,13 +16,9 @@
 
 #include <csetjmp>
 
-using jmp_buf = std::jmp_buf; /* expose the standard buffer type */
+using jmp_buf = ::jmp_buf; /* expose the standard buffer type */
 
-/*
- * Delegate to the standard versions.  These are inline so calls are
- * forwarded directly without additional overhead.
- */
-inline int setjmp(jmp_buf env) { return std::setjmp(env); }
-inline void longjmp(jmp_buf env, int val) { std::longjmp(env, val); }
+extern "C" int setjmp(jmp_buf env);
+extern "C" [[noreturn]] void longjmp(jmp_buf env, int val);
 
 #endif /* SETJMP_H */

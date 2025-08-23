@@ -3,31 +3,41 @@
 static int next;
 static char qbuf[8];
 
-char *itoa(n)
-int n;
-{
-  register int r, k;
-  int flag = 0;
+/**
+ * @brief Convert an integer to its decimal string representation.
+ *
+ * @param n The integer
+ * value to convert.
+ * @return Pointer to a static buffer containing the converted string.
+ * @sideeffects Overwrites an internal static buffer.
+ * @thread_safety Not thread-safe; buffer is shared.
+ * @compat itoa
+ * @example
+ * char *s = itoa(123);
+ */
+char *itoa(int n) {
+    int r, k;
+    int flag = 0;
 
-  next = 0;
-  if (n < 0) {
-	qbuf[next++] = '-';
-	n = -n;
-  }
-  if (n == 0) {
-	qbuf[next++] = '0';
-  } else {
-	k = 10000;
-	while (k > 0) {
-		r = n/k;
-		if (flag || r > 0) {
-			qbuf[next++] = '0' + r;
-			flag = 1;
-		}
-		n -= r * k;
-		k = k/10;
-	}
-  }
-  qbuf[next] = 0;
-  return(qbuf);
+    next = 0;
+    if (n < 0) {
+        qbuf[next++] = '-';
+        n = -n;
+    }
+    if (n == 0) {
+        qbuf[next++] = '0';
+    } else {
+        k = 10000;
+        while (k > 0) {
+            r = n / k;
+            if (flag || r > 0) {
+                qbuf[next++] = '0' + r;
+                flag = 1;
+            }
+            n -= r * k;
+            k = k / 10;
+        }
+    }
+    qbuf[next] = 0;
+    return (qbuf);
 }

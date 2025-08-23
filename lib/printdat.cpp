@@ -1,4 +1,4 @@
-#include "../include/stdio.h"
+#include "../include/stdio.hpp"
 
 char  __stdin[BUFSIZ];
 char  __stdout[BUFSIZ];

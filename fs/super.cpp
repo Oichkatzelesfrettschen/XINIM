@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
 /* This file manages the super block table and the related data structures,
  * namely, the bit maps that keep track of which zones and which inodes are
  * allocated and which are free.  When a new inode or zone is needed, the
@@ -28,6 +22,9 @@
 #include "const.hpp"
 #include "inode.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 
 #define INT_BITS (sizeof(int) << 3)
 #define BIT_MAP_SHIFT 13 /* (log2 of BLOCK_SIZE) + 3; 13 for 1k blocks */
@@ -54,12 +51,12 @@ dev_nr dev; /* which device? */
 
     /* Load the inode map from the disk. */
     for (i = 0; i < sp->s_imap_blocks; i++)
-        sp->s_imap[i] = get_block(dev, SUPER_BLOCK + 1 + i, NORMAL);
+        sp->s_imap[i] = get_block(dev, SUPER_BLOCK + 1 + i, IoMode::Normal);
 
     /* Load the zone map from the disk. */
     zbase = SUPER_BLOCK + 1 + sp->s_imap_blocks;
     for (i = 0; i < sp->s_zmap_blocks; i++)
-        sp->s_zmap[i] = get_block(dev, zbase + i, NORMAL);
+        sp->s_zmap[i] = get_block(dev, zbase + i, IoMode::Normal);
 
     /* inodes 0 and 1, and zone 0 are never allocated.  Mark them as busy. */
     sp->s_imap[0]->b_int[0] |= 3; /* inodes 0, 1 busy */
@@ -83,9 +80,9 @@ dev_nr dev; /* which device is being unmounted? */
     sp = get_super(dev); /* get the superblock pointer */
     bufs_in_use -= sp->s_imap_blocks + sp->s_zmap_blocks;
     for (i = 0; i < sp->s_imap_blocks; i++)
-        put_block(sp->s_imap[i], I_MAP_BLOCK);
+        put_block(sp->s_imap[i], BlockType::IMap);
     for (i = 0; i < sp->s_zmap_blocks; i++)
-        put_block(sp->s_zmap[i], ZMAP_BLOCK);
+        put_block(sp->s_zmap[i], BlockType::ZMap);
     return (OK);
 }
 
@@ -243,16 +240,16 @@ int rw_flag;                     /* READING or WRITING */
     /* Check if this is a read or write, and do it. */
     if (rw_flag == READING) {
         dev = sp->s_dev; /* save device; it will be overwritten by copy*/
-        bp = get_block(sp->s_dev, (block_nr)SUPER_BLOCK, NORMAL);
+        bp = get_block(sp->s_dev, (block_nr)SUPER_BLOCK, IoMode::Normal);
         copy((char *)sp, bp->b_data, SUPER_SIZE);
         sp->s_dev = dev; /* restore device number */
     } else {
         /* On a write, it is not necessary to go read superblock from disk. */
-        bp = get_block(sp->s_dev, (block_nr)SUPER_BLOCK, NO_READ);
+        bp = get_block(sp->s_dev, (block_nr)SUPER_BLOCK, IoMode::NoRead);
         copy(bp->b_data, (char *)sp, SUPER_SIZE);
         bp->b_dirt = DIRTY;
     }
 
     sp->s_dirt = CLEAN;
-    put_block(bp, ZUPER_BLOCK);
+    put_block(bp, BlockType::Zuper);
 }

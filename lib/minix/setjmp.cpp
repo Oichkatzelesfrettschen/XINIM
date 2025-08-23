@@ -1,5 +1,5 @@
 #include "../../include/setjmp.hpp"
-#include "../../include/lib.h"
+#include "../../include/lib.hpp"
 #include <csetjmp>
 
 /*
@@ -7,12 +7,12 @@
  * Implementation identical to the generic versions.
  */
 // Alternate location for _setjmp used by certain binaries.
-int _setjmp(jmp_buf env) { return std::setjmp(env); }
+int _setjmp(jmp_buf env) { return setjmp(env); }
 
 // Alternate location for _longjmp used by certain binaries.
 void _longjmp(jmp_buf env, int val) {
     if (val == 0) {
         val = 1;
     }
-    std::longjmp(env, val);
+    longjmp(env, val);
 }

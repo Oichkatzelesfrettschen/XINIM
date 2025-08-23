@@ -1,4 +1,4 @@
-// Modernized for C++17
+// Modernized for C++23
 
 /* This file handles the LINK and UNLINK system calls.  It also deals with
  * deallocating the storage used by a file when the last UNLINK is done to a
@@ -22,6 +22,9 @@
 #include "inode.hpp"
 #include "param.hpp"
 #include "type.hpp"
+#include <minix/fs/const.hpp>
+
+using IoMode = minix::fs::DefaultFsConstants::IoMode;
 
 /*===========================================================================*
  *				do_link					     *
@@ -178,13 +181,13 @@ register struct inode *rip; /* pointer to inode to be truncated */
     free_zone(dev, rip->i_zone[NR_DZONE_NUM]); /* single indirect zone */
     if ((z = rip->i_zone[NR_DZONE_NUM + 1]) != kNoZone) {
         b = (block_nr)z << scale;
-        bp = get_block(dev, b, NORMAL); /* get double indirect zone */
+        bp = get_block(dev, b, IoMode::Normal); /* get double indirect zone */
         for (iz = &bp->b_ind[0]; iz < &bp->b_ind[NR_INDIRECTS]; iz++) {
             free_zone(dev, *iz);
         }
 
         /* Now free the double indirect zone itself. */
-        put_block(bp, INDIRECT_BLOCK);
+        put_block(bp, BlockType::Indirect);
         free_zone(dev, z);
     }
 

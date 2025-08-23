@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* -------- sh.h -------- */
@@ -27,7 +27,7 @@ constexpr bool WaitCore(int s) { return (s & 0200) != 0; }
 /*
  * library and system defintions
  */
-typedef int xint; /* base type of jmp_buf, for broken compilers */
+using xint = int; /* base type of jmp_buf, for broken compilers */
 
 /*
  * shell components

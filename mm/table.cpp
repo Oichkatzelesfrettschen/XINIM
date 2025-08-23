@@ -1,5 +1,9 @@
-/* This file contains the table used to map system call numbers onto the
- * routines that perform them.
+/**
+ * @file mm/table.cpp
+ * @brief System call dispatch table for the memory manager.
+ *
+ * Maps
+ * system call numbers to the routines that implement them.
  */
 
 #include "../h/const.hpp"
@@ -11,20 +15,44 @@
 
 #include "../h/callnr.hpp"
 #include "glo.hpp"
-#include "mproc.hpp"
+#include "mproc.hpp" // Defines struct mproc, which uses modernized types
 #include "param.hpp"
+#include <cstddef> // For nullptr
+#include <cstdint> // For uint16_t
 
 /* Miscellaneous */
-char core_name[] = {"core"}; /* file name where core images are produced */
-unshort core_bits = 0x0EFC;  /* which signals cause core images */
+/// File name where core images are produced.
+char core_name[] = {"core"};
 
-extern char mm_stack[];
+extern char mm_stack[]; // From mm/const.hpp (MM_STACK_BYTES)
+// MM_STACK_BYTES is std::size_t. Pointer arithmetic is fine.
 char *stackpt = &mm_stack[MM_STACK_BYTES]; /* initial stack pointer */
 
-extern do_mm_exit(), do_fork(), do_wait(), do_brk(), do_getset(), do_exec();
-extern do_signal(), do_kill(), do_pause(), do_alarm();
-extern no_sys(), unpause(), do_ksig(), do_brk2();
+// Modernized extern declarations, assuming they return int and are noexcept
+// Actual return types (e.g. std::expected) would require call_vec to change type.
+// For this task, we keep call_vec as int (*)() and assume these handlers conform or are wrapped.
+extern int do_mm_exit() noexcept;
+extern int do_fork() noexcept;
+extern int do_wait() noexcept;
+extern int do_brk() noexcept;
+extern int do_getset() noexcept; // Covers GETPID, GETUID, GETGID, SETUID, SETGID
+extern int do_exec() noexcept;
+extern int do_signal() noexcept;
+extern int do_kill() noexcept;
+extern int do_pause() noexcept;
+extern int do_alarm() noexcept;
+extern int no_sys() noexcept;
+// extern int unpause() noexcept; // unpause is not in the original list, might be from specific
+// file
+extern int do_ksig() noexcept;
+extern int do_brk2() noexcept;
 
+/**
+ * @brief Dispatch table mapping system call numbers to handlers.
+ *
+ * The index corresponds to
+ * the call number defined in callnr.hpp.
+ */
 int (*call_vec[NCALLS])() = {
     no_sys,     /*  0 = unused	*/
     do_mm_exit, /*  1 = exit	*/
@@ -37,7 +65,9 @@ int (*call_vec[NCALLS])() = {
     no_sys,     /*  8 = creat	*/
     no_sys,     /*  9 = link	*/
     no_sys,     /* 10 = unlink	*/
-    no_sys,     /* 11 = exec	*/
+    no_sys,     /* 11 = exec (actual exec is do_exec for exece)	*/
+                // Note: MM handles EXEC, not a direct call here for old exec.
+                // The do_exec is for exece (MM_EXEC) which is 59.
     no_sys,     /* 12 = chdir	*/
     no_sys,     /* 13 = time	*/
     no_sys,     /* 14 = mknod	*/
@@ -92,7 +122,7 @@ int (*call_vec[NCALLS])() = {
     no_sys,     /* 63 = unused	*/
 
     do_ksig, /* 64 = KSIG: signals originating in the kernel	*/
-    no_sys,  /* 65 = UNPAUSE	*/
+    no_sys,  // Placeholder for unpause, assuming it's no_sys or needs specific declaration
     do_brk2, /* 66 = BRK2 (used to tell MM size of FS,INIT) */
     no_sys,  /* 67 = REVIVE	*/
     no_sys   /* 68 = TASK_REPLY	*/

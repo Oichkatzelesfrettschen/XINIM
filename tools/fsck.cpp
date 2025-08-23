@@ -1,13 +1,13 @@
 /**
  * @file fsck.cpp
- * @brief Modern C++17 MINIX Filesystem Checker
+ * @brief Modern C++23 MINIX Filesystem Checker
  *
  * A comprehensive filesystem integrity checker and repair tool for MINIX filesystems.
  * Provides type-safe operations, proper error handling, and modular architecture
  * with support for interactive and automatic repair modes.
  *
  * @author Robbert van Renesse (original C implementation)
- * @author Modern C++17 conversion
+ * @author Modern C++23 conversion
  * @version 2.0
  * @date 2024
  *
@@ -794,15 +794,6 @@ class Inode {
         return valid;
     }
 
-    // Calculate zones needed for current file size
-    [[nodiscard]] std::uint32_t calculate_zones_needed(const SuperBlock &sb) const {
-        if (inode_.i_size == 0)
-            return 0;
-
-        const auto zone_size = BLOCK_SIZE * sb.get_scale();
-        return (inode_.i_size + zone_size - 1) / zone_size;
-    }
-
     // Get all zones used by this inode
     [[nodiscard]] std::vector<zone_nr> get_all_zones(diskio::DiskInterface &disk,
                                                      const SuperBlock &sb) const {
@@ -920,8 +911,6 @@ class DirectoryEntry {
         }
     }
 
-    [[nodiscard]] const std::vector<Entry> &get_entries() const noexcept { return entries_; }
-
     [[nodiscard]] bool validate(UserInterface &ui, const PathTracker &path,
                                 inode_nr expected_parent) const {
         bool valid = true;
@@ -973,24 +962,14 @@ class DirectoryEntry {
         return valid;
     }
 
-    [[nodiscard]] std::optional<inode_nr> find_entry(std::string_view name) const {
-        for (const auto &entry : entries_) {
-            if (entry.name == name) {
-                return entry.inode_number;
-            }
-        }
-        return std::nullopt;
-    }
-
-    void add_entry(inode_nr inode_number, std::string name) {
-        entries_.emplace_back(inode_number, std::move(name));
-    }
-
-    void remove_entry(std::string_view name) {
-        entries_.erase(std::remove_if(entries_.begin(), entries_.end(),
-                                      [name](const Entry &entry) { return entry.name == name; }),
-                       entries_.end());
-    }
+    /**
+     * @brief Accessor for directory entries
+     *
+     * The checker currently only needs read-only access to the parsed
+     * directory entries. Modification helpers have been removed since
+     * they were unused and triggered static analysis warnings.
+     */
+    [[nodiscard]] const std::vector<Entry> &get_entries() const noexcept { return entries_; }
 };
 
 /**

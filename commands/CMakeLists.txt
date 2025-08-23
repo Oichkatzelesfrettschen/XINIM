@@ -1,22 +1,113 @@
+cmake_minimum_required(VERSION 3.20)
+project(MinixCommands CXX)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# Add the xinim::fs library subdirectory (assuming lib is sibling to commands)
+# Use CMAKE_CURRENT_BINARY_DIR to ensure out-of-source builds for the lib
+add_subdirectory(${CMAKE_CURRENT_LIST_DIR}/../lib/xinim_fs ${CMAKE_CURRENT_BINARY_DIR}/lib/xinim_fs)
+
+# Enable testing and add the tests subdirectory
+enable_testing() # Call this before add_subdirectory for tests
+add_subdirectory(tests ${CMAKE_CURRENT_BINARY_DIR}/tests)
+
 # This CMake file builds each userland command as a separate executable.
 
-file(GLOB CMD_SOURCES "*.cpp") # Use quotes and a more descriptive variable name
+# -----------------------------------------------------------------------------
+# Explicit enumeration of standalone command sources. Using an explicit list
+# avoids accidentally building backup or experimental files and mirrors the
+# behaviour of traditional handwritten makefiles used in academia.
+# -----------------------------------------------------------------------------
+set(SINGLE_COMMANDS
+    ar
+    basename
+    cal
+    cat
+    cc
+    chmem
+    chmod
+    chown
+    clr
+    cmp
+    comm
+    cp
+    date
+    dd
+    df
+    dosread
+    echo
+    getlf
+    grep
+    gres
+    head
+    kill
+    libpack
+    libupack
+    ln
+    login
+    lpr
+    ls
+    make
+    mkdir
+    mkfs
+    mknod
+    mount
+    mv
+    od
+    passwd
+    pr
+    pr_modern
+    pwd
+    rev
+    rm
+    rmdir
+    roff
+    sh1
+    sh3
+    sh4
+    sh5
+    shar
+    size
+    sleep
+    sort
+    sort_modern
+    split
+    stty
+    su
+    sum
+    svcctl
+    sync
+    tail
+    tar
+    tar_modern
+    tee
+    time
+    touch
+    tr
+    umount
+    uniq
+    update
+    wc
+    x
+)
 
-foreach(CMD_SOURCE_FILE ${CMD_SOURCES})
-  get_filename_component(COMMAND_NAME ${CMD_SOURCE_FILE} NAME_WE) # NAME_WE extracts name without extension
-  set(TARGET_NAME minix_cmd_${COMMAND_NAME})
-
-  add_executable(${TARGET_NAME} ${CMD_SOURCE_FILE})
-
-  # Link each command against the C library (minix_libc)
-  target_link_libraries(${TARGET_NAME} PRIVATE minix_libc)
-
-  # Add include directories for each command
-  # This ensures commands can find their own headers (if any, though less common for commands)
-  # and also the global headers from include/ and h/
-  target_include_directories(${TARGET_NAME} PUBLIC # PUBLIC so if a command was a library for another, paths would propagate
-    "."  # For any local headers specific to a command (rare)
-    "${CMAKE_SOURCE_DIR}/include"
-    "${CMAKE_SOURCE_DIR}/h"
-  )
+foreach(COMMAND_NAME IN LISTS SINGLE_COMMANDS)
+    add_executable(minix_cmd_${COMMAND_NAME} ${COMMAND_NAME}.cpp)
+    target_link_libraries(minix_cmd_${COMMAND_NAME} PRIVATE minix_libc xinim_fs xinim_common)
 endforeach()
+
+# -----------------------------------------------------------------------------
+# Multi-file command targets
+# -----------------------------------------------------------------------------
+
+# Modern MINED editor target with explicit dependencies.
+set(MINED_SOURCES
+    mined_main.cpp
+    mined_editor.cpp
+    mined.cpp
+)
+
+add_executable(minix_cmd_mined ${MINED_SOURCES})
+target_link_libraries(minix_cmd_mined PRIVATE minix_libc xinim_fs xinim_common)

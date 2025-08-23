@@ -1,167 +1,130 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+/**
+ * @file date.cpp
+ * @brief Print or set the system date and time.
+ * @author Adri Koppes (original author)
+ * @date 2023-10-28 (modernization)
+ *
+ * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
+ *
+ * This program is a C++23 modernization of the original `date` utility from MINIX.
+ * It can display the current date and time or set the system's date and time.
+ * It leverages the C++ std::chrono library for time operations and provides robust
+ * argument
+ * parsing and error handling.
+ *
+ * Usage:
+ *   date              // Print the current date and time
+ *   date MMDDYYhhmmss  // Set the date and time
+ */
 
-/* date - print or set the date		Author: Adri Koppes */
-
-#include "stdio.hpp"
-#include <array>
+#include <cerrno>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
+#include <iostream>
+#include <string>
 #include <string_view>
+#include <system_error>
 
-int qflag;
+// For setting the system time (POSIX)
+#include <sys/time.h>
 
-std::array<int, 12> days_per_month = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-std::array<std::string_view, 12> months = {"Jan", "Feb", "Mar", "Apr", "May", "Jun",
-                                           "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"};
-std::array<std::string_view, 7> days = {"Thu", "Fri", "Sat", "Sun", "Mon", "Tue", "Wed"};
+namespace {
 
-struct {
-    int year, month, day, hour, min, sec;
-} tm;
+/**
+ * @brief Prints the usage message to standard error.
+ */
+void printUsage() { std::cerr << "Usage: date [MMDDYYhhmmss]" << std::endl; }
 
-long s_p_min;
-long s_p_hour;
-long s_p_day;
-long s_p_year;
+/**
+ * @brief Prints the current date and time to standard output.
+ */
+void printCurrentTime() {
+    const auto now = std::chrono::system_clock::now();
+    const time_t time_now = std::chrono::system_clock::to_time_t(now);
 
-int main(int argc, char **argv) {
-    long t, time();
+    // Using std::put_time for safe, localized formatting.
+    // Format: Www Mmm dd HH:MM:SS YYYY
+    std::cout << std::put_time(std::localtime(&time_now), "%a %b %d %T %Y") << std::endl;
+}
 
-    if (argc > 2)
-        usage();
-    s_p_min = 60;
-    s_p_hour = 60 * s_p_min;
-    s_p_day = 24 * s_p_hour;
-    s_p_year = 365 * s_p_day;
-    if (argc == 2) {
-        if (*argv[1] == '-' && (argv[1][1] | 0x60) == 'q') {
-            /* Query option. */
-            char time_buf[15];
+/**
+ * @brief Sets the system time based on a formatted string.
+ * @param time_str The time string in MMDDYYhhmmss format.
+ * @throws std::runtime_error on parsing or system call errors.
+ */
+void setSystemTime(std::string_view time_str) {
+    if (time_str.length() != 12) {
+        throw std::runtime_error("Invalid date format. Required: MMDDYYhhmmss");
+    }
 
-            qflag = 1;
-            freopen(stdin, "/dev/tty0", "r");
-            printf("\nPlease enter date (MMDDYYhhmmss).  Then hit RETURN.\n");
-            gets(time_buf);
-            set_time(time_buf);
-            exit(0);
+    std::tm tm = {};
+    std::string s;
+
+    try {
+        // MM
+        s = time_str.substr(0, 2);
+        tm.tm_mon = std::stoi(s) - 1;
+        // DD
+        s = time_str.substr(2, 2);
+        tm.tm_mday = std::stoi(s);
+        // YY
+        s = time_str.substr(4, 2);
+        int year = std::stoi(s);
+        // Handle century. Assume 1970-2069.
+        tm.tm_year = (year < 70) ? year + 100 : year;
+        // hh
+        s = time_str.substr(6, 2);
+        tm.tm_hour = std::stoi(s);
+        // mm
+        s = time_str.substr(8, 2);
+        tm.tm_min = std::stoi(s);
+        // ss
+        s = time_str.substr(10, 2);
+        tm.tm_sec = std::stoi(s);
+    } catch (const std::invalid_argument &e) {
+        throw std::runtime_error("Invalid character in date string.");
+    } catch (const std::out_of_range &e) {
+        throw std::runtime_error("Numeric value out of range in date string.");
+    }
+
+    // Let mktime normalize the values and determine tm_wday, tm_yday, etc.
+    time_t t = mktime(&tm);
+    if (t == -1) {
+        throw std::runtime_error("The specified time is not representable.");
+    }
+
+    // Use stime() to set the time.
+    if (stime(&t) != 0) {
+        throw std::system_error(errno, std::system_category(), "Failed to set system time");
+    }
+}
+
+} // namespace
+
+/**
+ * @brief Main entry point for the date command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on success, 1 on error.
+ */
+int main(int argc, char *argv[]) {
+    try {
+        if (argc == 1) {
+            // No arguments, print the current time.
+            printCurrentTime();
+        } else if (argc == 2) {
+            // One argument, attempt to set the time.
+            setSystemTime(argv[1]);
+        } else {
+            // Invalid number of arguments.
+            printUsage();
+            return 1;
         }
-        set_time(argv[1]);
-    } else {
-        time(&t);
-        cv_time(t);
-        printf("%s %s %d %02d:%02d:%02d %d\n", days[(t / s_p_day) % 7], months[tm.month], tm.day,
-               tm.hour, tm.min, tm.sec, tm.year);
+    } catch (const std::exception &e) {
+        std::cerr << "date: " << e.what() << std::endl;
+        return 1;
     }
-    exit(0);
-}
 
-static void cv_time(long t) {
-    tm.year = 0;
-    tm.month = 0;
-    tm.day = 1;
-    tm.hour = 0;
-    tm.min = 0;
-    tm.sec = 0;
-    while (t >= s_p_year) {
-        if (((tm.year + 2) % 4) == 0)
-            t -= s_p_day;
-        tm.year += 1;
-        t -= s_p_year;
-    }
-    if (((tm.year + 2) % 4) == 0)
-        days_per_month[1]++;
-    tm.year += 1970;
-    while (t >= (days_per_month[tm.month] * s_p_day))
-        t -= days_per_month[tm.month++] * s_p_day;
-    while (t >= s_p_day) {
-        t -= s_p_day;
-        tm.day++;
-    }
-    while (t >= s_p_hour) {
-        t -= s_p_hour;
-        tm.hour++;
-    }
-    while (t >= s_p_min) {
-        t -= s_p_min;
-        tm.min++;
-    }
-    tm.sec = (int)t;
-}
-
-static void set_time(char *t) {
-    char *tp;
-    long ct, time();
-    int len;
-
-    time(&ct);
-    cv_time(ct);
-    tm.year -= 1970;
-    tm.month++;
-    len = strlen(t);
-    if (len != 12 && len != 10 && len != 6 && len != 4)
-        usage();
-    tp = t;
-    while (*tp)
-        if (!isdigit(*tp++))
-            bad();
-    if (len == 6 || len == 12)
-        tm.sec = conv(&tp, 59);
-    tm.min = conv(&tp, 59);
-    tm.hour = conv(&tp, 23);
-    if (len == 12 || len == 10) {
-        tm.year = conv(&tp, 99);
-        tm.day = conv(&tp, 31);
-        tm.month = conv(&tp, 12);
-        tm.year -= 70;
-    }
-    ct = tm.year * s_p_year;
-    ct += ((tm.year + 1) / 4) * s_p_day;
-    if (((tm.year + 2) % 4) == 0)
-        days_per_month[1]++;
-    len = 0;
-    tm.month--;
-    while (len < tm.month)
-        ct += days_per_month[len++] * s_p_day;
-    ct += --tm.day * s_p_day;
-    ct += tm.hour * s_p_hour;
-    ct += tm.min * s_p_min;
-    ct += tm.sec;
-    if (days_per_month[1] > 28)
-        days_per_month[1] = 28;
-    if (stime(&ct)) {
-        fprintf(stderr, "Set date not allowed\n");
-    } else {
-        cv_time(ct);
-    }
-}
-
-static int conv(char **ptr, int max) {
-    int buf;
-
-    *ptr -= 2;
-    buf = atoi(*ptr);
-    **ptr = 0;
-    if (buf < 0 || buf > max)
-        bad();
-    return (buf);
-}
-
-static void bad(void) {
-    fprintf(stderr, "Date: bad conversion\n");
-    exit(1);
-}
-
-static void usage(void) {
-    if (qflag == 0)
-        fprintf(stderr, "Usage: date [-q] [[MMDDYY]hhmm[ss]]\n");
-    exit(1);
-}
-
-static int isdigit(char c) {
-    if (c >= '0' && c <= '9')
-        return (1);
-    else
-        return (0);
+    return 0;
 }

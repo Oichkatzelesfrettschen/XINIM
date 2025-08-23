@@ -1,168 +1,215 @@
-// Modernized for C++17
+/**
+ * @file rm.cpp
+ * @brief Remove files or directories - C++23 modernized version
+ * @details A modern C++23 implementation of the `rm` utility.
+ *          Supports force, interactive, and recursive options.
+ *          Integrates with xinim::fs for file operations.
+ */
 
-/* rm - remove files			Author: Adri Koppes */
+#include <iostream>      // For std::cin, std::cout, std::cerr
+#include <vector>        // For std::vector
+#include <string>        // For std::string
+#include <string_view>   // For std::string_view
+#include <filesystem>    // For std::filesystem::*
+#include <system_error>  // For std::error_code, std::errc
+#include <print>         // For std::print, std::println (C++23)
+#include <cstdlib>       // For EXIT_SUCCESS, EXIT_FAILURE
 
-#include "stat.hpp"
+#include "xinim/filesystem.hpp" // For xinim::fs free functions and operation_context
 
-struct direct {
-    unsigned short d_ino;
-    char d_name[14];
-};
+namespace { // Anonymous namespace for helper functions
 
-int errors = 0;
-int fflag = 0;
-int iflag = 0;
-int rflag = 0;
-int exstatus;
-
-/* Program entry point */
-int main(int argc, char *argv[]) {
-    char *opt;
-
-    if (argc < 2)
-        usage();
-    *++argv;
-    --argc;
-    while (**argv == '-') {
-        opt = *argv;
-        while (*++opt != '\0')
-            switch (*opt) {
-            case 'f':
-                fflag++;
-                break;
-            case 'i':
-                iflag++;
-                break;
-            case 'r':
-                rflag++;
-                break;
-            default:
-                std_err("rm: unknown option\n");
-                usage();
-                break;
-            }
-        argc--;
-        *++argv;
-    }
-    if (argc < 1)
-        usage();
-    while (argc--)
-        remove(*argv++);
-    exstatus = (errors == 0 ? 0 : 1);
-    if (fflag)
-        exstatus = 0;
-    exit(exstatus);
+/**
+ * @brief Prints the usage message to standard error.
+ */
+void print_usage() {
+    std::println(std::cerr, "Usage: rm [-firR] file...");
 }
 
-/* Print usage information */
-static void usage(void) {
-    std_err("Usage: rm [-fir] file\n");
-    exit(1);
+/**
+ * @brief Asks the user for confirmation before removing a file.
+ * @param path_to_remove The path of the file/directory to be removed.
+ * @return True if the user confirms (y/Y), false otherwise.
+ */
+bool ask_confirmation(const std::filesystem::path& path_to_remove) {
+    std::print(std::cout, "rm: remove '{}'? ", path_to_remove.string());
+    std::string response;
+    std::getline(std::cin, response);
+    return (response == "y" || response == "Y");
 }
 
-/* Remove a file or directory */
-static void remove(char *name) {
-    struct stat s;
-    struct direct d;
-    char rname[128], *strcpy(), *strcat();
-    int fd;
+/**
+ * @brief Removes a single path (file or directory).
+ * @param path_to_remove The path to remove.
+ * @param force_op True if -f (force) option is enabled.
+ * @param interactive_op True if -i (interactive) option is enabled.
+ * @param recursive_op True if -r/-R (recursive) option is enabled.
+ * @return True if the operation was considered successful (or error suppressed by -f), false on reported error.
+ */
+bool remove_single_path(
+    const std::filesystem::path& path_to_remove,
+    bool force_op,
+    bool interactive_op,
+    bool recursive_op) { // fs_ops parameter removed
 
-    if (stat(name, &s)) {
-        if (!fflag)
-            stderr3("rm: ", name, " non-existent\n");
-        errors++;
-        return;
-    }
-    if (iflag) {
-        stderr3("rm: remove ", name, "? ");
-        if (!confirm())
-            return;
-    }
-    if ((s.st_mode & S_IFMT) == S_IFDIR) {
-        if (rflag) {
-            if ((fd = open(name, 0)) < 0) {
-                if (!fflag)
-                    stderr3("rm: can't open ", name, "\n");
-                errors++;
-                return;
+    xinim::fs::operation_context ctx;
+    // For the initial status check, we want to know the type of the path itself (e.g. if it's a symlink)
+    // before deciding on recursive removal or how `remove` vs `remove_all` would treat it.
+    // `get_status`'s `follow_symlinks` in `ctx` defaults to true. For rm, usually we want to
+    // operate on the link if it's a link, unless -R is following it into a directory.
+    // The `xinim::fs::remove` and `xinim::fs::remove_all` use `std::filesystem::remove/remove_all`
+    // which operate on the link itself if the path is a symlink.
+    // So, for `get_status` here, `follow_symlinks = false` is appropriate to check the type of `path_to_remove`.
+    ctx.follow_symlinks = false;
+
+    auto status_result = xinim::fs::get_status(path_to_remove, ctx);
+
+    if (!status_result) {
+        bool report_error = true;
+        if (force_op) {
+            if (status_result.error() == std::errc::no_such_file_or_directory) {
+                report_error = false;
             }
-            while (read(fd, (char *)&d, sizeof(struct direct)) > 0) {
-                if (d.d_ino && strcmp("..", d.d_name) && strcmp(".", d.d_name)) {
-                    strcpy(rname, name);
-                    strcat(rname, "/");
-                    strcat(rname, d.d_name);
-                    remove(rname);
+        }
+        if (report_error) {
+            std::println(std::cerr, "rm: cannot remove '{}': {}", path_to_remove.string(), status_result.error().message());
+        }
+        return force_op ? true : false;
+    }
+
+    const auto& item_status = status_result.value();
+    if (!item_status.is_populated) {
+         if(!force_op) std::println(std::cerr, "rm: could not get valid status for '{}'", path_to_remove.string());
+         return force_op ? true : false;
+    }
+
+    if (interactive_op) {
+        if (!ask_confirmation(path_to_remove)) {
+            return true;
+        }
+    }
+
+    // Reset context for actual remove operations; follow_symlinks in ctx is not
+    // directly used by remove/remove_all as they have fixed behavior for symlinks (remove the link).
+    // execution_mode from default_ctx will be used by the xinim::fs functions.
+    xinim::fs::operation_context remove_ctx;
+    // remove_ctx.execution_mode = ...; // Could be set from options if rm had such flags
+
+    if (item_status.type == std::filesystem::file_type::directory) {
+        if (!recursive_op) {
+            if (!force_op) {
+                std::println(std::cerr, "rm: cannot remove '{}': Is a directory", path_to_remove.string());
+            }
+            return force_op ? true : false;
+        }
+
+        auto remove_all_res = xinim::fs::remove_all(path_to_remove, remove_ctx);
+        if (!remove_all_res) {
+            bool report_error = true;
+            if (force_op) {
+                if (remove_all_res.error() == std::errc::no_such_file_or_directory) { // Should not happen if initial stat passed
+                    report_error = false;
                 }
             }
-            close(fd);
-            rem_dir(name);
-        } else {
-            if (!fflag)
-                stderr3("rm: ", name, " is a directory\n");
-            errors++;
-            return;
+            if (report_error) {
+                std::println(std::cerr, "rm: cannot remove '{}': {}", path_to_remove.string(), remove_all_res.error().message());
+            }
+            return force_op ? true : false;
         }
     } else {
-        if (access(name, 2) && !fflag) {
-            stderr3("rm: remove ", name, " with mode ");
-            octal(s.st_mode & 0777);
-            std_err("? ");
-            if (!confirm())
-                return;
-        }
-        if (unlink(name)) {
-            if (!fflag)
-                stderr3("rm: ", name, " not removed\n");
-            errors++;
+        auto remove_res = xinim::fs::remove(path_to_remove, remove_ctx);
+        if (!remove_res) {
+            bool report_error = true;
+            if (force_op) {
+                if (remove_res.error() == std::errc::no_such_file_or_directory) { // Should not happen
+                    report_error = false;
+                }
+            }
+            if (report_error) {
+                std::println(std::cerr, "rm: cannot remove '{}': {}", path_to_remove.string(), remove_res.error().message());
+            }
+            return force_op ? true : false;
         }
     }
+
+    return true;
 }
 
-/* Remove a directory using rmdir */
-static void rem_dir(char *name) {
-    int status;
+} // namespace
 
-    switch (fork()) {
-    case -1:
-        std_err("rm: can't fork\n");
-        errors++;
-        return;
-    case 0:
-        execl("/bin/rmdir", "rmdir", name, 0);
-        execl("/usr/bin/rmdir", "rmdir", name, 0);
-        std_err("rm: can't exec rmdir\n");
-        exit(1);
-    default:
-        wait(&status);
-        errors += status;
+/**
+ * @brief Main entry point for the rm command.
+ */
+int main(int argc, char* argv[]) {
+    bool force_op = false;
+    bool interactive_op = false;
+    bool recursive_op = false;
+    std::vector<std::filesystem::path> paths_to_remove;
+    bool options_ended = false;
+
+    for (int i = 1; i < argc; ++i) {
+        std::string_view arg = argv[i];
+        if (!options_ended && !arg.empty() && arg[0] == '-') {
+            if (arg == "--") {
+                options_ended = true;
+                continue;
+            }
+            if (arg.starts_with("--")) {
+                if (arg == "--force") {
+                    force_op = true;
+                } else if (arg == "--interactive") {
+                    interactive_op = true;
+                } else if (arg == "--recursive") {
+                    recursive_op = true;
+                } else {
+                    std::println(std::cerr, "rm: unknown option -- '{}'", arg);
+                    print_usage();
+                    return EXIT_FAILURE;
+                }
+            } else {
+                 for (size_t j = 1; j < arg.length(); ++j) {
+                    char flag = arg[j];
+                    switch (flag) {
+                        case 'f': force_op = true; break;
+                        case 'i': interactive_op = true; break;
+                        case 'r': case 'R': recursive_op = true; break;
+                        default:
+                            std::println(std::cerr, "rm: unknown option -- '{}'", flag);
+                            print_usage();
+                            return EXIT_FAILURE;
+                    }
+                }
+            }
+        } else {
+            paths_to_remove.emplace_back(arg);
+        }
     }
-}
 
-/* Ask user for confirmation */
-static int confirm(void) {
-    char c, t;
-    read(0, &c, 1);
-    t = c;
-    do
-        read(0, &t, 1);
-    while (t != '\n' && t != -1);
-    return (c == 'y' || c == 'Y');
-}
+    if (paths_to_remove.empty()) {
+        if (force_op && argc > 1) {
+             return EXIT_SUCCESS;
+        }
+        print_usage();
+        return EXIT_FAILURE;
+    }
 
-/* Print NUM in octal */
-static void octal(unsigned int num) {
-    char a[4];
+    if (force_op) {
+        interactive_op = false;
+    }
 
-    a[0] = (((num >> 6) & 7) + '0');
-    a[1] = (((num >> 3) & 7) + '0');
-    a[2] = ((num & 7) + '0');
-    a[3] = 0;
-    std_err(a);
-}
+    // xinim::fs::filesystem_ops fs_ops_instance; // Removed
+    bool overall_success = true;
 
-/* Print three error strings */
-static void stderr3(const char *s1, const char *s2, const char *s3) {
-    std_err(s1);
-    std_err(s2);
-    std_err(s3);
+    for (const auto& path : paths_to_remove) {
+        // fs_ops_instance removed from call
+        if (!remove_single_path(path, force_op, interactive_op, recursive_op)) {
+            overall_success = false;
+        }
+    }
+
+    if (force_op) {
+        return EXIT_SUCCESS;
+    }
+
+    return overall_success ? EXIT_SUCCESS : EXIT_FAILURE;
 }

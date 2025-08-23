@@ -1,9 +1,10 @@
 # Makefile for MINIX Boot Image Builder
-# Modern C++17 implementation with comprehensive build options
+# Modern C++23 implementation with comprehensive build options
 
 # Compiler configuration
 CXX := clang++
-CXXFLAGS := -std=c++17 -Wall -Wextra -Wpedantic -Werror -O2
+CXXFLAGS := -std=c++23 -Wall -Wextra -Wpedantic -Werror -O2 \
+    -march=x86-64-v1 -mtune=generic
 CXXFLAGS += -Wno-unused-parameter -Wno-missing-field-initializers
 
 # Debug configuration

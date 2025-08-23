@@ -1,14 +1,27 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Global storage for the most recent error number.
 int errno = 0; // accessed by system call wrappers
 
-// Send a message using the m1 layout.
-// Send a message using the m1 layout. The arguments represent the target
-// process, system call number, three integer parameters and up to three
-// pointer parameters.
-int callm1(int proc, int syscallnr, int int1, int int2, int int3,
-           char *ptr1, char *ptr2, char *ptr3) {
+/**
+ * @brief Send a message using the m1 layout.
+ *
+ * @param proc       Destination process.
+ * @param syscallnr  System call number.
+ * @param int1       First integer parameter.
+ * @param int2       Second integer parameter.
+ * @param int3       Third integer parameter.
+ * @param ptr1       First pointer parameter.
+ * @param ptr2       Second pointer parameter.
+ * @param ptr3       Third pointer parameter.
+ * @return Result of ::callx.
+ * @sideeffects Traps into the kernel with message format m1.
+ * @thread_safety Thread-safe; kernel serialises calls per process.
+ * @example
+ * callm1(FS, OPEN, fd, 0, 0, path, nullptr, nullptr);
+ */
+int callm1(int proc, int syscallnr, int int1, int int2, int int3, char *ptr1, char *ptr2,
+           char *ptr3) noexcept {
     /* Send a message and get the response.  The 'M.m_type' field of the
      * reply contains a value (>= 0) or an error code (<0). Use message format m1.
      */
@@ -21,29 +34,47 @@ int callm1(int proc, int syscallnr, int int1, int int2, int int3,
     return callx(proc, syscallnr);
 }
 
-// Send a message containing one integer and a string.
-// Send a message containing one integer and a string parameter.
-int callm3(int proc, int syscallnr, int int1, char *name) {
+/**
+ * @brief Send a message containing one integer and a string.
+ *
+ * @param proc       Destination process.
+ * @param syscallnr  System call number.
+ * @param int1       Integer argument.
+ * @param name       Pointer to string argument.
+ * @return Result of ::callx.
+ * @sideeffects Traps into the kernel with message format m3.
+ * @thread_safety Thread-safe; kernel handles concurrency.
+ * @example
+ * callm3(FS, UNLINK, 0, "file");
+ */
+int callm3(int proc, int syscallnr, int int1, const char *name) noexcept {
     /* This form of system call is used for those calls that contain at most
      * one integer parameter along with a string.  If the string fits in the
      * message, it is copied there.  If not, a pointer to it is passed.
      */
-    register int k;
-    register char *rp;
-    k = len(name);
-    M.m3_i1() = k;
+    std::size_t k = len(name);
+    char *rp = &M.m3_ca1()[0];
+    const char *src = name;
+    M.m3_i1() = static_cast<int>(k);
     M.m3_i2() = int1;
-    M.m3_p1() = name;
-    rp = &M.m3_ca1()[0];
-    if (k <= M3_STRING)
+    M.m3_p1() = const_cast<char *>(name);
+    if (k <= M3_STRING) {
         while (k--)
-            *rp++ = *name++;
+            *rp++ = *src++;
+    }
     return callx(proc, syscallnr);
 }
 
-// Low-level send/receive wrapper.
-// Low-level send/receive wrapper.
-int callx(int proc, int syscallnr) {
+/**
+ * @brief Low-level send/receive wrapper.
+ *
+ * @param proc       Destination process.
+ * @param syscallnr  System call number.
+ * @return Kernel response value or error.
+ * @sideeffects Performs a blocking send/receive cycle with the kernel.
+ * @thread_safety Thread-safe; kernel serialises messages.
+ */
+int callx(int proc, int syscallnr) noexcept {
     /* Send a message and get the response.  The 'M.m_type' field of the
      * reply contains a value (>= 0) or an error code (<0).
      */
@@ -60,14 +91,22 @@ int callx(int proc, int syscallnr) {
     return (M.m_type);
 }
 
-// Return the length of a null-terminated string including the final null.
-// Return the length of a null-terminated string including the final null byte.
-int len(char *s) {
-    /* Return the length of a character string, including the 0 at the end. */
-    register int k;
-
-    k = 0;
-    while (*s++ != 0)
-        k++;
-    return (k + 1); /* return length including the 0-byte at end */
+/**
+ * @brief Return the length of a null-terminated string including the final null
+ *        byte.
+ *
+ * @param s Pointer to string.
+ * @return  Length in bytes including the terminator.
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use.
+ * @example
+ * std::size_t l = len("hi");
+ */
+std::size_t len(const char *s) noexcept {
+    // Return the length of a character string including the terminating null.
+    std::size_t k = 0;
+    while (*s++ != 0) {
+        ++k;
+    }
+    return k + 1U; // include the null terminator
 }

@@ -1,4 +1,4 @@
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 
 // Obtain the real group ID of the calling process.
 gid getgid() {

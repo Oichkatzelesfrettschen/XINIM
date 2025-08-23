@@ -1,9 +1,3 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
-
 /* When a needed block is not in the cache, it must be fetched from the disk.
  * Special character files also require I/O.  The routines for these are here.
  *
@@ -186,7 +180,7 @@ message *mess_ptr; /* pointer to message for task */
 
     major_device = (fp->fs_tty >> MAJOR) & BYTE;
     task_nr = dmap[major_device].dmap_task; /* task for controlling tty */
-    mess_ptr->DEVICE = (fp->fs_tty >> MINOR) & BYTE;
+    device(*mess_ptr) = (fp->fs_tty >> MINOR) & BYTE;
     rw_dev(task_nr, mess_ptr);
 }
 

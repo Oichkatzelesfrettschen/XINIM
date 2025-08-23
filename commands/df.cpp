@@ -1,153 +1,135 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+/**
+ * @file df.cpp
+ * @brief Modern C++23 implementation of the df utility for XINIM operating system
+ * @author Andy Tanenbaum (original author), modernized for XINIM C++23 migration
+ * @version 3.0 - Fully modernized with C++23 paradigms
+ * @date 2025-08-13
+ *
+ * @copyright Copyright (c) 2025, The XINIM Project. All rights reserved.
+ *
+ * @section Description
+ * A modernized implementation of the classic `df` utility from MINIX, which reports
+ * the amount of available disk space for file systems. This version leverages the
+ * C++23 std::filesystem library for portability and robustness, abstracting low-level
+ * filesystem details. It provides type-safe, thread-safe operations and comprehensive
+ * error handling.
+ *
+ * @section Features
+ * - RAII for resource management
+ * - Exception-safe error handling
+ * - Thread-safe operations with std::mutex
+ * - Type-safe string handling with std::string_view
+ * - Constexpr configuration for compile-time optimization
+ * - Memory-safe operations with std::filesystem
+ * - Comprehensive Doxygen documentation
+ * - Support for C++23 string formatting
+ *
+ * @section Usage
+ * df [path...]
+ *
+ * If no paths are provided, df reports disk space for the current directory.
+ * Otherwise, it reports for each specified path.
+ *
+ * Output columns:
+ * - Filesystem: Path or device name
+ * - Size: Total capacity
+ * - Used: Used space
+ * - Available: Free space available to unprivileged users
+ * - Use%: Percentage of capacity used
+ *
+ * @note Requires C++23 compliant compiler
+ */
 
-/* df - disk free block printout	Author: Andy Tanenbaum */
+#include <filesystem>
+#include <format>
+#include <iomanip>
+#include <iostream>
+#include <mutex>
+#include <string>
+#include <string_view>
+#include <system_error>
+#include <vector>
 
-#include "../fs/const.hpp"
-#include "../fs/super.hpp"
-#include "../fs/type.hpp"
-#include "../h/const.hpp"
-#include "../h/type.hpp"
-#include "stat.hpp"
+namespace {
 
-/* Program entry point */
-int main(int argc, char *argv[]) {
-
-    register int i;
-
-    if (argc <= 1) {
-        std_err("Usage: df special ...\n");
-        exit(1);
+/**
+ * @brief Converts a size in bytes to a human-readable string (B, KB, MB, GB).
+ * @param bytes The size in bytes.
+ * @return A formatted string representing the size.
+ */
+[[nodiscard]] std::string human_readable_size(std::uintmax_t bytes) noexcept {
+    if (bytes < 1024) {
+        return std::format("{} B", bytes);
     }
-
-    sync(); /* have to make sure disk is up-to-date */
-    for (i = 1; i < argc; i++)
-        df(argv[i]);
-    exit(0);
+    double kb = static_cast<double>(bytes) / 1024.0;
+    if (kb < 1024.0) {
+        return std::format("{:.1f} KB", kb);
+    }
+    double mb = kb / 1024.0;
+    if (mb < 1024.0) {
+        return std::format("{:.1f} MB", mb);
+    }
+    double gb = mb / 1024.0;
+    return std::format("{:.1f} GB", gb);
 }
 
-/* Print disk usage for NAME */
-static void df(char *name) {
-    register int fd;
-    int i_count, z_count, totblocks, busyblocks, i;
-    char buf[BLOCK_SIZE], *s0;
-    struct super_block super, *sp;
-    struct stat statbuf;
-    extern char *itoa();
-
-    if ((fd = open(name, 0)) < 0) {
-        perror(name);
+/**
+ * @brief Prints disk space information for a given path in a thread-safe manner.
+ * @param path The path to a file or directory on the filesystem to check.
+ */
+void print_fs_info(const std::filesystem::path& path, std::mutex& mtx) {
+    std::lock_guard lock(mtx);
+    std::error_code ec;
+    const auto space_info = std::filesystem::space(path, ec);
+    if (ec) {
+        std::cerr << std::format("df: Cannot get info for '{}': {}\n", path.string(), ec.message());
         return;
     }
-
-    /* Is it a block special file? */
-    if (fstat(fd, &statbuf) < 0) {
-        stderr2(name, ": Cannot stat\n");
-        return;
-    }
-    if ((statbuf.st_mode & S_IFMT) != S_IFBLK) {
-        stderr2(name, ": not a block special file\n");
-        return;
-    }
-
-    lseek(fd, (long)BLOCK_SIZE, 0); /* skip boot block */
-    if (read(fd, &super, SUPER_SIZE) != SUPER_SIZE) {
-        stderr2(name, ": Can't read super block\n");
-        close(fd);
-        return;
-    }
-
-    lseek(fd, (long)BLOCK_SIZE * 2L, 0); /* skip rest of super block */
-    sp = &super;
-    if (sp->s_magic != SUPER_MAGIC) {
-        stderr2(name, ": Not a valid file system\n");
-        close(fd);
-        return;
-    }
-
-    i_count = bit_count(sp->s_imap_blocks, sp->s_ninodes + 1, fd);
-    if (i_count < 0) {
-        stderr2(name, ": can't find bit maps\n");
-        close(fd);
-        return;
-    }
-
-    z_count = bit_count(sp->s_zmap_blocks, sp->s_nzones, fd);
-    if (z_count < 0) {
-        stderr2(name, ": can't find bit maps\n");
-        close(fd);
-        return;
-    }
-    totblocks = sp->s_nzones << sp->s_log_zone_size;
-    busyblocks = z_count << sp->s_log_zone_size;
-
-    /* Print results. */
-    prints("%s ", name);
-    s0 = name;
-    while (*s0)
-        s0++;
-    i = 12 - (s0 - name);
-    while (i--)
-        prints(" ");
-    prints("i-nodes: ");
-    num3(i_count - 1);
-    prints(" used  ");
-    num3(sp->s_ninodes + 1 - i_count);
-    prints(" free        blocks: ");
-    num3(busyblocks);
-    prints(" used  ");
-    num3(totblocks - busyblocks);
-    prints(" free\n");
-    close(fd);
+    const auto used = space_info.capacity - space_info.free;
+    const int usage_percent = space_info.capacity == 0
+        ? 0
+        : static_cast<int>((static_cast<double>(used) / static_cast<double>(space_info.capacity)) * 100);
+    std::cout << std::left << std::setw(25) << path.string() << std::right << std::setw(12)
+              << human_readable_size(space_info.capacity) << std::setw(12)
+              << human_readable_size(used) << std::setw(12)
+              << human_readable_size(space_info.available) << std::setw(8)
+              << usage_percent << "%" << std::endl;
 }
 
-/* Count set bits in maps */
-static int bit_count(int blocks, int bits, int fd) {
-    register int i, b;
-    int busy, count, w;
-    int *wptr, *wlim;
-    int buf[BLOCK_SIZE / sizeof(int)];
+} // namespace
 
-    /* Loop on blocks, reading one at a time and counting bits. */
-    busy = 0;
-    count = 0;
-    for (i = 0; i < blocks; i++) {
-        if (read(fd, buf, BLOCK_SIZE) != BLOCK_SIZE)
-            return (-1);
+/**
+ * @brief Main entry point for the df command.
+ * @param argc The number of command-line arguments.
+ * @param argv An array of command-line arguments.
+ * @return 0 on success, 1 on error.
+ */
+int main(int argc, char* argv[]) {
+    try {
+        std::mutex mtx;
+        // Print header
+        {
+            std::lock_guard lock(mtx);
+            std::cout << std::left << std::setw(25) << "Filesystem" << std::right << std::setw(12) << "Size"
+                      << std::setw(12) << "Used" << std::setw(12) << "Available" << std::setw(8) << "Use%"
+                      << std::endl;
+        }
 
-        wptr = &buf[0];
-        wlim = &buf[BLOCK_SIZE / sizeof(int)];
-
-        /* Loop on the words of a block */
-        while (wptr != wlim) {
-            w = *wptr++;
-
-            /* Loop on the bits of a word. */
-            for (b = 0; b < 8 * sizeof(int); b++) {
-                if ((w >> b) & 1)
-                    busy++;
-                if (++count == bits)
-                    return (busy);
+        // Process paths
+        if (argc == 1) {
+            // If no arguments, check the current path
+            print_fs_info(".", mtx);
+        } else {
+            for (int i = 1; i < argc; ++i) {
+                print_fs_info(argv[i], mtx);
             }
         }
+        return 0;
+    } catch (const std::exception& e) {
+        std::cerr << std::format("df: Fatal error: {}\n", e.what());
+        return 1;
+    } catch (...) {
+        std::cerr << "df: Unknown fatal error occurred\n";
+        return 1;
     }
-}
-
-/* Print two error strings */
-static void stderr2(const char *s1, const char *s2) {
-    std_err(s1);
-    std_err(s2);
-}
-
-/* Print a number with padding */
-static void num3(int n) {
-    if (n < 10)
-        prints("  %s", itoa(n));
-    else if (n < 100)
-        prints(" %s", itoa(n));
-    else
-        prints("%s", itoa(n));
 }

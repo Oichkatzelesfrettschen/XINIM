@@ -1,22 +1,43 @@
 #include "../h/com.hpp"
 #include "../h/type.hpp"
-#include "../include/lib.hpp" // C++17 header
+#include "../include/lib.hpp" // C++23 header
 #include <unistd.h>
 
-/*
- * Send a message to a destination process.
+/**
+ * @brief Send a message to a destination process.
+ *
+ * @param dst  Destination process identifier.
+ * @param m_ptr Pointer to the message structure.
+ * @return Result of the system call.
+ * @sideeffects Traps into the kernel to send a message.
+ * @thread_safety Thread-safe; kernel manages message queues.
  */
-// Send a message to a destination process.
-int send(int dst, message *m_ptr) { return static_cast<int>(syscall(0, dst, m_ptr, SEND)); }
+int send(int dst, message *m_ptr) noexcept {
+    return static_cast<int>(syscall(0, dst, m_ptr, SEND));
+}
 
-/*
- * Receive a message from a source process.
+/**
+ * @brief Receive a message from a source process.
+ *
+ * @param src   Source process identifier.
+ * @param m_ptr Pointer to the message structure.
+ * @return Result of the system call.
+ * @sideeffects Blocks until a message is received.
+ * @thread_safety Thread-safe; kernel serialises delivery.
  */
-// Receive a message from a source process.
-int receive(int src, message *m_ptr) { return static_cast<int>(syscall(0, src, m_ptr, RECEIVE)); }
+int receive(int src, message *m_ptr) noexcept {
+    return static_cast<int>(syscall(0, src, m_ptr, RECEIVE));
+}
 
-/*
- * Atomically send a message and wait for the reply.
+/**
+ * @brief Atomically send a message and wait for the reply.
+ *
+ * @param srcdest Destination/source process identifier.
+ * @param m_ptr   Pointer to the message structure.
+ * @return Result of the system call.
+ * @sideeffects Performs a blocking kernel transaction.
+ * @thread_safety Thread-safe; kernel enforces ordering.
  */
-// Atomically send a message and wait for the reply.
-int sendrec(int srcdest, message *m_ptr) { return static_cast<int>(syscall(0, srcdest, m_ptr, BOTH)); }
+int sendrec(int srcdest, message *m_ptr) noexcept {
+    return static_cast<int>(syscall(0, srcdest, m_ptr, BOTH));
+}

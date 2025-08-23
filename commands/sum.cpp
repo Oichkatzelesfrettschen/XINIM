@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* sum - checksum a file		Author: Martin C. Atkins */
@@ -36,6 +36,12 @@ int rc = 0;
 char *defargv[] = {"-", nullptr};
 
 // Program entry point
+/**
+ * @brief Entry point for the sum utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     int fd;
 

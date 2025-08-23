@@ -2,41 +2,49 @@ name: CMake Build
 
 on:
   push:
-    branches: [ "master" ]
+    branches: ["master"]
   pull_request:
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Install build dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y build-essential nasm
-    - name: Configure
-      run: cmake -B build -DBUILD_SYSTEM=OFF
-    - name: Build
-      run: cmake --build build -- -j$(nproc)
-    - name: Run unit tests
-      run: |
-        ctest --test-dir build --output-on-failure
+      - uses: actions/checkout@v3
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential nasm cloc cppcheck cscope python3-pip
+          pip install lizard
+      - name: Configure
+        run: cmake -B build -DBUILD_SYSTEM=OFF
+      - name: Build
+        run: cmake --build build -- -j$(nproc)
+      - name: Run unit tests
+        run: |
+          ctest --test-dir build --output-on-failure
+      - name: Run static analysis
+        run: tools/run_cppcheck.sh
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: analysis-reports
+          path: build/reports
 
   clang-tools:
     runs-on: ubuntu-latest
     steps:
-    - uses: actions/checkout@v3
-    - name: Install clang tools
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y clang clang-tidy clang-format cmake build-essential
-    - name: Generate compile commands
-      run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
-    - name: Check formatting
-      run: |
-        FILES=$(git ls-files '*.cpp' '*.h')
-        clang-format --dry-run --Werror $FILES
-    - name: Run clang-tidy
-      run: |
-        FILES=$(git ls-files '*.cpp')
-        clang-tidy -p build -warnings-as-errors='*' $FILES
+      - uses: actions/checkout@v3
+      - name: Install clang tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang clang-tidy clang-format cmake build-essential
+      - name: Generate compile commands
+        run: cmake -B build -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+      - name: Check formatting
+        run: |
+          FILES=$(git ls-files '*.cpp' '*.h')
+          clang-format --dry-run --Werror $FILES
+      - name: Run clang-tidy
+        run: |
+          FILES=$(git ls-files '*.cpp')
+          clang-tidy -p build -warnings-as-errors='*' $FILES

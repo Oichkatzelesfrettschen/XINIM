@@ -1,7 +1,7 @@
 /* getpwent.cpp
  *
  * Simple password file access routines.
- * Converted to C++17 style and updated field names.
+ * Converted to C++23 style and updated field names.
  */
 
 #include <fcntl.h>
@@ -9,7 +9,7 @@
 #include <string.h>
 #include <unistd.h>
 
-#include "../include/pwd.h"
+#include "../include/pwd.hpp"
 
 /* Local buffers and state */
 static char _pw_file[] = "/etc/passwd";

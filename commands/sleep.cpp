@@ -1,33 +1,37 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* sleep - suspend a process for x sec		Author: Andy Tanenbaum */
 
-main(argc, argv) int argc;
-char *argv[];
-{
-    register seconds;
-    register char c;
-
-    seconds = 0;
+// Entry point for the sleep command
+/**
+ * @brief Entry point for the sleep utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
+    int seconds = 0; // Number of seconds to sleep
 
     if (argc != 2) {
         std_err("Usage: sleep time\n");
-        exit(1);
+        return 1;
     }
 
-    while (c = *(argv[1])++) {
+    // Convert numeric argument from string to integer
+    for (const char *p = argv[1]; *p != '\0'; ++p) {
+        const char c = *p;
         if (c < '0' || c > '9') {
             std_err("sleep: bad arg\n");
-            exit(1);
+            return 1;
         }
         seconds = 10 * seconds + (c - '0');
     }
 
-    /* Now sleep. */
+    // Sleep for the requested duration
     sleep(seconds);
-    exit(0);
+    return 0;
 }

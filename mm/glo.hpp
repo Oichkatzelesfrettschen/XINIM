@@ -1,20 +1,28 @@
 #pragma once
-// Modernized for C++17
+/// \file glo.hpp
+/// \brief Global variables shared by the memory manager.
+// Modernized for C++23
 
-/* Global variables. */
-EXTERN struct mproc *mp; /* ptr to 'mproc' slot of current process */
-EXTERN int dont_reply;   /* normally 0; set to 1 to inhibit reply */
-EXTERN int procs_in_use; /* how many processes are marked as IN_USE */
+/** \name Global process management state */
+///@{
+extern struct mproc *mp; ///< Pointer to the current process entry.
+extern int dont_reply;   ///< Non-zero to suppress replies to the caller.
+extern int procs_in_use; ///< Number of process slots currently in use.
+///@}
 
-/* The parameters of the call are kept here. */
-EXTERN message mm_in;  /* the incoming message itself is kept here. */
-EXTERN message mm_out; /* the reply message is built up here. */
-EXTERN int who;        /* caller's proc number */
-EXTERN int mm_call;    /* caller's proc number */
+/** \name Incoming call context */
+///@{
+extern message mm_in;  ///< Incoming system call message.
+extern message mm_out; ///< Message used to construct the reply.
+extern int who;        ///< Process number of the caller.
+extern int mm_call;    ///< System call identifier.
+///@}
 
-/* The following variables are used for returning results to the caller. */
-EXTERN int err_code;  /* temporary storage for error number */
-EXTERN int result2;   /* secondary result */
-EXTERN char *res_ptr; /* result, if pointer */
+/** \name Result passing variables */
+///@{
+extern int err_code;  ///< Temporary storage for an error number.
+extern int result2;   ///< Secondary result value.
+extern char *res_ptr; ///< Pointer result returned to the caller.
+///@}
 
-EXTERN char mm_stack[MM_STACK_BYTES]; /* MM's stack */
+extern char mm_stack[MM_STACK_BYTES]; ///< Memory manager stack storage.

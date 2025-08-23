@@ -1,34 +1,29 @@
 #pragma once
 
-#include <cctype> // for std::isspace
+#include <cctype>       // for std::isspace
+#include <charconv>     // for std::from_chars
+#include <cstring>      // for std::strlen
+#include <system_error> // for std::errc
 
-// Parse a signed decimal string and return the resulting value as a long.
-// Leading whitespace is skipped and an optional leading '-' is honored.
-// Parsing stops at the first non-digit character.
-static inline long parse_signed_decimal(const char *str) {
-    // Convert to unsigned char pointer for safe character math.
-    const unsigned char *s = reinterpret_cast<const unsigned char *>(str);
-
-    long total = 0; // running value computed from the digits
-    int minus = 0;  // track whether a leading minus was present
-
+/**
+ * @brief Parse a signed decimal string.
+ *
+ * Leading whitespace is skipped and an optional sign is handled. Parsing
+ * stops at the first non-digit character. On any parse error the function
+ * returns @c 0.
+ *
+ * @param str Null-terminated ASCII string to parse.
+ * @return Parsed numeric value, or zero on failure.
+ */
+[[nodiscard]] constexpr long parse_signed_decimal(const char *str) noexcept {
     // Skip over any leading whitespace characters.
-    while (std::isspace(*s)) {
+    const char *s = str;
+    while (std::isspace(static_cast<unsigned char>(*s))) {
         ++s;
     }
 
-    // Check for an optional '-' sign to mark a negative value.
-    if (*s == '-') {
-        minus = 1;
-        ++s;
-    }
-
-    // Accumulate digit values until a non-digit character is seen.
-    unsigned digit;
-    while ((digit = *s - '0') < 10) {
-        total = total * 10 + digit;
-        ++s;
-    }
-
-    return minus ? -total : total;
+    long value{}; // Result populated by std::from_chars
+    const char *end = s + std::strlen(s);
+    const auto result = std::from_chars(s, end, value, 10);
+    return result.ec == std::errc{} ? value : 0;
 }

@@ -1,114 +1,118 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
->>>*/
+/**
+ * @file cat.cpp
+ * @brief Concatenate files to standard output - C++23 modernized version
+ * @author Andy Tanenbaum (original), Modernized for C++23
+ *
+ * Modern C++23 implementation using RAII, C++ streams, and structured error handling.
+ */
 
-/* cat - concatenates files  		Author: Andy Tanenbaum */
+#include "blocksiz.hpp" // For BLOCK_SIZE
 
-#include <cerrno>
+#include <array>       // For std::array
+#include <cstdlib>     // For EXIT_SUCCESS, EXIT_FAILURE
+#include <cstring>     // For strerror
+#include <cerrno>      // For errno
+#include <fstream>     // For std::ifstream
+#include <iostream>    // For std::cin, std::cout, std::cerr, std::ios_base
+#include <print>       // For std::println (C++23)
+#include <string_view> // For std::string_view
+#include <vector>      // For std::vector
 
-#include "blocksiz.hpp"
-#include "stat.hpp"
-#include <array>
+// Forward declaration for the function that processes content from input to output stream
+static void stream_content(std::istream& in, std::ostream& out);
 
-constexpr std::size_t BUF_SIZE = 512; /* size of the output buffer */
-int unbuffered;                       /* non-zero for unbuffered operation */
-std::array<char, BUF_SIZE> buffer{};  /* output buffer */
-char *next = buffer.data();           /* next free byte in buffer */
-
-/* Function prototypes */
-static void copyfile(int fd1, int fd2);
-static void flush(void);
-static void quit(void);
-
-int main(int argc, char *argv[]) {
-    /*
-     * Entry point.  Parse the command line and copy each file to
-     * standard output.  The special file name '-' denotes standard
-     * input.  The -u flag selects unbuffered operation.
-     */
-    int i, k, m, fd1;
-    char *p;
-    struct stat sbuf;
-
-    k = 1;
-    /* Check for the -u flag -- unbuffered operation. */
-    p = argv[1];
-    if (argc >= 2 && *p == '-' && *(p + 1) == 'u') {
-        unbuffered = 1;
-        k = 2;
+/**
+ * @brief Entry point for the cat utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char* argv[]) {
+    // Set exception masks for standard streams to throw exceptions on errors.
+    // This helps in centralizing error handling.
+    try {
+        std::cin.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+        std::cout.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+        std::cerr.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+    } catch (const std::ios_base::failure& e) {
+        // This is unlikely to happen here, but as a precaution:
+        std::println(std::cerr, "Error setting up standard stream exceptions: {}", e.what());
+        return EXIT_FAILURE;
     }
 
-    if (k >= argc) {
-        copyfile(0, 1);
-        flush();
-        exit(0);
-    }
 
-    for (i = k; i < argc; i++) {
-        if (argv[i][0] == '-' && argv[i][1] == 0) {
-            fd1 = 0;
-        } else {
-            fd1 = open(argv[i], 0);
-            if (fd1 < 0) {
-                std_err("cat: cannot open ");
-                std_err(argv[i]);
-                std_err("\n");
-                continue;
-            }
+    std::vector<std::string_view> args(argv + 1, argv + argc);
+    int exit_status = EXIT_SUCCESS;
+
+    if (args.empty()) {
+        // No file arguments given, process standard input.
+        try {
+            stream_content(std::cin, std::cout);
+        } catch (const std::ios_base::failure& e) {
+            std::println(std::cerr, "Error processing standard input: {}", e.what());
+            return EXIT_FAILURE; // Critical error if stdin fails.
         }
-        copyfile(fd1, 1);
-        if (fd1 != 0)
-            close(fd1);
-    }
-    flush();
-    exit(0);
-}
-
-static void copyfile(int fd1, int fd2) {
-    /*
-     * Read data from fd1 and write it to fd2.  When running in buffered
-     * mode the output is collected in 'buffer' and only written when the
-     * buffer is full.  In unbuffered mode each read result is written
-     * immediately.
-     */
-    int n, j, m;
-    std::array<char, BLOCK_SIZE> buf{};
-
-    while (1) {
-        n = read(fd1, buf.data(), BLOCK_SIZE);
-        if (n < 0)
-            quit();
-        if (n == 0)
-            return;
-        if (unbuffered) {
-            m = write(fd2, buf.data(), n);
-            if (m != n)
-                quit();
-        } else {
-            for (j = 0; j < n; j++) {
-                *next++ = buf[j];
-                if (next == buffer.data() + BUF_SIZE) {
-                    m = write(fd2, buffer.data(), BUF_SIZE);
-                    if (m != BUF_SIZE)
-                        quit();
-                    next = buffer.data();
+    } else {
+        // Process each argument. It could be a filename or "-" for stdin.
+        for (const auto& arg : args) {
+            if (arg == "-") {
+                // Argument is "-", process standard input.
+                try {
+                    // Ensure cin is clear of any previous errors if used multiple times
+                    std::cin.clear();
+                    stream_content(std::cin, std::cout);
+                } catch (const std::ios_base::failure& e) {
+                    std::println(std::cerr, "Error processing standard input ('-'): {}", e.what());
+                    exit_status = EXIT_FAILURE; // Mark failure, but continue with other files.
                 }
+            } else {
+                // Argument is a filename.
+                std::ifstream file(arg.data(), std::ios_base::in | std::ios_base::binary);
+                if (!file.is_open()) {
+                    std::println(std::cerr, "cat: cannot open {}: {}", arg, strerror(errno));
+                    exit_status = EXIT_FAILURE; // Mark failure, but continue.
+                    continue; // Move to the next file.
+                }
+
+                try {
+                    // Enable exceptions for the file stream.
+                    file.exceptions(std::ios_base::badbit | std::ios_base::failbit);
+                    stream_content(file, std::cout);
+                } catch (const std::ios_base::failure& e) {
+                    std::println(std::cerr, "Error processing file {}: {}", arg, e.what());
+                    exit_status = EXIT_FAILURE; // Mark failure, but file stream closes automatically.
+                }
+                // file is closed automatically when it goes out of scope (RAII).
             }
         }
     }
+
+    // std::cout is typically flushed on normal program termination.
+    // An explicit flush (std::cout.flush()) can be used if immediate output is critical before exit.
+    return exit_status;
 }
 
-static void flush(void) {
-    /* Write any buffered output to standard output. */
-    if (next != buffer.data())
-        if (write(1, buffer.data(), next - buffer.data()) <= 0)
-            quit();
-}
+/**
+ * @brief Reads from an input stream and writes to an output stream.
+ *
+ * Uses a buffer to efficiently transfer data. Throws std::ios_base::failure
+ * on read/write errors if the streams are configured to do so.
+ *
+ * @param in The input stream to read from.
+ * @param out The output stream to write to.
+ */
+static void stream_content(std::istream& in, std::ostream& out) {
+    // Use BLOCK_SIZE from blocksiz.hpp as the buffer size.
+    // If blocksiz.hpp were not available, a fallback like 4096 could be used.
+    constexpr std::size_t BUFFER_SIZE = BLOCK_SIZE;
+    std::array<char, BUFFER_SIZE> buffer;
 
-static void quit(void) {
-    /* Terminate the program after printing the error stored in errno. */
-    perror("cat");
-    exit(1);
+    // Loop as long as read operations succeed or some characters are read.
+    while (in.read(buffer.data(), buffer.size()) || in.gcount() > 0) {
+        // in.gcount() returns the number of characters extracted by the last unformatted input operation.
+        // This is crucial for handling the end of the file, where read might get less than BUFFER_SIZE.
+        out.write(buffer.data(), in.gcount());
+    }
+    // If stream exceptions are enabled (as they are in main),
+    // any read/write error during this loop will throw std::ios_base::failure.
 }

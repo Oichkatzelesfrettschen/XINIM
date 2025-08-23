@@ -1,0 +1,40 @@
+---
+Checks: >
+  -*,
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  cppcoreguidelines-*,
+  google-*,
+  hicpp-*,
+  misc-*,
+  modernize-*,
+  performance-*,
+  portability-*,
+  readability-*,
+  -cppcoreguidelines-avoid-magic-numbers,
+  -readability-magic-numbers,
+  -modernize-use-trailing-return-type,
+  -google-runtime-references,
+  -cppcoreguidelines-pro-bounds-array-to-pointer-decay,
+  -hicpp-no-array-decay
+
+WarningsAsErrors: ''
+HeaderFilterRegex: '.*'
+AnalyzeTemporaryDtors: false
+FormatStyle:     none
+CheckOptions:
+  - key:             readability-identifier-naming.ClassCase
+    value:           CamelCase
+  - key:             readability-identifier-naming.FunctionCase
+    value:           camelBack
+  - key:             readability-identifier-naming.VariableCase
+    value:           camelBack
+  - key:             readability-identifier-naming.ConstantCase
+    value:           UPPER_CASE
+  - key:             readability-identifier-naming.MacroCase
+    value:           UPPER_CASE
+  - key:             performance-for-range-copy.AllowedTypes
+    value:           'std::shared_ptr;std::unique_ptr'
+  - key:             cppcoreguidelines-special-member-functions.AllowSoleDefaultDtor
+    value:           true

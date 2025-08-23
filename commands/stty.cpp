@@ -1,7 +1,7 @@
 /*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
   This repository is a work in progress to reproduce the
   original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++17.
+  ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
 /* stty - set terminal mode  	Author: Andy Tanenbaum */
@@ -20,16 +20,21 @@ struct tchars tch;
 #define EOFC 004   /* CTRL-D */
 #define DELC 0177  /* DEL */
 
-main(argc, argv) int argc;
-char *argv[];
-{
+// Entry point with modern parameters
+/**
+ * @brief Entry point for the stty utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
+int main(int argc, char *argv[]) {
 
     /* stty with no arguments just reports on current status. */
     ioctl(0, TIOCGETP, &args);
     ioctl(0, TIOCGETC, &tch);
     if (argc == 1) {
         report();
-        exit(0);
+        return 0;
     }
 
     /* Process the options specified. */
@@ -40,10 +45,10 @@ char *argv[];
     }
     ioctl(0, TIOCSETP, &args);
     ioctl(0, TIOCSETC, &tch);
-    exit(0);
+    return 0;
 }
 
-report() {
+static void report() {
     int mode;
 
     mode = args.sg_flags;
@@ -63,16 +68,14 @@ report() {
     prints("\n");
 }
 
-pr(f, n) int f, n;
-{
+static void pr(int f, int n) {
     if (f)
         prints("%s ", on[n]);
     else
         prints("%s ", off[n]);
 }
 
-option(opt, next) char *opt, *next;
-{
+static void option(char *opt, char *next) {
     if (match(opt, "-tabs")) {
         args.sg_flags &= ~XTABS;
         return;
@@ -167,8 +170,7 @@ char *s1, *s2;
     }
 }
 
-prctl(c) char c;
-{
+static void prctl(char c) {
     if (c < ' ')
         prints("^%c", 'A' + c - 1);
     else if (c == 0177)
