@@ -60,6 +60,12 @@ namespace xinim::commands::ls {
 using namespace std::literals;
 
 namespace {
+    /**
+     * @brief Convert C++23 <filesystem> permissions and type to POSIX mode bits.
+     * @param p Permission mask from std::filesystem::perms.
+     * @param type File classification supplied by std::filesystem::file_type.
+     * @return mode_t POSIX-style mode value combining type and permissions.
+     */
     mode_t to_posix_mode_from_fs_perms(std::filesystem::perms p, std::filesystem::file_type type = std::filesystem::file_type::regular) {
         mode_t modeval = 0;
         switch(type) {
@@ -89,6 +95,12 @@ namespace {
 }
 
 namespace simd_ops { /* ... same ... */
+    /**
+     * @brief Compare two strings using SIMD-friendly operations where profitable.
+     * @param lhs Left-hand string view.
+     * @param rhs Right-hand string view.
+     * @return int Negative, zero, or positive akin to std::strcmp semantics.
+     */
     [[nodiscard]] inline int compare_strings_simd(std::string_view lhs, std::string_view rhs) noexcept {
         const auto min_len = std::min(lhs.size(), rhs.size());
         if (min_len >= 32) { // Threshold for SIMD effectiveness, adjust based on architecture
@@ -103,6 +115,11 @@ namespace simd_ops { /* ... same ... */
         if (lhs.size() > rhs.size()) return 1;
         return 0;
     }
+    /**
+     * @brief Split POSIX mode into discrete user/group/other permission fields.
+     * @param mode Mode bits typically produced from std::filesystem metadata.
+     * @return std::array<std::uint8_t,3> Permission trinity for further formatting.
+     */
     [[nodiscard]] constexpr std::array<std::uint8_t, 3> extract_permission_bits(std::uint16_t mode) noexcept {
         return {
             static_cast<std::uint8_t>((mode >> 6) & 0x7), // User
@@ -117,6 +134,13 @@ namespace constants { /* ... same ... */
     inline constexpr std::int64_t SECONDS_PER_YEAR{365L * 24L * 3600L};
 }
 
+/**
+ * @brief Metadata facade wrapping xinim::fs and std::filesystem results.
+ *
+ * Stores attributes gathered from <filesystem> calls and exposes typed
+ * accessors for the ls utility, enabling C++23 features such as std::print
+ * for diagnostics.
+ */
 class FileInfo final { /* ... same ... */
 public:
     using TimePoint = std::chrono::system_clock::time_point;
@@ -141,20 +165,73 @@ private:
     bool stat_performed_{false};
 
 public:
+    /**
+     * @brief Construct metadata with an initial name reference.
+     * @param name File or directory name provided by the caller.
+     */
     explicit FileInfo(std::string name) noexcept : name_(std::move(name)) {}
 
+    /**
+     * @brief Obtain stored file name.
+     * @return const std::string& Immutable reference to the path segment.
+     */
     [[nodiscard]] const std::string& name() const noexcept { return name_; }
+    /**
+     * @brief POSIX mode bits mapped from std::filesystem permissions.
+     * @return FileMode Combined mode flags.
+     */
     [[nodiscard]] FileMode mode() const noexcept { return mode_; }
+    /**
+     * @brief Numeric user identifier.
+     * @return UserId UID retrieved via <filesystem>.
+     */
     [[nodiscard]] UserId uid() const noexcept { return uid_; }
+    /**
+     * @brief Numeric group identifier.
+     * @return GroupId GID from underlying file status.
+     */
     [[nodiscard]] GroupId gid() const noexcept { return gid_; }
+    /**
+     * @brief Inode number for filesystems that expose it.
+     * @return InodeNumber Underlying inode value.
+     */
     [[nodiscard]] InodeNumber inode() const noexcept { return inode_; }
+    /**
+     * @brief Last modification timestamp.
+     * @return const TimePoint& Time of last content change.
+     */
     [[nodiscard]] const TimePoint& modification_time() const noexcept { return modification_time_; }
+    /**
+     * @brief Last access timestamp.
+     * @return const TimePoint& Time of last read operation.
+     */
     [[nodiscard]] const TimePoint& access_time() const noexcept { return access_time_; }
+    /**
+     * @brief Last status change timestamp.
+     * @return const TimePoint& Time metadata was last altered.
+     */
     [[nodiscard]] const TimePoint& status_change_time() const noexcept { return status_change_time_; }
+    /**
+     * @brief Size in bytes or device identifier.
+     * @return FileSize File length or encoded device number.
+     */
     [[nodiscard]] FileSize size() const noexcept { return size_; }
+    /**
+     * @brief Count of hard links to the file.
+     * @return LinkCount Number of directory entries.
+     */
     [[nodiscard]] LinkCount link_count() const noexcept { return link_count_; }
+    /**
+     * @brief Check if metadata retrieval succeeded.
+     * @return bool True when <filesystem> status was populated.
+     */
     [[nodiscard]] bool is_stat_performed() const noexcept { return stat_performed_; }
 
+    /**
+     * @brief Update members from an extended xinim::fs status structure.
+     * @param xinim_status Result of xinim::fs::get_status bridging std::filesystem.
+     * @return void
+     */
     void update_from_xinim_status(const xinim::fs::file_status_ex& xinim_status) {
         mode_ = static_cast<FileMode>(to_posix_mode_from_fs_perms(xinim_status.permissions, xinim_status.type));
         uid_ = static_cast<UserId>(xinim_status.uid);
@@ -173,7 +250,15 @@ public:
         stat_performed_ = xinim_status.is_populated;
     }
 
+    /**
+     * @brief Determine if entry represents a directory.
+     * @return bool True when mode denotes a directory.
+     */
     [[nodiscard]] bool is_directory() const noexcept { return S_ISDIR(mode_); }
+    /**
+     * @brief Determine if entry is a character or block device.
+     * @return bool True when mode denotes a device file.
+     */
     [[nodiscard]] bool is_device() const noexcept { return S_ISCHR(mode_) || S_ISBLK(mode_); }
 };
 
@@ -218,7 +303,19 @@ enum class ListingFlags : std::uint64_t { /* ... same ... */
     NoSort        = 1ULL << ('f' - 'a'), DirectoryOnly = 1ULL << ('d' - 'a'), ShowGroup     = 1ULL << ('g' - 'a'),
     UseAccessTime = 1ULL << ('u' - 'a'), UseChangeTime = 1ULL << ('c' - 'a')
 };
+/**
+ * @brief Bitwise OR for ListingFlags.
+ * @param lhs Left operand.
+ * @param rhs Right operand.
+ * @return ListingFlags Union of flag sets.
+ */
 constexpr ListingFlags operator|(ListingFlags lhs, ListingFlags rhs) noexcept { return static_cast<ListingFlags>(static_cast<std::underlying_type_t<ListingFlags>>(lhs) | static_cast<std::underlying_type_t<ListingFlags>>(rhs)); }
+/**
+ * @brief Bitwise AND for ListingFlags.
+ * @param lhs Left operand.
+ * @param rhs Right operand.
+ * @return ListingFlags Intersection of flag sets.
+ */
 constexpr ListingFlags operator&(ListingFlags lhs, ListingFlags rhs) noexcept { return static_cast<ListingFlags>(static_cast<std::underlying_type_t<ListingFlags>>(lhs) & static_cast<std::underlying_type_t<ListingFlags>>(rhs)); }
 
 struct UserGroupCache { /* ... same ... */
@@ -443,8 +540,19 @@ private:
         if (files_.empty()) { sort_indices_.clear(); return; }
         sort_indices_.resize(files_.size()); std::iota(sort_indices_.begin(), sort_indices_.end(), 0);
         const auto use_parallel = files_.size() > 1000;
+        /**
+         * @brief Lambda retrieving a file reference for a given index.
+         * @param index Position within the internal file vector.
+         * @return const FileInfo& Reference to the selected FileInfo.
+         */
         auto get_file_ref = [&](std::size_t index) -> const FileInfo& { return files_[index]; };
         if (has_flag(flags_, ListingFlags::SortByTime)) {
+            /**
+             * @brief Comparator ordering entries by time then name.
+             * @param a Index of first element.
+             * @param b Index of second element.
+             * @return bool True if @p a should precede @p b.
+             */
             const auto time_comparator = [&](std::size_t a, std::size_t b) {
                 const auto& file_a = get_file_ref(a); const auto& file_b = get_file_ref(b);
                 auto time_a = get_sort_time(file_a); auto time_b = get_sort_time(file_b);
@@ -455,6 +563,12 @@ private:
             if (use_parallel) std::sort(std::execution::par_unseq, sort_indices_.begin(), sort_indices_.end(), time_comparator);
             else std::ranges::sort(sort_indices_, time_comparator);
         } else {
+            /**
+             * @brief Lexicographical comparator for filenames.
+             * @param a Index of first element.
+             * @param b Index of second element.
+             * @return bool True if @p a precedes @p b alphabetically.
+             */
             const auto name_comparator = [&](std::size_t a, std::size_t b) {
                 const auto cmp_result = simd_ops::compare_strings_simd(get_file_ref(a).name(), get_file_ref(b).name());
                 bool result = cmp_result < 0;
@@ -485,6 +599,12 @@ private:
     void print_total_blocks() const { /* ... same ... */
         if (!has_flag(flags_, ListingFlags::LongFormat) && !has_flag(flags_, ListingFlags::ShowBlocks)) return;
         const auto total_blocks = std::accumulate(sort_indices_.begin(), sort_indices_.end(), 0ULL,
+            /**
+             * @brief Accumulates 512-byte blocks for each listed file.
+             * @param sum Running block total.
+             * @param index Index of current file entry.
+             * @return std::uintmax_t Updated block count.
+             */
             [&](std::uintmax_t sum, std::size_t index) {
                 const auto& file_info = files_[index];
                 // Only count blocks for files/dirs that were successfully stat'd.
@@ -569,6 +689,12 @@ private:
 
 } // namespace xinim::commands::ls
 
+/**
+ * @brief Entry point leveraging C++23 std::println for output.
+ * @param argc Argument count supplied by the environment.
+ * @param argv Array of UTF-8 argument strings.
+ * @return int Conventional process exit code.
+ */
 int main(int argc, char* argv[]) { /* ... same ... */
     // Set locale to user's preference to ensure correct time formatting, character sets, etc.
     // std::locale::global(std::locale("")); // Potentially controversial, might affect other parts if XINIM is a library
