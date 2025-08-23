@@ -1,7 +1,7 @@
 # CMake configuration for XINIM Unit Tests
 #
 # This file defines the build and test configuration for the XINIM unit tests,
-# harmonizing legacy and modern test setups for the Fiwix kernel. It enforces
+# harmonizing legacy and modern test setups for the XINIM kernel. It enforces
 # modern C++23 standards, optimizes build flags, and organizes tests for core
 # libraries, fastpath, scheduler, Lattice IPC, network drivers, and sorting
 # utilities. The configuration resolves inconsistencies, enhances modularity, and
@@ -27,6 +27,17 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g -DNDEBUG")
 enable_testing()
 find_package(Threads REQUIRED)
 find_package(nlohmann_json REQUIRED)
+include(FetchContent)
+
+# -----------------------------------------------------------------------------
+# Property-based testing framework: RapidCheck
+# -----------------------------------------------------------------------------
+FetchContent_Declare(
+    rapidcheck
+    GIT_REPOSITORY https://github.com/emil-e/rapidcheck.git
+    GIT_TAG master
+)
+FetchContent_MakeAvailable(rapidcheck)
 
 # Common include directories
 set(XINIM_INCLUDES
@@ -342,6 +353,18 @@ add_executable(minix_test_semantic_region
 target_include_directories(minix_test_semantic_region PRIVATE ${PROJECT_ROOT}/include)
 target_link_libraries(minix_test_semantic_region PRIVATE xinim_common)
 add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
+
+# -----------------------------------------------------------------------------
+# Property-based Tests
+# -----------------------------------------------------------------------------
+add_executable(minix_test_strlen_property
+    test_strlen_property.cpp
+    ${PROJECT_ROOT}/lib/strlen.cpp
+)
+target_include_directories(minix_test_strlen_property PRIVATE ${XINIM_INCLUDES})
+target_link_libraries(minix_test_strlen_property PRIVATE rapidcheck xinim_common)
+target_compile_options(minix_test_strlen_property PRIVATE -Wno-error=deprecated-declarations)
+add_test(NAME minix_test_strlen_property COMMAND minix_test_strlen_property)
 
 # Crypto library is built by main CMakeLists.txt
 # No need to add_subdirectory here as it creates conflicts
