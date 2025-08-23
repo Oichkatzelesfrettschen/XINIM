@@ -138,7 +138,7 @@ PUBLIC void printer_task() noexcept {
  *
  * @param m_ptr Message describing the write request.
  */
-static void do_write(message *m_ptr) noexcept {
+[[maybe_unused]] static void do_write(message *m_ptr) noexcept {
     int i, j, r, value;
     struct proc *rp;
     uint64_t phys;
@@ -197,7 +197,7 @@ static void do_write(message *m_ptr) noexcept {
  *
  * @param m_ptr Message describing the completion event.
  */
-static void do_done(message *m_ptr) noexcept {
+[[maybe_unused]] static void do_done(message *m_ptr) noexcept {
     int status = (rep_status(*m_ptr) == OK ? orig_count : ErrorCode::EIO);
     if (requesting_proc != CANCELED) {
         reply(REVIVE, caller, requesting_proc, status);
@@ -215,7 +215,7 @@ static void do_done(message *m_ptr) noexcept {
  *
  * @param m_ptr Pointer to the cancel message.
  */
-static void do_cancel(message *m_ptr) noexcept {
+[[maybe_unused]] static void do_cancel(message *m_ptr) noexcept {
     if (pr_busy == FALSE)
         return;
     pr_busy = FALSE;
@@ -235,7 +235,7 @@ static void do_cancel(message *m_ptr) noexcept {
  * @param process User process involved.
  * @param status Status or byte count.
  */
-static void reply(int code, int replyee, int process, int status) noexcept {
+[[maybe_unused]] static void reply(int code, int replyee, int process, int status) noexcept {
     message pr_mess;
     pr_mess.m_type = code;
     rep_status(pr_mess) = status;
@@ -251,7 +251,7 @@ static void reply(int code, int replyee, int process, int status) noexcept {
  *
  * @param status Status register bits returned by the device.
  */
-static void pr_error(int status) noexcept {
+[[maybe_unused]] static void pr_error(int status) noexcept {
     if (status & NO_PAPER)
         std::fputs(std::format("Printer is out of paper\n").c_str(), stdout);
     if ((status & OFF_LINE) == 0)
@@ -266,7 +266,7 @@ static void pr_error(int status) noexcept {
 /**
  * @brief Initialize the printer device and prepare the handle.
  */
-static void print_init() noexcept {
+[[maybe_unused]] static void print_init() noexcept {
     extern int color;
     g_printer_device = std::make_unique<PrinterDevice>(color ? PR_COLOR_BASE : PR_MONO_BASE);
     pr_busy = FALSE;
