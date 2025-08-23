@@ -4,22 +4,46 @@
   ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
-/* time - time a command	Authors: Andy Tanenbaum & Michiel Huisjes */
+/* time - time a command        Authors: Andy Tanenbaum & Michiel Huisjes */
+
+/**
+ * @file time.cpp
+ * @brief Measure execution time of a command using POSIX primitives.
+ * @details Modernized variant of the historical MINIX `time` utility.
+ * Uses `std::time` for wall-clock measurement and `times` for process CPU usage.
+ */
 
 #include "../h/const.hpp"
 #include "signal.hpp"
+#include <ctime> ///< for std::time [C++23 §28.7]
 
+/// Arguments for the command being timed.
 char **args;
+/// Pointer to the command name.
 char *name;
 
+/// Aggregate of user and system times.
 struct time_buf {
-    long user, sys;
-    long childu, childs;
+    long user, sys;      ///< CPU time of current process.
+    long childu, childs; ///< CPU time of child process.
 };
 
+/// Tracks whether a non-zero digit has been printed.
 int digit_seen;
+/// Buffer for formatted time output.
 char a[12] = {"        . \n"};
-// Entry point with modern parameters
+
+/// Argument array used for `execv`.
+char *newargs[MAX_ISTACK_BYTES >> 2] = {"/bin/sh"}; /* 256 args */
+/// Buffer for building candidate pathnames.
+char pathname[200];
+
+/**
+ * @brief Program entry point.
+ * @param argc Number of command-line arguments.
+ * @param argv Argument vector.
+ * @return Exit status of the timed command.
+ */
 int main(int argc, char *argv[]) {
 
     struct time_buf pre_buf, post_buf;
@@ -33,7 +57,7 @@ int main(int argc, char *argv[]) {
     name = argv[1];
 
     /* Get real time at start of run. */
-    (void)time(&start_time);
+    std::time(&start_time);
 
     /* Fork off child. */
     if ((pid = fork()) < 0) {
@@ -51,7 +75,7 @@ int main(int argc, char *argv[]) {
     do {
         times(&pre_buf);
     } while (wait(&status) != pid);
-    (void)time(&end_time);
+    std::time(&end_time);
 
     if ((status & 0377) != 0)
         std_err("Command terminated abnormally.\n");
@@ -64,7 +88,13 @@ int main(int argc, char *argv[]) {
     return status >> 8;
 }
 
-// Pretty print a time value
+/**
+ * @brief Pretty-print a time value.
+ * @param mess Prefix label.
+ * @param t Duration in system ticks.
+ *
+ * Converts ticks to `hh:mm:ss.t` format.
+ */
 static void print_time(char *mess, long t) {
     /* Print the time 't' in hours: minutes: seconds.  't' is in ticks. */
     int hours, minutes, seconds, tenths, i;
@@ -98,7 +128,11 @@ static void print_time(char *mess, long t) {
     std_err(a);
 }
 
-// Print a two-digit number
+/**
+ * @brief Print a two-digit number.
+ * @param n Value to render.
+ * @param p Buffer destination.
+ */
 static void twin(int n, char *p) {
     char c1, c2;
     c1 = (n / 10) + '0';
@@ -111,15 +145,17 @@ static void twin(int n, char *p) {
         digit_seen = 1;
 }
 
-char *newargs[MAX_ISTACK_BYTES >> 2] = {"/bin/sh"}; /* 256 args */
-
-// Search for command and execute it
+/**
+ * @brief Search for command and execute it.
+ *
+ * Tries common PATH prefixes and finally falls back to `/bin/sh`.
+ */
 static void execute() {
     register int i;
 
-    try_path(""); /* try local directory */
-    try_path("/bin/");
-    try_path("/usr/bin/");
+    try_path("");          /* try local directory */
+    try_path("/bin/");     // search /bin
+    try_path("/usr/bin/"); // search /usr/bin
 
     for (i = 0; newargs[i + 1] = args[i]; i++)
         ;
@@ -129,13 +165,14 @@ static void execute() {
     exit(-1);
 }
 
-char pathname[200];
-// Attempt to execute using the provided path
+/**
+ * @brief Attempt to execute using the provided path prefix.
+ * @param path Directory prefix to try.
+ */
 static void try_path(const char *path) {
-    register char *p1, *p2;
+    const char *p1 = path;
+    char *p2 = pathname;
 
-    p1 = path;
-    p2 = pathname;
     while (*p1 != 0)
         *p2++ = *p1++;
     p1 = name;
