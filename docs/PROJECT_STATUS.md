@@ -2,6 +2,8 @@
 
 This document tracks repository maintenance and cleanup activities.
 
+Architecture decision records are stored in [adr/](adr/), and dependency lifecycles are documented in [DEPENDENCIES.md](DEPENDENCIES.md).
+
 ## 2025-06-23
 
 - Added `tools/run_qemu.sh` to boot disk images under QEMU.  
@@ -31,3 +33,8 @@ This document tracks repository maintenance and cleanup activities.
 - Documented kernel system services with granular Doxygen comments.
 - Regenerated API reference via Doxygen and verified Sphinx+Breathe integration.
 - Modernized `kernel/xt_wini.cpp` with `enum class` and `std::array` and expanded Doxygen coverage.
+
+## 2025-08-23
+- Established `docs/adr/` with ADR 0001 capturing the adoption of C++23 and Clang 18.
+- Created `docs/DEPENDENCIES.md` outlining dependency update and deprecation policies.
+- Linked project status to the new ADR and dependency lifecycle documentation.
