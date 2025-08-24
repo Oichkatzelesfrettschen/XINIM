@@ -23,6 +23,16 @@ jobs:
       - name: Run Doxygen
         run: doxygen Doxyfile
 
+      - name: Check documentation coverage
+        run: |
+          python tools/documentation_coverage.py include docs --threshold 80 --output docs/analysis/documentation_coverage.txt
+
+      - name: Upload documentation coverage report
+        uses: actions/upload-artifact@v3
+        with:
+          name: documentation-coverage
+          path: docs/analysis/documentation_coverage.txt
+
       - name: Build Sphinx HTML
         run: sphinx-build docs/sphinx docs/sphinx/_build/html
 

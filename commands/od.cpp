@@ -518,6 +518,12 @@ private:
  * @details Complete exception-safe implementation with comprehensive
  *          error handling and resource management
  */
+/**
+ * @brief Entry point for the od utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char* argv[]) noexcept {
     try {
         // Create universal octal dumper instance

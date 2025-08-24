@@ -4,6 +4,8 @@ on:
   push:
     branches: ["master"]
   pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
 
 jobs:
   build:
@@ -29,6 +31,8 @@ jobs:
         with:
           name: analysis-reports
           path: build/reports
+      - name: Report ignored files
+        run: git clean -Xn
 
   clang-tools:
     runs-on: ubuntu-latest
