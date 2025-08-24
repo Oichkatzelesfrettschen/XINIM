@@ -10,10 +10,13 @@
  */
 
 #include "mined_editor.hpp"
+#include "mined_editor_command_names.hpp"
+#include "mined_key_command_map.hpp"
 #include <algorithm>
 #include <format>
 #include <iostream>
 #include <sstream>
+#include <unordered_map>
 
 #ifdef __unix__
 #include <sys/ioctl.h>
@@ -84,102 +87,59 @@ auto ModernMinedEditor::initialize_components() -> Result<void> {
 }
 
 auto ModernMinedEditor::setup_commands() -> Result<void> {
-    // Movement commands
-    auto register_result = command_dispatcher_->register_command(
-        "move_up", [this](const CommandContext &ctx) { return cmd_move_up(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
+    using namespace command;
 
-    register_result = command_dispatcher_->register_command(
-        "move_down", [this](const CommandContext &ctx) { return cmd_move_down(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
+    using CmdMethod = Result<void> (ModernMinedEditor::*)(const CommandContext &);
+    const std::unordered_map<std::string_view, CmdMethod> method_map{
+        {"move_up", &ModernMinedEditor::cmd_move_up},
+        {"move_down", &ModernMinedEditor::cmd_move_down},
+        {"move_left", &ModernMinedEditor::cmd_move_left},
+        {"move_right", &ModernMinedEditor::cmd_move_right},
+        {"move_line_start", &ModernMinedEditor::cmd_move_line_start},
+        {"move_line_end", &ModernMinedEditor::cmd_move_line_end},
+        {"move_word_forward", &ModernMinedEditor::cmd_move_word_forward},
+        {"move_word_backward", &ModernMinedEditor::cmd_move_word_backward},
+        {"page_up", &ModernMinedEditor::cmd_page_up},
+        {"page_down", &ModernMinedEditor::cmd_page_down},
+        {"insert_char", &ModernMinedEditor::cmd_insert_char},
+        {"insert_newline", &ModernMinedEditor::cmd_insert_newline},
+        {"delete_char", &ModernMinedEditor::cmd_delete_char},
+        {"delete_char_backward", &ModernMinedEditor::cmd_delete_char_backward},
+        {"save", &ModernMinedEditor::cmd_save},
+        {"quit", &ModernMinedEditor::cmd_quit},
+        {"undo", &ModernMinedEditor::cmd_undo},
+        {"redo", &ModernMinedEditor::cmd_redo},
+    };
 
-    register_result = command_dispatcher_->register_command(
-        "move_left", [this](const CommandContext &ctx) { return cmd_move_left(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
+    const auto register_group = [this, &method_map](const auto &group) -> Result<void> {
+        for (const auto &name : group) {
+            const auto it = method_map.find(name);
+            if (it == method_map.end()) {
+                return std::unexpected(
+                    EditorError{ErrorType::SystemError, std::format("Unknown command: {}", name)});
+            }
+            auto result = command_dispatcher_->register_command(
+                name,
+                [this, m = it->second](const CommandContext &ctx) { return (this->*m)(ctx); });
+            if (!result) {
+                return std::unexpected(result.error());
+            }
+        }
+        return {};
+    };
 
-    register_result = command_dispatcher_->register_command(
-        "move_right", [this](const CommandContext &ctx) { return cmd_move_right(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "move_line_start", [this](const CommandContext &ctx) { return cmd_move_line_start(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "move_line_end", [this](const CommandContext &ctx) { return cmd_move_line_end(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "move_word_forward",
-        [this](const CommandContext &ctx) { return cmd_move_word_forward(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "move_word_backward",
-        [this](const CommandContext &ctx) { return cmd_move_word_backward(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "page_up", [this](const CommandContext &ctx) { return cmd_page_up(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "page_down", [this](const CommandContext &ctx) { return cmd_page_down(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    // Editing commands
-    register_result = command_dispatcher_->register_command(
-        "insert_char", [this](const CommandContext &ctx) { return cmd_insert_char(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "insert_newline", [this](const CommandContext &ctx) { return cmd_insert_newline(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "delete_char", [this](const CommandContext &ctx) { return cmd_delete_char(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "delete_char_backward",
-        [this](const CommandContext &ctx) { return cmd_delete_char_backward(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    // File operations
-    register_result = command_dispatcher_->register_command(
-        "save", [this](const CommandContext &ctx) { return cmd_save(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "quit", [this](const CommandContext &ctx) { return cmd_quit(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    // Undo/Redo
-    register_result = command_dispatcher_->register_command(
-        "undo", [this](const CommandContext &ctx) { return cmd_undo(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
-
-    register_result = command_dispatcher_->register_command(
-        "redo", [this](const CommandContext &ctx) { return cmd_redo(ctx); });
-    if (!register_result)
-        return std::unexpected(register_result.error());
+    if (auto res = register_group(movement_names); !res) {
+        return res;
+    }
+    if (auto res = register_group(editing_names); !res) {
+        return res;
+    }
+    if (auto res = register_group(system_names); !res) {
+        return res;
+    }
+    if (auto res = register_group(history_names); !res) {
+        return res;
+    }
 
     return {};
 }
@@ -269,44 +229,15 @@ auto ModernMinedEditor::handle_event(const Event &event) -> Result<void> {
 auto ModernMinedEditor::handle_key_event(const KeyEvent &key_event) -> Result<void> {
     CommandContext ctx;
 
-    // Map key events to commands
-    switch (key_event.key) {
-    case Key::Up:
-        return command_dispatcher_->execute_command("move_up", ctx);
-    case Key::Down:
-        return command_dispatcher_->execute_command("move_down", ctx);
-    case Key::Left:
-        return command_dispatcher_->execute_command("move_left", ctx);
-    case Key::Right:
-        return command_dispatcher_->execute_command("move_right", ctx);
-    case Key::Home:
-        return command_dispatcher_->execute_command("move_line_start", ctx);
-    case Key::End:
-        return command_dispatcher_->execute_command("move_line_end", ctx);
-    case Key::PageUp:
-        return command_dispatcher_->execute_command("page_up", ctx);
-    case Key::PageDown:
-        return command_dispatcher_->execute_command("page_down", ctx);
-    case Key::Enter:
-        return command_dispatcher_->execute_command("insert_newline", ctx);
-    case Key::Backspace:
-        return command_dispatcher_->execute_command("delete_char_backward", ctx);
-    case Key::Delete:
-        return command_dispatcher_->execute_command("delete_char", ctx);
-    case Key::Character:
+    if (key_event.key == Key::Character) {
         ctx.args = std::format("{}", static_cast<char32_t>(key_event.character));
-        return command_dispatcher_->execute_command("insert_char", ctx);
-    case Key::Ctrl_S:
-        return command_dispatcher_->execute_command("save", ctx);
-    case Key::Ctrl_Q:
-        return command_dispatcher_->execute_command("quit", ctx);
-    case Key::Ctrl_Z:
-        return command_dispatcher_->execute_command("undo", ctx);
-    case Key::Ctrl_Y:
-        return command_dispatcher_->execute_command("redo", ctx);
-    default:
+    }
+
+    const auto cmd = keymap::command_for_key(key_event.key);
+    if (cmd.empty()) {
         return {}; // Ignore unknown keys
     }
+    return command_dispatcher_->execute_command(cmd, ctx);
 }
 
 auto ModernMinedEditor::update_display() -> Result<void> {

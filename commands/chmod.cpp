@@ -29,6 +29,12 @@ namespace {
     }
 }
 
+/**
+ * @brief Entry point for the chmod utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char* argv[]) {
     if (argc < 3) { // Program name + at least mode + one file = 3
         print_usage(argv[0]);

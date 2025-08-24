@@ -1,3 +1,4 @@
+````text
 # Building and Testing
 
 This document explains how to build the (XINIM) sources and verify that the tool-chain works on a Unix-like host.
@@ -8,21 +9,20 @@ The codebase is **work in progress**, aiming to reproduce classic Minix simplici
 
 ## 1 · Prerequisites
 
-  * **C++23 tool-chain** – Clang 18 (lld, lldb) is recommended; GCC 13 or newer also works (Clang 20 is detected automatically if installed).
-  * **Assembler** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
-  * **CMake** ≥ 3.5 (if you use the CMake flow).
-  * **POSIX make + sh** for the classic Makefiles.
-  * **libsodium** development headers for the crypto subsystem.
+* **C++23 tool-chain** – Clang 18 (lld, lldb) is recommended; GCC 13 or newer also works (Clang 20 is detected automatically if installed).
+* **Assembler** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
+* **CMake** ≥ 3.5 (if you use the CMake flow).
+* **POSIX make + sh** for the classic Makefiles.
+* **libsodium** development headers for the crypto subsystem.
 
-Install everything with:
+Install everything with (see [tools/setup.md](../tools/setup.md) for the step-by-step package list):
 
 ```sh
-# See tools/setup.md for the step-by-step package list
 sudo apt-get update && sudo apt-get install -y \
     build-essential cmake ninja-build clang-18 lld-18 lldb-18 \
     libsodium-dev nlohmann-json3-dev
-clang++ --version        # verify the compiler in PATH
-```
+clang++ --version         # verify the compiler in PATH
+````
 
 -----
 
@@ -43,17 +43,18 @@ Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 ## 3 · Building with CMake
 
 The repository provides a convenience wrapper `build.sh` that selects
-well‑tuned CMake profiles:
+well-tuned CMake profiles:
 
 ```sh
-./build.sh --help        # list profiles and dependencies
-./build.sh developer     # Debug build with sanitizers
-./build.sh performance   # Host‑tuned benchmarking build
-./build.sh release       # Generic release with LTO
+./build.sh --profile=developer    # Debug build with sanitizers
+./build.sh --profile=performance  # Host-tuned benchmarking build
+./build.sh --profile=release      # Generic release with LTO
+./build.sh --help                 # list profiles and dependencies
 ```
 
-Additional arguments are forwarded to CMake, allowing fine‑grained
-configuration when necessary.
+Additional arguments are forwarded to CMake, allowing fine-grained
+configuration when necessary. Artifacts default to `build/`; override with `--build-dir` and pass extra
+CMake options after `--`.
 
 ```sh
 # Configure (Debug build by default)
@@ -92,11 +93,11 @@ Both flows call `${CROSS_PREFIX}clang++`.
 
 ## 5 · Build Modes & Recommended Flags
 
-| Profile       | Purpose                              | Representative flags                                 |
-|---------------|--------------------------------------|------------------------------------------------------|
-| **developer** | Heavy diagnostics + sanitizers       | `-g3 -O0 -fsanitize=address,undefined`               |
-| **performance** | CPU‑tuned benchmarking build       | `-O3 -DNDEBUG -march=native -flto`                   |
-| **release**   | Generic release with link‑time optimisation | `-O2 -DNDEBUG -flto`                             |
+| Profile       | Purpose                              | Representative flags                               |
+|---------------|--------------------------------------|----------------------------------------------------|
+| **developer** | Heavy diagnostics + sanitizers       | `-g3 -O0 -fsanitize=address,undefined`             |
+| **performance**| CPU-tuned benchmarking build         | `-O3 -DNDEBUG -march=native -flto`                 |
+| **release** | Generic release with link-time optimisation | `-O2 -DNDEBUG -flto`                               |
 
 Example manual build:
 
@@ -141,7 +142,7 @@ Expected exit status is **0**.
 ## 8 · Historical DOS Build Scripts
 
 Legacy MS-DOS batch files reside in `tools/c86`.
-They are retained for reference only; modern C++ replacements (e'g'.,
+They are retained for reference only; modern C++ replacements (e.g.,
 `bootblok.cpp`) build automatically in native and cross workflows.
 
 -----
@@ -202,3 +203,6 @@ sphinx-build -b html docs/sphinx docs/sphinx/html
 ```
 
 Open `docs/sphinx/html/index.html` in a browser to view the generated pages.
+
+```
+```
