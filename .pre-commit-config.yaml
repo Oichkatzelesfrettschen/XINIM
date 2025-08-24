@@ -6,17 +6,20 @@ repos:
   - repo: local
     hooks:
       - id: clang-format
-        name: clang-format wrapper
+        name: clang-format
         entry: tools/pre-commit-clang-format.sh
         language: system
+        files: '\.(c|cc|cpp|cxx|h|hh|hpp)$'
         pass_filenames: false
       - id: clang-tidy
-        name: clang-tidy wrapper
+        name: clang-tidy
         entry: tools/run_clang_tidy.sh
         language: system
+        files: '\.(c|cc|cpp|cxx|h|hh|hpp)$'
         pass_filenames: false
       - id: cppcheck
-        name: cppcheck wrapper
+        name: cppcheck
         entry: tools/run_cppcheck.sh
         language: system
+        files: '\.(c|cc|cpp|cxx|h|hh|hpp)$'
         pass_filenames: false
