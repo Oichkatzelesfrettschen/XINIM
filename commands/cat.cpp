@@ -21,6 +21,12 @@
 // Forward declaration for the function that processes content from input to output stream
 static void stream_content(std::istream& in, std::ostream& out);
 
+/**
+ * @brief Entry point for the cat utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char* argv[]) {
     // Set exception masks for standard streams to throw exceptions on errors.
     // This helps in centralizing error handling.

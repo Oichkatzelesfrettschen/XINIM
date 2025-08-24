@@ -86,5 +86,11 @@ int run(std::span<char *> args) {
 } // namespace svcctl
 
 #ifndef SVCCTL_NO_MAIN
+/**
+ * @brief Entry point for the svcctl utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char **argv) { return svcctl::run({argv, static_cast<size_t>(argc)}); }
 #endif

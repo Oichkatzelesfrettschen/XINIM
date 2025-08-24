@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.10)
-project(minix1 CXX C)
+cmake_minimum_required(VERSION 3.20)
+project(XINIM CXX C)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Compiler autodetection (prefer Clang 18 → 20 → default `clang`)
@@ -39,20 +39,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Global include paths
-# ─────────────────────────────────────────────────────────────────────────────
-include_directories(
-  h
-  include
-  commands
-  fs
-  kernel
-  mm
-  lib
-)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Cross-compilation support
+# 3. Cross-compilation support
 # ─────────────────────────────────────────────────────────────────────────────
 option(CROSS_COMPILE_X86_64 "Cross-compile for freestanding x86-64" OFF)
 set(CROSS_PREFIX "" CACHE STRING "Prefix for cross-compilation toolchain")
@@ -74,6 +61,19 @@ if(CROSS_COMPILE_X86_64)
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -m64")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
 endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Global include paths
+# ─────────────────────────────────────────────────────────────────────────────
+include_directories(
+  h
+  include
+  commands
+  fs
+  kernel
+  mm
+  lib
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Baseline optimisation flags (native or cross)

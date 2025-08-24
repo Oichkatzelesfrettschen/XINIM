@@ -32,6 +32,6 @@
  * int value = atoi("42"); // value is 42
  * int invalid = atoi("abc"); // invalid is 0
  */
-[[nodiscard]] constexpr int atoi(const char *s) noexcept {
+[[nodiscard]] constexpr int xinim_atoi(const char *s) noexcept {
     return static_cast<int>(parse_signed_decimal(s));
 }

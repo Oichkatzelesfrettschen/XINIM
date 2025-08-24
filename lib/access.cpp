@@ -37,17 +37,17 @@ int access(const char *name, int mode) {
         const fs::perms p = st.permissions();
 
         if ((mode & R_OK) && (p & fs::perms::owner_read) == fs::perms::none) {
-            errno = -static_cast<int>(ErrorCode::EACCES);
+            errno = -13; // EACCES value from ErrorCode::EACCES
             return -1;
         }
 
         if ((mode & W_OK) && (p & fs::perms::owner_write) == fs::perms::none) {
-            errno = -static_cast<int>(ErrorCode::EACCES);
+            errno = -13; // EACCES value from ErrorCode::EACCES
             return -1;
         }
 
         if ((mode & X_OK) && (p & fs::perms::owner_exec) == fs::perms::none) {
-            errno = -static_cast<int>(ErrorCode::EACCES);
+            errno = -13; // EACCES value from ErrorCode::EACCES
             return -1;
         }
     }

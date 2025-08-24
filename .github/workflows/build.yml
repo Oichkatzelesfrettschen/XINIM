@@ -4,8 +4,23 @@ on:
   push:
     branches: ["master"]
   pull_request:
+  schedule:
+    - cron: "0 0 * * 0"
 
 jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential nasm cloc cppcheck cscope python3-pip clang-18 lld-18 lldb-18 cmake ninja-build
+      - name: Configure and Build
+        run: cmake -B build && cmake --build build -- -j$(nproc)
+      - name: Run unit tests
+        run: ctest --test-dir build --output-on-failure
+
   analysis:
     runs-on: ubuntu-latest
     steps:
@@ -13,14 +28,22 @@ jobs:
       - name: Install analysis dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential nasm clang clang-tidy cppcheck cscope python3-pip
+          sudo apt-get install -y build-essential nasm clang-18 clang-tidy-18 cppcheck cscope
           pip install lizard
       - name: Configure
         run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_CLANG_TIDY=ON -DENABLE_CPPCHECK=ON
       - name: Build
         run: cmake --build build -- -j$(nproc)
-      - name: Run unit tests
-        run: ctest --test-dir build --output-on-failure
+      - name: Run analysis tools
+        run: |
+          # The run_cppcheck.sh script will execute clang-tidy and cppcheck.
+          tools/run_cppcheck.sh
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: analysis-reports
+          path: build/reports
+        if: always()
 
   asan:
     runs-on: ubuntu-latest
@@ -29,12 +52,10 @@ jobs:
       - name: Install sanitizer dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential nasm clang
-      - name: Configure
-        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_ASAN=ON
-      - name: Build
-        run: cmake --build build -- -j$(nproc)
-      - name: Run unit tests
+          sudo apt-get install -y build-essential nasm clang-18
+      - name: Configure and Build with ASan
+        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_ASAN=ON && cmake --build build -- -j$(nproc)
+      - name: Run unit tests with ASan
         run: ctest --test-dir build --output-on-failure
 
   tsan:
@@ -44,12 +65,10 @@ jobs:
       - name: Install sanitizer dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential nasm clang
-      - name: Configure
-        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_TSAN=ON
-      - name: Build
-        run: cmake --build build -- -j$(nproc)
-      - name: Run unit tests
+          sudo apt-get install -y build-essential nasm clang-18
+      - name: Configure and Build with TSan
+        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_TSAN=ON && cmake --build build -- -j$(nproc)
+      - name: Run unit tests with TSan
         run: ctest --test-dir build --output-on-failure
 
   format:
@@ -59,10 +78,10 @@ jobs:
       - name: Install clang-format
         run: |
           sudo apt-get update
-          sudo apt-get install -y clang-format
+          sudo apt-get install -y clang-format-18
       - name: Check formatting
         run: |
-          FILES=$(git ls-files '*.cpp' '*.h')
+          FILES=$(git ls-files '*.cpp' '*.h' '*.cc' '*.cxx' '*.hpp' '*.hh')
           if [ -n "$FILES" ]; then
-            clang-format --dry-run --Werror $FILES
+            clang-format-18 --dry-run --Werror $FILES
           fi
