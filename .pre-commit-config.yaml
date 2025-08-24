@@ -1,0 +1,17 @@
+repos:
+  - repo: https://github.com/pre-commit/mirrors-clang-format
+    rev: v20.1.8
+    hooks:
+      - id: clang-format
+        types: [c++]
+        additional_dependencies: []
+
+  - repo: local
+    hooks:
+      - id: cxx-compile
+        name: "C++ compilation"
+        entry: g++
+        language: system
+        types: [c++]
+        exclude: '\\.(h|hpp|hh|hxx)$'
+        args: ['-std=c++23', '-Wall', '-Wextra', '-Werror', '-pedantic', '-fsyntax-only']
