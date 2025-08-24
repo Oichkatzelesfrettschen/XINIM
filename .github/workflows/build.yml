@@ -22,6 +22,19 @@ jobs:
       - name: Run unit tests
         run: |
           ctest --test-dir build --output-on-failure
+      - name: Install Mull mutation testing
+        run: |
+          sudo apt-get install -y mull || true
+      - name: Run mutation tests
+        run: |
+          mull-runner --version || true
+          mull-runner -workers $(nproc) --reporters GithubAnnotations --reporters Json:build/mull-report.json build/tests/rc_vector_reverse || true
+      - name: Upload mutation reports
+        if: always()
+        uses: actions/upload-artifact@v3
+        with:
+          name: mull-report
+          path: build/mull-report.json
       - name: Run static analysis
         run: tools/run_cppcheck.sh
       - name: Upload analysis reports
