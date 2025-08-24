@@ -42,6 +42,19 @@ Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 
 ## 3 · Building with CMake
 
+The repository provides a convenience wrapper `build.sh` that selects
+well‑tuned CMake profiles:
+
+```sh
+./build.sh --help        # list profiles and dependencies
+./build.sh developer     # Debug build with sanitizers
+./build.sh performance   # Host‑tuned benchmarking build
+./build.sh release       # Generic release with LTO
+```
+
+Additional arguments are forwarded to CMake, allowing fine‑grained
+configuration when necessary.
+
 ```sh
 # Configure (Debug build by default)
 cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
@@ -79,11 +92,11 @@ Both flows call `${CROSS_PREFIX}clang++`.
 
 ## 5 · Build Modes & Recommended Flags
 
-| Mode      | Purpose                          | Representative flags                               |
-|-----------|----------------------------------|----------------------------------------------------|
-| **debug** | Heavy diagnostics + sanitizers   | `-g3 -O0 -fsanitize=address,undefined`             |
-| **release**| Maximum performance / size       | `-O3 -DNDEBUG -flto -march=x86-64-v1`              |
-| **profile**| gprof / perf instrumentation     | `-O2 -g -pg`                                       |
+| Profile       | Purpose                              | Representative flags                                 |
+|---------------|--------------------------------------|------------------------------------------------------|
+| **developer** | Heavy diagnostics + sanitizers       | `-g3 -O0 -fsanitize=address,undefined`               |
+| **performance** | CPU‑tuned benchmarking build       | `-O3 -DNDEBUG -march=native -flto`                   |
+| **release**   | Generic release with link‑time optimisation | `-O2 -DNDEBUG -flto`                             |
 
 Example manual build:
 
