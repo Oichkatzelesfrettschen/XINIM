@@ -268,6 +268,12 @@ constexpr void show_help(std::string_view program_name) noexcept {
  * Processes command line arguments and performs filesystem synchronization.
  * Implements comprehensive error handling and user feedback.
  */
+/**
+ * @brief Entry point for the sync utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char* argv[]) noexcept {
     using namespace xinim::sync;
     

@@ -46,5 +46,7 @@ target_include_directories(pqcrypto PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/kyber_impl
     ${REPO_ROOT}/include)
 
-target_link_libraries(pqcrypto PUBLIC OpenSSL::Crypto ${SODIUM_LIBRARIES})
+target_link_libraries(pqcrypto
+    PUBLIC OpenSSL::Crypto ${SODIUM_LIBRARIES}
+    PRIVATE xinim_common)
 target_include_directories(pqcrypto PRIVATE ${SODIUM_INCLUDE_DIRS})
