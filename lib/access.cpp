@@ -6,7 +6,7 @@
 
 /**
  * @file access.cpp
- * @brief C++23 wrapper providing permission checks for ::access.
+ * @brief C++23 wrapper providing permission checks for @c access.
  *
  * The function performs a preliminary permission check using
  * `std::filesystem` before delegating to the MINIX file system
@@ -18,7 +18,7 @@
  * @brief Test a file's accessibility.
  *
  * @param name Path to the file or directory being examined.
- * @param mode Permission mask composed of ::F_OK, ::R_OK, ::W_OK, and ::X_OK.
+ * @param mode Permission mask composed of @c F_OK, @c R_OK, @c W_OK, and @c X_OK.
  * @return ``0`` on success or ``-1`` on failure with ``errno`` set.
  */
 int access(const char *name, int mode) {
