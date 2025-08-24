@@ -8,7 +8,7 @@
  *
  * The allocator dispenses sequential virtual address ranges from a monotonically
  * increasing cursor.  Actual page table structures are defined in
- * @ref paging.hpp but are not manipulated here.
+ * @ref paging.h but are not manipulated here.
  *
  * @ingroup memory
  */
