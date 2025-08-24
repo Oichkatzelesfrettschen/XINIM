@@ -17,7 +17,7 @@
 /// of zero cancels any pending alarm.
 /// \return Remaining time of the previous alarm in seconds, or zero if
 /// none was pending.
-int alarm(unsigned int sec) {
+extern "C" int xinim_alarm(unsigned int sec) {
     using namespace std::chrono;
 
     static std::mutex alarm_mutex;             //!< Guards shared alarm state.

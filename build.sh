@@ -1,68 +1,108 @@
 #!/usr/bin/env bash
 #
-# build.sh - orchestrate XINIM builds with profile-specific optimizations.
+# build.sh - Unified CMake build driver for XINIM
 #
-# This script wraps CMake/Ninja invocations to provide coherent build
-# configurations tailored for development, performance analysis, and
-# production release. Each profile configures dedicated output directories
-# and carefully tuned compiler flags.
+# This script configures and builds the project using preset profiles
+# tuned for development, benchmarking, or release packaging. It wraps
+# standard CMake invocations while enforcing a consistent tool-chain
+# (Clang/LLVM 18 and Ninja) across environments.
 #
 # Usage:
-#   ./build.sh [profile]
-#   ./build.sh --help
+#    ./build.sh --profile=<profile> [--build-dir=DIR] [--] [extra CMake flags]
+#    ./build.sh --help
 #
 # Profiles:
-#   developer   Debug build with sanitizers and extensive diagnostics.
-#   performance Profiling-oriented build with moderate optimizations.
-#   release     Production build with aggressive optimizations.
+#    developer   - Debug build with sanitizers and extensive diagnostics.
+#    performance - Release build optimized for the host CPU.
+#    release     - Production build with aggressive optimizations.
 #
+# Dependencies:
+#    * CMake ≥ 3.5
+#    * Ninja
+#    * clang-18 tool suite (clang++, lld, etc.)
+#
+# Any extra arguments following the profile are forwarded directly to
+# CMake, enabling fine-grained configuration when necessary.
+
 set -euo pipefail
+IFS=$'\n\t'
 
-usage() {
-	cat <<USAGE
-Usage: $(basename "$0") <profile>
-
-Profiles:
-  developer   Debug build with sanitizers and diagnostics.
-  performance Optimized build for profiling.
-  release     Production build with maximum optimization.
-
-Options:
-  -h, --help  Show this help message.
-USAGE
+show_help() {
+    grep '^#' "$0" | tail -n +2 | sed -E 's/^# ?//'
+    exit 0
 }
 
-if [[ $# -ne 1 ]]; then
-	usage
-	exit 1
-fi
+profile="developer"
+build_dir=${BUILD_DIR:-build}
+cmake_extra=()
 
-case "$1" in
--h | --help)
-	usage
-	exit 0
-	;;
-developer)
-	BUILD_DIR="build/developer"
-	CMAKE_BUILD_TYPE="Debug"
-	CXXFLAGS="-O0 -g -Wall -Wextra -Wpedantic -fsanitize=address,undefined"
-	;;
-performance)
-	BUILD_DIR="build/performance"
-	CMAKE_BUILD_TYPE="RelWithDebInfo"
-	CXXFLAGS="-O2 -g -march=native -mtune=native -DNDEBUG"
-	;;
-release)
-	BUILD_DIR="build/release"
-	CMAKE_BUILD_TYPE="Release"
-	CXXFLAGS="-O3 -flto -march=native -mtune=native -DNDEBUG"
-	;;
-*)
-	echo "Unknown profile: $1" >&2
-	usage
-	exit 1
-	;;
+while [ $# -gt 0 ]; do
+    case $1 in
+    --profile=*)
+        profile="${1#*=}"
+        ;;
+    --build-dir=*)
+        build_dir="${1#*=}"
+        ;;
+    --help | -h)
+        show_help
+        exit 0
+        ;;
+    --)
+        shift
+        cmake_extra=("$@")
+        break
+        ;;
+    *)
+        cmake_extra+=("$1")
+        ;;
+    esac
+    shift
+done
+
+cmake_flags=(
+    -S .
+    -G Ninja
+    -DCMAKE_C_COMPILER=clang-18
+    -DCMAKE_CXX_COMPILER=clang++-18
+)
+
+case "$profile" in
+    developer)
+        cmake_flags+=(
+            -B "build/developer"
+            -DCMAKE_BUILD_TYPE=Debug
+            -DCMAKE_C_FLAGS_DEBUG="-O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer"
+            -DCMAKE_CXX_FLAGS_DEBUG="-O0 -g3 -fsanitize=address,undefined -fno-omit-frame-pointer"
+        )
+        ;;
+    performance)
+        cmake_flags+=(
+            -B "build/performance"
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_C_FLAGS_RELEASE="-O3 -DNDEBUG -march=native -flto"
+            -DCMAKE_CXX_FLAGS_RELEASE="-O3 -DNDEBUG -march=native -flto"
+        )
+        ;;
+    release)
+        cmake_flags+=(
+            -B "build/release"
+            -DCMAKE_BUILD_TYPE=Release
+            -DCMAKE_INTERPROCEDURAL_OPTIMIZATION=ON
+            -DCMAKE_C_FLAGS_RELEASE="-O2 -DNDEBUG -flto"
+            -DCMAKE_CXX_FLAGS_RELEASE="-O2 -DNDEBUG -flto"
+        )
+        ;;
+    *)
+        echo "Error: unknown profile '$profile'" >&2
+        show_help
+        exit 1
+        ;;
 esac
 
-cmake -G Ninja -S . -B "$BUILD_DIR" -DCMAKE_BUILD_TYPE="$CMAKE_BUILD_TYPE" -DCMAKE_CXX_FLAGS="$CXXFLAGS"
-cmake --build "$BUILD_DIR" --parallel
+if [ ${#cmake_extra[@]} -gt 0 ]; then
+    cmake_flags+=("${cmake_extra[@]}")
+fi
+
+cmake "${cmake_flags[@]}"
+cmake --build "build/$profile"

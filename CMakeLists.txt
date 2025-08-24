@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.10)
-project(minix1 CXX C)
+cmake_minimum_required(VERSION 3.20)
+project(XINIM CXX C)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 1. Compiler autodetection (prefer Clang 18 → 20 → default `clang`)
@@ -39,20 +39,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 3. Global include paths
-# ─────────────────────────────────────────────────────────────────────────────
-include_directories(
-  h
-  include
-  commands
-  fs
-  kernel
-  mm
-  lib
-)
-
-# ─────────────────────────────────────────────────────────────────────────────
-# 4. Cross-compilation support
+# 3. Cross-compilation support
 # ─────────────────────────────────────────────────────────────────────────────
 option(CROSS_COMPILE_X86_64 "Cross-compile for freestanding x86-64" OFF)
 set(CROSS_PREFIX "" CACHE STRING "Prefix for cross-compilation toolchain")
@@ -74,6 +61,19 @@ if(CROSS_COMPILE_X86_64)
   set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -m64")
   set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
 endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Global include paths
+# ─────────────────────────────────────────────────────────────────────────────
+include_directories(
+  h
+  include
+  commands
+  fs
+  kernel
+  mm
+  lib
+)
 
 # ─────────────────────────────────────────────────────────────────────────────
 # 5. Baseline optimisation flags (native or cross)
@@ -98,7 +98,49 @@ add_compile_options(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 6. Wini driver selection
+# 6. Optional analysis and sanitizers
+# ─────────────────────────────────────────────────────────────────────────────
+option(ENABLE_CLANG_TIDY "Run clang-tidy during compilation" OFF)
+option(ENABLE_CPPCHECK "Run cppcheck during compilation" OFF)
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+
+if(ENABLE_CLANG_TIDY)
+  find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+  if(CLANG_TIDY_EXE)
+    set(CMAKE_C_CLANG_TIDY   "${CLANG_TIDY_EXE};--warnings-as-errors=*")
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE};--warnings-as-errors=*")
+  else()
+    message(FATAL_ERROR "clang-tidy requested but executable not found")
+  endif()
+endif()
+
+if(ENABLE_CPPCHECK)
+  find_program(CPPCHECK_EXE NAMES cppcheck)
+  if(CPPCHECK_EXE)
+    set(CMAKE_C_CPPCHECK   "${CPPCHECK_EXE};--enable=all;--inconclusive;--suppress=missingIncludeSystem;--error-exitcode=1")
+    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXE};--enable=all;--inconclusive;--suppress=missingIncludeSystem;--error-exitcode=1")
+  else()
+    message(FATAL_ERROR "cppcheck requested but executable not found")
+  endif()
+endif()
+
+if(ENABLE_ASAN AND ENABLE_TSAN)
+  message(FATAL_ERROR "ASan and TSan cannot be enabled simultaneously")
+endif()
+
+if(ENABLE_ASAN)
+  add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address -fno-omit-frame-pointer)
+endif()
+
+if(ENABLE_TSAN)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Wini driver selection
 # ─────────────────────────────────────────────────────────────────────────────
 option(DRIVER_AT "Use AT-style WD100x controller driver" OFF)
 option(DRIVER_PC "Use PC/XT wini driver" OFF)
@@ -114,7 +156,7 @@ else()
 endif()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 7. Build sub-components
+# 8. Build sub-components
 # ─────────────────────────────────────────────────────────────────────────────
 option(BUILD_SYSTEM "Build full Minix system components" ON)
 
@@ -130,7 +172,7 @@ endif()
 add_subdirectory(crypto)
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 8. Unit tests
+# 9. Unit tests
 # ─────────────────────────────────────────────────────────────────────────────
 option(ENABLE_UNIT_TESTS "Build unit tests" ON)
 
@@ -140,7 +182,7 @@ if(ENABLE_UNIT_TESTS)
 endif()
 
 # ─────────────────────────────────────────────────────────────────────────────
-# 9. Documentation target
+# 10. Documentation target
 # ─────────────────────────────────────────────────────────────────────────────
 find_package(Doxygen)
 if(DOXYGEN_FOUND)
