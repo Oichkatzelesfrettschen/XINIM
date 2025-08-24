@@ -7,7 +7,7 @@ set_target_properties(minix_test_kyber PROPERTIES
 target_include_directories(minix_test_kyber PUBLIC
     "${CMAKE_SOURCE_DIR}/crypto")
 
-target_link_libraries(minix_test_kyber PRIVATE pqcrypto)
+target_link_libraries(minix_test_kyber PRIVATE pqcrypto xinim_common)
 
 add_test(NAME minix_test_kyber COMMAND minix_test_kyber)
 
@@ -23,7 +23,7 @@ set_target_properties(minix_test_shared_secret_failure PROPERTIES
 target_include_directories(minix_test_shared_secret_failure PUBLIC
     "${CMAKE_SOURCE_DIR}/crypto")
 
-target_link_libraries(minix_test_shared_secret_failure PRIVATE pqcrypto)
+target_link_libraries(minix_test_shared_secret_failure PRIVATE pqcrypto xinim_common)
 
 add_test(NAME minix_test_shared_secret_failure COMMAND minix_test_shared_secret_failure)
 
@@ -40,7 +40,7 @@ target_include_directories(minix_test_constant_time_equal PUBLIC
     "${CMAKE_SOURCE_DIR}/crypto"
     "${CMAKE_SOURCE_DIR}/include")
 
-target_link_libraries(minix_test_constant_time_equal PRIVATE pqcrypto)
+target_link_libraries(minix_test_constant_time_equal PRIVATE pqcrypto xinim_common)
 
 add_test(NAME minix_test_constant_time_equal COMMAND minix_test_constant_time_equal)
 

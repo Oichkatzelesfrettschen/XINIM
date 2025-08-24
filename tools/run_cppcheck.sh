@@ -11,7 +11,8 @@ REPORT_DIR="build/reports"
 mkdir -p "$REPORT_DIR"
 
 # Run cppcheck with XML output for integration with review tools.
-cppcheck --enable=all --std=c++23 --xml --xml-version=2 . 2>"$REPORT_DIR/cppcheck.xml"
+# Ignore cppcheck exit code so reports still generate on warnings.
+cppcheck --enable=all --std=c++23 --xml --xml-version=2 . 2>"$REPORT_DIR/cppcheck.xml" || true
 
 # Count lines of code in JSON form.
 cloc . --json --out="$REPORT_DIR/cloc.json"

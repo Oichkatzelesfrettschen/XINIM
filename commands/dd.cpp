@@ -96,6 +96,15 @@ public:
     }
 
 private:
+    /**
+     * @brief Establishes input and output streams based on runtime options.
+     *
+     * Utilizes `std::ifstream` and `std::ofstream` for RAII-managed file
+     * resources as specified by ISO/IEC 14882:2023. When `"-"` is provided,
+     * standard streams are used instead.
+     *
+     * @return void
+     */
     void open_files() {
         std::lock_guard lock(mtx_);
         if (options.ifile == "-") {
@@ -118,6 +127,14 @@ private:
         }
     }
 
+    /**
+     * @brief Skips input blocks and seeks output blocks according to options.
+     *
+     * Relies on `std::istream::seekg` and `std::ostream::seekp` (ISO/IEC
+     * 14882:2023) to reposition the file pointers before data transfer.
+     *
+     * @return void
+     */
     void handle_skip_seek() {
         std::lock_guard lock(mtx_);
         if (options.skip > 0) {
@@ -134,6 +151,15 @@ private:
         }
     }
 
+    /**
+     * @brief Executes the core copying routine.
+     *
+     * Reads blocks into a `std::vector`, applies any requested conversions,
+     * and writes them to the destination stream using facilities defined in
+     * ISO/IEC 14882:2023.
+     *
+     * @return void
+     */
     void main_loop() {
         std::lock_guard lock(mtx_);
         std::vector<char> buffer(options.ibs);
@@ -168,6 +194,16 @@ private:
         }
     }
 
+    /**
+     * @brief Applies configured data transformations to the buffer.
+     *
+     * @param buffer Mutable byte buffer modified in place.
+     *
+     * Employs C++23 ranges algorithms such as `std::ranges::transform`
+     * (ISO/IEC 14882:2023) for efficient element-wise operations.
+     *
+     * @return void
+     */
     void apply_conversions(std::vector<char> &buffer) {
         for (auto flag : options.conv_flags) {
             switch (flag) {
@@ -195,6 +231,14 @@ private:
         }
     }
 
+    /**
+     * @brief Prints summary statistics and elapsed execution time.
+     *
+     * Utilizes `std::chrono::steady_clock` and `std::chrono::duration_cast`
+     * from the C++23 chrono library (ISO/IEC 14882:2023) to report runtime.
+     *
+     * @return void
+     */
     void print_statistics() const {
         std::lock_guard lock(mtx_);
         std::cerr << std::format("{}+{} records in\n", records_in_full_, records_in_partial_);
@@ -206,6 +250,16 @@ private:
         std::cerr << std::format("dd finished in {} ms\n", duration.count());
     }
 
+    /**
+     * @brief Handles asynchronous interrupt signals for graceful termination.
+     *
+     * @param signum The signal number received.
+     *
+     * Employs `std::signal` from `<csignal>` (ISO/IEC 14882:2023) and a
+     * thread-local command pointer to safely manage termination.
+     *
+     * @return void
+     */
     static void handle_signal(int signum) noexcept {
         std::lock_guard lock(running_command_->mtx_);
         std::signal(signum, SIG_IGN);
@@ -300,6 +354,12 @@ DdOptions parse_arguments(int argc, char *argv[]) {
 
 } // namespace
 
+/**
+ * @brief Entry point for the dd utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     try {
         DdOptions options = parse_arguments(argc, argv);
