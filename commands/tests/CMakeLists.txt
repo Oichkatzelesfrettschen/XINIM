@@ -22,6 +22,11 @@ set(MODE_PARSER_TEST_SOURCES
     # Add future parser/utility logic test files here
 )
 
+set(MINED_EDITOR_TEST_SOURCES
+    test_mined_command_registry.cpp
+    test_mined_key_command_map.cpp
+)
+
 # Common include directories for tests
 # Assuming this CMakeLists.txt is in commands/tests/
 # and headers are in <project_root>/include/
@@ -50,6 +55,14 @@ foreach(TEST_SOURCE_FILE ${MODE_PARSER_TEST_SOURCES})
     # or included directly. If ModeParser becomes part of a utility library, link that.
     # For now, assuming it might need std::filesystem if it uses types from there.
     target_link_libraries(${TEST_NAME} PRIVATE stdc++fs) # Link std::filesystem if needed
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+endforeach()
+
+# Build and register tests for mined editor modules
+foreach(TEST_SOURCE_FILE ${MINED_EDITOR_TEST_SOURCES})
+    get_filename_component(TEST_NAME ${TEST_SOURCE_FILE} NAME_WE)
+    add_executable(${TEST_NAME} ${TEST_SOURCE_FILE})
+    target_link_libraries(${TEST_NAME} PRIVATE stdc++fs)
     add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
 endforeach()
 
