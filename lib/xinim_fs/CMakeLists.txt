@@ -24,6 +24,8 @@ target_include_directories(xinim_fs PUBLIC
     # For now, PUBLIC is fine for making sure <xinim/filesystem.hpp> is found by its sources.
 )
 
+target_link_libraries(xinim_fs PRIVATE xinim_common)
+
 # Required for std::filesystem if not automatically handled by C++23 setting
 # For some older CMake/compilers, explicitly linking might be needed.
 # Modern CMake with C++17+ usually handles this.

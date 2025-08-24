@@ -21,6 +21,12 @@ struct tchars tch;
 #define DELC 0177  /* DEL */
 
 // Entry point with modern parameters
+/**
+ * @brief Entry point for the stty utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
 
     /* stty with no arguments just reports on current status. */

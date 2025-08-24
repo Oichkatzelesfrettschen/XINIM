@@ -45,9 +45,9 @@ void p_dmp() noexcept { // K&R -> modern C++, added noexcept
 
     struct proc *rp;
     char *np;
-    std::size_t base, limit; // vir_bytes -> std::size_t
-    uint64_t first, last;    // Used for physical click addresses
-    uint64_t ltmp, dst;      // phys_bytes -> uint64_t
+    [[maybe_unused]] std::size_t base, limit; // vir_bytes -> std::size_t
+    [[maybe_unused]] uint64_t first, last;    // Used for physical click addresses
+    [[maybe_unused]] uint64_t ltmp, dst;      // phys_bytes -> uint64_t
     int index;
     // extern phys_bytes umap(); // umap returns uint64_t
 
@@ -117,7 +117,7 @@ void p_dmp() noexcept { // K&R -> modern C++, added noexcept
  */
 void map_dmp() noexcept { // K&R -> modern C++, added noexcept
     struct proc *rp;
-    std::size_t base_k, size_k; // For K calculations, was vir_bytes
+    [[maybe_unused]] std::size_t base_k, size_k; // For K calculations, was vir_bytes
 
     printf("\nPROC   -----TEXT-----  -----DATA-----  ----STACK-----  BASE SIZE\n");
     // Iterate only over user processes, tasks might not have same map structure interpretation
@@ -147,8 +147,8 @@ void map_dmp() noexcept { // K&R -> modern C++, added noexcept
     }
 }
 
-char *nayme[] = {"PRINTR", "TTY   ", "WINCHE", "FLOPPY", "RAMDSK", "CLOCK ",
-                 "SYS   ", "HARDWR", "MM    ", "FS    ", "INIT  "}; // Assuming INIT is at index
+const char *nayme[] = {"PRINTR", "TTY   ", "WINCHE", "FLOPPY", "RAMDSK", "CLOCK ",
+                       "SYS   ", "HARDWR", "MM    ", "FS    ", "INIT  "}; // Assuming INIT is at index
                                                                     // NR_TASKS + 0 for user procs
 /**
  * @brief Print a process name given its index.
@@ -165,7 +165,7 @@ static void prname(int i) noexcept { // Added noexcept
 /**
  * @brief Store command name for dumping.
  */
-static void set_name(int proc_nr, char *ptr) noexcept { // Added noexcept
+[[maybe_unused]] static void set_name(int proc_nr, char *ptr) noexcept { // Added noexcept
     /* When an EXEC call is done, the kernel is told about the stack pointer.
      * It uses the stack pointer to find the command line, for dumping
      * purposes.

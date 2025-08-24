@@ -1,17 +1,25 @@
-repos:
-  - repo: https://github.com/pre-commit/mirrors-clang-format
-    rev: v20.1.8
-    hooks:
-      - id: clang-format
-        types: [c++]
-        additional_dependencies: []
+# Pre-commit configuration for XINIM
+# Delegates style and static-analysis checks to wrapper scripts under tools/
+# ensuring consistent project-wide formatting and diagnostics.
 
+repos:
   - repo: local
     hooks:
-      - id: cxx-compile
-        name: "C++ compilation"
-        entry: g++
+      - id: clang-format
+        name: clang-format
+        entry: tools/pre-commit-clang-format.sh
         language: system
-        types: [c++]
-        exclude: '\\.(h|hpp|hh|hxx)$'
-        args: ['-std=c++23', '-Wall', '-Wextra', '-Werror', '-pedantic', '-fsyntax-only']
+        files: '\.(c|cc|cpp|cxx|h|hh|hpp)$'
+        pass_filenames: false
+      - id: clang-tidy
+        name: clang-tidy
+        entry: tools/run_clang_tidy.sh
+        language: system
+        files: '\.(c|cc|cpp|cxx|h|hh|hpp)$'
+        pass_filenames: false
+      - id: cppcheck
+        name: cppcheck
+        entry: tools/run_cppcheck.sh
+        language: system
+        files: '\.(c|cc|cpp|cxx|h|hh|hpp)$'
+        pass_filenames: false
