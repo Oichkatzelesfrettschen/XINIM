@@ -357,20 +357,13 @@ add_test(NAME minix_test_semantic_region COMMAND minix_test_semantic_region)
 # -----------------------------------------------------------------------------
 # Property-based Tests
 # -----------------------------------------------------------------------------
-add_executable(minix_test_strlen_property
-    test_strlen_property.cpp
-    ${PROJECT_ROOT}/lib/strlen.cpp
-)
-target_include_directories(minix_test_strlen_property PRIVATE ${XINIM_INCLUDES})
-target_link_libraries(minix_test_strlen_property PRIVATE rapidcheck xinim_common)
-target_compile_options(minix_test_strlen_property PRIVATE -Wno-error=deprecated-declarations)
-add_test(NAME minix_test_strlen_property COMMAND minix_test_strlen_property)
+add_subdirectory(property)
 
 # Crypto library is built by main CMakeLists.txt
 # No need to add_subdirectory here as it creates conflicts
 
 # -----------------------------------------------------------------------------
-# Recommendations for @copilot TODOs and AI Agent FIXMEs: 
+# Recommendations for @copilot TODOs and AI Agent FIXMEs:
 # -----------------------------------------------------------------------------
 # - Ensure consistent include paths across all tests by centralizing XINIM_INCLUDES.
 # - Consider enabling disabled tests (minix_test_streams, minix_test_stream_foundation)
