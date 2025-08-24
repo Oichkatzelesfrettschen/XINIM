@@ -12,9 +12,9 @@
 #    ./build.sh --help
 #
 # Profiles:
-#    developer   - Debug build with sanitizers and extensive warnings.
+#    developer   - Debug build with sanitizers and extensive diagnostics.
 #    performance - Release build optimized for the host CPU.
-#    release     - Generic release build with link-time optimization.
+#    release     - Production build with aggressive optimizations.
 #
 # Dependencies:
 #    * CMake ≥ 3.5
