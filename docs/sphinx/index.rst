@@ -20,15 +20,9 @@ The documentation is divided into several sections:
     api
     architecture
     compiler_driver
-    hypercomplex
-    lattice_ipc
     libsodium_tests
-    networking
-    pq_crypto
-    scheduler
-    service
-    service_manager
-    wait_graph
     precommit
     process_control
     wini
+    commands
+    tools
