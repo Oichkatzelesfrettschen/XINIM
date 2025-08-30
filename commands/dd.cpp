@@ -60,24 +60,49 @@
 
 namespace {
 
+/**
+ * @brief Enumerates the supported data transformation flags.
+ *
+ * Each value corresponds to an
+ * operation that can be applied to the
+ * transferred data stream, closely mirroring the semantics
+ * of the
+ * traditional Unix `dd` utility while embracing type safety.
+ */
 enum class Conversion { UCASE, LCASE, SWAB, NOERROR, SYNC };
 
+/**
+ * @brief Aggregates runtime options parsed from the command line.
+ *
+ * This structure
+ * encapsulates all parameters required to drive the
+ * `dd` command's behavior, including file
+ * names, block sizes, and
+ * optional conversion directives.
+ */
 struct DdOptions {
-    std::string ifile = "-"; /**< Input file (default: stdin) */
-    std::string ofile = "-"; /**< Output file (default: stdout) */
-    size_t ibs = 512;        /**< Input block size in bytes */
-    size_t obs = 512;        /**< Output block size in bytes */
-    size_t count = 0;        /**< Number of blocks to copy (0 means until EOF) */
-    size_t skip = 0;         /**< Number of input blocks to skip */
-    size_t seek = 0;         /**< Number of output blocks to skip */
+    std::string ifile = "-";            /**< Input file (default: stdin) */
+    std::string ofile = "-";            /**< Output file (default: stdout) */
+    size_t ibs = 512;                   /**< Input block size in bytes */
+    size_t obs = 512;                   /**< Output block size in bytes */
+    size_t count = 0;                   /**< Number of blocks to copy (0 means until EOF) */
+    size_t skip = 0;                    /**< Number of input blocks to skip */
+    size_t seek = 0;                    /**< Number of output blocks to skip */
     std::vector<Conversion> conv_flags; /**< List of conversion flags */
 };
 
+/**
+ * @brief Orchestrates the execution of the `dd` utility.
+ *
+ * This class encapsulates all
+ * operational logic, from opening files to
+ * applying conversions and reporting statistics. Thread
+ * safety is
+ * ensured via an internal mutex guarding all stateful operations.
+ */
 class DdCommand {
-public:
-    explicit DdCommand(DdOptions opts) : options(std::move(opts)) {
-        running_command_ = this;
-    }
+  public:
+    explicit DdCommand(DdOptions opts) : options(std::move(opts)) { running_command_ = this; }
 
     ~DdCommand() {
         std::lock_guard lock(mtx_);
@@ -95,13 +120,16 @@ public:
         print_statistics();
     }
 
-private:
+  private:
     /**
      * @brief Establishes input and output streams based on runtime options.
      *
+     *
      * Utilizes `std::ifstream` and `std::ofstream` for RAII-managed file
-     * resources as specified by ISO/IEC 14882:2023. When `"-"` is provided,
-     * standard streams are used instead.
+     * resources as
+     * specified by ISO/IEC 14882:2023. When `"-"` is provided,
+     * standard streams are used
+     * instead.
      *
      * @return void
      */
@@ -130,8 +158,10 @@ private:
     /**
      * @brief Skips input blocks and seeks output blocks according to options.
      *
+     *
      * Relies on `std::istream::seekg` and `std::ostream::seekp` (ISO/IEC
-     * 14882:2023) to reposition the file pointers before data transfer.
+     * 14882:2023) to
+     * reposition the file pointers before data transfer.
      *
      * @return void
      */
@@ -154,12 +184,14 @@ private:
     /**
      * @brief Executes the core copying routine.
      *
-     * Reads blocks into a `std::vector`, applies any requested conversions,
-     * and writes them to the destination stream using facilities defined in
+     * Reads blocks into a
+     * `std::vector`, applies any requested conversions,
+     * and writes them to the destination
+     * stream using facilities defined in
      * ISO/IEC 14882:2023.
      *
      * @return void
-     */
+ */
     void main_loop() {
         std::lock_guard lock(mtx_);
         std::vector<char> buffer(options.ibs);
@@ -168,7 +200,8 @@ private:
         while (!in_->eof() && (options.count == 0 || blocks_copied < options.count)) {
             in_->read(buffer.data(), options.ibs);
             std::streamsize bytes_read = in_->gcount();
-            if (bytes_read == 0) break;
+            if (bytes_read == 0)
+                break;
 
             if (bytes_read == static_cast<std::streamsize>(options.ibs)) {
                 records_in_full_++;
@@ -197,10 +230,13 @@ private:
     /**
      * @brief Applies configured data transformations to the buffer.
      *
-     * @param buffer Mutable byte buffer modified in place.
+     * @param
+     * buffer Mutable byte buffer modified in place.
      *
-     * Employs C++23 ranges algorithms such as `std::ranges::transform`
-     * (ISO/IEC 14882:2023) for efficient element-wise operations.
+     * Employs C++23 ranges algorithms
+     * such as `std::ranges::transform`
+     * (ISO/IEC 14882:2023) for efficient element-wise
+     * operations.
      *
      * @return void
      */
@@ -214,7 +250,8 @@ private:
                 std::ranges::transform(buffer, buffer.begin(), ::tolower);
                 break;
             case Conversion::SWAB:
-                if (buffer.size() % 2 != 0) truncated_records_++;
+                if (buffer.size() % 2 != 0)
+                    truncated_records_++;
                 for (size_t i = 0; i + 1 < buffer.size(); i += 2) {
                     std::swap(buffer[i], buffer[i + 1]);
                 }
@@ -234,8 +271,10 @@ private:
     /**
      * @brief Prints summary statistics and elapsed execution time.
      *
-     * Utilizes `std::chrono::steady_clock` and `std::chrono::duration_cast`
-     * from the C++23 chrono library (ISO/IEC 14882:2023) to report runtime.
+     * Utilizes
+     * `std::chrono::steady_clock` and `std::chrono::duration_cast`
+     * from the C++23 chrono
+     * library (ISO/IEC 14882:2023) to report runtime.
      *
      * @return void
      */
@@ -246,17 +285,21 @@ private:
         if (truncated_records_ > 0) {
             std::cerr << std::format("{} truncated records\n", truncated_records_);
         }
-        auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - start_time_);
+        auto duration =
+            std::chrono::duration_cast<std::chrono::milliseconds>(end_time_ - start_time_);
         std::cerr << std::format("dd finished in {} ms\n", duration.count());
     }
 
     /**
      * @brief Handles asynchronous interrupt signals for graceful termination.
      *
+     *
      * @param signum The signal number received.
      *
-     * Employs `std::signal` from `<csignal>` (ISO/IEC 14882:2023) and a
-     * thread-local command pointer to safely manage termination.
+     * Employs `std::signal` from
+     * `<csignal>` (ISO/IEC 14882:2023) and a
+     * thread-local command pointer to safely manage
+     * termination.
      *
      * @return void
      */
@@ -268,8 +311,8 @@ private:
     }
 
     DdOptions options;
-    std::istream* in_ = nullptr;
-    std::ostream* out_ = nullptr;
+    std::istream *in_ = nullptr;
+    std::ostream *out_ = nullptr;
     std::ifstream ifile_stream_;
     std::ofstream ofile_stream_;
     size_t records_in_full_ = 0;
@@ -280,11 +323,26 @@ private:
     std::chrono::steady_clock::time_point start_time_;
     std::chrono::steady_clock::time_point end_time_;
     mutable std::mutex mtx_;
-    static thread_local DdCommand* running_command_;
+    static thread_local DdCommand *running_command_;
 };
 
-thread_local DdCommand* DdCommand::running_command_ = nullptr;
+thread_local DdCommand *DdCommand::running_command_ = nullptr;
 
+/**
+ * @brief Parses a non-negative integer from a string view.
+ *
+ * The function employs
+ * `std::from_chars` for fast, locale-independent
+ * conversion as defined by ISO/IEC 14882:2023. It
+ * throws an
+ * `std::invalid_argument` exception on malformed or negative input.
+ *
+ * @param s The
+ * string representation of the number to parse.
+ * @return Parsed numeric value as `size_t`.
+ *
+ * @throw std::invalid_argument if parsing fails or the value is negative.
+ */
 size_t parse_num(std::string_view s) {
     long long val = 0;
     auto result = std::from_chars(s.data(), s.data() + s.size(), val);
@@ -297,6 +355,22 @@ size_t parse_num(std::string_view s) {
     return static_cast<size_t>(val);
 }
 
+/**
+ * @brief Converts command-line arguments into a @ref DdOptions structure.
+ *
+ * The parser
+ * expects `key=value` pairs following the traditional `dd`
+ * syntax. Unknown keys or malformed
+ * values result in a
+ * `std::runtime_error` to signal invalid usage.
+ *
+ * @param argc Number of
+ * command-line arguments.
+ * @param argv Array of argument strings.
+ * @return Fully populated @ref
+ * DdOptions instance.
+ * @throw std::runtime_error on invalid arguments or unknown options.
+ */
 DdOptions parse_arguments(int argc, char *argv[]) {
     DdOptions opts;
     for (int i = 1; i < argc; ++i) {
@@ -342,7 +416,8 @@ DdOptions parse_arguments(int argc, char *argv[]) {
                 } else {
                     throw std::runtime_error(std::format("Unknown conversion: {}", conv_str));
                 }
-                if (comma_pos == std::string_view::npos) break;
+                if (comma_pos == std::string_view::npos)
+                    break;
                 v.remove_prefix(comma_pos + 1);
             }
         } else {
@@ -366,7 +441,7 @@ int main(int argc, char *argv[]) {
         DdCommand command(std::move(options));
         command.run();
         return 0;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << std::format("dd: {}\n", e.what());
         return 1;
     } catch (...) {
