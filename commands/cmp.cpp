@@ -13,14 +13,14 @@
  * Usage: cmp [-l] [-s] file1 file2
  */
 
-#include <iostream>
+#include <filesystem>
 #include <fstream>
+#include <iomanip>
+#include <iostream>
 #include <string>
 #include <string_view>
-#include <vector>
-#include <filesystem>
 #include <system_error>
-#include <iomanip>
+#include <vector>
 
 namespace {
 
@@ -29,18 +29,16 @@ namespace {
  * @brief Holds the command-line options for the cmp utility.
  */
 struct CmpOptions {
-    bool list_all_diffs = false; // -l flag
-    bool silent = false;         // -s flag
-    std::filesystem::path file1_path;
-    std::filesystem::path file2_path;
+    bool list_all_diffs = false;      ///< Output all differing bytes (-l).
+    bool silent = false;              ///< Suppress normal output; return status only (-s).
+    std::filesystem::path file1_path; ///< Path to the first file or "-" for stdin.
+    std::filesystem::path file2_path; ///< Path to the second file or "-" for stdin.
 };
 
 /**
  * @brief Prints the usage message to standard error.
  */
-void printUsage() {
-    std::cerr << "Usage: cmp [-l] [-s] file1 file2" << std::endl;
-}
+void printUsage() { std::cerr << "Usage: cmp [-l] [-s] file1 file2" << std::endl; }
 
 /**
  * @brief Parses command-line arguments and populates the options struct.
@@ -49,12 +47,12 @@ void printUsage() {
  * @return A CmpOptions struct.
  * @throws std::runtime_error if arguments are invalid.
  */
-CmpOptions parseArguments(int argc, char* argv[]) {
+CmpOptions parseArguments(int argc, char *argv[]) {
     CmpOptions opts;
     std::vector<std::string_view> args(argv + 1, argv + argc);
     std::vector<std::filesystem::path> files;
 
-    for (const auto& arg : args) {
+    for (const auto &arg : args) {
         if (arg.starts_with('-')) {
             if (arg == "-l") {
                 opts.list_all_diffs = true;
@@ -85,19 +83,41 @@ CmpOptions parseArguments(int argc, char* argv[]) {
  * @brief Encapsulates the logic for comparing two files.
  */
 class FileComparer {
-public:
-    FileComparer(const CmpOptions& options);
+  public:
+    /**
+     * @brief Construct a comparer with the specified options.
+     * @param options Parsed
+     * command-line options.
+     */
+    explicit FileComparer(const CmpOptions &options);
+
+    /**
+     * @brief Compare the configured files.
+     * @return 0 if files are identical, 1
+     * otherwise.
+     */
     int compare();
 
-private:
-    std::istream& get_stream(const std::filesystem::path& path, std::ifstream& file_stream);
+  private:
+    /**
+     * @brief Obtain an input stream for the given path.
+     * @param path File path or "-"
+     * for standard input.
+     * @param file_stream If @p path refers to a file, this stream
+     * manages its lifetime.
+     * @return Reference to the resulting input stream.
+     * @throws
+     * std::runtime_error If the file cannot be opened.
+     */
+    std::istream &get_stream(const std::filesystem::path &path, std::ifstream &file_stream);
 
-    CmpOptions m_opts;
+    CmpOptions m_opts; ///< Command-line options for the comparison.
 };
 
-FileComparer::FileComparer(const CmpOptions& options) : m_opts(options) {}
+FileComparer::FileComparer(const CmpOptions &options) : m_opts(options) {}
 
-std::istream& FileComparer::get_stream(const std::filesystem::path& path, std::ifstream& file_stream) {
+std::istream &FileComparer::get_stream(const std::filesystem::path &path,
+                                       std::ifstream &file_stream) {
     if (path == "-") {
         return std::cin;
     }
@@ -110,8 +130,8 @@ std::istream& FileComparer::get_stream(const std::filesystem::path& path, std::i
 
 int FileComparer::compare() {
     std::ifstream f1_stream, f2_stream;
-    std::istream& in1 = get_stream(m_opts.file1_path, f1_stream);
-    std::istream& in2 = get_stream(m_opts.file2_path, f2_stream);
+    std::istream &in1 = get_stream(m_opts.file1_path, f1_stream);
+    std::istream &in2 = get_stream(m_opts.file2_path, f2_stream);
 
     long long byte_count = 0;
     long long line_count = 1;
@@ -142,12 +162,16 @@ int FileComparer::compare() {
                     return 1;
                 }
                 if (m_opts.list_all_diffs) {
-                     std::cout << std::setw(8) << byte_count << " "
-                               << std::oct << std::setw(3) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(buffer1[i])) << " "
-                               << std::oct << std::setw(3) << std::setfill('0') << static_cast<int>(static_cast<unsigned char>(buffer2[i])) << std::dec << std::endl;
+                    std::cout << std::setw(8) << byte_count << " " << std::oct << std::setw(3)
+                              << std::setfill('0')
+                              << static_cast<int>(static_cast<unsigned char>(buffer1[i])) << " "
+                              << std::oct << std::setw(3) << std::setfill('0')
+                              << static_cast<int>(static_cast<unsigned char>(buffer2[i]))
+                              << std::dec << std::endl;
                 } else {
                     std::cout << m_opts.file1_path.string() << " " << m_opts.file2_path.string()
-                              << " differ: char " << byte_count << ", line " << line_count << std::endl;
+                              << " differ: char " << byte_count << ", line " << line_count
+                              << std::endl;
                     return 1;
                 }
             }
@@ -158,7 +182,10 @@ int FileComparer::compare() {
 
         if (bytes_read1 != bytes_read2) {
             if (!m_opts.silent) {
-                 std::cerr << "cmp: EOF on " << (bytes_read1 < bytes_read2 ? m_opts.file1_path.string() : m_opts.file2_path.string()) << std::endl;
+                std::cerr << "cmp: EOF on "
+                          << (bytes_read1 < bytes_read2 ? m_opts.file1_path.string()
+                                                        : m_opts.file2_path.string())
+                          << std::endl;
             }
             return 1;
         }
@@ -175,7 +202,7 @@ int FileComparer::compare() {
  * @param argv Argument values.
  * @return 0 if files are identical, 1 if they differ, 2 on error.
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     if (argc < 3) {
         printUsage();
         return 2;
@@ -185,7 +212,7 @@ int main(int argc, char* argv[]) {
         CmpOptions options = parseArguments(argc, argv);
         FileComparer comparer(options);
         return comparer.compare();
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         if (std::string(e.what()).find("Invalid option") != std::string::npos ||
             std::string(e.what()).find("Exactly two files") != std::string::npos) {
             printUsage();
