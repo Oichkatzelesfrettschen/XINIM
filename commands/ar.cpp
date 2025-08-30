@@ -97,7 +97,11 @@ struct Member {
  */
 class Archiver {
   public:
+    /** @brief Construct a new Archiver instance. */
     Archiver() = default;
+    /**
+     * @brief Destroy the Archiver, closing open descriptors and removing the temporary archive.
+     */
     ~Archiver() {
         std::lock_guard lock(mtx_);
         if (ar_fd_ != -1)
@@ -107,10 +111,19 @@ class Archiver {
         std::filesystem::remove(temp_arch_);
     }
 
-    // Process archive based on command line options
+    /**
+     * @brief Parse command line options and execute the requested archive operation.
+     *
+     * @param argc Argument count.
+     * @param argv Argument vector.
+     */
     void process(int argc, char *argv[]);
 
-    // Signal handler
+    /**
+     * @brief Handle interrupt signals to ensure temporary artifacts are removed.
+     *
+     * @param sig Signal number triggering cleanup.
+     */
     static void cleanup_handler(int sig) noexcept {
         std::lock_guard lock(instance_->mtx_);
         std::filesystem::remove(instance_->temp_arch_);
@@ -164,7 +177,19 @@ class Archiver {
 thread_local Archiver *Archiver::instance_ = nullptr;
 
 // Utility functions
+/**
+ * @brief Check whether a number is odd.
+ *
+ * @param nr Number to test.
+ * @return True if @p nr is odd.
+ */
 [[nodiscard]] constexpr bool odd(int nr) { return nr & 0x01; }
+/**
+ * @brief Return the nearest even number greater than or equal to the input.
+ *
+ * @param nr Number to adjust.
+ * @return Even counterpart of @p nr.
+ */
 [[nodiscard]] constexpr int even(int nr) { return odd(nr) ? nr + 1 : nr; }
 
 /**
@@ -453,7 +478,7 @@ void Archiver::litoa(int pad, long number) {
 void Archiver::date(long t) {
     constexpr int mo[] = {31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
     constexpr std::string_view moname[] = {" Jan ", " Feb ", " Mar ", " Apr ", " May ", " Jun ",
-                                             " Jul ", " Aug ", " Sep ", " Oct ", " Nov ", " Dec "};
+                                           " Jul ", " Aug ", " Sep ", " Oct ", " Nov ", " Dec "};
     int year = 1970;
     long original = t;
     while (t > 0) {
