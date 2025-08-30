@@ -54,11 +54,11 @@
 
 // Modern constants with clear semantic meaning
 namespace config {
-constexpr std::size_t MAXARGC = 64;           /**< Maximum arguments in a list */
-constexpr std::size_t USTR_SIZE = 64;         /**< Maximum string variable length */
-constexpr std::size_t MAX_FILES = 32;         /**< Maximum number of input files */
+constexpr std::size_t MAXARGC = 64;                  /**< Maximum arguments in a list */
+constexpr std::size_t USTR_SIZE = 64;                /**< Maximum string variable length */
+constexpr std::size_t MAX_FILES = 32;                /**< Maximum number of input files */
 constexpr std::size_t BUFSIZE = USTR_SIZE * MAXARGC; /**< Total buffer size */
-constexpr std::size_t TEMP_NAME_SIZE = 15;    /**< Temporary filename buffer size */
+constexpr std::size_t TEMP_NAME_SIZE = 15;           /**< Temporary filename buffer size */
 } // namespace config
 
 // Modern type aliases for clarity
@@ -117,9 +117,24 @@ inline arglist LD_TAIL{
 
 // Modern memory and file utilities
 namespace memory_manager {
-inline std::array<char, config::BUFSIZE> buffer{};
-inline char *buffer_ptr = buffer.data();
+inline std::array<char, config::BUFSIZE> buffer{}; /**< Fixed-size allocation buffer */
+inline char *buffer_ptr = buffer.data();           /**< Next free byte within @ref buffer */
 
+/**
+ * @brief Allocate raw bytes from the internal static buffer.
+ *
+ * This routine provides a
+ * bump-pointer allocator used by the compiler driver to quickly obtain
+ * transient storage without
+ * invoking the system allocator. Allocation
+ * requests beyond the buffer capacity throw a
+ * std::runtime_error.
+ *
+ * @param size Number of bytes to reserve.
+ * @return Pointer to the start
+ * of the reserved region.
+ * @throws std::runtime_error When the buffer lacks sufficient space.
+ */
 [[nodiscard]] inline char *allocate(std::size_t size) {
     char *const result = buffer_ptr;
     if ((buffer_ptr + size) >= (buffer.data() + config::BUFSIZE)) {
@@ -128,10 +143,35 @@ inline char *buffer_ptr = buffer.data();
     buffer_ptr += size;
     return result;
 }
+
+/**
+ * @brief Reset the allocation pointer to the start of the buffer.
+ *
+ * All previously obtained
+ * memory becomes invalidated. This operation does
+ * not perform any deallocation bookkeeping and
+ * therefore runs in constant
+ * time.
+ */
 inline void reset() noexcept { buffer_ptr = buffer.data(); }
 } // namespace memory_manager
 
 namespace file_utils {
+/**
+ * @brief Remove a file from the filesystem.
+ *
+ * The caller must supply a mutable C-string so
+ * that the function can
+ * blank out the first character on success, mirroring legacy behaviour
+ *
+ * expected by the original driver.
+ *
+ * @param filename Mutable C-string pointing to the file to
+ * remove. A
+ *        null pointer or empty string is treated as a no-op.
+ * @return True on
+ * success or when no action was required.
+ */
 [[nodiscard]] inline bool remove_file(char *filename) noexcept {
     if (!filename || filename[0] == '\0')
         return true;
@@ -140,6 +180,14 @@ namespace file_utils {
     return success;
 }
 
+/**
+ * @brief Convenience wrapper around @ref remove_file for temporary files.
+ *
+ * @param filename
+ * Mutable C-string representing a temporary file name.
+ * @return True if the file was removed or
+ * the name was null.
+ */
 [[nodiscard]] inline bool cleanup_temp(char *filename) noexcept {
     return filename ? remove_file(filename) : true;
 }
@@ -235,25 +283,56 @@ template <typename... Args> [[nodiscard]] char *mkstr(UString &dst, Args &&...ar
     return dst.data();
 }
 
+/**
+ * @brief Extract the basename (without extension) from a path.
+ *
+ * The function mirrors the
+ * POSIX `basename` utility but operates on
+ * std::string_view and writes the result to a
+ * fixed-size buffer.
+ *
+ * @param str  Input path.
+ * @param dst  Destination buffer receiving the
+ * basename.
+ */
 void basename(std::string_view str, UString &dst) {
-    auto last_slash = str.rfind('/');
-    auto base = last_slash == std::string_view::npos ? str : str.substr(last_slash + 1);
-    auto dot = base.find('.');
-    if (dot != std::string_view::npos)
-        base.remove_suffix(base.size() - dot);
-    base.copy(dst.data(), std::min(base.size(), config::USTR_SIZE - 1));
-    dst[std::min(base.size(), config::USTR_SIZE - 1)] = '\0';
+    const std::filesystem::path p{str};
+    const std::string stem = p.stem().string();
+    std::strncpy(dst.data(), stem.c_str(), config::USTR_SIZE - 1);
+    dst[std::min(stem.size(), config::USTR_SIZE - 1)] = '\0';
 }
 
+/**
+ * @brief Obtain the single-character file extension code.
+ *
+ * This driver historically uses a
+ * one-letter code (e.g. `c`, `i`, `s`) to
+ * denote file types. The routine returns that character
+ * or zero if the
+ * filename lacks an extension.
+ *
+ * @param filename Input filename.
+ * @return
+ * Character representing the extension or 0 when absent.
+ */
 [[nodiscard]] int extension(std::string_view filename) {
     if (filename.empty())
         return 0;
-    if (filename.back() == '.')
-        return 0;
-    auto dot = filename.rfind('.');
-    return (dot != std::string_view::npos && dot + 1 < filename.size()) ? filename[dot + 1] : 0;
+    const std::filesystem::path p{filename};
+    const std::string ext = p.extension().string();
+    return (ext.size() == 2) ? ext[1] : 0;
 }
 
+/**
+ * @brief Writes a diagnostic message to standard error and terminates the process.
+ *
+ * This
+ * utility provides a uniform mechanism for fatal error handling
+ * throughout the compiler
+ * driver.
+
+ * @param message Human-readable explanation of the fatal error.
+ */
 [[noreturn]] void panic(std::string_view message) {
     if (!message.empty()) {
         write(STDERR_FILENO, message.data(), message.size());
@@ -365,7 +444,6 @@ class CompilerDriver {
     [[nodiscard]] int runvec2(arglist &vec0, arglist &vec1);
     /**
      * @brief Execute command vector via execv.
-     * @param vec Command and arguments to execute.
      */
     [[noreturn]] void ex_vec(arglist &vec);
 
@@ -383,7 +461,7 @@ class CompilerDriver {
         }
     }
 
-private:
+  private:
     /**
      * @brief Remove all temporary files generated during compilation.
      */
@@ -396,21 +474,18 @@ private:
         std::ignore = file_utils::cleanup_temp(ofile_.data());
     }
 
-    struct arglist SRCFILES {};
-    struct arglist LDFILES {};
-    struct arglist GEN_LDFILES {};
-    struct arglist PP_FLAGS {};
-    struct arglist CEM_FLAGS {};
-    struct arglist OPT_FLAGS {};
-    struct arglist CG_FLAGS {};
-    struct arglist ASLD_FLAGS {};
-    struct arglist DEBUG_FLAGS {};
-    struct arglist LD_HEAD {
-        1, { const_cast<char *>("/usr/lib/crtso.s") }
-    };
-    struct arglist LD_TAIL {
-        2, { const_cast<char *>("/usr/lib/libc.a"), const_cast<char *>("/usr/lib/end.s") }
-    };
+    struct arglist SRCFILES{};
+    struct arglist LDFILES{};
+    struct arglist GEN_LDFILES{};
+    struct arglist PP_FLAGS{};
+    struct arglist CEM_FLAGS{};
+    struct arglist OPT_FLAGS{};
+    struct arglist CG_FLAGS{};
+    struct arglist ASLD_FLAGS{};
+    struct arglist DEBUG_FLAGS{};
+    struct arglist LD_HEAD{1, {const_cast<char *>("/usr/lib/crtso.s")}};
+    struct arglist LD_TAIL{
+        2, {const_cast<char *>("/usr/lib/libc.a"), const_cast<char *>("/usr/lib/end.s")}};
     std::array<arglist, 2> CALL_VEC{};
     int RET_CODE{0};
     bool o_flag_{false};
@@ -418,8 +493,7 @@ private:
     bool v_flag_{false};
     bool F_flag_{false};
     UString ifile_{}, kfile_{}, sfile_{}, mfile_{}, ofile_{}, BASE{};
-    std::string o_file_{
-        std::string(toolchain_config::DEFAULT_OUTPUT)};
+    std::string o_file_{std::string(toolchain_config::DEFAULT_OUTPUT)};
     const char *tmpdir_{toolchain_config::TEMP_DIR.data()};
     char tmpname[config::TEMP_NAME_SIZE]{};
 #ifdef DEBUG
@@ -432,7 +506,16 @@ private:
     static thread_local CompilerDriver *instance_;
 
     /**
-     * @brief Print a command vector to stderr.
+     * @brief Print a command vector to @c stderr.
+     *
+     * Each argument is separated
+     * by a single space. This utility is mainly
+     * used for verbose logging when the @c -v
+     * command-line option is
+     * supplied.
+     *
+     * @param vec Argument vector to display.
+
      */
     static void pr_vec(const arglist &vec);
 };
@@ -678,7 +761,14 @@ int CompilerDriver::runvec2(arglist &vec0, arglist &vec1) {
     }
     return 1;
 }
-
+/// @brief Execute the command specified in @p vec.
+///
+/// Replaces the current process image with the program indicated by the
+/// argument list @p vec. If direct execution fails, the system shell is
+/// invoked as a fallback. The function never returns on success and
+/// reports unrecoverable errors via @ref panic.
+///
+/// @param vec Argument list containing the executable and its parameters.
 void CompilerDriver::ex_vec(arglist &vec) {
 #ifdef DEBUG
     if (noexec_)
