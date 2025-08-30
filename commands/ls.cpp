@@ -487,6 +487,14 @@ struct UserGroupCache {
     }
 };
 
+/**
+ * @brief High-level orchestrator for listing directory entries.
+ *
+ * Aggregates command-line flag parsing, file status collection, and
+ * formatted output generation into a cohesive pipeline suitable for the
+ * @c ls utility. Instances maintain transient state such as cached user and
+ * group names and accumulate exit status codes from sub-operations.
+ */
 class DirectoryLister final {
   private:
     std::vector<FileInfo> files_;
@@ -504,6 +512,17 @@ class DirectoryLister final {
         sort_indices_.reserve(constants::MAX_FILES);
     }
 
+    /**
+     * @brief Parse and execute @c ls command-line arguments.
+     *
+     * Delegates flag parsing and dispatches to either single or multiple path
+     * processing depending on the number of file arguments supplied.
+     *
+     * @param argc Argument count supplied to @c main.
+     * @param argv Argument vector supplied to @c main.
+     * @return int Zero on success; non-zero to indicate failure or partial
+     *         errors.
+     */
     [[nodiscard]] int process_arguments(int argc, char *argv[]) {
         overall_exit_status_ = 0;
         try {
@@ -529,6 +548,16 @@ class DirectoryLister final {
         ListingFlags flags;
         std::vector<std::string> file_arguments;
     };
+    /**
+     * @brief Decode command-line options and positional arguments.
+     *
+     * Iterates over @p argv extracting valid single-character flags and
+     * collecting residual path arguments for later processing.
+     *
+     * @param argc Number of command-line arguments.
+     * @param argv Raw argument vector.
+     * @return ParsedArguments Struct containing flag bitset and file arguments.
+     */
     [[nodiscard]] ParsedArguments parse_command_line(int argc, char *argv[]) const {
         ParsedArguments result{};
         std::uint64_t flag_bits = 0;
@@ -554,6 +583,14 @@ class DirectoryLister final {
         return result;
     }
 
+    /**
+     * @brief Handle listing for a solitary file system path.
+     *
+     * Stat's the provided path, expanding directories when appropriate and
+     * storing results for subsequent sorting and output.
+     *
+     * @param path_str File or directory path as provided on the command line.
+     */
     void process_single_path(const std::string &path_str) {
         FileInfo initial_file_info(path_str);
         try {
@@ -582,6 +619,14 @@ class DirectoryLister final {
         sort_files_and_print_listing();
     }
 
+    /**
+     * @brief Evaluate multiple file system paths sequentially.
+     *
+     * Separates directory arguments from regular files, emitting a header for
+     * each directory and aggregating standalone files for a consolidated list.
+     *
+     * @param paths Collection of path strings supplied on the command line.
+     */
     void process_multiple_paths(const std::vector<std::string> &paths) {
         std::vector<FileInfo> file_args;
         std::vector<FileInfo> dir_args;
