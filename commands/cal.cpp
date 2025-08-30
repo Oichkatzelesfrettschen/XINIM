@@ -265,17 +265,15 @@ static int day_month[] = {/* 30 days hath September...		*/
 /**
  * @brief Compute the date within a month for a given week and weekday.
  *
- * @param year Year
- * number.
- * @param month Month number.
+ * @param year Year number.
+ * @param month Month number (1-12).
  * @param week Week index starting at 0.
- * @param wday
- * Weekday index starting at 0.
+ * @param wday Weekday index starting at 0.
  * @return Day of month or 0 if out of range.
  */
-int static int date(int year, int month, int week, int wday) {
+static int date(int year, int month, int week, int wday) {
     setmonth(year, month);
-    return (getdate(week, wday));
+    return getdate(week, wday);
 }
 
 /**
@@ -330,40 +328,47 @@ static void setmonth(int year, int month) {
 }
 
 /**
- *  Determine the date for a given week and weekday.
+ * @brief Determine the date for a given week and weekday.
  *
- *  week Week index starting at 0.
+ * Calculates the day of the month corresponding to a specific week and
+ * weekday, using state previously initialised by setmonth().
  *
- * wday Weekday index starting at 0.
- *  Day of month or 0 if not in range.
+ * @param week Week index starting at 0.
+ * @param wday Weekday index starting at 0 (Sunday == 0).
+ * @return Day of month or 0 if not in range.
  */
-static int getdate(int week, int wday) register int today;
+static int getdate(int week, int wday) {
+    register int today;
 
-/*
- * Get a first guess at today's date and make sure it's in range.
- */
-today = (week * 7) + wday - info.dow_first + 1;
-if (today <= 0 || today > info.days_in_month)
-    return (0);
-else if (info.sept == 19 && info.this_month == 9 && today >= 3) /* The magical month?	*/
-    return (today + 11);                                        /* If so, some dates changed	*/
-else                                                            /* Otherwise,			*/
-    return (today);                                             /* Return the date		*/
+    // Get a first guess at today's date and make sure it's in range.
+    today = (week * 7) + wday - info.dow_first + 1;
+    if (today <= 0 || today > info.days_in_month)
+        return 0;
+    if (info.sept == 19 && info.this_month == 9 && today >= 3) {
+        // The magical month of September 1752 skipped 11 days.
+        return today + 11;
+    }
+    return today;
 }
 
-static int Jan1(int year)
-/*
- * Return day of the week for Jan 1 of the specified year.
+/**
+ * @brief Compute the weekday for January 1st of the given year.
+ *
+ * Uses Julian and Gregorian calendar rules to determine the weekday of
+ * January 1st. The returned value follows the convention Sunday == 0.
+ *
+ * @param year Year number.
+ * @return Day of the week for January 1st.
  */
-{
+static int Jan1(int year) {
     register int day;
 
-    day = year + 4 + ((year + 3) / 4); /* Julian Calendar	*/
-    if (year > 1800) {                 /* If it's recent, do	*/
-        day -= ((year - 1701) / 100);  /* Clavian correction	*/
-        day += ((year - 1601) / 400);  /* Gregorian correction	*/
+    day = year + 4 + ((year + 3) / 4); /* Julian Calendar       */
+    if (year > 1800) {                 /* If it's recent, do    */
+        day -= ((year - 1701) / 100);  /* Clavian correction    */
+        day += ((year - 1601) / 400);  /* Gregorian correction  */
     }
-    if (year > 1752) /* Adjust for Gregorian	*/
-        day += 3;    /* calendar		*/
-    return (day % 7);
+    if (year > 1752) /* Adjust for Gregorian    */
+        day += 3;    /* calendar                */
+    return day % 7;
 }
