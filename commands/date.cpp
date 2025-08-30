@@ -29,15 +29,23 @@
 // For setting the system time (POSIX)
 #include <sys/time.h>
 
+/**
+ * @brief Internal helper utilities for the date command.
+ *
+ * These helper routines encapsulate the core logic for displaying and mutating
+ * the system clock.
+ */
 namespace {
 
 /**
  * @brief Prints the usage message to standard error.
+ * @note The message describes the accepted argument format.
  */
 void printUsage() { std::cerr << "Usage: date [MMDDYYhhmmss]" << std::endl; }
 
 /**
  * @brief Prints the current date and time to standard output.
+ * @note Uses the user's current locale for formatting.
  */
 void printCurrentTime() {
     const auto now = std::chrono::system_clock::now();
@@ -51,7 +59,9 @@ void printCurrentTime() {
 /**
  * @brief Sets the system time based on a formatted string.
  * @param time_str The time string in MMDDYYhhmmss format.
- * @throws std::runtime_error on parsing or system call errors.
+ * @throws std::runtime_error If the string cannot be parsed.
+ * @throws std::system_error  If the underlying system call fails.
+ * @note Requires superuser privileges to succeed.
  */
 void setSystemTime(std::string_view time_str) {
     if (time_str.length() != 12) {
@@ -107,6 +117,7 @@ void setSystemTime(std::string_view time_str) {
  * @param argc The number of command-line arguments.
  * @param argv An array of command-line arguments.
  * @return 0 on success, 1 on error.
+ * @see setSystemTime
  */
 int main(int argc, char *argv[]) {
     try {
