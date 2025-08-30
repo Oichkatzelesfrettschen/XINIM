@@ -18,39 +18,44 @@
 #include <vector>
 
 /**
- * @brief Main entry point for the basename command.
- * @param argc The number of command-line arguments.
- * @param argv An array of command-line arguments.
- * @return 0 on success, 1 on error.
- *
- * Usage: basename string [suffix]
- */
-/**
  * @brief Entry point for the basename utility.
+ *
+ * The program prints the filename component of @p argv[1]. When a second argument
+ * is supplied, it is interpreted as a suffix to remove from the filename
+ * whenever it is present as a trailing substring.
+ *
  * @param argc Number of command-line arguments as per C++23 [basic.start.main].
  * @param argv Array of command-line argument strings.
- * @return Exit status as specified by C++23 [basic.start.main].
+ * @return Zero on success; nonzero on failure.
+ * @exception std::filesystem::filesystem_error Propagates filesystem errors
+ * encountered during path processing.
  */
 int main(int argc, char *argv[]) {
     if (argc < 2) {
+        /// Inform the user about the required arguments.
         std::cerr << "Usage: basename string [suffix]" << std::endl;
         return 1;
     }
 
     try {
+        /// Convert the provided path to its filename component.
         std::filesystem::path path{argv[1]};
         std::string base = path.filename().string();
 
         if (argc == 3) {
+            /// Optionally remove a user-specified suffix.
             std::string_view suffix{argv[2]};
             if (base.ends_with(suffix)) {
+                /// Erase the matching trailing suffix.
                 base.erase(base.size() - suffix.size());
             }
         }
 
+        /// Output the resulting basename.
         std::cout << base << std::endl;
 
     } catch (const std::filesystem::filesystem_error &e) {
+        /// Report filesystem errors to the user.
         std::cerr << "Error: " << e.what() << std::endl;
         return 1;
     }
