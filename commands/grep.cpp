@@ -62,11 +62,11 @@ namespace {
  * @brief Structure to hold grep command-line options.
  */
 struct GrepOptions {
-    bool invert_match = false; /**< -v: Select non-matching lines */
-    bool number_lines = false; /**< -n: Number output lines */
-    bool suppress_output = false; /**< -s: Suppress all output (exit status only) */
-    bool pattern_follows = false; /**< -e: Treat next argument as pattern */
-    std::string pattern; /**< Regular expression pattern */
+    bool invert_match = false;                /**< -v: Select non-matching lines */
+    bool number_lines = false;                /**< -n: Number output lines */
+    bool suppress_output = false;             /**< -s: Suppress all output (exit status only) */
+    bool pattern_follows = false;             /**< -e: Treat next argument as pattern */
+    std::string pattern;                      /**< Regular expression pattern */
     std::vector<std::filesystem::path> files; /**< List of input files */
 };
 
@@ -74,7 +74,18 @@ struct GrepOptions {
  * @brief Grep engine class for processing files and patterns.
  */
 class GrepEngine {
-public:
+  public:
+    /**
+     * @brief Construct a new GrepEngine instance.
+     *
+     * Initializes the search
+     * engine with the caller-supplied options and
+     * precompiles the regular expression for
+     * efficient reuse.
+     *
+     * @param opts Parsed command options describing the desired grep
+     * behaviour.
+     */
     explicit GrepEngine(GrepOptions opts)
         : options_(std::move(opts)), regex_(options_.pattern, std::regex_constants::extended) {}
 
@@ -102,7 +113,8 @@ public:
                 } else {
                     std::ifstream file(filepath, std::ios::binary);
                     if (!file) {
-                        std::cerr << std::format("grep: {}: {}\n", filepath.string(), std::strerror(errno));
+                        std::cerr << std::format("grep: {}: {}\n", filepath.string(),
+                                                 std::strerror(errno));
                         any_errors = true;
                         continue;
                     }
@@ -115,14 +127,14 @@ public:
         return any_errors ? 2 : (any_matches ? 0 : 1);
     }
 
-private:
+  private:
     /**
      * @brief Process a single input stream.
      * @param stream Input stream to process.
      * @param filename Filename for display purposes (empty for stdin).
      * @return True if any matches were found.
      */
-    bool process_stream(std::istream& stream, std::string_view filename) {
+    bool process_stream(std::istream &stream, std::string_view filename) {
         std::lock_guard lock(mtx_);
         std::string line;
         size_t line_number = 0;
@@ -132,7 +144,8 @@ private:
         while (std::getline(stream, line)) {
             ++line_number;
             bool matches = std::regex_search(line, regex_);
-            bool should_print = (matches && !options_.invert_match) || (!matches && options_.invert_match);
+            bool should_print =
+                (matches && !options_.invert_match) || (!matches && options_.invert_match);
 
             if (should_print) {
                 found_matches = true;
@@ -152,9 +165,9 @@ private:
         return found_matches;
     }
 
-    GrepOptions options_;
-    std::regex regex_;
-    mutable std::mutex mtx_;
+    GrepOptions options_;    /**< User-supplied command options */
+    std::regex regex_;       /**< Compiled regular expression */
+    mutable std::mutex mtx_; /**< Guards concurrent access to internal state */
 };
 
 /**
@@ -245,11 +258,11 @@ int main(int argc, char *argv[]) {
         GrepOptions options = parse_arguments(argc, argv);
         GrepEngine engine(std::move(options));
         return engine.run();
-    } catch (const std::regex_error& e) {
+    } catch (const std::regex_error &e) {
         std::cerr << std::format("grep: invalid regular expression: {}\n", e.what());
         print_usage();
         return 2;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << std::format("grep: {}\n", e.what());
         print_usage();
         return 2;
