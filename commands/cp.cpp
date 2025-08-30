@@ -25,6 +25,9 @@
 #include <system_error>
 #include <vector>
 
+/**
+ * @brief Internal namespace housing helper routines for the cp command.
+ */
 namespace {
 
 /**
@@ -47,8 +50,8 @@ void printUsage() {
  */
 bool copy_item(const std::filesystem::path &source, const std::filesystem::path &target,
                bool is_target_dir) {
+    std::filesystem::path destination = target; ///< Resolved destination path.
     try {
-        std::filesystem::path destination = target;
         if (is_target_dir) {
             destination /= source.filename();
         }
@@ -90,13 +93,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::vector<std::filesystem::path> sources;
+    std::vector<std::filesystem::path> sources; ///< Collection of source paths to copy.
     for (int i = 1; i < argc - 1; ++i) {
         sources.emplace_back(argv[i]);
     }
     std::filesystem::path target(argv[argc - 1]);
 
-    bool target_is_directory = std::filesystem::is_directory(target);
+    const bool target_is_directory =
+        std::filesystem::is_directory(target); ///< Indicates whether the target is a directory.
 
     if (sources.size() > 1 && !target_is_directory) {
         std::println(std::cerr, "cp: target '{}' is not a directory", target.string());
