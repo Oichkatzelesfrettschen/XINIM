@@ -1,1 +1,16 @@
-{ }
+{
+    maximal_compliance = {
+        __sourceinfo_description = {
+            ["Enable maximal POSIX compliance testing"] = {
+                line = 77,
+                file = "./xmake.lua"
+            }
+        },
+        __sourceinfo_showmenu = { },
+        __scriptdir = "/Users/eirikr/Documents/GitHub/XINIM",
+        default = true,
+        description = "Enable maximal POSIX compliance testing",
+        __sourceinfo_default = { },
+        showmenu = true
+    }
+}
