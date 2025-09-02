@@ -1,6 +1,6 @@
 #include "../h/const.hpp"
 #include "../h/type.hpp"
-#include "../include/defs.h"
+#include "../include/defs.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"

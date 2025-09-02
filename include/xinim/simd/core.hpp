@@ -351,36 +351,36 @@ auto dispatch_simd_op(Args&&... args) -> decltype(Op::template execute<Args...>(
     // Try most optimal implementation first
     if constexpr (Op::template supports<Capability::AVX512F>()) {
         if (detector.has(Capability::AVX512F)) {
-            return Op::template execute_avx512(std::forward<Args>(args)...);
+            return Op::template execute_avx512<>(std::forward<Args>(args)...);
         }
     }
     
     if constexpr (Op::template supports<Capability::AVX2>()) {
         if (detector.has(Capability::AVX2)) {
-            return Op::template execute_avx2(std::forward<Args>(args)...);
+            return Op::template execute_avx2<>(std::forward<Args>(args)...);
         }
     }
     
     if constexpr (Op::template supports<Capability::AVX>()) {
         if (detector.has(Capability::AVX)) {
-            return Op::template execute_avx(std::forward<Args>(args)...);
+            return Op::template execute_avx<>(std::forward<Args>(args)...);
         }
     }
     
     if constexpr (Op::template supports<Capability::SSE2>()) {
         if (detector.has(Capability::SSE2)) {
-            return Op::template execute_sse2(std::forward<Args>(args)...);
+            return Op::template execute_sse2<>(std::forward<Args>(args)...);
         }
     }
     
     if constexpr (Op::template supports<Capability::NEON>()) {
         if (detector.has(Capability::NEON)) {
-            return Op::template execute_neon(std::forward<Args>(args)...);
+            return Op::template execute_neon<>(std::forward<Args>(args)...);
         }
     }
     
     // Fallback to scalar implementation
-    return Op::template execute_scalar(std::forward<Args>(args)...);
+    return Op::template execute_scalar<>(std::forward<Args>(args)...);
 }
 
 } // namespace xinim::simd

@@ -16,10 +16,16 @@ fi
 IMAGE="$1"
 shift
 
+BIOS_ARGS=()
+if [[ -n "${OVMF_CODE:-}" && -f "$OVMF_CODE" ]]; then
+  BIOS_ARGS=( -bios "$OVMF_CODE" )
+fi
+
 qemu-system-x86_64 \
     -drive file="${IMAGE}",if=none,format=raw,id=hd0 \
     -device ich9-ahci,id=ahci \
     -device ide-hd,drive=hd0,bus=ahci.0 \
     -serial mon:stdio \
     -display none \
+    "${BIOS_ARGS[@]}" \
     "$@"

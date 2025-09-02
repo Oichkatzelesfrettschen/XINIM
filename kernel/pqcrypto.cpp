@@ -5,7 +5,7 @@
  * @brief Kyber-based primitives for kernel key exchange.
  */
 
-#include "../crypto/kyber_impl/api.h"
+#include "../crypto/kyber_impl/api.hpp"
 #include <array>
 #include <cstdint>
 #include <span>

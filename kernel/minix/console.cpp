@@ -23,14 +23,30 @@ uint8_t current_color = DEFAULT_COLOR;
 // Basic outportb function (platform specific, often in a separate utils file)
 // For now, a simple inline assembly version for GCC/Clang.
 static inline void outb(unsigned short port, unsigned char val) {
+#ifdef __x86_64__
     asm volatile ( "outb %0, %1" : : "a"(val), "Nd"(port) );
+#elif defined(__aarch64__)
+    // ARM doesn't have port I/O - would use memory-mapped I/O instead
+    // This is a stub for compilation
+    volatile unsigned char* mmio = reinterpret_cast<volatile unsigned char*>(0x3F000000 + port);
+    *mmio = val;
+#endif
 }
 
 // Basic inportb function
 static inline unsigned char inb(unsigned short port) {
+#ifdef __x86_64__
     unsigned char ret;
     asm volatile ( "inb %1, %0" : "=a"(ret) : "Nd"(port) );
     return ret;
+#elif defined(__aarch64__)
+    // ARM doesn't have port I/O - would use memory-mapped I/O instead
+    // This is a stub for compilation
+    volatile unsigned char* mmio = reinterpret_cast<volatile unsigned char*>(0x3F000000 + port);
+    return *mmio;
+#else
+    return 0;
+#endif
 }
 
 void console_set_cursor_hw(int x, int y) {

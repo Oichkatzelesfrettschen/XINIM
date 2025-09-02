@@ -1,0 +1,167 @@
+{
+    fpc_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    tool_target_cmd_ar_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    gfortran_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    cuda_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    envs_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    tool_target_stdlib_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    tool_target_cmd_async_grep_cpp23_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    yasm_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    go_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    nasm_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    tool_target_cmd_cat_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    xcode_arch_arm64_plat_macosx = {
+        xcode_sysroot = "/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        xcode_sdkver = "26.0",
+        plat = "macosx",
+        __global = true,
+        arch = "arm64",
+        bindir = "/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin",
+        __checked = true,
+        xcode = "/Applications/Xcode-beta.app",
+        target_minver = "26.0"
+    },
+    rust_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = true
+    },
+    tool_target_kernel_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    tool_target_cmd_cat_cpp23_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    nim_arch_arm64_plat_macosx = {
+        __global = true,
+        plat = "macosx",
+        arch = "arm64",
+        __checked = false
+    },
+    tool_target_cmd_awk_cpp23_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    tool_target_cmd_cc_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    tool_target_cmd_cal_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    },
+    tool_target_cmd_basename_macosx_arm64_cxx = {
+        program = "/usr/bin/clang++",
+        toolchain_info = {
+            arch = "arm64",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx",
+            name = "envs"
+        },
+        toolname = "clangxx"
+    }
+}

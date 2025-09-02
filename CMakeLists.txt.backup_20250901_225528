@@ -1,0 +1,277 @@
+cmake_minimum_required(VERSION 3.5)
+project(minix1 CXX C)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Compiler autodetection (prefer Clang 18 → 20 → default `clang`)
+# ─────────────────────────────────────────────────────────────────────────────
+if(NOT CMAKE_C_COMPILER)
+  find_program(CLANG_18 clang-18)
+  find_program(CLANG_20 clang-20)
+  set(CMAKE_C_COMPILER
+      $<IF:$<BOOL:${CLANG_18}>,${CLANG_18},
+        $<IF:$<BOOL:${CLANG_20}>,${CLANG_20},clang>>)
+endif()
+
+# Automatically enable libc++ when building with Clang
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
+  link_libraries(c++ c++abi)
+endif()
+if(NOT CMAKE_CXX_COMPILER)
+  find_program(CLANGXX_18 clang++-18)
+  find_program(CLANGXX_20 clang++-20)
+  set(CMAKE_CXX_COMPILER
+      $<IF:$<BOOL:${CLANGXX_18}>,${CLANGXX_18},
+        $<IF:$<BOOL:${CLANGXX_20}>,${CLANGXX_20},clang++>>)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Language standards
+# ─────────────────────────────────────────────────────────────────────────────
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Global include paths
+# ─────────────────────────────────────────────────────────────────────────────
+include_directories(
+  h
+  include
+  commands
+  fs
+  kernel
+  mm
+  lib
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Cross-compilation support
+# ─────────────────────────────────────────────────────────────────────────────
+option(CROSS_COMPILE_X86_64 "Cross-compile for freestanding x86-64" OFF)
+set(CROSS_PREFIX "" CACHE STRING "Prefix for cross-compilation toolchain")
+
+if(CROSS_COMPILE_X86_64)
+  if(CROSS_PREFIX STREQUAL "")
+    set(CROSS_PREFIX "x86_64-elf-")
+  endif()
+
+  set(CMAKE_SYSTEM_NAME Generic)
+  set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+  set(CMAKE_C_COMPILER   "${CROSS_PREFIX}clang")
+  set(CMAKE_CXX_COMPILER "${CROSS_PREFIX}clang++")
+  set(CMAKE_AR           "${CROSS_PREFIX}ar")
+  set(CMAKE_RANLIB       "${CROSS_PREFIX}ranlib")
+  set(CMAKE_LINKER       "${CROSS_PREFIX}ld")
+
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -m64")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Baseline warnings (keep host tools portable; CPU flags are target-specific)
+# ─────────────────────────────────────────────────────────────────────────────
+add_compile_options(
+    -Wall
+    -Wextra
+    -Wpedantic
+    -Werror
+)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Wini driver selection
+# ─────────────────────────────────────────────────────────────────────────────
+option(DRIVER_AT "Use AT-style WD100x controller driver" OFF)
+option(DRIVER_PC "Use PC/XT wini driver" OFF)
+
+if(DRIVER_AT AND DRIVER_PC)
+  message(FATAL_ERROR "Select only one of DRIVER_AT or DRIVER_PC")
+endif()
+
+if(DRIVER_AT)
+  set(WINI_DRIVER at)
+else()
+  set(WINI_DRIVER pc)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Build sub-components
+# ─────────────────────────────────────────────────────────────────────────────
+option(BUILD_SYSTEM "Build full Minix system components" OFF)
+option(BUILD_TOOLS "Build developer tools (image builder, etc.)" ON)
+option(BUILD_HAL "Build HAL skeleton library" OFF)
+option(BUILD_BOOT_SHIMS "Build bootloader shim(s)" OFF)
+option(BUILD_KERNEL "Build freestanding kernel (Limine)" OFF)
+
+if(BUILD_SYSTEM)
+  add_subdirectory(lib)
+  add_subdirectory(kernel)
+  add_subdirectory(mm)
+  add_subdirectory(fs)
+  add_subdirectory(commands)
+endif()
+
+if(BUILD_TOOLS)
+  add_subdirectory(tools)
+endif()
+
+add_subdirectory(crypto)
+
+if(BUILD_HAL)
+  add_library(xinim_hal_x86_64 STATIC
+    arch/x86_64/hal/cpu_x86_64.cpp
+    arch/x86_64/hal/apic.cpp
+    arch/x86_64/hal/hpet.cpp
+    arch/x86_64/hal/ioapic.cpp
+    arch/x86_64/hal/pci.cpp
+    kernel/early/serial_16550.cpp)
+  target_include_directories(xinim_hal_x86_64 PUBLIC include)
+  target_compile_features(xinim_hal_x86_64 PUBLIC cxx_std_23)
+  # Keep portable on host; no extra CPU flags here.
+endif()
+
+if(BUILD_BOOT_SHIMS)
+  add_library(xinim_boot_limine STATIC boot/limine/shim.cpp)
+  target_include_directories(xinim_boot_limine PUBLIC include .)
+  target_compile_features(xinim_boot_limine PUBLIC cxx_std_23)
+endif()
+
+if(BUILD_KERNEL)
+  add_executable(xinim_kernel
+    kernel/main.cpp
+    kernel/interrupts.cpp
+    kernel/arch/x86_64/idt.cpp
+    kernel/arch/x86_64/isr.S
+    kernel/acpi/acpi.cpp
+    kernel/time/calibrate.cpp
+    kernel/time/monotonic.cpp
+    kernel/sys/dispatch.cpp
+    kernel/panic.cpp)
+  target_compile_features(xinim_kernel PUBLIC cxx_std_23)
+  target_include_directories(xinim_kernel PRIVATE include)
+  target_link_libraries(xinim_kernel PRIVATE xinim_boot_limine xinim_hal_x86_64)
+  # Freestanding, ELF64 via LLD when available; host-safe defaults otherwise.
+  target_compile_options(xinim_kernel PRIVATE -ffreestanding -fno-exceptions -fno-rtti -fno-asynchronous-unwind-tables -fno-omit-frame-pointer -Wno-error)
+  target_compile_definitions(xinim_kernel PRIVATE _LIBCPP_HAS_NO_THREADS=1)
+  target_link_options(xinim_kernel PRIVATE -nostdlib)
+  # Optional: enable Clang+LLD ELF output if provided
+  set(KERNEL_ENABLE_LLD "${KERNEL_ENABLE_LLD}" CACHE BOOL "Link kernel with LLD as ELF64")
+  set(LLVM_PREFIX "${LLVM_PREFIX}" CACHE PATH "Path prefix to LLVM toolchain (optional)")
+  if(KERNEL_ENABLE_LLD)
+    if(LLVM_PREFIX)
+      target_link_options(xinim_kernel PRIVATE -fuse-ld=${LLVM_PREFIX}/bin/ld.lld)
+    else()
+      target_link_options(xinim_kernel PRIVATE -fuse-ld=lld)
+    endif()
+    target_compile_options(xinim_kernel PRIVATE --target=x86_64-unknown-elf)
+    target_link_options(xinim_kernel PRIVATE --target=x86_64-unknown-elf -Wl,-T,${CMAKE_SOURCE_DIR}/kernel/linker.ld -Wl,--gc-sections)
+  else()
+    # Fallback: attempt to use linker script; may fail on Mach-O platforms.
+    target_link_options(xinim_kernel PRIVATE -Wl,-T,${CMAKE_SOURCE_DIR}/kernel/linker.ld)
+  endif()
+  set_target_properties(xinim_kernel PROPERTIES OUTPUT_NAME xinim.kernel)
+
+  add_custom_target(limine_image
+    COMMAND /bin/bash ${CMAKE_SOURCE_DIR}/tools/make_limine_image.sh
+    DEPENDS xinim_kernel
+    USES_TERMINAL
+    COMMENT "Building Limine bootable image with XINIM kernel"
+  )
+
+  add_custom_target(qemu_limine
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/run_qemu.sh ${CMAKE_BINARY_DIR}/xinim-limine.img -m 512M -smp 2 -serial mon:stdio
+    DEPENDS limine_image
+    USES_TERMINAL
+    COMMENT "Booting XINIM via Limine in QEMU"
+  )
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Unit tests
+# ─────────────────────────────────────────────────────────────────────────────
+option(ENABLE_UNIT_TESTS "Build unit tests" OFF)
+
+if(ENABLE_UNIT_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Image build and QEMU helpers (x86_64)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Input component paths (set these before building target `xinim_image`)
+set(BOOTBLOCK_BIN "" CACHE FILEPATH "Path to 512-byte bootblock binary")
+set(KERNEL_BIN    "" CACHE FILEPATH "Path to kernel binary")
+set(MM_BIN        "" CACHE FILEPATH "Path to memory manager binary")
+set(FS_BIN        "" CACHE FILEPATH "Path to file system binary")
+set(INIT_BIN      "" CACHE FILEPATH "Path to init binary")
+set(FSCK_BIN      "" CACHE FILEPATH "Path to fsck binary")
+
+set(XINIM_IMAGE   "${CMAKE_BINARY_DIR}/xinim.img" CACHE FILEPATH "Output disk image path")
+
+# Accelerator hint for QEMU
+set(QEMU_ACCEL "" CACHE STRING "QEMU accelerator (hvf/kvm/tcg). Empty = auto")
+
+if(QEMU_ACCEL STREQUAL "")
+  if(CMAKE_SYSTEM_NAME STREQUAL "Darwin")
+    set(QEMU_ACCEL "hvf")
+  elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    set(QEMU_ACCEL "kvm")
+  else()
+    set(QEMU_ACCEL "tcg")
+  endif()
+endif()
+
+# Compose image using the tools/make_image.sh wrapper. This target requires
+# component paths to be set. It depends on the image builder tool if built.
+if(BUILD_TOOLS)
+  # Optional prebuilt image builder; if empty, attempt to use the CMake target path
+  set(IMAGE_BUILDER "" CACHE FILEPATH "Path to prebuilt minix_tool_build executable")
+  if(IMAGE_BUILDER)
+    set(XINIM_BUILDER_PATH ${IMAGE_BUILDER})
+  else()
+    set(XINIM_BUILDER_PATH $<TARGET_FILE:minix_tool_build>)
+  endif()
+
+  add_custom_target(xinim_image
+    COMMAND /bin/bash ${CMAKE_SOURCE_DIR}/tools/make_image.sh
+            ${XINIM_BUILDER_PATH}
+            ${BOOTBLOCK_BIN} ${KERNEL_BIN} ${MM_BIN} ${FS_BIN} ${INIT_BIN} ${FSCK_BIN}
+            ${XINIM_IMAGE}
+    BYPRODUCTS ${XINIM_IMAGE}
+    USES_TERMINAL
+    COMMENT "Composing XINIM x86_64 disk image -> ${XINIM_IMAGE}"
+    COMMAND_EXPAND_LISTS
+  )
+
+  add_custom_target(qemu
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/run_qemu.sh ${XINIM_IMAGE} -m 512M -smp 2 -accel ${QEMU_ACCEL}
+    DEPENDS xinim_image
+    USES_TERMINAL
+    COMMENT "Launching QEMU with ${XINIM_IMAGE} (accel=${QEMU_ACCEL})"
+  )
+
+  # Stub image for plumbing validation: raw blobs + no patching
+  add_custom_target(xinim_stub_image
+    COMMAND /bin/bash ${CMAKE_SOURCE_DIR}/tools/create_stub_image.sh
+    DEPENDS minix_tool_build
+    USES_TERMINAL
+    COMMENT "Creating stub XINIM image (raw, no patching)"
+  )
+
+  add_custom_target(qemu_stub
+    COMMAND ${CMAKE_SOURCE_DIR}/tools/run_qemu.sh ${CMAKE_BINARY_DIR}/xinim-stub.img -m 256M -smp 1 -accel ${QEMU_ACCEL}
+    DEPENDS xinim_stub_image
+    USES_TERMINAL
+    COMMENT "Launching QEMU with stub image (accel=${QEMU_ACCEL})"
+  )
+endif()

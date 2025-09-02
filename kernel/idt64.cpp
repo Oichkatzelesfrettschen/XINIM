@@ -1,4 +1,4 @@
-#include "../include/defs.h" // Provides uN_t types
+#include "../include/defs.hpp" // Provides uN_t types
 #include "const.hpp"
 #include "type.hpp"
 #include <cstddef> // For std::size_t, nullptr (though not directly used for ptr)

@@ -1,0 +1,130 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# XINIM - Bazel WORKSPACE Configuration
+# Hyperscale Build System for C++23 Operating System  
+# ═══════════════════════════════════════════════════════════════════════════════
+
+workspace(name = "xinim")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Bazel Rules for C++23
+# ──────────────────────────────────────────────────────────────────────────────
+
+load("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+# Modern C++ rules with C++23 support
+http_archive(
+    name = "rules_cc",
+    urls = ["https://github.com/bazelbuild/rules_cc/releases/download/0.0.9/rules_cc-0.0.9.tar.gz"],
+    sha256 = "2037875b9a4456dce4a79d112a8ae885bbc4aad968e6587dca6e64f3a0900cdf",
+    strip_prefix = "rules_cc-0.0.9",
+)
+
+# Python rules for tooling
+http_archive(
+    name = "rules_python",
+    sha256 = "84aec9e21cc56fbc7f1335035a71c850d1b9b5cc6ff497306f84cced9a769841",
+    strip_prefix = "rules_python-0.23.1",  
+    url = "https://github.com/bazelbuild/rules_python/releases/download/0.23.1/rules_python-0.23.1.tar.gz",
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# C++23 Toolchain Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Register custom C++23 toolchain
+register_toolchains("//tools/cpp23:xinim_toolchain")
+
+# ──────────────────────────────────────────────────────────────────────────────
+# External Dependencies
+# ──────────────────────────────────────────────────────────────────────────────
+
+# OpenSSL for cryptographic operations
+http_archive(
+    name = "openssl",
+    build_file = "//third_party:openssl.BUILD",
+    sha256 = "cf3098950cb4d853ad95c0841f1f9c6d3dc102dccfcacd521d93925208b76ac8",
+    strip_prefix = "openssl-1.1.1w",
+    urls = ["https://www.openssl.org/source/openssl-1.1.1w.tar.gz"],
+)
+
+# libsodium for additional crypto primitives
+http_archive(
+    name = "libsodium", 
+    build_file = "//third_party:libsodium.BUILD",
+    sha256 = "6f504490b342a4f8a4c4a02fc9b866cbef8622d5df4e5452b46be121e46636c1",
+    strip_prefix = "libsodium-1.0.18",
+    urls = ["https://github.com/jedisct1/libsodium/releases/download/1.0.18/libsodium-1.0.18.tar.gz"],
+)
+
+# GoogleTest for unit testing
+http_archive(
+    name = "com_google_googletest",
+    sha256 = "81964fe578e9bd7c94dfdb09c8e4d6e6759e19967e397dbea48d1c10e45d0df2",
+    strip_prefix = "googletest-release-1.12.1",
+    urls = ["https://github.com/google/googletest/archive/release-1.12.1.tar.gz"],
+)
+
+# Google Benchmark for performance testing
+http_archive(
+    name = "com_github_google_benchmark",
+    sha256 = "6430e4092653380d9dc4ccb45a1e2dc9259d581f4866dc0759713126056bc1d7",
+    strip_prefix = "benchmark-1.7.1",
+    urls = ["https://github.com/google/benchmark/archive/v1.7.1.tar.gz"],
+)
+
+# Abseil for modern C++ utilities (C++17 minimum, good for C++23)
+http_archive(
+    name = "com_google_absl",
+    sha256 = "91ac87d30cc6d79f9ab974c51874a704de9c2647c40f6932597329a282217ba8",
+    strip_prefix = "abseil-cpp-20220623.1",
+    urls = ["https://github.com/abseil/abseil-cpp/archive/20220623.1.tar.gz"],
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# Build Tool Dependencies
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Hedron's bazel compile commands for IDE integration
+http_archive(
+    name = "hedron_compile_commands",
+    sha256 = "d975ba497eb67a8970317e05e5de5c1d16c64d59c2baa6cb54ede2397eb9b2de",
+    strip_prefix = "bazel-compile-commands-extractor-ed994039a951b736091776d677f324b3903ef939",
+    url = "https://github.com/hedronvision/bazel-compile-commands-extractor/archive/ed994039a951b736091776d677f324b3903ef939.tar.gz",
+)
+
+load("@hedron_compile_commands//:workspace_setup.bzl", "hedron_compile_commands_setup")
+hedron_compile_commands_setup()
+
+# ──────────────────────────────────────────────────────────────────────────────
+# LLVM/Clang Toolchain for C++23
+# ──────────────────────────────────────────────────────────────────────────────
+
+http_archive(
+    name = "toolchains_llvm",
+    canonical_id = "0.10.3",
+    sha256 = "b7cd301ef7b0ece28d20d3e778697a5e3b81828393150bed04838c0c52963a01",
+    strip_prefix = "toolchains_llvm-0.10.3",
+    url = "https://github.com/grailbio/bazel-toolchain/releases/download/0.10.3/toolchains_llvm-0.10.3.tar.gz",
+)
+
+load("@toolchains_llvm//toolchain:deps.bzl", "bazel_toolchain_dependencies")
+bazel_toolchain_dependencies()
+
+load("@toolchains_llvm//toolchain:rules.bzl", "llvm_toolchain")
+
+# LLVM 17+ for C++23 support
+llvm_toolchain(
+    name = "llvm_toolchain",
+    llvm_version = "17.0.6",
+    sysroot = {
+        "linux-x86_64": "@org_chromium_sysroot_linux_x64//:sysroot",
+        "linux-aarch64": "@org_chromium_sysroot_linux_arm64//:sysroot", 
+    },
+)
+
+load("@llvm_toolchain//:toolchains.bzl", "llvm_register_toolchains")
+llvm_register_toolchains()
+
+# ══════════════════════════════════════════════════════════════════════════════
+# END OF BAZEL WORKSPACE
+# ══════════════════════════════════════════════════════════════════════════════

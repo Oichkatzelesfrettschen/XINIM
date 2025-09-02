@@ -1,4 +1,4 @@
-#include "../include/defs.h" // For uptr_t
+#include "../include/defs.hpp" // For uptr_t
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"

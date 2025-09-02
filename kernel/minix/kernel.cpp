@@ -1,6 +1,6 @@
 #include "console.hpp"
-#include "pmm.h"
-#include "vmm.h"
+#include "pmm.hpp"
+#include "vmm.hpp"
 #include "multiboot.hpp"
 #include <stddef.h> // For NULL, size_t
 #include <stdint.h> // For uintptr_t
@@ -81,7 +81,11 @@ extern "C" void kmain(unsigned long multiboot_magic, unsigned long multiboot_add
         console_write_string("\nSystem Halted due to invalid Multiboot magic.\n", vga_entry_color(VGA_COLOR_RED, VGA_COLOR_BLACK));
         // Infinite loop to halt the system
         while (true) {
+#ifdef __x86_64__
             asm volatile("cli; hlt");
+#elif defined(__aarch64__)
+            asm volatile("wfi"); // Wait for interrupt
+#endif
         }
     }
     console_write_string("Multiboot2 magic verified.\n", vga_entry_color(VGA_COLOR_LIGHT_GREEN, VGA_COLOR_BLACK));
@@ -149,6 +153,10 @@ extern "C" void kmain(unsigned long multiboot_magic, unsigned long multiboot_add
 // halt_system: // Label for explicit halt, now only used if boot_success is false or at end of kmain
     console_write_string("System Halted.\n", vga_entry_color(VGA_COLOR_LIGHT_RED, VGA_COLOR_BLACK));
     while (true) {
+#ifdef __x86_64__
         asm volatile("cli; hlt");
+#elif defined(__aarch64__)
+        asm volatile("wfi"); // Wait for interrupt
+#endif
     }
 }

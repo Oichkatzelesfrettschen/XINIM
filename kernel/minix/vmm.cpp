@@ -1,5 +1,5 @@
-#include "vmm.h"
-#include "pmm.h"
+#include "vmm.hpp"
+#include "pmm.hpp"
 #include "console.hpp" // For debug messages
 #include <stddef.h> // For NULL
 #include <stdint.h> // For uintptr_t
@@ -180,16 +180,32 @@ void vmm_unmap_page(uintptr_t virtual_addr) {
 
 void vmm_load_page_directory(uintptr_t page_dir_phys_addr) {
     kernel_page_directory_phys = page_dir_phys_addr; // Store it if changed by someone else
+#ifdef __x86_64__
     asm volatile("mov %0, %%cr3" :: "r"(page_dir_phys_addr) : "memory");
+#elif defined(__aarch64__)
+    // ARM64 uses TTBR0_EL1 for page tables
+    asm volatile("msr TTBR0_EL1, %0" :: "r"(page_dir_phys_addr));
+    asm volatile("isb");
+#endif
 }
 
 void vmm_enable_paging() {
+#ifdef __x86_64__
     asm volatile(
-        "mov %%cr0, %%eax;"
-        "or $0x80000000, %%eax;" // Set PG bit (bit 31)
-        "mov %%eax, %%cr0;"
-        ::: "eax", "memory"
+        "mov %%cr0, %%rax;"
+        "or $0x80000000, %%rax;" // Set PG bit (bit 31)
+        "mov %%rax, %%cr0;"
+        ::: "rax", "memory"
     );
+#elif defined(__aarch64__)
+    // ARM64 uses different MMU control
+    // This would typically set SCTLR_EL1.M bit
+    uint64_t sctlr;
+    asm volatile("mrs %0, SCTLR_EL1" : "=r"(sctlr));
+    sctlr |= 0x1; // Enable MMU
+    asm volatile("msr SCTLR_EL1, %0" :: "r"(sctlr));
+    asm volatile("isb");
+#endif
 }
 
 uintptr_t vmm_get_page_directory_physical_addr() {

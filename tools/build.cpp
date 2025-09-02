@@ -586,6 +586,8 @@ class BootImageBuilder {
     std::unique_ptr<ImageFile> image_; ///< Output image file manager
     std::uint64_t os_size_{0};         ///< Size of OS without fsck
     std::uint64_t total_size_{0};      ///< Total size including fsck
+    bool raw_mode_{false};             ///< Interpret inputs as raw blobs (no headers)
+    bool skip_patches_{false};         ///< Skip kernel/fs metadata patching
 
     /// Program names for display and debugging
     static constexpr std::array<const char *, 5> program_names_ = {"kernel", "mm", "fs", "init",
@@ -638,14 +640,24 @@ class BootImageBuilder {
                                     "Cannot open program: " + program_path);
         }
 
-        ExecutableHeader header(file);
-        prog.text_size = header.text_size();
-        prog.data_size = header.data_size();
-        prog.bss_size = header.bss_size();
-        prog.separate_id = header.is_separate_id();
+        if (raw_mode_) {
+            file.seekg(0, std::ios::end);
+            const auto size = static_cast<std::uint32_t>(file.tellg());
+            file.seekg(0, std::ios::beg);
+            prog.text_size = size;
+            prog.data_size = 0;
+            prog.bss_size = 0;
+            prog.separate_id = false;
+        } else {
+            ExecutableHeader header(file);
+            prog.text_size = header.text_size();
+            prog.data_size = header.data_size();
+            prog.bss_size = header.bss_size();
+            prog.separate_id = header.is_separate_id();
+        }
 
         // Validate separate I&D alignment
-        if (prog.separate_id && (prog.text_size % 16) != 0) {
+        if (!raw_mode_ && prog.separate_id && (prog.text_size % 16) != 0) {
             throw std::runtime_error("Separate I&D requires 16-byte aligned text size in " +
                                      program_path);
         }
@@ -725,6 +737,7 @@ class BootImageBuilder {
      * @note Validates kernel data space using magic number
      */
     void patch_kernel_table() {
+        if (skip_patches_) return;
         // Find kernel data space
         const auto data_offset = BuildConstants::SECTOR_SIZE + programs_[0].text_size;
 
@@ -770,6 +783,7 @@ class BootImageBuilder {
      * @note Init is the first user process started by the file system
      */
     void patch_fs_init_info() {
+        if (skip_patches_) return;
         // Calculate file system data offset
         auto fs_offset = BuildConstants::SECTOR_SIZE;
         fs_offset += programs_[0].aligned_size(); // kernel
@@ -813,6 +827,10 @@ class BootImageBuilder {
     explicit BootImageBuilder(const std::string &output_path) {
         image_ = std::make_unique<ImageFile>(output_path);
     }
+
+    BootImageBuilder(const std::string &output_path, bool raw_mode, bool skip_patches)
+        : programs_{}, image_(std::make_unique<ImageFile>(output_path)), os_size_{0},
+          total_size_{0}, raw_mode_{raw_mode}, skip_patches_{skip_patches} {}
 
     /**
      * @brief Build complete boot image from input files
@@ -873,6 +891,8 @@ class BootImageBuilder {
         struct Arguments {
             std::string output_file;              ///< Path for output boot image
             std::vector<std::string> input_files; ///< Paths for input components
+            bool raw_mode{false};                 ///< Interpret inputs as raw blobs
+            bool skip_patches{false};             ///< Skip kernel/fs patching
         };
 
         /**
@@ -887,16 +907,25 @@ class BootImageBuilder {
          * @note Prints usage information on error
          */
         static Arguments parse(int argc, char *argv[]) {
-            if (argc != 8) {
+            Arguments args;
+            int idx = 1;
+            while (idx < argc && argv[idx][0] == '-') {
+                std::string flag = argv[idx];
+                if (flag == "--raw") args.raw_mode = true;
+                else if (flag == "--no-patch") args.skip_patches = true;
+                else break;
+                ++idx;
+            }
+
+            if (argc - idx != 7) {
                 print_usage(argv[0]);
                 throw std::invalid_argument("Invalid number of arguments");
             }
 
-            Arguments args;
-            args.output_file = argv[7];
+            args.output_file = argv[idx + 6];
 
-            for (int i = 1; i < 7; ++i) {
-                args.input_files.emplace_back(argv[i]);
+            for (int i = 0; i < 6; ++i) {
+                args.input_files.emplace_back(argv[idx + i]);
 
                 // Verify file exists
                 std::ifstream test_file(args.input_files.back());
@@ -919,7 +948,7 @@ class BootImageBuilder {
          */
         static void print_usage(const char *program_name) {
             std::cout << "Usage: " << program_name
-                      << " bootblock kernel mm fs init fsck output_image\n"
+                      << " [--raw] [--no-patch] bootblock kernel mm fs init fsck output_image\n"
                       << "\nBuilds a MINIX boot image from component files.\n"
                       << "\nArguments:\n"
                       << "  bootblock    Boot sector binary (512 bytes)\n"
@@ -928,7 +957,10 @@ class BootImageBuilder {
                       << "  fs           File system executable\n"
                       << "  init         Init process executable\n"
                       << "  fsck         File system checker executable\n"
-                      << "  output_image Output boot image file\n";
+                      << "  output_image Output boot image file\n"
+                      << "\nOptions:\n"
+                      << "  --raw        Treat inputs as raw blobs (no headers)\n"
+                      << "  --no-patch   Skip kernel/fs metadata patching\n";
         }
     };
 
@@ -951,9 +983,9 @@ class BootImageBuilder {
  */
 int main(int argc, char *argv[]) noexcept {
     try {
-        const auto args = minix::builder::ArgumentParser::parse(argc, argv);
+        const auto args = minix::builder::BootImageBuilder::ArgumentParser::parse(argc, argv);
 
-        minix::builder::BootImageBuilder builder(args.output_file);
+        minix::builder::BootImageBuilder builder(args.output_file, args.raw_mode, args.skip_patches);
         builder.build(args.input_files);
 
         return 0;

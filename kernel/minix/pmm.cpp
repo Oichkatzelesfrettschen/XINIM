@@ -1,4 +1,4 @@
-#include "pmm.h"
+#include "pmm.hpp"
 #include "console.hpp" // For debug messages (optional, consider a dedicated kprint)
 #include <stdint.h>
 #include <stddef.h> // For NULL, size_t
