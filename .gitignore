@@ -1,5 +1,5 @@
 ###############################################################################
-# Project-wide .gitignore — reconciled 2025-06-23
+# Project-wide .gitignore — reconciled 2025-08-23
 #
 # Ordering & precedence:
 # • Directory rules (trailing “/”) come first.
@@ -9,62 +9,83 @@
 ###############################################################################
 
 # ── 1. Build & tool-chain artifacts ───────────────────────────────────────────
-**/build/                     # any “build” dir (out-of-source CMake, Meson…)
-**/build*/                    # catch “build”, “build_debug” etc.
-build/                        # top-level build tree
-builds/                       # alternate plural naming
-build*/                       # other top-level build dirs
-*/CMakeFiles/                 # per-dir CMake state
-bin/                          # root-level binaries
-*/bin/                        # per-module bin/
+**/build/
+**/build*/
+build/
+builds/
+build*/
+*/CMakeFiles/
+bin/
+*/bin/
+setup*/
+**/setup*/
 
 # ── 2. Compiler outputs & binaries ───────────────────────────────────────────
-*.o                           # object files
-*.a                           # static archives
-*.s~                          # assembly backups
-*.exe                         # Windows executables
-*.out                         # Unix executables
-*.elf                         # ELF binaries
-*.bin                         # raw binaries
+*.o
+*.a
+*.s~
+*.exe
+*.out
+*.elf
+*.bin
+*.so
+*.dylib
+*.dll
+*.obj
+*.pdb
+*.lib
+*.lo
+*.la
+*.gcda
+*.gcno
 
 # ── 3. CMake generated files ─────────────────────────────────────────────────
 CMakeFiles/
 */CMakeFiles/
 CMakeCache.txt
-cmake_install.cmake           # install script generator
+cmake_install.cmake
 
 # ── 4. Documentation generators ───────────────────────────────────────────────
-docs/doxygen/                 # Doxygen HTML/LaTeX output
+docs/doxygen/
 docs/sphinx/html/
 docs/sphinx/_build/
+docs/_build/
 
 # ── 5. Logs, reports & temporary files ───────────────────────────────────────
 *.log
 *.tmp
 *.d
-analysis_*.txt                # analysis reports
+analysis_*.txt
 analysis_*_fresh.txt
 perf.csv
 output.txt
 *_output.txt
 *.txt
+*_summary.json
 
 # ── 6. Language & tool caches ─────────────────────────────────────────────────
-__pycache__/                  # Python byte-code cache
-.cache/                       # user-level build caches
-*.DS_Store                    # macOS metadata
+__pycache__/
+.cache/
+*.DS_Store
 
 # ── 7. Editor & IDE backups ──────────────────────────────────────────────────
 *.idx
-*.swp
+*.sw?
 *.bak
-*~                            # generic “tilde” backups
+*~
+#*#
+.#*
+*.orig
+*.rej
 
 # ── 8. Local test artifacts ─────────────────────────────────────────────────
-ls_test                       # ad-hoc test binary
-**/ls_test                    # ignore in subdirectories
-
-# Redundant guard lines to ensure build artifacts remain excluded
-build*/
-builds/
-*/CMakeFiles/
+ls_test
+**/ls_test
+test_architecture_demo
+test_makefile
+commands/mined_final*
+!commands/mined_final*.cpp
+!commands/mined_final*.hpp
+tests/t[0-9]*
+!tests/t[0-9]*.cpp
+!tests/t[0-9]*.hpp

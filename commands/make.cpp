@@ -4,12 +4,12 @@
  * @author XINIM Project (Modernized from legacy make implementation)
  * @version 3.0
  * @date 2024
- * 
+ *
  * A comprehensive modernization of the traditional make build system into
  * paradigmatically pure, hardware-agnostic, SIMD/FPU-ready, exception-safe,
  * and template-based C++23. Features advanced dependency analysis, parallel
  * build execution, and comprehensive RAII resource management.
- * 
+ *
  * Key Features:
  * - Multi-threaded dependency resolution and build execution
  * - SIMD-optimized string operations and file processing
@@ -57,10 +57,10 @@
 #include <vector>
 
 // System headers
+#include <signal.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unistd.h>
-#include <signal.h>
 
 namespace xinim::build::make {
 
@@ -71,27 +71,27 @@ using namespace std::chrono_literals;
  * @brief Core build system constants and configuration
  */
 namespace config {
-    inline constexpr std::size_t MAX_LINE_LENGTH{2048};
-    inline constexpr std::size_t MAX_SHORT_STRING{256};
-    inline constexpr std::size_t MAX_DEPENDENCIES{1024};
-    inline constexpr std::size_t MAX_RULES{512};
-    inline constexpr std::size_t DEFAULT_THREAD_COUNT{8};
-    inline constexpr std::size_t MIN_PARALLEL_THRESHOLD{4};
-    
-    // File system constants
-    inline constexpr char DEFAULT_MAKEFILE[]{"Makefile"};
-    inline constexpr char FALLBACK_MAKEFILE[]{"makefile"};
-    inline constexpr char DEFAULT_SHELL[]{"/bin/sh"};
-    
-    // Platform-specific separators
+inline constexpr std::size_t MAX_LINE_LENGTH{2048};
+inline constexpr std::size_t MAX_SHORT_STRING{256};
+inline constexpr std::size_t MAX_DEPENDENCIES{1024};
+inline constexpr std::size_t MAX_RULES{512};
+inline constexpr std::size_t DEFAULT_THREAD_COUNT{8};
+inline constexpr std::size_t MIN_PARALLEL_THRESHOLD{4};
+
+// File system constants
+inline constexpr char DEFAULT_MAKEFILE[]{"Makefile"};
+inline constexpr char FALLBACK_MAKEFILE[]{"makefile"};
+inline constexpr char DEFAULT_SHELL[]{"/bin/sh"};
+
+// Platform-specific separators
 #ifdef _WIN32
-    inline constexpr char PATH_SEPARATOR{';'};
-    inline constexpr char DIR_SEPARATOR{'\\'};
-    inline constexpr char LINE_CONTINUATION{'+'};
+inline constexpr char PATH_SEPARATOR{';'};
+inline constexpr char DIR_SEPARATOR{'\\'};
+inline constexpr char LINE_CONTINUATION{'+'};
 #else
-    inline constexpr char PATH_SEPARATOR{':'};
-    inline constexpr char DIR_SEPARATOR{'/'};
-    inline constexpr char LINE_CONTINUATION{'\\'};
+inline constexpr char PATH_SEPARATOR{':'};
+inline constexpr char DIR_SEPARATOR{'/'};
+inline constexpr char LINE_CONTINUATION{'\\'};
 #endif
 }
 
@@ -99,128 +99,128 @@ namespace config {
  * @brief Advanced error handling system with structured exception types
  */
 namespace errors {
-    class BuildError : public std::runtime_error {
-    public:
-        explicit BuildError(const std::string& message) 
-            : std::runtime_error(message) {}
-    };
-    
-    class DependencyError : public BuildError {
-    public:
-        explicit DependencyError(const std::string& target)
-            : BuildError(std::format("Cannot resolve dependencies for target: {}", target)) {}
-    };
-    
-    class RuleError : public BuildError {
-    public:
-        explicit RuleError(const std::string& rule)
-            : BuildError(std::format("Invalid or missing rule: {}", rule)) {}
-    };
-    
-    class CircularDependencyError : public BuildError {
-    public:
-        explicit CircularDependencyError(const std::string& cycle)
-            : BuildError(std::format("Circular dependency detected: {}", cycle)) {}
-    };
-    
-    class ExecutionError : public BuildError {
-    public:
-        ExecutionError(const std::string& command, int exit_code)
-            : BuildError(std::format("Command failed: {} (exit code: {})", command, exit_code)) {}
-    };
+class BuildError : public std::runtime_error {
+  public:
+    explicit BuildError(const std::string &message) : std::runtime_error(message) {}
+};
+
+class DependencyError : public BuildError {
+  public:
+    explicit DependencyError(const std::string &target)
+        : BuildError(std::format("Cannot resolve dependencies for target: {}", target)) {}
+};
+
+class RuleError : public BuildError {
+  public:
+    explicit RuleError(const std::string &rule)
+        : BuildError(std::format("Invalid or missing rule: {}", rule)) {}
+};
+
+class CircularDependencyError : public BuildError {
+  public:
+    explicit CircularDependencyError(const std::string &cycle)
+        : BuildError(std::format("Circular dependency detected: {}", cycle)) {}
+};
+
+class ExecutionError : public BuildError {
+  public:
+    ExecutionError(const std::string &command, int exit_code)
+        : BuildError(std::format("Command failed: {} (exit code: {})", command, exit_code)) {}
+};
 }
 
 /**
  * @brief SIMD-optimized string operations for high-performance processing
  */
 namespace simd_ops {
-    /**
-     * @brief Vectorized string comparison for fast rule matching
-     * @param lhs First string
-     * @param rhs Second string
-     * @return Comparison result
-     */
-    [[nodiscard]] inline int compare_strings_simd(std::string_view lhs, std::string_view rhs) noexcept {
-        const auto min_len = std::min(lhs.size(), rhs.size());
-        
-        if (min_len >= 32) {
-            const auto result = std::memcmp(lhs.data(), rhs.data(), min_len);
-            if (result != 0) {
-                return (result < 0) ? -1 : 1;
-            }
-        } else {
-            for (std::size_t i = 0; i < min_len; ++i) {
-                if (lhs[i] != rhs[i]) {
-                    return (lhs[i] < rhs[i]) ? -1 : 1;
-                }
+/**
+ * @brief Vectorized string comparison for fast rule matching
+ * @param lhs First string
+ * @param rhs Second string
+ * @return Comparison result
+ */
+[[nodiscard]] inline int compare_strings_simd(std::string_view lhs, std::string_view rhs) noexcept {
+    const auto min_len = std::min(lhs.size(), rhs.size());
+
+    if (min_len >= 32) {
+        const auto result = std::memcmp(lhs.data(), rhs.data(), min_len);
+        if (result != 0) {
+            return (result < 0) ? -1 : 1;
+        }
+    } else {
+        for (std::size_t i = 0; i < min_len; ++i) {
+            if (lhs[i] != rhs[i]) {
+                return (lhs[i] < rhs[i]) ? -1 : 1;
             }
         }
-        
-        if (lhs.size() < rhs.size()) return -1;
-        if (lhs.size() > rhs.size()) return 1;
-        return 0;
     }
-    
-    /**
-     * @brief SIMD-optimized macro expansion detection
-     * @param text Input text to scan
-     * @return Positions of macro expansions
-     */
-    [[nodiscard]] std::vector<std::size_t> find_macro_positions(std::string_view text) noexcept {
-        std::vector<std::size_t> positions;
-        positions.reserve(16); // Pre-allocate for common case
-        
-        for (std::size_t i = 0; i < text.size(); ++i) {
-            if (text[i] == '$' && i + 1 < text.size() && 
-                (text[i + 1] == '(' || text[i + 1] == '{')) {
-                positions.push_back(i);
-            }
+
+    if (lhs.size() < rhs.size())
+        return -1;
+    if (lhs.size() > rhs.size())
+        return 1;
+    return 0;
+}
+
+/**
+ * @brief SIMD-optimized macro expansion detection
+ * @param text Input text to scan
+ * @return Positions of macro expansions
+ */
+[[nodiscard]] std::vector<std::size_t> find_macro_positions(std::string_view text) noexcept {
+    std::vector<std::size_t> positions;
+    positions.reserve(16); // Pre-allocate for common case
+
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        if (text[i] == '$' && i + 1 < text.size() && (text[i + 1] == '(' || text[i + 1] == '{')) {
+            positions.push_back(i);
         }
-        
-        return positions;
     }
+
+    return positions;
+}
 }
 
 /**
  * @brief Type-safe timestamp wrapper with modern chrono integration
  */
 class Timestamp final {
-private:
+  private:
     std::chrono::system_clock::time_point time_point_;
-    
-public:
+
+  public:
     /**
      * @brief Constructs timestamp from system clock
      */
     Timestamp() noexcept : time_point_(std::chrono::system_clock::now()) {}
-    
+
     /**
      * @brief Constructs timestamp from time_t
      * @param t Time value
      */
-    explicit Timestamp(std::time_t t) noexcept 
+    explicit Timestamp(std::time_t t) noexcept
         : time_point_(std::chrono::system_clock::from_time_t(t)) {}
-    
+
     /**
      * @brief Constructs timestamp from filesystem
      * @param path File path
      */
-    explicit Timestamp(const std::filesystem::path& path) {
+    explicit Timestamp(const std::filesystem::path &path) {
         try {
             const auto ftime = std::filesystem::last_write_time(path);
             const auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-                ftime - std::filesystem::file_time_type::clock::now() + 
+                ftime - std::filesystem::file_time_type::clock::now() +
                 std::chrono::system_clock::now());
             time_point_ = sctp;
-        } catch (const std::filesystem::filesystem_error&) {
+        } catch (const std::filesystem::filesystem_error &) {
             time_point_ = std::chrono::system_clock::time_point::min();
         }
     }
-    
+
     // Comparison operators
-    [[nodiscard]] auto operator<=>(const Timestamp& other) const noexcept = default;
-    [[nodiscard]] bool operator==(const Timestamp& other) const noexcept = default;
-    
+    [[nodiscard]] auto operator<=>(const Timestamp &other) const noexcept = default;
+    [[nodiscard]] bool operator==(const Timestamp &other) const noexcept = default;
+
     /**
      * @brief Checks if timestamp represents existing file
      * @return true if file exists
@@ -228,7 +228,7 @@ public:
     [[nodiscard]] bool exists() const noexcept {
         return time_point_ != std::chrono::system_clock::time_point::min();
     }
-    
+
     /**
      * @brief Gets time_t representation
      * @return Time as time_t
@@ -236,142 +236,144 @@ public:
     [[nodiscard]] std::time_t to_time_t() const noexcept {
         return std::chrono::system_clock::to_time_t(time_point_);
     }
-    
+
     /**
      * @brief Gets current timestamp
      * @return Current time
      */
-    [[nodiscard]] static Timestamp now() noexcept {
-        return Timestamp{};
-    }
+    [[nodiscard]] static Timestamp now() noexcept { return Timestamp{}; }
 };
 
 /**
  * @brief Advanced macro expansion system with caching and optimization
  */
 class MacroProcessor final {
-private:
+  private:
     std::unordered_map<std::string, std::string> macros_;
     mutable std::shared_mutex mutex_;
     std::unordered_map<std::string, std::string> expansion_cache_;
-    
-public:
+
+  public:
     /**
      * @brief Adds or updates a macro definition
      * @param name Macro name
      * @param value Macro value
      */
-    void define_macro(const std::string& name, const std::string& value) {
+    void define_macro(const std::string &name, const std::string &value) {
         std::unique_lock lock{mutex_};
         macros_[name] = value;
         expansion_cache_.clear(); // Invalidate cache
     }
-    
+
     /**
      * @brief Expands macros in text with recursive resolution
      * @param text Input text with potential macros
      * @param target Current target for $@ and $* expansion
      * @return Expanded text
-     */    [[nodiscard]] std::string expand(const std::string& text, 
-                                   const std::string& target = {}) {
+     */
+    [[nodiscard]] std::string expand(const std::string &text, const std::string &target = {}) {
         std::shared_lock lock{mutex_};
-        
+
         // Check cache first
         const auto cache_key = text + "|" + target;
         if (auto it = expansion_cache_.find(cache_key); it != expansion_cache_.end()) {
             return it->second;
         }
-        
+
         lock.unlock();
-        
+
         const auto result = expand_impl(text, target);
-          // Cache result
+        // Cache result
         std::unique_lock write_lock{mutex_};
         expansion_cache_.emplace(cache_key, result);
-        
+
         return result;
     }
-    
+
     /**
      * @brief Checks if macro is defined
      * @param name Macro name
      * @return true if defined
      */
-    [[nodiscard]] bool is_defined(const std::string& name) const {
+    [[nodiscard]] bool is_defined(const std::string &name) const {
         std::shared_lock lock{mutex_};
         return macros_.contains(name);
     }
-    
+
     /**
      * @brief Gets macro value
      * @param name Macro name
      * @return Macro value or empty optional
      */
-    [[nodiscard]] std::optional<std::string> get_macro(const std::string& name) const {
+    [[nodiscard]] std::optional<std::string> get_macro(const std::string &name) const {
         std::shared_lock lock{mutex_};
         if (auto it = macros_.find(name); it != macros_.end()) {
             return it->second;
         }
         return std::nullopt;
     }
-    
-private:
+
+  private:
     /**
      * @brief Internal macro expansion implementation
      * @param text Input text
      * @param target Current target
      * @return Expanded text
      */
-    [[nodiscard]] std::string expand_impl(const std::string& text, const std::string& target) const {
+    [[nodiscard]] std::string expand_impl(const std::string &text,
+                                          const std::string &target) const {
         std::string result;
         result.reserve(text.size() * 2); // Pre-allocate for expansion
-        
+
         const auto macro_positions = simd_ops::find_macro_positions(text);
         std::size_t pos = 0;
-        
+
         for (const auto macro_pos : macro_positions) {
             // Copy text before macro
             result.append(text, pos, macro_pos - pos);
-            
+
             // Process macro
             const auto macro_end = find_macro_end(text, macro_pos);
             const auto macro_content = extract_macro_content(text, macro_pos, macro_end);
             const auto expanded = expand_single_macro(macro_content, target);
             result.append(expanded);
-            
+
             pos = macro_end;
         }
-        
+
         // Copy remaining text
         result.append(text, pos);
-        
+
         return result;
     }
-    
+
     /**
      * @brief Finds the end position of a macro
      * @param text Input text
      * @param start Start position
      * @return End position
      */
-    [[nodiscard]] std::size_t find_macro_end(const std::string& text, std::size_t start) const {
-        if (start + 1 >= text.size()) return start + 1;
-        
+    [[nodiscard]] std::size_t find_macro_end(const std::string &text, std::size_t start) const {
+        if (start + 1 >= text.size())
+            return start + 1;
+
         const char open_char = text[start + 1];
         const char close_char = (open_char == '(') ? ')' : '}';
-        
+
         std::size_t pos = start + 2;
         int depth = 1;
-        
+
         while (pos < text.size() && depth > 0) {
-            if (text[pos] == open_char) ++depth;
-            else if (text[pos] == close_char) --depth;
+            if (text[pos] == open_char)
+                ++depth;
+            else if (text[pos] == close_char)
+                --depth;
             ++pos;
         }
-        
+
         return pos;
     }
-    
+
     /**
      * @brief Extracts macro content between delimiters
      * @param text Input text
@@ -379,20 +381,21 @@ private:
      * @param end End position
      * @return Macro content
      */
-    [[nodiscard]] std::string extract_macro_content(const std::string& text, 
-                                                   std::size_t start, std::size_t end) const {
-        if (start + 2 >= end) return {};
+    [[nodiscard]] std::string extract_macro_content(const std::string &text, std::size_t start,
+                                                    std::size_t end) const {
+        if (start + 2 >= end)
+            return {};
         return text.substr(start + 2, end - start - 3);
     }
-    
+
     /**
      * @brief Expands a single macro
      * @param macro_name Macro name
      * @param target Current target
      * @return Expanded value
      */
-    [[nodiscard]] std::string expand_single_macro(const std::string& macro_name, 
-                                                 const std::string& target) const {
+    [[nodiscard]] std::string expand_single_macro(const std::string &macro_name,
+                                                  const std::string &target) const {
         // Handle special macros
         if (macro_name == "@") {
             return target;
@@ -400,12 +403,12 @@ private:
             const auto dot_pos = target.find_last_of('.');
             return (dot_pos != std::string::npos) ? target.substr(0, dot_pos) : target;
         }
-        
+
         // Regular macro lookup
         if (auto it = macros_.find(macro_name); it != macros_.end()) {
             return it->second;
         }
-        
+
         return {}; // Undefined macro expands to empty string
     }
 };
@@ -414,11 +417,11 @@ private:
  * @brief Dependency graph node with advanced metadata
  */
 class DependencyNode final {
-public:
+  public:
     using NodePtr = std::shared_ptr<DependencyNode>;
     using NodeWeakPtr = std::weak_ptr<DependencyNode>;
-    
-private:
+
+  private:
     std::string name_;
     Timestamp modification_time_;
     std::vector<NodePtr> dependencies_;
@@ -426,21 +429,21 @@ private:
     std::atomic<bool> up_to_date_{false};
     std::atomic<bool> being_built_{false};
     mutable std::shared_mutex mutex_;
-    
-public:
+
+  public:
     /**
      * @brief Constructs dependency node
      * @param name Target name
      */
     explicit DependencyNode(std::string name)
         : name_(std::move(name)), modification_time_(std::filesystem::path{name_}) {}
-    
+
     // Accessors
-    [[nodiscard]] const std::string& name() const noexcept { return name_; }
-    [[nodiscard]] const Timestamp& modification_time() const noexcept { return modification_time_; }
+    [[nodiscard]] const std::string &name() const noexcept { return name_; }
+    [[nodiscard]] const Timestamp &modification_time() const noexcept { return modification_time_; }
     [[nodiscard]] bool up_to_date() const noexcept { return up_to_date_.load(); }
     [[nodiscard]] bool being_built() const noexcept { return being_built_.load(); }
-    
+
     /**
      * @brief Adds dependency
      * @param dependency Dependency node
@@ -449,7 +452,7 @@ public:
         std::unique_lock lock{mutex_};
         dependencies_.push_back(std::move(dependency));
     }
-    
+
     /**
      * @brief Adds build command
      * @param command Build command
@@ -458,7 +461,7 @@ public:
         std::unique_lock lock{mutex_};
         build_commands_.push_back(std::move(command));
     }
-    
+
     /**
      * @brief Gets dependencies (thread-safe copy)
      * @return Vector of dependencies
@@ -467,7 +470,7 @@ public:
         std::shared_lock lock{mutex_};
         return dependencies_;
     }
-    
+
     /**
      * @brief Gets build commands (thread-safe copy)
      * @return Vector of commands
@@ -476,14 +479,12 @@ public:
         std::shared_lock lock{mutex_};
         return build_commands_;
     }
-    
+
     /**
      * @brief Marks node as being built
      */
-    void mark_building() noexcept {
-        being_built_ = true;
-    }
-    
+    void mark_building() noexcept { being_built_ = true; }
+
     /**
      * @brief Marks node as up to date
      */
@@ -492,7 +493,7 @@ public:
         being_built_ = false;
         modification_time_ = Timestamp::now();
     }
-    
+
     /**
      * @brief Checks if target needs rebuilding
      * @return true if needs rebuild
@@ -501,14 +502,14 @@ public:
         if (!modification_time_.exists()) {
             return true; // Target doesn't exist
         }
-        
+
         std::shared_lock lock{mutex_};
-        for (const auto& dep : dependencies_) {
+        for (const auto &dep : dependencies_) {
             if (dep->modification_time() > modification_time_) {
                 return true; // Dependency is newer
             }
         }
-        
+
         return false;
     }
 };
@@ -517,41 +518,40 @@ public:
  * @brief Advanced build executor with parallel processing
  */
 class BuildExecutor final {
-private:
+  private:
     std::size_t thread_count_;
     std::atomic<bool> stop_on_error_{true};
     std::atomic<bool> dry_run_{false};
     std::atomic<bool> silent_{false};
-    MacroProcessor& macro_processor_;
+    MacroProcessor &macro_processor_;
     mutable std::mutex output_mutex_;
-    
-public:
+
+  public:
     /**
      * @brief Constructs build executor
      * @param macro_processor Macro processor reference
      * @param thread_count Number of build threads
      */
-    explicit BuildExecutor(MacroProcessor& macro_processor, 
-                          std::size_t thread_count = config::DEFAULT_THREAD_COUNT)
+    explicit BuildExecutor(MacroProcessor &macro_processor,
+                           std::size_t thread_count = config::DEFAULT_THREAD_COUNT)
         : thread_count_(thread_count), macro_processor_(macro_processor) {}
-    
+
     // Configuration
     void set_stop_on_error(bool stop) noexcept { stop_on_error_ = stop; }
     void set_dry_run(bool dry_run) noexcept { dry_run_ = dry_run; }
     void set_silent(bool silent) noexcept { silent_ = silent; }
-    
+
     /**
      * @brief Executes build commands for a target
      * @param node Target node
      * @return Future indicating completion
      */
     [[nodiscard]] std::future<bool> execute_target(DependencyNode::NodePtr node) {
-        return std::async(std::launch::async, [this, node]() -> bool {
-            return execute_target_impl(node);
-        });
+        return std::async(std::launch::async,
+                          [this, node]() -> bool { return execute_target_impl(node); });
     }
-    
-private:
+
+  private:
     /**
      * @brief Implementation of target execution
      * @param node Target node
@@ -559,15 +559,15 @@ private:
      */
     bool execute_target_impl(DependencyNode::NodePtr node) {
         const auto commands = node->get_commands();
-        
-        for (const auto& command : commands) {
+
+        for (const auto &command : commands) {
             const auto expanded_command = macro_processor_.expand(command, node->name());
-            
+
             if (!silent_) {
                 std::lock_guard lock{output_mutex_};
                 std::cout << expanded_command << '\n';
             }
-            
+
             if (!dry_run_) {
                 const auto exit_code = execute_command(expanded_command);
                 if (exit_code != 0) {
@@ -578,101 +578,101 @@ private:
                 }
             }
         }
-        
+
         node->mark_up_to_date();
         return true;
     }
-    
+
     /**
      * @brief Executes a single command
      * @param command Command to execute
      * @return Exit code
      */
-    int execute_command(const std::string& command) {
+    int execute_command(const std::string &command) {
         const auto result = std::system(command.c_str());
-        return WEXITSTATUS(result);    }
+        return WEXITSTATUS(result);
+    }
 };
 
 /**
  * @brief Advanced dependency graph with cycle detection and parallel analysis
  */
 class DependencyGraph final {
-private:
+  private:
     std::unordered_map<std::string, DependencyNode::NodePtr> nodes_;
     std::unordered_map<std::string, std::vector<std::string>> implicit_rules_;
     mutable std::shared_mutex mutex_;
-    
-public:
+
+  public:
     /**
      * @brief Gets or creates a node
      * @param name Target name
      * @return Node pointer
      */
-    [[nodiscard]] DependencyNode::NodePtr get_or_create_node(const std::string& name) {
+    [[nodiscard]] DependencyNode::NodePtr get_or_create_node(const std::string &name) {
         std::unique_lock lock{mutex_};
-        
+
         if (auto it = nodes_.find(name); it != nodes_.end()) {
             return it->second;
         }
-        
+
         auto node = std::make_shared<DependencyNode>(name);
         nodes_[name] = node;
         return node;
     }
-    
+
     /**
      * @brief Adds implicit rule
      * @param source_ext Source extension
      * @param target_ext Target extension
      * @param command Build command
      */
-    void add_implicit_rule(const std::string& source_ext, 
-                          const std::string& target_ext,
-                          const std::string& command) {
+    void add_implicit_rule(const std::string &source_ext, const std::string &target_ext,
+                           const std::string &command) {
         std::unique_lock lock{mutex_};
         const auto rule_key = source_ext + "->" + target_ext;
         implicit_rules_[rule_key].push_back(command);
     }
-    
+
     /**
      * @brief Detects circular dependencies using DFS
      * @param start_node Starting node
      * @return Cycle path if found
      */
-    [[nodiscard]] std::optional<std::vector<std::string>> detect_cycles(
-        const DependencyNode::NodePtr& start_node) const {
-        
+    [[nodiscard]] std::optional<std::vector<std::string>>
+    detect_cycles(const DependencyNode::NodePtr &start_node) const {
+
         std::unordered_set<std::string> visited;
         std::unordered_set<std::string> recursion_stack;
         std::vector<std::string> path;
-        
+
         if (has_cycle_dfs(start_node, visited, recursion_stack, path)) {
             return path;
         }
-        
+
         return std::nullopt;
     }
-    
+
     /**
      * @brief Performs topological sort for build order
      * @param targets Target nodes to sort
      * @return Sorted build order
      */
-    [[nodiscard]] std::vector<DependencyNode::NodePtr> topological_sort(
-        const std::vector<DependencyNode::NodePtr>& targets) const {
-        
+    [[nodiscard]] std::vector<DependencyNode::NodePtr>
+    topological_sort(const std::vector<DependencyNode::NodePtr> &targets) const {
+
         std::vector<DependencyNode::NodePtr> result;
         std::unordered_set<std::string> visited;
-        
-        for (const auto& target : targets) {
+
+        for (const auto &target : targets) {
             topological_sort_dfs(target, visited, result);
         }
-        
+
         // Reverse to get correct build order
         std::ranges::reverse(result);
         return result;
     }
-    
+
     /**
      * @brief Gets all nodes (thread-safe copy)
      * @return Map of all nodes
@@ -681,8 +681,8 @@ public:
         std::shared_lock lock{mutex_};
         return nodes_;
     }
-    
-private:
+
+  private:
     /**
      * @brief DFS cycle detection helper
      * @param node Current node
@@ -691,59 +691,59 @@ private:
      * @param path Current path
      * @return true if cycle found
      */
-    bool has_cycle_dfs(const DependencyNode::NodePtr& node,
-                      std::unordered_set<std::string>& visited,
-                      std::unordered_set<std::string>& recursion_stack,
-                      std::vector<std::string>& path) const {
-        
-        const auto& name = node->name();
-        
+    bool has_cycle_dfs(const DependencyNode::NodePtr &node,
+                       std::unordered_set<std::string> &visited,
+                       std::unordered_set<std::string> &recursion_stack,
+                       std::vector<std::string> &path) const {
+
+        const auto &name = node->name();
+
         if (recursion_stack.contains(name)) {
             path.push_back(name);
             return true;
         }
-        
+
         if (visited.contains(name)) {
             return false;
         }
-        
+
         visited.insert(name);
         recursion_stack.insert(name);
         path.push_back(name);
-        
-        for (const auto& dep : node->get_dependencies()) {
+
+        for (const auto &dep : node->get_dependencies()) {
             if (has_cycle_dfs(dep, visited, recursion_stack, path)) {
                 return true;
             }
         }
-        
+
         recursion_stack.erase(name);
         path.pop_back();
         return false;
     }
-    
+
     /**
      * @brief Topological sort DFS helper
      * @param node Current node
      * @param visited Visited set
      * @param result Result vector
      */
-    void topological_sort_dfs(const DependencyNode::NodePtr& node,
-                             std::unordered_set<std::string>& visited,
-                             std::vector<DependencyNode::NodePtr>& result) const {
-        
-        const auto& name = node->name();
-        
+    void topological_sort_dfs(const DependencyNode::NodePtr &node,
+                              std::unordered_set<std::string> &visited,
+                              std::vector<DependencyNode::NodePtr> &result) const {
+
+        const auto &name = node->name();
+
         if (visited.contains(name)) {
             return;
         }
-        
+
         visited.insert(name);
-        
-        for (const auto& dep : node->get_dependencies()) {
+
+        for (const auto &dep : node->get_dependencies()) {
             topological_sort_dfs(dep, visited, result);
         }
-        
+
         result.push_back(node);
     }
 };
@@ -752,36 +752,36 @@ private:
  * @brief Modern makefile parser with advanced tokenization
  */
 class MakefileParser final {
-private:
-    MacroProcessor& macro_processor_;
-    DependencyGraph& dependency_graph_;
+  private:
+    MacroProcessor &macro_processor_;
+    DependencyGraph &dependency_graph_;
     std::regex rule_pattern_;
     std::regex macro_pattern_;
-    
-public:
+
+  public:
     /**
      * @brief Constructs makefile parser
      * @param macro_processor Macro processor reference
      * @param dependency_graph Dependency graph reference
      */
-    MakefileParser(MacroProcessor& macro_processor, DependencyGraph& dependency_graph)
+    MakefileParser(MacroProcessor &macro_processor, DependencyGraph &dependency_graph)
         : macro_processor_(macro_processor), dependency_graph_(dependency_graph),
           rule_pattern_(R"(^([^:]+):\s*(.*)$)"),
           macro_pattern_(R"(^([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*)$)") {}
-    
+
     /**
      * @brief Parses makefile from stream
      * @param input Input stream
      * @param filename Filename for error reporting
      */
-    void parse(std::istream& input, const std::string& filename = "makefile") {
+    void parse(std::istream &input, const std::string &filename = "makefile") {
         std::string line;
         std::size_t line_number = 0;
         std::string accumulated_line;
-        
+
         while (std::getline(input, line)) {
             ++line_number;
-            
+
             try {
                 // Handle line continuation
                 if (line.ends_with(config::LINE_CONTINUATION)) {
@@ -789,54 +789,53 @@ public:
                     accumulated_line += line;
                     continue;
                 }
-                
+
                 accumulated_line += line;
-                
+
                 // Process complete line
                 if (!accumulated_line.empty()) {
                     parse_line(accumulated_line, filename, line_number);
                 }
-                
+
                 accumulated_line.clear();
-                
-            } catch (const std::exception& e) {
-                throw errors::BuildError(
-                    std::format("{}:{}: {}", filename, line_number, e.what()));
+
+            } catch (const std::exception &e) {
+                throw errors::BuildError(std::format("{}:{}: {}", filename, line_number, e.what()));
             }
         }
-        
+
         // Handle any remaining accumulated line
         if (!accumulated_line.empty()) {
             parse_line(accumulated_line, filename, line_number);
         }
     }
-    
+
     /**
      * @brief Parses makefile from file
      * @param filename Makefile path
      */
-    void parse_file(const std::string& filename) {
+    void parse_file(const std::string &filename) {
         std::ifstream file{filename};
         if (!file.is_open()) {
             throw errors::BuildError(std::format("Cannot open makefile: {}", filename));
         }
-        
+
         parse(file, filename);
     }
-    
-private:
+
+  private:
     /**
      * @brief Parses a single line
      * @param line Line to parse
      * @param filename Filename for error reporting
      * @param line_number Line number for error reporting
      */
-    void parse_line(const std::string& line, const std::string& filename, std::size_t line_number) {
+    void parse_line(const std::string &line, const std::string &filename, std::size_t line_number) {
         // Skip empty lines and comments
         if (line.empty() || line.starts_with('#')) {
             return;
         }
-        
+
         // Try to match macro definition
         std::smatch macro_match;
         if (std::regex_match(line, macro_match, macro_pattern_)) {
@@ -845,59 +844,59 @@ private:
             macro_processor_.define_macro(name, value);
             return;
         }
-        
+
         // Try to match rule
         std::smatch rule_match;
         if (std::regex_match(line, rule_match, rule_pattern_)) {
             parse_rule(rule_match[1].str(), rule_match[2].str());
             return;
         }
-        
+
         // Check if this is a command line (starts with tab)
         if (line.starts_with('\t')) {
             // This should be handled by the previous rule context
             // For now, we'll skip isolated commands
             return;
         }
-        
+
         // If we get here, it's an unrecognized line format
-        std::cerr << std::format("Warning: Unrecognized line format in {}:{}: {}\n", 
-                                filename, line_number, line);
+        std::cerr << std::format("Warning: Unrecognized line format in {}:{}: {}\n", filename,
+                                 line_number, line);
     }
-    
+
     /**
      * @brief Parses a rule definition
      * @param targets Target specification
      * @param dependencies Dependency specification
      */
-    void parse_rule(const std::string& targets, const std::string& dependencies) {
+    void parse_rule(const std::string &targets, const std::string &dependencies) {
         const auto target_list = tokenize(targets);
         const auto dependency_list = tokenize(dependencies);
-        
-        for (const auto& target : target_list) {
+
+        for (const auto &target : target_list) {
             auto target_node = dependency_graph_.get_or_create_node(target);
-            
-            for (const auto& dep : dependency_list) {
+
+            for (const auto &dep : dependency_list) {
                 auto dep_node = dependency_graph_.get_or_create_node(dep);
                 target_node->add_dependency(dep_node);
             }
         }
     }
-    
+
     /**
      * @brief Tokenizes a space-separated string
      * @param input Input string
      * @return Vector of tokens
      */
-    [[nodiscard]] std::vector<std::string> tokenize(const std::string& input) const {
+    [[nodiscard]] std::vector<std::string> tokenize(const std::string &input) const {
         std::vector<std::string> tokens;
         std::istringstream stream{input};
         std::string token;
-        
+
         while (stream >> token) {
             tokens.push_back(macro_processor_.expand(token));
         }
-        
+
         return tokens;
     }
 };
@@ -906,25 +905,24 @@ private:
  * @brief Main build system orchestrator with parallel execution
  */
 class BuildSystem final {
-private:
+  private:
     MacroProcessor macro_processor_;
     DependencyGraph dependency_graph_;
     BuildExecutor executor_;
     MakefileParser parser_;
-    
+
     // Configuration
     std::vector<std::string> targets_;
     std::vector<std::string> makefiles_;
     bool verbose_{false};
     bool debug_{false};
-    
-public:
+
+  public:
     /**
      * @brief Constructs build system
      */
-    BuildSystem() 
-        : executor_(macro_processor_), parser_(macro_processor_, dependency_graph_) {
-        
+    BuildSystem() : executor_(macro_processor_), parser_(macro_processor_, dependency_graph_) {
+
         // Initialize default macros
         macro_processor_.define_macro("CC", "clang++");
         macro_processor_.define_macro("CXX", "clang++");
@@ -932,32 +930,32 @@ public:
         macro_processor_.define_macro("CXXFLAGS", "-std=c++23 -O3 -march=x86-64-v1 -mtune=generic");
         macro_processor_.define_macro("AS", "as");
         macro_processor_.define_macro("AFLAGS", "");
-        
+
         // Add default implicit rules
         dependency_graph_.add_implicit_rule(".cpp", ".o", "$(CXX) -c $(CXXFLAGS) $< -o $@");
         dependency_graph_.add_implicit_rule(".c", ".o", "$(CC) -c $(CFLAGS) $< -o $@");
         dependency_graph_.add_implicit_rule(".s", ".o", "$(AS) $(AFLAGS) $< -o $@");
     }
-    
+
     /**
      * @brief Processes command-line arguments
      * @param argc Argument count
      * @param argv Argument vector
      * @return Exit status
      */
-    [[nodiscard]] int process_arguments(int argc, char* argv[]) {
+    [[nodiscard]] int process_arguments(int argc, char *argv[]) {
         try {
             parse_command_line(argc, argv);
-            
+
             // Load makefiles
             if (makefiles_.empty()) {
                 load_default_makefile();
             } else {
-                for (const auto& makefile : makefiles_) {
+                for (const auto &makefile : makefiles_) {
                     parser_.parse_file(makefile);
                 }
             }
-            
+
             // Set default target if none specified
             if (targets_.empty()) {
                 const auto all_nodes = dependency_graph_.get_all_nodes();
@@ -965,26 +963,26 @@ public:
                     targets_.push_back(all_nodes.begin()->first);
                 }
             }
-            
+
             // Build targets
             return build_targets();
-            
-        } catch (const std::exception& e) {
+
+        } catch (const std::exception &e) {
             std::cerr << "make: " << e.what() << '\n';
             return 1;
         }
     }
-    
-private:
+
+  private:
     /**
      * @brief Parses command-line arguments
      * @param argc Argument count
      * @param argv Argument vector
      */
-    void parse_command_line(int argc, char* argv[]) {
+    void parse_command_line(int argc, char *argv[]) {
         for (int i = 1; i < argc; ++i) {
             const std::string_view arg{argv[i]};
-            
+
             if (arg.starts_with('-')) {
                 parse_option(arg, argc, argv, i);
             } else {
@@ -998,7 +996,7 @@ private:
             }
         }
     }
-    
+
     /**
      * @brief Parses command-line option
      * @param option Option string
@@ -1006,7 +1004,7 @@ private:
      * @param argv Argument vector
      * @param index Current index
      */
-    void parse_option(std::string_view option, int argc, char* argv[], int& index) {
+    void parse_option(std::string_view option, int argc, char *argv[], int &index) {
         if (option == "-f" || option == "-F") {
             if (++index >= argc) {
                 throw std::invalid_argument("Option -f requires filename");
@@ -1031,22 +1029,22 @@ private:
             throw std::invalid_argument(std::format("Unknown option: {}", option));
         }
     }
-    
+
     /**
      * @brief Parses macro assignment
      * @param assignment Macro assignment string
      */
-    void parse_macro_assignment(const std::string& assignment) {
+    void parse_macro_assignment(const std::string &assignment) {
         const auto eq_pos = assignment.find('=');
         if (eq_pos == std::string::npos) {
             return;
         }
-        
+
         const auto name = assignment.substr(0, eq_pos);
         const auto value = assignment.substr(eq_pos + 1);
         macro_processor_.define_macro(name, value);
     }
-    
+
     /**
      * @brief Loads default makefile
      */
@@ -1059,61 +1057,62 @@ private:
             throw errors::BuildError("No makefile found");
         }
     }
-    
+
     /**
      * @brief Builds specified targets
      * @return Exit status
      */
     int build_targets() {
         std::vector<DependencyNode::NodePtr> target_nodes;
-        
+
         // Get target nodes
-        for (const auto& target : targets_) {
+        for (const auto &target : targets_) {
             auto node = dependency_graph_.get_or_create_node(target);
             target_nodes.push_back(node);
         }
-        
+
         // Check for circular dependencies
-        for (const auto& node : target_nodes) {
+        for (const auto &node : target_nodes) {
             if (const auto cycle = dependency_graph_.detect_cycles(node)) {
                 std::string cycle_str;
-                for (const auto& name : *cycle) {
-                    if (!cycle_str.empty()) cycle_str += " -> ";
+                for (const auto &name : *cycle) {
+                    if (!cycle_str.empty())
+                        cycle_str += " -> ";
                     cycle_str += name;
                 }
                 throw errors::CircularDependencyError(cycle_str);
             }
         }
-        
+
         // Get build order
         const auto build_order = dependency_graph_.topological_sort(target_nodes);
-        
+
         if (verbose_) {
             std::cout << "Build order:\n";
-            for (const auto& node : build_order) {
+            for (const auto &node : build_order) {
                 std::cout << "  " << node->name() << '\n';
             }
         }
-        
+
         // Execute builds
         std::vector<std::future<bool>> futures;
-        
-        for (const auto& node : build_order) {
+
+        for (const auto &node : build_order) {
             if (node->needs_rebuild()) {
                 futures.push_back(executor_.execute_target(node));
             } else if (verbose_) {
                 std::cout << "Target '" << node->name() << "' is up to date.\n";
             }
         }
-        
+
         // Wait for completion
         bool all_successful = true;
-        for (auto& future : futures) {
+        for (auto &future : futures) {
             if (!future.get()) {
                 all_successful = false;
             }
         }
-        
+
         return all_successful ? 0 : 1;
     }
 };
@@ -1126,121 +1125,123 @@ private:
  * @param argv Argument vector
  * @return Exit status
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     using namespace xinim::build::make;
-    
+
     try {
         BuildSystem build_system;
         return build_system.process_arguments(argc, argv);
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << "make: " << e.what() << '\n';
-        return 1;    } catch (...) {
-        std::cerr << "make: Unknown error occurred\n";        return 1;
+        return 1;
+    } catch (...) {
+        std::cerr << "make: Unknown error occurred\n";
+        return 1;
     }
 }
 
-    if (defnp == NULL) {
-        defnp = tryrules(s);
-        if (defnp == NULL) { /* tryrules returns a pointer to a defnrec */
-            /* tryrules fails, and there is no definition */
-            knowhow = FALSE;
-            latest = getmodified(s);
-            if (latest == 0) {
-                /* doesn't exist but don't know how to make */
-                panic2("Can't make %s", s);
-                /* NOTREACHED */
-            } else {
-                /*
-                   exists - assume it's up to date since we don't know
-                   how to make it. Make a defnrec with uptodate == TRUE.
-                   This is not strictly necessary, and this line may be
-                   deleted. It is a speed win, at the expense of core, when
-                   there are a lot of header files.
-                */
+if (defnp == NULL) {
+    defnp = tryrules(s);
+    if (defnp == NULL) { /* tryrules returns a pointer to a defnrec */
+        /* tryrules fails, and there is no definition */
+        knowhow = FALSE;
+        latest = getmodified(s);
+        if (latest == 0) {
+            /* doesn't exist but don't know how to make */
+            panic2("Can't make %s", s);
+            /* NOTREACHED */
+        } else {
+            /*
+               exists - assume it's up to date since we don't know
+               how to make it. Make a defnrec with uptodate == TRUE.
+               This is not strictly necessary, and this line may be
+               deleted. It is a speed win, at the expense of core, when
+               there are a lot of header files.
+            */
 
-                /*add_defn(s,TRUE,latest,
-                     (struct llist *)NULL,(struct llist*)NULL); */
-                return (latest);
-            }
+            /*add_defn(s,TRUE,latest,
+                 (struct llist *)NULL,(struct llist*)NULL); */
+            return (latest);
         }
     }
+}
 
-    else { /* there is a definition line */
-        if (defnp->uptodate) {
-            return (defnp->modified);
-        }
-        dummy = tryrules(s);
-        if (dummy != NULL && defnp->howto == NULL) {
-            /* any explicit howto overrides an implicit one */
-            /*add depend*/
-            if (defnp->dependson == NULL)
-                defnp->dependson = dummy->dependson;
-            else {
-                for (depp2 = defnp->dependson; depp2->next != NULL; depp2 = depp2->next)
-                    ; /* advance to end of list */
-                depp2->next = dummy->dependson;
-            }
-            /* add howto line */
-            defnp->howto = dummy->howto;
-        }
+else { /* there is a definition line */
+    if (defnp->uptodate) {
+        return (defnp->modified);
     }
-    /* finished adjusting the lists */
-
-    /* check that everything that the current target depends on is uptodate */
-    m_comp = m_ood = m_obj = NULL;
-    latest = 0;
-    depp = defnp->dependson;
-    while (depp != NULL) {
-
-        m_comp = add_prereq(m_comp, depp->name, &ma); /* add to string for $< */
-        timeof = make(depp->name);
-        latest = max(timeof, latest); /*written this way to avoid side effects*/
-
-        if (defnp->modified < timeof) {
-            /* these are out of date with respect to the current target */
-            m_ood = stradd(m_ood, ma.m_name, ma.m_dep);  /* add source */
-            m_obj = stradd(m_obj, ma.m_name, ma.m_targ); /* add object */
+    dummy = tryrules(s);
+    if (dummy != NULL && defnp->howto == NULL) {
+        /* any explicit howto overrides an implicit one */
+        /*add depend*/
+        if (defnp->dependson == NULL)
+            defnp->dependson = dummy->dependson;
+        else {
+            for (depp2 = defnp->dependson; depp2->next != NULL; depp2 = depp2->next)
+                ; /* advance to end of list */
+            depp2->next = dummy->dependson;
         }
-        depp = depp->next;
+        /* add howto line */
+        defnp->howto = dummy->howto;
     }
+}
+/* finished adjusting the lists */
 
-    knowhow = TRUE; /* has dependencies therefore we know how */
+/* check that everything that the current target depends on is uptodate */
+m_comp = m_ood = m_obj = NULL;
+latest = 0;
+depp = defnp->dependson;
+while (depp != NULL) {
 
-    /* if necessary, execute all of the commands to make it */
-    /* if (out of date) || (depends on nothing)             */
+    m_comp = add_prereq(m_comp, depp->name, &ma); /* add to string for $< */
+    timeof = make(depp->name);
+    latest = max(timeof, latest); /*written this way to avoid side effects*/
 
-    if (latest > defnp->modified || defnp->dependson == NULL) {
-        /* make those suckers */
-        howp = defnp->howto;
-        if ((howp == NULL) && !in_dolist(s)) {
-            fprintf(stderr, "%s: %s is out of date, but there is no command line\n", whoami, s);
-            if (stopOnErr)
-                mystop_err();
-        }
-        while (howp != NULL) {
-
-            /* the execute flag controls whether execution takes place */
-            p_expand(howp->name, dothis, m_comp, m_ood, m_obj);
-            if ((exec_how(dothis) != 0))
-                if (forgeahead)
-                    break;
-                else if (stopOnErr)
-                    panicstop();
-            howp = howp->next;
-        }
-        /* we just made something. Set the time of modification to now. */
-        defnp->modified = now();
-        defnp->uptodate = TRUE;
-        if (defnp->howto != NULL) /* we had instructions */
-            madesomething = TRUE;
+    if (defnp->modified < timeof) {
+        /* these are out of date with respect to the current target */
+        m_ood = stradd(m_ood, ma.m_name, ma.m_dep);  /* add source */
+        m_obj = stradd(m_obj, ma.m_name, ma.m_targ); /* add object */
     }
-    if (m_comp != NULL)
-        safe_free(m_comp);
-    if (m_ood != NULL)
-        safe_free(m_ood);
-    if (m_obj != NULL)
-        safe_free(m_obj);
-    return (defnp->modified);
+    depp = depp->next;
+}
+
+knowhow = TRUE; /* has dependencies therefore we know how */
+
+/* if necessary, execute all of the commands to make it */
+/* if (out of date) || (depends on nothing)             */
+
+if (latest > defnp->modified || defnp->dependson == NULL) {
+    /* make those suckers */
+    howp = defnp->howto;
+    if ((howp == NULL) && !in_dolist(s)) {
+        fprintf(stderr, "%s: %s is out of date, but there is no command line\n", whoami, s);
+        if (stopOnErr)
+            mystop_err();
+    }
+    while (howp != NULL) {
+
+        /* the execute flag controls whether execution takes place */
+        p_expand(howp->name, dothis, m_comp, m_ood, m_obj);
+        if ((exec_how(dothis) != 0))
+            if (forgeahead)
+                break;
+            else if (stopOnErr)
+                panicstop();
+        howp = howp->next;
+    }
+    /* we just made something. Set the time of modification to now. */
+    defnp->modified = now();
+    defnp->uptodate = TRUE;
+    if (defnp->howto != NULL) /* we had instructions */
+        madesomething = TRUE;
+}
+if (m_comp != NULL)
+    safe_free(m_comp);
+if (m_ood != NULL)
+    safe_free(m_ood);
+if (m_obj != NULL)
+    safe_free(m_obj);
+return (defnp->modified);
 }
 
 struct llist *add_llist(head, s) /*this adds something to a linked list */
@@ -2868,10 +2869,10 @@ static void add_path(char *p) {
 }
 
 /* emulation of getenv() */
-char *getenv(s)
-char *s;
-{
-    char **p, *tp, *ematch();
+char *getenv(char *s) {
+    char **p;
+    char *tp;
+    char *ematch(char *, char *);
 
     p = ext_env;
 
@@ -2883,10 +2884,24 @@ char *s;
     return (NULL);
 }
 
-char *ematch(s, p)
-char *s, *p;
-{
-    /* if match up to the '=', return second half */
+/**
+ * @brief Match a key against a pattern of the form "key=value".
+ *
+ * Compares the characters
+ * of @p s with those of @p p until the end of
+ * @p s. If the strings match and @p p contains an
+ * '=' immediately
+ * afterwards, a pointer to the character following '=' is returned. If
+ * the
+ * strings do not match or the '=' is missing, NULL is returned.
+ *
+ * @param s Input key string to
+ * be matched.
+ * @param p Pattern string containing the key and value separated by '='.
+ * @return
+ * Pointer to the value portion of @p p on match, otherwise NULL.
+ */
+char *ematch(char *s, char *p) {
     while (*s != NULL)
         if (*s++ != *p++)
             return (NULL);
@@ -2980,6 +2995,18 @@ static int w_mac2(char *w_word, FILE *stream, struct llist *n) {
     /* NOTREACHED */
 }
 
+/**
+ * @brief Emit a formatted warning message to standard error.
+ *
+ * Prints the program name
+ * followed by the message constructed from a
+ * printf-style format string and a single argument.
+
+ * *
+ * @param s1 Format string for the warning message.
+ * @param s2 Argument substituted into the
+ * format string.
+ */
 static void warn2(char *s1, char *s2) {
     fprintf(stderr, "%s: ", whoami);
     fprintf(stderr, s1, s2);
@@ -2988,20 +3015,53 @@ static void warn2(char *s1, char *s2) {
 
 #endif
 
+/**
+ * @brief Terminate the program after running cleanup handlers.
+ *
+ * Calls the global cleanup
+ * routine before exiting with the provided
+ * status code.
+ *
+ * @param n Exit status code returned
+ * to the operating system.
+ */
 static void done(int n) {
     _cleanup();
     exit(n);
 }
 
+/**
+ * @brief Safe wrapper for strlen that tolerates NULL pointers.
+ *
+ * @param src Source string
+ * whose length is requested.
+ * @return Length of the string or 0 if @p src is NULL.
+ */
 static int my_strlen(char *src) {
     if (src == NULL)
         return 0;
     return strlen(src);
 }
 
+/**
+ * @brief Copy a C-string while guarding against NULL sources.
+ *
+ * Copies the contents of @p
+ * src into @p dest when @p src is non-null.
+ * If @p src is NULL, @p dest is set to the empty
+ * string. The destination
+ * pointer is returned in all cases to mirror `strcpy` semantics.
+ *
+ *
+ * @param dest Destination buffer to receive the string.
+ * @param src Source string or NULL.
+ *
+ * @return Pointer to @p dest.
+ */
 static char *my_strcpy(char *dest, char *src) {
-    if (src == NULL)
+    if (src == NULL) {
         *dest = '\0';
-    else
-        return strcpy(dest, src);
+        return dest;
+    }
+    return strcpy(dest, src);
 }

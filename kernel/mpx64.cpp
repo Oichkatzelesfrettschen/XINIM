@@ -1,3 +1,27 @@
+/**
+ * @file mpx64.cpp
+ * @brief 64-bit context switch and interrupt stubs for the XINIM kernel.
+ *
+ * This file contains the low-level, assembly-based entry points for context
+ * switching and interrupt handling in the 64-bit XINIM kernel. The code
+ * is hand-optimized assembly, wrapped in C++ function declarations to
+ * provide a safe and modern interface.
+ *
+ * @section Core Functions
+ * - `save`: Saves the current process's registers and switches to the kernel stack.
+ * - `restart`: Restores a process's registers and resumes its execution.
+ *
+ * @section Interrupts
+ * This file defines stubs for various interrupt service routines (ISRs) and trap
+ * handlers, including the clock, keyboard, printer, and disk. Each stub performs
+ * a context save, calls a higher-level C++ handler function, and then restores
+ * the context to resume execution.
+ *
+ * @note This code uses GCC/Clang extensions like `__asm__ volatile` and `NAKED`
+ * to write assembly within C++ functions, which is necessary for low-level
+ * kernel development.
+ */
+
 #include "../h/const.hpp"
 #include "../h/type.hpp"
 #include "../include/defs.hpp"
@@ -5,36 +29,35 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include <cstddef>
 
-/* 64-bit context switch and interrupt entry code translated from assembly. */
+/// @file
+/// @brief 64-bit context switch and interrupt entry code translated from assembly.
 
-#define RAX_OFF 0
-#define RBX_OFF 8
-#define RCX_OFF 16
-#define RDX_OFF 24
-#define RSI_OFF 32
-#define RDI_OFF 40
-#define RBP_OFF 48
-#define R8_OFF 56
-#define R9_OFF 64
-#define R10_OFF 72
-#define R11_OFF 80
-#define R12_OFF 88
-#define R13_OFF 96
-#define R14_OFF 104
-#define R15_OFF 112
-#define SP_OFF 120
-#define PC_OFF 128
-#define PSW_OFF 136
+inline constexpr std::size_t RAX_OFF{0};
+inline constexpr std::size_t RBX_OFF{8};
+inline constexpr std::size_t RCX_OFF{16};
+inline constexpr std::size_t RDX_OFF{24};
+inline constexpr std::size_t RSI_OFF{32};
+inline constexpr std::size_t RDI_OFF{40};
+inline constexpr std::size_t RBP_OFF{48};
+inline constexpr std::size_t R8_OFF{56};
+inline constexpr std::size_t R9_OFF{64};
+inline constexpr std::size_t R10_OFF{72};
+inline constexpr std::size_t R11_OFF{80};
+inline constexpr std::size_t R12_OFF{88};
+inline constexpr std::size_t R13_OFF{96};
+inline constexpr std::size_t R14_OFF{104};
+inline constexpr std::size_t R15_OFF{112};
+inline constexpr std::size_t SP_OFF{120};
+inline constexpr std::size_t PC_OFF{128};
+inline constexpr std::size_t PSW_OFF{136};
 
 extern char k_stack[K_STACK_BYTES];
 
-/*===========================================================================*
- *                              save                                         *
- *===========================================================================*/
-/* Save registers to the current process and switch stacks. */
-void save(void) NAKED;
-void save(void) {
+/// @brief Saves the current process's registers to its process slot and switches to the kernel stack.
+void save() noexcept NAKED;
+void save() noexcept {
     __asm__ volatile("push %%rax\n\t"
                      "push %%rbx\n\t"
                      "push %%rcx\n\t"
@@ -98,12 +121,9 @@ void save(void) {
                      : "memory", "rax", "r15");
 }
 
-/*===========================================================================*
- *                              restart                                      *
- *===========================================================================*/
-/* Restore registers and continue the interrupted task. */
-void restart(void) NAKED;
-void restart(void) {
+/// @brief Restores the registers from a process slot and resumes its execution.
+void restart() noexcept NAKED;
+void restart() noexcept {
     __asm__ volatile("movq _proc_ptr(%%rip), %%r15\n\t"
                      "movq %c0(%%r15), %%rsp\n\t"
                      "movq %c1(%%r15), %%r15\n\t"
@@ -132,45 +152,33 @@ void restart(void) {
                      : "memory", "rax", "r15");
 }
 
-/*===========================================================================*
- *                              isr_default                                  *
- *===========================================================================*/
-/* Default interrupt service routine. */
-void isr_default(void) NAKED;
-void isr_default(void) {
+/// @brief Default interrupt service routine.
+void isr_default() noexcept NAKED;
+void isr_default() noexcept {
     __asm__ volatile("call save\n\t"
                      "call _surprise\n\t"
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              isr_clock                                    *
- *===========================================================================*/
-/* Clock interrupt service routine. */
-void isr_clock(void) NAKED;
-void isr_clock(void) {
+/// @brief Clock interrupt service routine.
+void isr_clock() noexcept NAKED;
+void isr_clock() noexcept {
     __asm__ volatile("call save\n\t"
                      "call _clock_int\n\t"
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              isr_keyboard                                 *
- *===========================================================================*/
-/* Keyboard interrupt service routine. */
-void isr_keyboard(void) NAKED;
-void isr_keyboard(void) {
+/// @brief Keyboard interrupt service routine.
+void isr_keyboard() noexcept NAKED;
+void isr_keyboard() noexcept {
     __asm__ volatile("call save\n\t"
                      "call _tty_int\n\t"
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              s_call                                       *
- *===========================================================================*/
-/* System call entry point. */
-void s_call(void) NAKED;
-void s_call(void) {
+/// @brief System call entry point.
+void s_call() noexcept NAKED;
+void s_call() noexcept {
     __asm__ volatile("call save\n\t"
                      "movq _proc_ptr(%rip), %rdi\n\t"
                      "movq 16(%rdi), %rsi\n\t"
@@ -180,23 +188,17 @@ void s_call(void) {
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              lpr_int                                      *
- *===========================================================================*/
-/* Printer interrupt service routine. */
-void lpr_int(void) NAKED;
-void lpr_int(void) {
+/// @brief Printer interrupt service routine.
+void lpr_int() noexcept NAKED;
+void lpr_int() noexcept {
     __asm__ volatile("call save\n\t"
                      "call _pr_char\n\t"
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              disk_int                                     *
- *===========================================================================*/
-/* Disk interrupt service routine. */
-void disk_int(void) NAKED;
-void disk_int(void) {
+/// @brief Disk interrupt service routine.
+void disk_int() noexcept NAKED;
+void disk_int() noexcept {
     __asm__ volatile("call save\n\t"
                      "movq _int_mess+2(%rip), %rax\n\t"
                      "movq %rax, %rdi\n\t"
@@ -204,23 +206,17 @@ void disk_int(void) {
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              divide                                       *
- *===========================================================================*/
-/* Divide trap handler. */
-void divide(void) NAKED;
-void divide(void) {
+/// @brief Divide trap handler.
+void divide() noexcept NAKED;
+void divide() noexcept {
     __asm__ volatile("call save\n\t"
                      "call _div_trap\n\t"
                      "jmp restart");
 }
 
-/*===========================================================================*
- *                              trp                                          *
- *===========================================================================*/
-/* General trap handler. */
-void trp(void) NAKED;
-void trp(void) {
+/// @brief General trap handler.
+void trp() noexcept NAKED;
+void trp() noexcept {
     __asm__ volatile("call save\n\t"
                      "call _trap\n\t"
                      "jmp restart");

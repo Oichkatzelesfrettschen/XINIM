@@ -3,6 +3,12 @@
 /**
  * @file kyber.hpp
  * @brief Kyber key encapsulation mechanism wrapper.
+ *
+ * The implementation
+ * preferentially uses OpenSSL's KEM provider for Kyber512
+ * when available and transparently falls
+ * back to the bundled reference
+ * implementation otherwise.
  */
 
 #include <array>

@@ -132,6 +132,12 @@ private:
 
 } // namespace xinim::console
 
+/**
+ * @brief Entry point for the test_mined_console utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main() {
     xinim::console::SimpleConsole console;
     console.run();

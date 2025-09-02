@@ -136,7 +136,7 @@ std::expected<void, std::error_code> create_directory(
         return {};
     } else {
         std::error_code ec;
-        std::filesystem::create_directory(path, prms, ec);
+        std::filesystem::create_directory(path, ec);
         if (ec) {
             if (ec == std::errc::file_exists) {
                  std::error_code stat_ec;
@@ -504,7 +504,7 @@ std::expected<void, std::error_code> copy(
 
     xinim::fs::operation_context from_stat_ctx = ctx;
     // If copy_symlinks option is set, we want status of the link itself. Otherwise, status of target.
-    from_stat_ctx.follow_symlinks = !(options & std::filesystem::copy_options::copy_symlinks);
+    from_stat_ctx.follow_symlinks = !static_cast<bool>(options & std::filesystem::copy_options::copy_symlinks);
 
     auto from_status_res = get_status(from, from_stat_ctx);
     if (!from_status_res) {
@@ -537,11 +537,11 @@ std::expected<void, std::error_code> copy(
         }
 
 
-        if (options & std::filesystem::copy_options::skip_existing) {
+        if (static_cast<bool>(options & std::filesystem::copy_options::skip_existing)) {
             return {}; // Success, do nothing
         }
-        if (options & std::filesystem::copy_options::overwrite_existing ||
-            options & std::filesystem::copy_options::update_existing) { // update_existing also implies overwrite if source is newer
+        if (static_cast<bool>(options & std::filesystem::copy_options::overwrite_existing) ||
+            static_cast<bool>(options & std::filesystem::copy_options::update_existing)) { // update_existing also implies overwrite if source is newer
 
             // For update_existing, we'd need to compare file times first.
             // This simplified version treats update_existing like overwrite_existing for now if 'to' exists.
@@ -556,7 +556,7 @@ std::expected<void, std::error_code> copy(
                 // Cannot overwrite a directory with a file using std::filesystem::copy_file.
                 // std::filesystem::copy with overwrite on a directory means merging or replacing.
                 // If 'from' is not a directory, this is an error.
-                if (from_stat.type != std::filesystem::file_type::directory && !(options & std::filesystem::copy_options::directories_only) ) { // directories_only is not a standard option for this check
+                if (from_stat.type != std::filesystem::file_type::directory && !static_cast<bool>(options & std::filesystem::copy_options::directories_only) ) { // directories_only is not a standard option for this check
                      return std::unexpected(std::make_error_code(std::errc::is_a_directory)); // Trying to overwrite dir with file
                 }
                 // If both are dirs, overwrite means remove 'to' then copy 'from' into its place, or merge.
@@ -578,7 +578,7 @@ std::expected<void, std::error_code> copy(
 
     // Main copy logic based on 'from' type (which could be the target type if 'from' was a followed symlink)
     if (from_stat.type == std::filesystem::file_type::directory) {
-        if (!(options & std::filesystem::copy_options::recursive)) {
+        if ((options & std::filesystem::copy_options::recursive) == std::filesystem::copy_options::none) {
             return std::unexpected(std::make_error_code(std::errc::is_a_directory));
         }
 
@@ -596,7 +596,7 @@ std::expected<void, std::error_code> copy(
             }
         }
 
-        if (options & std::filesystem::copy_options::recursive) {
+        if ((options & std::filesystem::copy_options::recursive) != std::filesystem::copy_options::none) {
             std::error_code ec_iter;
             for (const auto& entry : std::filesystem::directory_iterator(from, ec_iter)) {
                 if (ec_iter) return std::unexpected(ec_iter);

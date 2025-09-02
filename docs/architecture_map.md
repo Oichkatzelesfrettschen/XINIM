@@ -6,7 +6,7 @@ XINIM Operating System - Repository Architecture Map
 =====================================================
 
 XINIM/                              🏗️  Modern C++23 MINIX Implementation
-├── 📋 LICENSE                      📄  BSD 3-Clause (Retroactive to 1987)
+├── 📋 LICENSE                      📄  BSD-MODERNMOST (Retroactive to 1987)
 ├── ⚙️  CMakeLists.txt              🔧  Modern C++23 Build Configuration  
 ├── 🔧 .clang-format                📐  LLVM Code Style (4-space, 100-col)
 ├── 🔍 .clang-tidy                  🛡️  Static Analysis (bugprone+portability)

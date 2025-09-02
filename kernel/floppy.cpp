@@ -679,7 +679,8 @@ static void reset() noexcept { // PRIVATE -> static, modernized signature, noexc
      * like the controller refusing to respond.
      */
 
-    int i, r, status;
+    int i;
+    [[maybe_unused]] int r, status;
     struct floppy *fp;
     /* Disable interrupts and strobe reset bit low. */
     need_reset = FALSE;

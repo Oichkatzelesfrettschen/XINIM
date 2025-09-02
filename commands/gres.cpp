@@ -45,6 +45,7 @@
  *
  * @note Requires C++23 compliant compiler
  */
+// clang-format on
 
 #include <filesystem>
 #include <format>
@@ -63,19 +64,25 @@ namespace {
  * @brief Structure to hold gres command-line options.
  */
 struct GresOptions {
-    bool global_replace = true; /**< Replace all occurrences (default) */
-    std::string search_pattern; /**< Regular expression pattern */
-    std::string replacement; /**< Replacement string */
+    bool global_replace = true;               /**< Replace all occurrences (default) */
+    std::string search_pattern;               /**< Regular expression pattern */
+    std::string replacement;                  /**< Replacement string */
     std::vector<std::filesystem::path> files; /**< List of input files */
 };
 
 /**
  * @brief Gres engine class for processing files and performing replacements.
+ * @details
+ * Coordinates regex-based substitutions across either standard input or
+ * a collection of files,
+ * ensuring thread-safe execution and robust error
+ * propagation.
  */
 class GresEngine {
-public:
+  public:
     explicit GresEngine(GresOptions opts)
-        : options_(std::move(opts)), regex_(options_.search_pattern, std::regex_constants::extended) {}
+        : options_(std::move(opts)),
+          regex_(options_.search_pattern, std::regex_constants::extended) {}
 
     /**
      * @brief Process all specified files or stdin.
@@ -93,7 +100,7 @@ public:
             }
         } else {
             // Process each file
-            for (const auto& filepath : options_.files) {
+            for (const auto &filepath : options_.files) {
                 if (filepath == "-") {
                     if (process_stream(std::cin, "-")) {
                         any_replacements = true;
@@ -101,7 +108,8 @@ public:
                 } else {
                     std::ifstream file(filepath, std::ios::binary);
                     if (!file) {
-                        std::cerr << std::format("gres: {}: {}\n", filepath.string(), std::strerror(errno));
+                        std::cerr << std::format("gres: {}: {}\n", filepath.string(),
+                                                 std::strerror(errno));
                         any_errors = true;
                         continue;
                     }
@@ -114,20 +122,21 @@ public:
         return any_errors ? 2 : (any_replacements ? 0 : 1);
     }
 
-private:
+  private:
     /**
      * @brief Process a single input stream.
      * @param stream Input stream to process.
      * @param filename Filename for error reporting (empty for stdin).
      * @return True if any replacements were made.
      */
-    bool process_stream(std::istream& stream, std::string_view filename) {
+    bool process_stream(std::istream &stream, std::string_view filename) {
         std::lock_guard lock(mtx_);
         std::string line;
         bool made_replacements = false;
 
         while (std::getline(stream, line)) {
             std::string result;
+
             if (options_.global_replace) {
                 // Replace all occurrences
                 result = std::regex_replace(line, regex_, options_.replacement);
@@ -142,15 +151,16 @@ private:
             std::cout << result << "\n";
         }
         if (stream.fail() && !stream.eof()) {
-            std::cerr << std::format("gres: Error reading {}: {}\n", filename.empty() ? "stdin" : filename, std::strerror(errno));
+            std::cerr << std::format("gres: Error reading {}: {}\n",
+                                     filename.empty() ? "stdin" : filename, std::strerror(errno));
             return made_replacements;
         }
         return made_replacements;
     }
 
-    GresOptions options_;
-    std::regex regex_;
-    mutable std::mutex mtx_;
+    GresOptions options_;    /**< Parsed command-line options. */
+    std::regex regex_;       /**< Compiled regular expression. */
+    mutable std::mutex mtx_; /**< Mutex protecting shared state. */
 };
 
 /**
@@ -160,7 +170,7 @@ private:
  * @return Parsed GresOptions structure.
  * @throws std::runtime_error on invalid arguments.
  */
-GresOptions parse_arguments(int argc, char* argv[]) {
+GresOptions parse_arguments(int argc, char *argv[]) {
     GresOptions opts;
     int i = 1;
 
@@ -209,16 +219,16 @@ void print_usage() {
  * @param argv An array of command-line arguments.
  * @return 0 if replacements made, 1 if no matches, 2 on error.
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     try {
         GresOptions options = parse_arguments(argc, argv);
         GresEngine engine(std::move(options));
         return engine.run();
-    } catch (const std::regex_error& e) {
+    } catch (const std::regex_error &e) {
         std::cerr << std::format("gres: invalid regular expression: {}\n", e.what());
         print_usage();
         return 2;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << std::format("gres: {}\n", e.what());
         print_usage();
         return 2;
@@ -228,11 +238,3 @@ int main(int argc, char* argv[]) {
         return 2;
     }
 }
-
-// Recommendations:
-// - Add support for parallel file processing using std::jthread for multiple files.
-// - Implement a logging framework for detailed diagnostics.
-// - Add unit tests for edge cases (e.g., invalid regex, empty files, binary files).
-// - Consider std::expected for regex construction to handle errors without exceptions.
-// - Add option to write output to files instead of stdout (e.g., -i for in-place editing).
-// - Integrate with CI for automated testing and validation across UNIX platforms.

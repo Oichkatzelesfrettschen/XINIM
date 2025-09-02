@@ -9,7 +9,9 @@
  * This program is a C++23 modernization of the original `cp` utility from MINIX.
  * It copies files and directories, handling both file-to-file and multiple files
  * to a directory copy operations. It leverages the C++ std::filesystem library for
- * robust and platform-independent file operations.
+ * robust and platform-independent file operations and uses `std::println`
+ * \[C++23 §20.21] alongside `std::filesystem` \[C++23 §27.12] for modern,
+ * type-safe resource management.
  *
  * Usage:
  *   cp source_file target_file
@@ -23,10 +25,14 @@
 #include <system_error>
 #include <vector>
 
+/**
+ * @brief Internal namespace housing helper routines for the cp command.
+ */
 namespace {
 
 /**
  * @brief Prints the usage message to standard error.
+ * @note Uses `std::println` \[C++23 §20.21] for type-safe formatted output.
  */
 void printUsage() {
     std::println(std::cerr, "Usage: cp source_file target_file");
@@ -39,11 +45,13 @@ void printUsage() {
  * @param target The target path.
  * @param is_target_dir A boolean indicating if the target is a directory.
  * @return True on success, false on failure.
+ * @note Relies on `std::filesystem::copy` \[C++23 §27.12.15] to perform
+ *       recursive copies while honoring RAII for resource safety.
  */
 bool copy_item(const std::filesystem::path &source, const std::filesystem::path &target,
                bool is_target_dir) {
+    std::filesystem::path destination = target; ///< Resolved destination path.
     try {
-        std::filesystem::path destination = target;
         if (is_target_dir) {
             destination /= source.filename();
         }
@@ -76,6 +84,8 @@ bool copy_item(const std::filesystem::path &source, const std::filesystem::path 
  * @param argc The number of command-line arguments.
  * @param argv An array of command-line arguments.
  * @return 0 on success, 1 on error.
+ * @note Demonstrates structured bindings and `std::println` \[C++23 §20.21]
+ *       for informative diagnostics.
  */
 int main(int argc, char *argv[]) {
     if (argc < 3) {
@@ -83,13 +93,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    std::vector<std::filesystem::path> sources;
+    std::vector<std::filesystem::path> sources; ///< Collection of source paths to copy.
     for (int i = 1; i < argc - 1; ++i) {
         sources.emplace_back(argv[i]);
     }
     std::filesystem::path target(argv[argc - 1]);
 
-    bool target_is_directory = std::filesystem::is_directory(target);
+    const bool target_is_directory =
+        std::filesystem::is_directory(target); ///< Indicates whether the target is a directory.
 
     if (sources.size() > 1 && !target_is_directory) {
         std::println(std::cerr, "cp: target '{}' is not a directory", target.string());

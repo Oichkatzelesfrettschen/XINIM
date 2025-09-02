@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 cmake_minimum_required(VERSION 3.25)
 project(XINIM VERSION 1.0.0 LANGUAGES CXX C ASM)
 
@@ -5,6 +6,43 @@ project(XINIM VERSION 1.0.0 LANGUAGES CXX C ASM)
 # XINIM - CLEAN & UNIFIED BUILD SYSTEM
 # World's First Pure C++23 Operating System with POSIX SUSv5 Compliance
 # ══════════════════════════════════════════════════════════════════════════════
+=======
+cmake_minimum_required(VERSION 3.20)
+project(XINIM CXX C)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 1. Compiler autodetection (prefer Clang 18 → 20 → default `clang`)
+# ─────────────────────────────────────────────────────────────────────────────
+if(NOT CMAKE_C_COMPILER)
+  find_program(CLANG_18 clang-18)
+  find_program(CLANG_20 clang-20)
+  set(CMAKE_C_COMPILER
+      $<IF:$<BOOL:${CLANG_18}>,${CLANG_18},
+        $<IF:$<BOOL:${CLANG_20}>,${CLANG_20},clang>>)
+endif()
+
+# Automatically enable libc++ when building with Clang
+if(CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+  set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -stdlib=libc++")
+  set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} -stdlib=libc++")
+  link_libraries(c++ c++abi)
+endif()
+if(NOT CMAKE_CXX_COMPILER)
+  find_program(CLANGXX_18 clang++-18)
+  find_program(CLANGXX_20 clang++-20)
+  set(CMAKE_CXX_COMPILER
+      $<IF:$<BOOL:${CLANGXX_18}>,${CLANGXX_18},
+        $<IF:$<BOOL:${CLANGXX_20}>,${CLANGXX_20},clang++>>)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 2. Language standards
+# ─────────────────────────────────────────────────────────────────────────────
+set(CMAKE_C_STANDARD 17)
+set(CMAKE_C_STANDARD_REQUIRED ON)
+set(CMAKE_C_EXTENSIONS OFF)
+>>>>>>> origin/master
 
 # ──────────────────────────────────────────────────────────────────────────────
 # § 1. LANGUAGE STANDARDS & POLICIES
@@ -17,6 +55,7 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_C_EXTENSIONS OFF)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+<<<<<<< HEAD
 # Modern CMake policies
 cmake_policy(SET CMP0135 NEW)  # URL download timestamp
 cmake_policy(SET CMP0127 NEW)  # cmake_dependent_option
@@ -58,6 +97,55 @@ set(XINIM_RELEASE_FLAGS
     $<$<CONFIG:Release>:
         -O3 -march=native -DNDEBUG
     >
+=======
+# ─────────────────────────────────────────────────────────────────────────────
+# 3. Cross-compilation support
+# ─────────────────────────────────────────────────────────────────────────────
+option(CROSS_COMPILE_X86_64 "Cross-compile for freestanding x86-64" OFF)
+set(CROSS_PREFIX "" CACHE STRING "Prefix for cross-compilation toolchain")
+
+if(CROSS_COMPILE_X86_64)
+  if(CROSS_PREFIX STREQUAL "")
+    set(CROSS_PREFIX "x86_64-elf-")
+  endif()
+
+  set(CMAKE_SYSTEM_NAME Generic)
+  set(CMAKE_SYSTEM_PROCESSOR x86_64)
+
+  set(CMAKE_C_COMPILER   "${CROSS_PREFIX}clang")
+  set(CMAKE_CXX_COMPILER "${CROSS_PREFIX}clang++")
+  set(CMAKE_AR           "${CROSS_PREFIX}ar")
+  set(CMAKE_RANLIB       "${CROSS_PREFIX}ranlib")
+  set(CMAKE_LINKER       "${CROSS_PREFIX}ld")
+
+  set(CMAKE_C_FLAGS   "${CMAKE_C_FLAGS}   -m64")
+  set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 4. Global include paths
+# ─────────────────────────────────────────────────────────────────────────────
+include_directories(
+  h
+  include
+  commands
+  fs
+  kernel
+  mm
+  lib
+)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 5. Baseline optimisation flags (native or cross)
+#    x86-64-v1: MMX + SSE + SSE2, widest deployable subset.
+# ─────────────────────────────────────────────────────────────────────────────
+set(BASE_CPU_FLAGS
+    "-march=x86-64"
+    "-mtune=generic"
+    "-msse"
+    "-mmmx"
+    "-msse2"
+>>>>>>> origin/master
 )
 
 set(XINIM_DEBUG_FLAGS
@@ -75,9 +163,59 @@ set(XINIM_INCLUDE_DIRS
     ${CMAKE_BINARY_DIR}/generated
 )
 
+<<<<<<< HEAD
 # ──────────────────────────────────────────────────────────────────────────────
 # § 5. SOURCE FILE COLLECTION
 # ──────────────────────────────────────────────────────────────────────────────
+=======
+# ─────────────────────────────────────────────────────────────────────────────
+# 6. Optional analysis and sanitizers
+# ─────────────────────────────────────────────────────────────────────────────
+option(ENABLE_CLANG_TIDY "Run clang-tidy during compilation" OFF)
+option(ENABLE_CPPCHECK "Run cppcheck during compilation" OFF)
+option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
+option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
+
+if(ENABLE_CLANG_TIDY)
+  find_program(CLANG_TIDY_EXE NAMES clang-tidy)
+  if(CLANG_TIDY_EXE)
+    set(CMAKE_C_CLANG_TIDY   "${CLANG_TIDY_EXE};--warnings-as-errors=*")
+    set(CMAKE_CXX_CLANG_TIDY "${CLANG_TIDY_EXE};--warnings-as-errors=*")
+  else()
+    message(FATAL_ERROR "clang-tidy requested but executable not found")
+  endif()
+endif()
+
+if(ENABLE_CPPCHECK)
+  find_program(CPPCHECK_EXE NAMES cppcheck)
+  if(CPPCHECK_EXE)
+    set(CMAKE_C_CPPCHECK   "${CPPCHECK_EXE};--enable=all;--inconclusive;--suppress=missingIncludeSystem;--error-exitcode=1")
+    set(CMAKE_CXX_CPPCHECK "${CPPCHECK_EXE};--enable=all;--inconclusive;--suppress=missingIncludeSystem;--error-exitcode=1")
+  else()
+    message(FATAL_ERROR "cppcheck requested but executable not found")
+  endif()
+endif()
+
+if(ENABLE_ASAN AND ENABLE_TSAN)
+  message(FATAL_ERROR "ASan and TSan cannot be enabled simultaneously")
+endif()
+
+if(ENABLE_ASAN)
+  add_compile_options(-fsanitize=address -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=address -fno-omit-frame-pointer)
+endif()
+
+if(ENABLE_TSAN)
+  add_compile_options(-fsanitize=thread -fno-omit-frame-pointer)
+  add_link_options(-fsanitize=thread -fno-omit-frame-pointer)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 7. Wini driver selection
+# ─────────────────────────────────────────────────────────────────────────────
+option(DRIVER_AT "Use AT-style WD100x controller driver" OFF)
+option(DRIVER_PC "Use PC/XT wini driver" OFF)
+>>>>>>> origin/master
 
 # Function to collect sources safely
 function(xinim_collect_sources OUT_VAR DIR PATTERNS)
@@ -159,6 +297,7 @@ if(MM_SOURCES)
     target_link_libraries(xinim_mm PUBLIC xinim_common_interface)
 endif()
 
+<<<<<<< HEAD
 if(FS_SOURCES)
     add_library(xinim_fs STATIC ${FS_SOURCES})
     target_link_libraries(xinim_fs PUBLIC xinim_common_interface)
@@ -322,3 +461,55 @@ message(STATUS "")
 # ══════════════════════════════════════════════════════════════════════════════
 # END OF CLEAN BUILD SYSTEM
 # ══════════════════════════════════════════════════════════════════════════════
+=======
+# ─────────────────────────────────────────────────────────────────────────────
+# 8. Build sub-components
+# ─────────────────────────────────────────────────────────────────────────────
+option(BUILD_SYSTEM "Build full Minix system components" ON)
+
+if(BUILD_SYSTEM)
+  add_subdirectory(lib)
+  add_subdirectory(kernel)
+  add_subdirectory(mm)
+  add_subdirectory(fs)
+  add_subdirectory(commands)
+  add_subdirectory(tools)
+endif()
+
+add_subdirectory(crypto)
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 9. Unit tests
+# ─────────────────────────────────────────────────────────────────────────────
+option(ENABLE_UNIT_TESTS "Build unit tests" ON)
+
+if(ENABLE_UNIT_TESTS)
+  enable_testing()
+  add_subdirectory(tests)
+endif()
+
+# ─────────────────────────────────────────────────────────────────────────────
+# 10. Documentation target
+# ─────────────────────────────────────────────────────────────────────────────
+find_package(Doxygen)
+if(DOXYGEN_FOUND)
+  set(DOXYGEN_OUTPUT_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/docs/doxygen")
+  set(DOXYGEN_INPUT_DIRS
+      "${CMAKE_CURRENT_SOURCE_DIR}/commands"
+      "${CMAKE_CURRENT_SOURCE_DIR}/fs"
+      "${CMAKE_CURRENT_SOURCE_DIR}/kernel"
+      "${CMAKE_CURRENT_SOURCE_DIR}/mm"
+      "${CMAKE_CURRENT_SOURCE_DIR}/lib"
+      "${CMAKE_CURRENT_SOURCE_DIR}/crypto")
+  list(JOIN DOXYGEN_INPUT_DIRS " " DOXYGEN_INPUT)
+  configure_file(${CMAKE_CURRENT_SOURCE_DIR}/docs/Doxyfile.in
+                 ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile @ONLY)
+  add_custom_target(doc
+    COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_CURRENT_BINARY_DIR}/Doxyfile
+    WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+    COMMENT "Generating API documentation with Doxygen"
+    VERBATIM)
+else()
+  message(STATUS "Doxygen not found. Documentation target will be unavailable.")
+endif()
+>>>>>>> origin/master

@@ -202,6 +202,8 @@ static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) 
  * handles scheduling related bookkeeping. This function is invoked on
  * every timer interrupt.
  *
+ * @pre Programmable interval timer was configured by ::init_clock.
+ * @post Pending alarms are dispatched and scheduler counters updated.
  */
 static void do_clocktick() noexcept {
 
@@ -229,7 +231,7 @@ static void do_clocktick() noexcept {
                      */
                     proc_nr = &entry - proc - NR_TASKS;
                     if (proc_nr >= 0)
-                        cause_sig(proc_nr, SIGALRM);
+                        cause_sig(proc_nr, xinim::signals::SIGALRM);
                     else
                         (*watch_dog[-proc_nr])();
                     entry.p_alarm = 0;
@@ -247,7 +249,11 @@ static void do_clocktick() noexcept {
     /* If a user process has been running too long, pick another one. */
     if (--sched_ticks == 0) {
         if (bill_ptr == prev_ptr)
-            sched();              /* process has run too long */
+            /**
+             * @brief Round-robin scheduling decision.
+             * @warning Assumes a single CPU; SMP fairness needs review.
+             */
+            sched(); /* process has run too long */
         sched_ticks = SCHED_RATE; /* reset quantum */
         prev_ptr = bill_ptr;      /* new previous process */
 
@@ -291,6 +297,9 @@ static void accounting() noexcept { // Changed (void) to ()
  * Programs timer channel zero to generate periodic interrupts at the
  * system tick rate defined by @c HZ.
  *
+ * @pre I/O ports @c TIMER0 and @c TIMER_MODE must be accessible.
+ * @post Timer generates square-wave interrupts at @c HZ frequency.
+ * @todo Replace legacy PIT with HPET/APIC timer for higher precision.
  */
 static void init_clock() noexcept {
 

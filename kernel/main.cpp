@@ -2,16 +2,62 @@
 #include <xinim/boot/limine_shim.hpp>
 #include "early/serial_16550.hpp"
 #include "acpi/acpi.hpp"
+#include "console.hpp"
+#include "platform_traits.hpp"
+#include "time/monotonic.hpp"
+#include "time/calibrate.hpp"
+
+#ifdef XINIM_ARCH_X86_64
 #include "../arch/x86_64/hal/apic.hpp"
 #include "../arch/x86_64/hal/hpet.hpp"
 #include "../arch/x86_64/hal/ioapic.hpp"
-#include "time/monotonic.hpp"
-#include "../arch/x86_64/hal/hpet.hpp"
-#include "time/calibrate.hpp"
-extern void interrupts_init(xinim::early::Serial16550& serial, xinim::hal::x86_64::Lapic& lapic);
+#elif defined(XINIM_ARCH_ARM64)
+#include "../arch/arm64/hal/gic.hpp"
+#include "../arch/arm64/hal/timer.hpp"
+#endif
 
-extern "C" void _start();
+#include "time/monotonic.hpp"
+#include "time/calibrate.hpp"
+
+extern void interrupts_init(xinim::early::Serial16550& serial
+#ifdef XINIM_ARCH_X86_64
+    , xinim::hal::x86_64::Lapic& lapic
+#endif
+);
+
+// Platform-agnostic kernel configuration parsing
+enum TickMode { TICK_AUTO, TICK_APIC, TICK_HPET, TICK_ARM_TIMER };
+
+static TickMode parse_tick_mode(const char* cmdline) {
+    if (!cmdline) return TICK_AUTO;
+    const char* p = cmdline;
+    const char* key = "tick=";
+    while (*p) {
+        const char* k = key;
+        const char* s = p;
+        while (*k && *s == *k) { ++k; ++s; }
+        if (*k == '\0') {
+            if (s[0]=='a'&&s[1]=='p'&&s[2]=='i'&&s[3]=='c') return TICK_APIC;
+            if (s[0]=='h'&&s[1]=='p'&&s[2]=='e'&&s[3]=='t') return TICK_HPET;
+            if (s[0]=='a'&&s[1]=='r'&&s[2]=='m') return TICK_ARM_TIMER;
+            return TICK_AUTO;
+        }
+        ++p;
+    }
+    return TICK_AUTO;
+}
+
+static xinim::early::Serial16550 early_serial;
+
+static void kputs(const char* s) {
+    early_serial.write(s);
+}
+
+// x86_64 specific timer setup
+#ifdef XINIM_ARCH_X86_64
+
 static xinim::hal::x86_64::Hpet* g_hpet_ptr = nullptr;
+
 static uint64_t monotonic_from_hpet() {
     if (!g_hpet_ptr) return 0;
     const uint64_t period_fs = g_hpet_ptr->period_fs();
@@ -37,83 +83,168 @@ static int parse_hpet_gsi(const char* cmdline) {
     return -1;
 }
 
-enum TickMode { TICK_AUTO, TICK_APIC, TICK_HPET };
-static TickMode parse_tick_mode(const char* cmdline) {
-    if (!cmdline) return TICK_AUTO;
-    const char* p = cmdline;
-    const char* key = "tick=";
-    while (*p) {
-        const char* k = key; const char* s = p;
-        while (*k && *s == *k) { ++k; ++s; }
-        if (*k == '\0') {
-            if (s[0]=='a'&&s[1]=='p'&&s[2]=='i'&&s[3]=='c') return TICK_APIC;
-            if (s[0]=='h'&&s[1]=='p'&&s[2]=='e'&&s[3]=='t') return TICK_HPET;
-            return TICK_AUTO;
-        }
-        ++p;
-    }
-    return TICK_AUTO;
-}
-static xinim::early::Serial16550 early_serial;
-
-static void kputs(const char* s) {
-    early_serial.write(s);
-}
-
-extern "C" void _start() {
-    early_serial = xinim::early::Serial16550(0x3F8);
-    early_serial.init();
-    kputs("\nXINIM: Limine boot reached.\n");
-    kputs("Early serial OK.\n");
-
-    // Gather boot info via Limine
-    auto bi = xinim::boot::from_limine();
-    // ACPI discovery
-    auto acpi = xinim::acpi::probe(reinterpret_cast<uint64_t>(bi.acpi_rsdp), bi.hhdm_offset);
-    // Initialize LAPIC and IDT, then set up periodic timer (HPET via IOAPIC if configured, else LAPIC)
+static void setup_x86_64_timers(const xinim::boot::BootInfo& bi, const xinim::acpi::AcpiInfo& acpi) {
     xinim::hal::x86_64::Lapic lapic;
-    if (acpi.lapic_mmio) {
-        auto lapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.lapic_mmio);
-        lapic.init(lapic_virt);
-        interrupts_init(early_serial, lapic);
-        // Calibrate APIC timer using HPET if present and install monotonic source
-        uint32_t init_count = 20000000u; uint8_t divpow2 = 4;
-        TickMode mode = parse_tick_mode(bi.cmdline);
-        bool hpet_routed = false;
-        if (acpi.hpet_mmio) {
-            static xinim::hal::x86_64::Hpet hpet;
-            auto hpet_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.hpet_mmio);
-            hpet.init(hpet_virt);
-            hpet.enable(true);
-            g_hpet_ptr = &hpet;
-            xinim::time::monotonic_install(&monotonic_from_hpet);
-            auto calib = xinim::time::calibrate_apic_with_hpet(lapic, hpet, 100); // 100 Hz
-            if (calib.initial_count) { init_count = calib.initial_count; divpow2 = calib.divider_pow2; }
-            // Try HPET->IOAPIC routing if ioapic present and cmdline provides hpet_gsi
-            int gsi = parse_hpet_gsi(bi.cmdline);
-            if ((mode != TICK_APIC) && gsi >= 0 && acpi.ioapic_phys) {
-                xinim::hal::x86_64::IoApic ioapic;
-                auto ioapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.ioapic_phys);
-                ioapic.init(ioapic_virt, acpi.ioapic_gsi_base);
-                // Redirect HPET GSI to vector 32, edge/high
-                ioapic.redirect((uint32_t)gsi, 32, false, false);
-                // Program HPET periodic timer 0 for 100Hz
-                if (hpet.start_periodic(0, 10'000'000ULL, (uint32_t)gsi)) {
-                    hpet_routed = true;
-                }
-            }
-        }
-        if (mode == TICK_HPET && hpet_routed) {
-            // Prefer HPET: mask LAPIC timer to avoid duplicate ticks
-            lapic.stop_timer();
-        } else {
-            // Fallback or forced APIC tick
-            lapic.setup_timer(32, init_count, divpow2);
-        }
-        __asm__ volatile ("sti");
-        for(;;) { __asm__ volatile ("hlt"); }
-    } else {
+    if (!acpi.lapic_mmio) {
         kputs("LAPIC not found.\n");
         for(;;) { __asm__ volatile ("hlt"); }
     }
+    
+    auto lapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.lapic_mmio);
+    lapic.init(lapic_virt);
+    interrupts_init(early_serial, lapic);
+    
+    // Calibrate APIC timer using HPET if present
+    uint32_t init_count = 20000000u;
+    uint8_t divpow2 = 4;
+    TickMode mode = parse_tick_mode(bi.cmdline);
+    bool hpet_routed = false;
+    
+    if (acpi.hpet_mmio) {
+        static xinim::hal::x86_64::Hpet hpet;
+        auto hpet_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.hpet_mmio);
+        hpet.init(hpet_virt);
+        hpet.enable(true);
+        g_hpet_ptr = &hpet;
+        xinim::time::monotonic_install(&monotonic_from_hpet);
+        
+        auto calib = xinim::time::calibrate_apic_with_hpet(lapic, hpet, 100); // 100 Hz
+        if (calib.initial_count) {
+            init_count = calib.initial_count;
+            divpow2 = calib.divider_pow2;
+        }
+        
+        // Try HPET->IOAPIC routing if configured
+        int gsi = parse_hpet_gsi(bi.cmdline);
+        if ((mode != TICK_APIC) && gsi >= 0 && acpi.ioapic_phys) {
+            xinim::hal::x86_64::IoApic ioapic;
+            auto ioapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.ioapic_phys);
+            ioapic.init(ioapic_virt, acpi.ioapic_gsi_base);
+            ioapic.redirect((uint32_t)gsi, 32, false, false);
+            
+            if (hpet.start_periodic(0, 10'000'000ULL, (uint32_t)gsi)) {
+                hpet_routed = true;
+            }
+        }
+    }
+    
+    if (mode == TICK_HPET && hpet_routed) {
+        lapic.stop_timer();
+    } else {
+        lapic.setup_timer(32, init_count, divpow2);
+    }
+    
+    __asm__ volatile ("sti");
+}
+
+#elif defined(XINIM_ARCH_ARM64)
+
+static xinim::hal::arm64::Timer* g_timer_ptr = nullptr;
+
+static uint64_t monotonic_from_arm_timer() {
+    if (!g_timer_ptr) return 0;
+    return g_timer_ptr->get_nanoseconds();
+}
+
+static void setup_arm64_timers(const xinim::boot::BootInfo& bi) {
+    // Initialize GIC (Generic Interrupt Controller)
+    static xinim::hal::arm64::Gic gic;
+    gic.init(bi.gic_dist_base, bi.gic_cpu_base);
+    
+    // Initialize ARM generic timer
+    static xinim::hal::arm64::Timer timer;
+    timer.init();
+    g_timer_ptr = &timer;
+    
+    // Install monotonic clock source
+    xinim::time::monotonic_install(&monotonic_from_arm_timer);
+    
+    // Set up timer interrupt at 100Hz
+    timer.setup_periodic(100);
+    
+    // Enable interrupts
+    __asm__ volatile ("msr daifclr, #2");
+}
+
+#endif
+
+/**
+ * @brief Unified kernel entry function.
+ *
+ * This function serves as the main entry point for the XINIM kernel on both
+ * x86_64 and ARM64 architectures. It initializes the boot console, probes
+ * hardware via ACPI/device tree, sets up interrupt controllers and timers,
+ * and then enters the kernel main loop.
+ *
+ * The implementation harmonizes both the advanced Limine boot path with
+ * full hardware initialization and the simpler stub approach for testing.
+ *
+ * @pre Executed in early boot context with interrupts disabled.
+ * @post Never returns in production; may return 0 for testing.
+ */
+extern "C" void _start() {
+    // Initialize early serial console
+    early_serial = xinim::early::Serial16550(0x3F8);
+    early_serial.init();
+    
+    // Print startup banner
+    kputs("\n==============================================\n");
+    kputs("XINIM: Modern C++23 Post-Quantum Microkernel\n");
+    kputs("==============================================\n");
+    
+#ifdef XINIM_BOOT_LIMINE
+    kputs("Boot: Limine protocol detected\n");
+    
+    // Gather boot information
+    auto bi = xinim::boot::from_limine();
+    
+    // Platform detection
+#ifdef XINIM_ARCH_X86_64
+    kputs("Architecture: x86_64\n");
+    
+    // ACPI discovery for x86_64
+    auto acpi = xinim::acpi::probe(reinterpret_cast<uint64_t>(bi.acpi_rsdp), bi.hhdm_offset);
+    kputs("ACPI: Tables parsed\n");
+    
+    // Set up x86_64 specific hardware
+    setup_x86_64_timers(bi, acpi);
+    kputs("Timers: Initialized (APIC/HPET)\n");
+    
+#elif defined(XINIM_ARCH_ARM64)
+    kputs("Architecture: ARM64\n");
+    
+    // Set up ARM64 specific hardware
+    setup_arm64_timers(bi);
+    kputs("Timers: Initialized (ARM Generic Timer)\n");
+#endif
+    
+    // Use advanced console if available
+    Console::init();
+    Console::printf("XINIM kernel fully initialized\n");
+    
+#else
+    // Simple stub mode for testing
+    kputs("Boot: Stub mode (testing)\n");
+    Console::printf("XINIM kernel stub\n");
+#endif
+    
+    // Main kernel loop
+    kputs("Entering main loop...\n");
+    for(;;) {
+#ifdef XINIM_ARCH_X86_64
+        __asm__ volatile ("hlt");
+#elif defined(XINIM_ARCH_ARM64)
+        __asm__ volatile ("wfi");
+#else
+        // Generic busy wait for unknown architectures
+        volatile int x = 0;
+        for(int i = 0; i < 1000000; ++i) x++;
+#endif
+    }
+}
+
+// Alternative entry point for environments that expect main()
+int main() noexcept {
+    _start();
+    return 0;
 }

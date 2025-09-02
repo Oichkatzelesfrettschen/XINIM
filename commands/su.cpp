@@ -11,6 +11,12 @@
 #include "stdio.hpp"
 
 /* Program entry point */
+/**
+ * @brief Entry point for the su utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     register char *name;
     char *crypt();
