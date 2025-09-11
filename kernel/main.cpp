@@ -1,145 +1,250 @@
-/**
- * @file main.cpp
- * @brief Kernel entry point and trap handlers for x86 (i386, i586, i686, x86_64).
- *
- * Uses C++23, RAII, and platform‐adaptive types for 32- and 64-bit x86.
- */
+#include <xinim/boot/bootinfo.hpp>
+#include <xinim/boot/limine_shim.hpp>
+#include "early/serial_16550.hpp"
+#include "acpi/acpi.hpp"
+#include "console.hpp"
+#include "platform_traits.hpp"
+#include "time/monotonic.hpp"
+#include "time/calibrate.hpp"
 
-#include "console.hpp"             // Console::printf(), detect_color()
-#include "glo.hpp"                 // extern proc_ptr, bill_ptr
-#include "hardware.hpp"            // Hardware::enable_irqs(), reboot()
-#include "idt.hpp"                 // IDT::init()
-#include "paging.hpp"              // Paging::init()
-#include "platform_traits.hpp"     // defines phys_clicks_t, CLICK_SHIFT, etc.
-#include "process_table.hpp"       // ProcessTable::instance()
-#include "quaternion_spinlock.hpp" // RAII QuaternionSpinlock and QuaternionLockGuard
-#include "scheduler.hpp"           // Scheduler::pick(), restart()
-
-#include <array>
-#include <cstddef>
-#include <cstdint>
-#include <inttypes.h> // PRIxPTR
-
-//-----------------------------------------------------------------------------
-// Architecture selector
-//-----------------------------------------------------------------------------
-enum class Architecture : uint8_t {
-#if defined(__x86_64__)
-    X86_64,
-#elif defined(__i686__)
-    I686,
-#elif defined(__i586__)
-    I586,
-#elif defined(__i486__)
-    I486,
-#elif defined(__i386__)
-    I386,
-#else
-#error "Unsupported x86 architecture"
-#endif
-};
-static constexpr Architecture arch =
-#if defined(__x86_64__)
-    Architecture::X86_64;
-#elif defined(__i686__)
-    Architecture::I686;
-#elif defined(__i586__)
-    Architecture::I586;
-#elif defined(__i486__)
-    Architecture::I486;
-#elif defined(__i386__)
-    Architecture::I386;
+#ifdef XINIM_ARCH_X86_64
+#include "../arch/x86_64/hal/apic.hpp"
+#include "../arch/x86_64/hal/hpet.hpp"
+#include "../arch/x86_64/hal/ioapic.hpp"
+#elif defined(XINIM_ARCH_ARM64)
+#include "../arch/arm64/hal/gic.hpp"
+#include "../arch/arm64/hal/timer.hpp"
 #endif
 
-#ifdef __x86_64__
-extern "C" void init_syscall_msrs() noexcept;
+#include "time/monotonic.hpp"
+#include "time/calibrate.hpp"
+
+extern void interrupts_init(xinim::early::Serial16550& serial
+#ifdef XINIM_ARCH_X86_64
+    , xinim::hal::x86_64::Lapic& lapic
 #endif
+);
 
-using Traits = PlatformTraits;
-using phys_clicks_t = Traits::phys_clicks_t;
-using virt_clicks_t = Traits::virt_clicks_t;
-static constexpr std::size_t STACK_SAFETY = Traits::SAFETY;
-static constexpr phys_clicks_t KERNEL_BASE = Traits::BASE >> Traits::CLICK_SHIFT;
+// Platform-agnostic kernel configuration parsing
+enum TickMode { TICK_AUTO, TICK_APIC, TICK_HPET, TICK_ARM_TIMER };
 
-//-----------------------------------------------------------------------------
-// Kernel boot sequence
-//-----------------------------------------------------------------------------
-/**
- * @brief Kernel entry function that initializes subsystems and starts the
- *        scheduler.
- *
- * This function configures the CPU, paging, IDT and process table before
- * enabling interrupts and handing control to the scheduler. The function is
- * expected to never return under normal operation.
- *
- * @return Always returns 0 if control reaches the end.
- */
-int main() noexcept {
-    // Block interrupts via RAII quaternion spinlock
-    hyper::QuaternionSpinlock irq_lock;
-    const hyper::Quaternion ticket = hyper::Quaternion::id();
-    {
-        hyper::QuaternionLockGuard lk{irq_lock, ticket};
-        cpu::set_current_cpu(0);
-        Paging::init();
-        IDT::init();
-    }
-
-    // Compute where MM starts in click units
-    const phys_clicks_t base_click = KERNEL_BASE;
-    const std::size_t kernel_text = Traits::kernel_text_clicks;
-    const std::size_t kernel_data = Traits::kernel_data_clicks;
-    const phys_clicks_t mm_base = base_click + (kernel_text + kernel_data);
-
-    // Initialize process table
-    auto &ptable = ProcessTable::instance();
-    ptable.initialize_all(mm_base);
-
-    // Video mode and CPU detection
-    Console::set_color(Console::detect_color());
-    if (Console::read_bios_cpu_type() == Traits::PC_AT) {
-        glo::pc_at = true;
-    }
-
-#ifdef __x86_64__
-    init_syscall_msrs();
-#endif
-
-    // Start scheduling and enable interrupts
-    Scheduler::pick();
-    Hardware::enable_irqs();
-    Scheduler::restart(); // never returns on success
-
-    return 0; // unreachable
-}
-
-//-----------------------------------------------------------------------------
-// Trap and interrupt handlers
-//-----------------------------------------------------------------------------
-
-extern "C" void unexpected_int() noexcept {
-    Console::printf("Unexpected interrupt (vector < 16)\n");
-    Console::printf("pc = 0x%" PRIxPTR "\n", cpu::current_pc());
-}
-
-extern "C" void trap_handler() noexcept {
-    Console::printf("\nUnexpected trap (vector >= 16)\n");
-    Console::printf("pc = 0x%" PRIxPTR "\n", cpu::current_pc());
-}
-
-extern "C" void div_trap() noexcept {
-    Console::printf("Divide overflow trap\n");
-    Console::printf("pc = 0x%" PRIxPTR "\n", cpu::current_pc());
-}
-
-extern "C" void panic(const char *msg, int code) noexcept {
-    if (msg && *msg) {
-        Console::printf("Kernel panic: %s", msg);
-        if (code != Traits::NO_NUM) {
-            Console::printf(" %d", code);
+static TickMode parse_tick_mode(const char* cmdline) {
+    if (!cmdline) return TICK_AUTO;
+    const char* p = cmdline;
+    const char* key = "tick=";
+    while (*p) {
+        const char* k = key;
+        const char* s = p;
+        while (*k && *s == *k) { ++k; ++s; }
+        if (*k == '\0') {
+            if (s[0]=='a'&&s[1]=='p'&&s[2]=='i'&&s[3]=='c') return TICK_APIC;
+            if (s[0]=='h'&&s[1]=='p'&&s[2]=='e'&&s[3]=='t') return TICK_HPET;
+            if (s[0]=='a'&&s[1]=='r'&&s[2]=='m') return TICK_ARM_TIMER;
+            return TICK_AUTO;
         }
-        Console::printf("\n");
+        ++p;
     }
-    Console::printf("Type space to reboot\n");
-    Hardware::reboot();
+    return TICK_AUTO;
+}
+
+static xinim::early::Serial16550 early_serial;
+
+static void kputs(const char* s) {
+    early_serial.write(s);
+}
+
+// x86_64 specific timer setup
+#ifdef XINIM_ARCH_X86_64
+
+static xinim::hal::x86_64::Hpet* g_hpet_ptr = nullptr;
+
+static uint64_t monotonic_from_hpet() {
+    if (!g_hpet_ptr) return 0;
+    const uint64_t period_fs = g_hpet_ptr->period_fs();
+    const uint64_t ticks = g_hpet_ptr->counter();
+    return (uint64_t)(((__uint128_t)ticks * (__uint128_t)period_fs) / 1000000ULL);
+}
+
+static int parse_hpet_gsi(const char* cmdline) {
+    if (!cmdline) return -1;
+    const char* p = cmdline;
+    const char* key = "hpet_gsi=";
+    while (*p) {
+        const char* k = key;
+        const char* s = p;
+        while (*k && *s == *k) { ++k; ++s; }
+        if (*k == '\0') {
+            int val = 0; bool any=false;
+            while (*s >= '0' && *s <= '9') { val = val*10 + (*s - '0'); ++s; any=true; }
+            return any ? val : -1;
+        }
+        ++p;
+    }
+    return -1;
+}
+
+static void setup_x86_64_timers(const xinim::boot::BootInfo& bi, const xinim::acpi::AcpiInfo& acpi) {
+    xinim::hal::x86_64::Lapic lapic;
+    if (!acpi.lapic_mmio) {
+        kputs("LAPIC not found.\n");
+        for(;;) { __asm__ volatile ("hlt"); }
+    }
+    
+    auto lapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.lapic_mmio);
+    lapic.init(lapic_virt);
+    interrupts_init(early_serial, lapic);
+    
+    // Calibrate APIC timer using HPET if present
+    uint32_t init_count = 20000000u;
+    uint8_t divpow2 = 4;
+    TickMode mode = parse_tick_mode(bi.cmdline);
+    bool hpet_routed = false;
+    
+    if (acpi.hpet_mmio) {
+        static xinim::hal::x86_64::Hpet hpet;
+        auto hpet_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.hpet_mmio);
+        hpet.init(hpet_virt);
+        hpet.enable(true);
+        g_hpet_ptr = &hpet;
+        xinim::time::monotonic_install(&monotonic_from_hpet);
+        
+        auto calib = xinim::time::calibrate_apic_with_hpet(lapic, hpet, 100); // 100 Hz
+        if (calib.initial_count) {
+            init_count = calib.initial_count;
+            divpow2 = calib.divider_pow2;
+        }
+        
+        // Try HPET->IOAPIC routing if configured
+        int gsi = parse_hpet_gsi(bi.cmdline);
+        if ((mode != TICK_APIC) && gsi >= 0 && acpi.ioapic_phys) {
+            xinim::hal::x86_64::IoApic ioapic;
+            auto ioapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.ioapic_phys);
+            ioapic.init(ioapic_virt, acpi.ioapic_gsi_base);
+            ioapic.redirect((uint32_t)gsi, 32, false, false);
+            
+            if (hpet.start_periodic(0, 10'000'000ULL, (uint32_t)gsi)) {
+                hpet_routed = true;
+            }
+        }
+    }
+    
+    if (mode == TICK_HPET && hpet_routed) {
+        lapic.stop_timer();
+    } else {
+        lapic.setup_timer(32, init_count, divpow2);
+    }
+    
+    __asm__ volatile ("sti");
+}
+
+#elif defined(XINIM_ARCH_ARM64)
+
+static xinim::hal::arm64::Timer* g_timer_ptr = nullptr;
+
+static uint64_t monotonic_from_arm_timer() {
+    if (!g_timer_ptr) return 0;
+    return g_timer_ptr->get_nanoseconds();
+}
+
+static void setup_arm64_timers(const xinim::boot::BootInfo& bi) {
+    // Initialize GIC (Generic Interrupt Controller)
+    static xinim::hal::arm64::Gic gic;
+    gic.init(bi.gic_dist_base, bi.gic_cpu_base);
+    
+    // Initialize ARM generic timer
+    static xinim::hal::arm64::Timer timer;
+    timer.init();
+    g_timer_ptr = &timer;
+    
+    // Install monotonic clock source
+    xinim::time::monotonic_install(&monotonic_from_arm_timer);
+    
+    // Set up timer interrupt at 100Hz
+    timer.setup_periodic(100);
+    
+    // Enable interrupts
+    __asm__ volatile ("msr daifclr, #2");
+}
+
+#endif
+
+/**
+ * @brief Unified kernel entry function.
+ *
+ * This function serves as the main entry point for the XINIM kernel on both
+ * x86_64 and ARM64 architectures. It initializes the boot console, probes
+ * hardware via ACPI/device tree, sets up interrupt controllers and timers,
+ * and then enters the kernel main loop.
+ *
+ * The implementation harmonizes both the advanced Limine boot path with
+ * full hardware initialization and the simpler stub approach for testing.
+ *
+ * @pre Executed in early boot context with interrupts disabled.
+ * @post Never returns in production; may return 0 for testing.
+ */
+extern "C" void _start() {
+    // Initialize early serial console
+    early_serial = xinim::early::Serial16550(0x3F8);
+    early_serial.init();
+    
+    // Print startup banner
+    kputs("\n==============================================\n");
+    kputs("XINIM: Modern C++23 Post-Quantum Microkernel\n");
+    kputs("==============================================\n");
+    
+#ifdef XINIM_BOOT_LIMINE
+    kputs("Boot: Limine protocol detected\n");
+    
+    // Gather boot information
+    auto bi = xinim::boot::from_limine();
+    
+    // Platform detection
+#ifdef XINIM_ARCH_X86_64
+    kputs("Architecture: x86_64\n");
+    
+    // ACPI discovery for x86_64
+    auto acpi = xinim::acpi::probe(reinterpret_cast<uint64_t>(bi.acpi_rsdp), bi.hhdm_offset);
+    kputs("ACPI: Tables parsed\n");
+    
+    // Set up x86_64 specific hardware
+    setup_x86_64_timers(bi, acpi);
+    kputs("Timers: Initialized (APIC/HPET)\n");
+    
+#elif defined(XINIM_ARCH_ARM64)
+    kputs("Architecture: ARM64\n");
+    
+    // Set up ARM64 specific hardware
+    setup_arm64_timers(bi);
+    kputs("Timers: Initialized (ARM Generic Timer)\n");
+#endif
+    
+    // Use advanced console if available
+    Console::init();
+    Console::printf("XINIM kernel fully initialized\n");
+    
+#else
+    // Simple stub mode for testing
+    kputs("Boot: Stub mode (testing)\n");
+    Console::printf("XINIM kernel stub\n");
+#endif
+    
+    // Main kernel loop
+    kputs("Entering main loop...\n");
+    for(;;) {
+#ifdef XINIM_ARCH_X86_64
+        __asm__ volatile ("hlt");
+#elif defined(XINIM_ARCH_ARM64)
+        __asm__ volatile ("wfi");
+#else
+        // Generic busy wait for unknown architectures
+        volatile int x = 0;
+        for(int i = 0; i < 1000000; ++i) x++;
+#endif
+    }
+}
+
+// Alternative entry point for environments that expect main()
+int main() noexcept {
+    _start();
+    return 0;
 }

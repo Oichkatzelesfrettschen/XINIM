@@ -11,6 +11,11 @@ static char pwdbuf[9];
  *
  * @param prompt Prompt string displayed before reading.
  * @return Pointer to an internal static buffer containing the password.
+ * @sideeffects Alters terminal settings and reads from standard input.
+ * @thread_safety Not thread-safe; uses a static buffer and shared terminal state.
+ * @compat getpass(3)
+ * @example
+ * char *pw = getpass("Password: ");
  */
 char *getpass(const char *prompt) {
     int i = 0;

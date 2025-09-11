@@ -1,14 +1,29 @@
 /**
- * @file abort.cpp
- * @brief Minimal stub for the C @c abort function.
+ * @file abort.c
+ * @brief Minimal, idiomatic C23 abort routine for XINIM and related utilities.
+ *
+ * This routine is intended as a safe, non-core-dumping "abort" for OS, kernel,
+ * and educational userspace code. It always exits the process with status 99.
+ * It is not signal-based and does not invoke handlers, for maximal portability.
  */
 
 #include <stdlib.h>
 
 /**
- * @brief Terminate the program abnormally.
+ * @brief Abort the program, exiting with status 99 (no core dump).
  *
- * Simply exits with status code 99 to indicate failure. In a full
- * implementation this would raise SIGABRT and generate a core dump.
+ * This is a C23, strictly-standards-compliant alternative to the
+ * traditional abort(3) and is used as the canonical fatal-termination
+ * endpoint for the XINIM kernel, tests, and userland.
+ *
+ * @sideeffects Terminates the calling process without flushing stdio buffers.
+ * @thread_safety Async-signal-safe and thread-safe; no shared state accessed.
+ * @compat abort(3)
+ * @example
+ * xinim_abort();
  */
-[[noreturn]] void abort() { exit(99); }
+extern "C" {
+[[noreturn]] void xinim_abort(void) {
+    _Exit(99); // Fast, async-signal-safe, no flushing or unwinding.
+}
+}

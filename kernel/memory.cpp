@@ -27,19 +27,23 @@
 #include "../h/const.hpp"
 #include "../h/error.hpp"
 #include "../h/type.hpp"
+#include "../include/lib.hpp" // for send/receive primitives
 #include "const.hpp"
 #include "proc.hpp"
 #include "type.hpp"
 #include <array>   // for std::array
 #include <cstddef> // For std::size_t
 #include <cstdint> // For uint64_t
+#include <cstdio>  // for EOF constant
+#include <memory>  // for smart pointers
+#include <span>    // for std::span
 #include <utility>
 
 /// Number of RAM-type devices managed by the driver
 constexpr std::size_t NR_RAMS = 4;
 
-/// Message exchange buffer
-static message mess;
+/// Message exchange buffer managed via smart pointer
+static std::unique_ptr<message> mess = std::make_unique<message>();
 
 /// Origin of each RAM disk (phys_bytes -> uint64_t)
 static std::array<uint64_t, NR_RAMS> ram_origin{};
@@ -54,10 +58,10 @@ class MessageReply {
   public:
     MessageReply(int caller, int proc) noexcept : caller_{caller}, proc_{proc} {}
     ~MessageReply() noexcept {
-        mess.m_type = TASK_REPLY;
-        rep_proc_nr(mess) = proc_;
-        rep_status(mess) = result;
-        send(caller_, &mess);
+        mess->m_type = TASK_REPLY;
+        rep_proc_nr(*mess) = proc_;
+        rep_status(*mess) = result;
+        send(caller_, mess.get());
     }
 
     int result{OK};
@@ -67,15 +71,29 @@ class MessageReply {
     int proc_;
 };
 
+/// Forward declarations for helper functions
+[[nodiscard]] static int do_mem(message *m_ptr) noexcept;
+[[nodiscard]] static int do_setup(message *m_ptr) noexcept;
+
+/// External panic handler provided by the memory manager
+extern "C" void panic(const char *msg, int code) noexcept;
+[[nodiscard]] extern uint64_t umap(struct proc *rp, int seg, std::size_t vir_addr,
+                                   std::size_t bytes) noexcept;
+extern void phys_copy(void *dst, const void *src, std::size_t num_bytes) noexcept;
+
 /**
  * @brief Entry point for the memory driver task.
  *
  * Waits for driver messages and services /dev/null, /dev/mem,
  * /dev/kmem and /dev/ram requests.
+ *
+ * @pre Memory manager has initialized RAM device parameters.
+ * @post Task replies to each request; loop runs indefinitely.
+ * @warning No interrupt-driven I/O; all requests are synchronous.
  */
 PUBLIC void mem_task() noexcept {
 
-    int r, caller, proc_nr;
+    int r, caller, proc;
     extern unsigned int sizes[8]; // Explicitly unsigned int
     extern uint64_t
     get_base() noexcept; // Assuming get_base returns phys_clicks -> uint64_t and is noexcept
@@ -93,26 +111,26 @@ PUBLIC void mem_task() noexcept {
      */
     while (TRUE) {
         /* First wait for a request to read or write. */
-        receive(ANY, &mess);
-        if (mess.m_source < 0)
-            panic("mem task got message from ", mess.m_source);
-        caller = mess.m_source;
-        proc_nr = proc_nr(mess);
-        MessageReply reply{caller, proc_nr};
+        receive(ANY, mess.get());
+        if (mess->m_source < 0)
+            panic("mem task got message from ", mess->m_source);
+        caller = mess->m_source;
+        proc = proc_nr(*mess);
+        MessageReply reply{caller, proc};
 
         /* Now carry out the work.  It depends on the opcode. */
-        switch (mess.m_type) {
+        switch (mess->m_type) {
         case DISK_READ:
-            r = do_mem(&mess);
+            r = do_mem(mess.get());
             break;
         case DISK_WRITE:
-            r = do_mem(&mess);
+            r = do_mem(mess.get());
             break;
         case DISK_IOCTL:
-            r = do_setup(&mess);
+            r = do_setup(mess.get());
             break;
         default:
-            r = ErrorCode::EINVAL;
+            r = static_cast<int>(ErrorCode::EINVAL);
             break;
         }
 
@@ -128,51 +146,51 @@ PUBLIC void mem_task() noexcept {
 [[nodiscard]] static int do_mem(message *m_ptr) noexcept {
     /* Read or write /dev/null, /dev/mem, /dev/kmem, or /dev/ram. */
 
-    int device;
-    std::size_t count;            // Was int, for byte counts
+    int minor;
+    std::size_t byte_count;       // Was int, for byte counts
     uint64_t mem_phys, user_phys; // phys_bytes -> uint64_t
     struct proc *rp;
     // extern phys_clicks get_base(); // get_base is uint64_t
     // extern phys_bytes umap(); // umap returns uint64_t
 
     /* Get minor device number and check for /dev/null. */
-    device = device(*m_ptr);
-    if (device < 0 || device >= NR_RAMS)
-        return (ErrorCode::ENXIO); /* bad minor device */
-    if (device == NULL_DEV)        // NULL_DEV is int
+    minor = device(*m_ptr);
+    if (minor < 0 || minor >= NR_RAMS)
+        return static_cast<int>(ErrorCode::ENXIO); /* bad minor device */
+    if (minor == NULL_DEV)                         // NULL_DEV is int
         return (m_ptr->m_type == DISK_READ ? EOF : static_cast<int>(count(*m_ptr)));
 
     /* Set up 'mem_phys' for /dev/mem, /dev/kmem, or /dev/ram. */
     // m_ptr->POSITION (m2_l1) is int64_t. ram_origin is uint64_t[].
     if (position(*m_ptr) < 0)
-        return (ErrorCode::ENXIO);
-    mem_phys = ram_origin[device] + static_cast<uint64_t>(position(*m_ptr));
-    if (mem_phys >= ram_limit[device]) // ram_limit is uint64_t[]
+        return static_cast<int>(ErrorCode::ENXIO);
+    mem_phys = ram_origin[minor] + static_cast<uint64_t>(position(*m_ptr));
+    if (mem_phys >= ram_limit[minor]) // ram_limit is uint64_t[]
         return (EOF);
 
-    count = static_cast<std::size_t>(count(*m_ptr));
-    if (mem_phys + count > ram_limit[device]) { // count is std::size_t
-        count = static_cast<std::size_t>(ram_limit[device] - mem_phys);
+    byte_count = static_cast<std::size_t>(count(*m_ptr));
+    if (mem_phys + byte_count > ram_limit[minor]) { // count is std::size_t
+        byte_count = static_cast<std::size_t>(ram_limit[minor] - mem_phys);
     }
 
     /* Determine address where data is to go or to come from. */
     rp = proc_addr(proc_nr(*m_ptr));
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     // address macro gets m2_p1 (char*)
-    user_phys = umap(rp, D, reinterpret_cast<std::size_t>(address(*m_ptr)), count);
+    user_phys = umap(rp, D, reinterpret_cast<std::size_t>(address(*m_ptr)), byte_count);
     if (user_phys == 0)
-        return (ErrorCode::E_BAD_ADDR);
+        return static_cast<int>(ErrorCode::E_BAD_ADDR);
 
-    /* Copy the data. */
-    // phys_copy (klib88 version) takes (uintptr_t dst, uintptr_t src, size_t n)
-    // phys_copy (klib64 version) takes (void* dst, const void* src, size_t n)
-    // Assuming a common phys_copy that can take uintptr_t for physical addresses.
+    /* Copy the data using std::span for safer bounds management. */
+    auto user_span = std::span<std::byte>{reinterpret_cast<std::byte *>(user_phys), byte_count};
+    auto mem_span = std::span<std::byte>{reinterpret_cast<std::byte *>(mem_phys), byte_count};
+
     if (m_ptr->m_type == DISK_READ) {
-        phys_copy(static_cast<uintptr_t>(user_phys), static_cast<uintptr_t>(mem_phys), count);
+        phys_copy(user_span.data(), mem_span.data(), byte_count);
     } else {
-        phys_copy(static_cast<uintptr_t>(mem_phys), static_cast<uintptr_t>(user_phys), count);
+        phys_copy(mem_span.data(), user_span.data(), byte_count);
     }
-    return static_cast<int>(count); // Return int count
+    return static_cast<int>(byte_count); // Return int count
 }
 /**
  * @brief Configure parameters for a RAM disk.
@@ -181,15 +199,15 @@ PUBLIC void mem_task() noexcept {
  * @return OK on success or a negative ErrorCode.
  */
 [[nodiscard]] static int do_setup(message *m_ptr) noexcept {
-    int device;
+    int minor;
 
-    device = device(*m_ptr);
-    if (device < 0 || device >= NR_RAMS)
-        return (ErrorCode::ENXIO); /* bad minor device */
+    minor = device(*m_ptr);
+    if (minor < 0 || minor >= NR_RAMS)
+        return static_cast<int>(ErrorCode::ENXIO); /* bad minor device */
     // ram_origin is uint64_t[]. POSITION (m2_l1) is int64_t.
-    ram_origin[device] = static_cast<uint64_t>(position(*m_ptr));
+    ram_origin[minor] = static_cast<uint64_t>(position(*m_ptr));
     // ram_limit is uint64_t[]. COUNT (m2_i1) is int. BLOCK_SIZE is int.
-    ram_limit[device] = static_cast<uint64_t>(position(*m_ptr)) +
-                        static_cast<uint64_t>(static_cast<int64_t>(count(*m_ptr)) * BLOCK_SIZE);
+    ram_limit[minor] = static_cast<uint64_t>(position(*m_ptr)) +
+                       static_cast<uint64_t>(static_cast<int64_t>(count(*m_ptr)) * BLOCK_SIZE);
     return (OK);
 }

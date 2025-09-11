@@ -8,33 +8,33 @@
  * MODERNIZATION: Complete decomposition and synthesis from legacy K&R C to
  * paradigmatically pure C++23 with RAII, exception safety, type safety,
  * vectorization readiness, and hardware abstraction.
- * 
+ *
  * @author Original: Andy Tanenbaum, Modernized for C++23 XINIM
  * @version 2.0
  * @date 2024
  * @copyright XINIM OS Project
  */
 
-#include <cstdint>
+#include <algorithm>
 #include <array>
-#include <vector>
-#include <memory>
-#include <string>
-#include <string_view>
+#include <chrono>
+#include <cstdint>
+#include <errno.h>
+#include <exception>
+#include <fcntl.h>
 #include <fstream>
 #include <iostream>
-#include <system_error>
-#include <exception>
-#include <span>
-#include <algorithm>
+#include <memory>
 #include <ranges>
-#include <chrono>
+#include <span>
+#include <string>
+#include <string_view>
+#include <sys/stat.h>
+#include <sys/types.h>
+#include <system_error>
 #include <thread>
 #include <unistd.h>
-#include <fcntl.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <errno.h>
+#include <vector>
 
 namespace xinim::commands::lpr {
 
@@ -45,42 +45,42 @@ namespace xinim::commands::lpr {
  *          tab expansion, line ending conversion, and print queue management.
  */
 class UniversalLinePrinter final {
-public:
+  public:
     /// Optimal block size for vectorized I/O operations
     static constexpr std::size_t OPTIMAL_BLOCK_SIZE{4096};
-    
+
     /// Tab stop interval (every 8 characters)
     static constexpr std::uint32_t TAB_STOP_INTERVAL{8};
-    
+
     /// Maximum retry attempts for busy printer
     static constexpr std::uint32_t MAX_RETRY_ATTEMPTS{5};
-    
+
     /// Retry delay in milliseconds
     static constexpr std::chrono::milliseconds RETRY_DELAY{1000};
 
-private:
+  private:
     /// Input buffer for vectorized reading
     std::array<std::uint8_t, OPTIMAL_BLOCK_SIZE> input_buffer_{};
-    
-    /// Output buffer for vectorized writing  
+
+    /// Output buffer for vectorized writing
     std::array<std::uint8_t, OPTIMAL_BLOCK_SIZE> output_buffer_{};
-    
+
     /// Current position in input buffer
     std::size_t input_position_{0};
-    
+
     /// Valid bytes in input buffer
     std::size_t input_count_{0};
-    
+
     /// Current position in output buffer
     std::size_t output_count_{0};
-    
+
     /// Current column position for tab expansion
     std::uint32_t column_position_{0};
-    
+
     /// Printer device file descriptor
     int printer_fd_{-1};
 
-public:
+  public:
     /**
      * @brief Initialize universal line printer with device verification
      * @param device_path Path to printer device (default: /dev/lp)
@@ -89,15 +89,14 @@ public:
     explicit UniversalLinePrinter(std::string_view device_path = "/dev/lp") {
         // Redirect stdout to printer device with error handling
         if (::close(STDOUT_FILENO) == -1) {
-            throw std::system_error(errno, std::system_category(), 
-                                  "Failed to close stdout");
+            throw std::system_error(errno, std::system_category(), "Failed to close stdout");
         }
-        
+
         printer_fd_ = ::open(device_path.data(), O_WRONLY);
         if (printer_fd_ == -1) {
             throw std::system_error(errno, std::system_category(),
-                                  std::string("Cannot open printer device: ") + 
-                                  device_path.data());
+                                    std::string("Cannot open printer device: ") +
+                                        device_path.data());
         }
     }
 
@@ -110,111 +109,118 @@ public:
         } catch (...) {
             // Suppress exceptions in destructor
         }
-        
+
         if (printer_fd_ != -1) {
             ::close(printer_fd_);
         }
     }
 
     // Prevent copying and moving for singleton printer access
-    UniversalLinePrinter(const UniversalLinePrinter&) = delete;
-    UniversalLinePrinter& operator=(const UniversalLinePrinter&) = delete;
-    UniversalLinePrinter(UniversalLinePrinter&&) = delete;
-    UniversalLinePrinter& operator=(UniversalLinePrinter&&) = delete;
+    UniversalLinePrinter(const UniversalLinePrinter &) = delete;
+    UniversalLinePrinter &operator=(const UniversalLinePrinter &) = delete;
+    UniversalLinePrinter(UniversalLinePrinter &&) = delete;
+    UniversalLinePrinter &operator=(UniversalLinePrinter &&) = delete;
 
     /**
      * @brief Process multiple files for printing with comprehensive error handling
+     *
      * @param file_paths Vector of file paths to print
-     * @throws std::runtime_error on processing failure
+     * @throws std::exception On any file
+     * processing failure
      */
-    void process_files(const std::vector<std::string>& file_paths) {
+    void process_files(const std::vector<std::string> &file_paths) {
         if (file_paths.empty()) {
             // Process standard input
             process_file_descriptor(STDIN_FILENO);
             return;
         }
 
-        for (const auto& file_path : file_paths) {
+        for (const auto &file_path : file_paths) {
             try {
                 process_single_file(file_path);
-            } catch (const std::exception& e) {
-                std::cerr << "lpr: Error processing file '" << file_path 
-                         << "': " << e.what() << '\n';
+            } catch (const std::exception &e) {
+                std::cerr << "lpr: Error processing file '" << file_path << "': " << e.what()
+                          << '\n';
                 throw;
             }
         }
     }
 
-private:    /**
+  private:
+    /**
      * @brief Process single file with RAII file descriptor management
-     * @param file_path Path to file to print
-     * @throws std::system_error on file access failure
-     */
-    void process_single_file(const std::string& file_path) {
+     * @param
+     * file_path Path to file to print
+     * @throws std::system_error On file access failure
+ */
+    void process_single_file(const std::string &file_path) {
         int fd = ::open(file_path.c_str(), O_RDONLY);
         if (fd == -1) {
             throw std::system_error(errno, std::system_category(),
-                                  std::string("Cannot open file: ") + file_path);
+                                    std::string("Cannot open file: ") + file_path);
         }
 
         // RAII wrapper for automatic file descriptor cleanup
-        auto close_fd = [](int* fd_ptr) { 
-            if (fd_ptr && *fd_ptr != -1) ::close(*fd_ptr); 
+        auto close_fd = [](int *fd_ptr) {
+            if (fd_ptr && *fd_ptr != -1)
+                ::close(*fd_ptr);
         };
         std::unique_ptr<int, decltype(close_fd)> fd_guard(&fd, close_fd);
-        
+
         // Reset buffer state for new file
         input_position_ = 0;
         input_count_ = 0;
-        
+
         process_file_descriptor(fd);
     }
 
     /**
      * @brief Core file processing with vectorized I/O and character conversion
+     *
      * @param fd File descriptor to process
-     * @details Performs tab expansion, line ending conversion with optimal
+     * @details Performs tab expansion and line ending
+     * conversion with optimal
      *          buffering and SIMD-ready data processing
+     *
+     * @throws std::system_error On read or write failures
      */
     void process_file_descriptor(int fd) {
         while (true) {
             // Refill input buffer when needed
             if (input_position_ >= input_count_) {
-                ssize_t bytes_read = ::read(fd, input_buffer_.data(), 
-                                          input_buffer_.size());
+                ssize_t bytes_read = ::read(fd, input_buffer_.data(), input_buffer_.size());
                 if (bytes_read == 0) {
                     // End of file reached
                     flush_output_buffer();
                     return;
                 }
                 if (bytes_read == -1) {
-                    throw std::system_error(errno, std::system_category(),
-                                          "Read error");
+                    throw std::system_error(errno, std::system_category(), "Read error");
                 }
-                
+
                 input_count_ = static_cast<std::size_t>(bytes_read);
                 input_position_ = 0;
             }
 
             // Process current character with conversion
             const std::uint8_t current_char = input_buffer_[input_position_++];
-            
+
             switch (current_char) {
-                case '\n':
-                    // Convert LF to CR+LF for proper printer line ending
-                    write_character('\r');
-                    write_character('\n');
-                    break;
-                    
-                case '\t':
-                    // Expand tab to spaces up to next tab stop
-                    expand_tab();
-                    break;
-                    
-                default:
-                    // Regular character
-                    write_character(current_char);
-                    break;
+            case '\n':
+                // Convert LF to CR+LF for proper printer line ending
+                write_character('\r');
+                write_character('\n');
+                break;
+
+            case '\t':
+                // Expand tab to spaces up to next tab stop
+                expand_tab();
+                break;
+
+            default:
+                // Regular character
+                write_character(current_char);
+                break;
             }
         }
     }
@@ -237,14 +243,14 @@ private:    /**
      */
     void write_character(std::uint8_t c) {
         output_buffer_[output_count_++] = c;
-        
+
         // Update column position
         if (c == '\n') {
             column_position_ = 0;
         } else {
             ++column_position_;
         }
-        
+
         // Flush buffer when full
         if (output_count_ >= output_buffer_.size()) {
             flush_output_buffer();
@@ -263,34 +269,32 @@ private:    /**
 
         std::uint32_t retry_count = 0;
         std::size_t bytes_written = 0;
-        
+
         while (bytes_written < output_count_) {
-            ssize_t result = ::write(printer_fd_, 
-                                   output_buffer_.data() + bytes_written,
-                                   output_count_ - bytes_written);
-            
+            ssize_t result = ::write(printer_fd_, output_buffer_.data() + bytes_written,
+                                     output_count_ - bytes_written);
+
             if (result > 0) {
                 bytes_written += static_cast<std::size_t>(result);
                 continue;
             }
-            
+
             if (result == -1) {
                 if (errno == EAGAIN || errno == EWOULDBLOCK) {
                     // Printer busy - implement retry with backoff
                     if (++retry_count > MAX_RETRY_ATTEMPTS) {
                         throw std::system_error(errno, std::system_category(),
-                                              "Printer remains busy after maximum retries");
+                                                "Printer remains busy after maximum retries");
                     }
-                    
+
                     std::this_thread::sleep_for(RETRY_DELAY);
                     continue;
                 } else {
-                    throw std::system_error(errno, std::system_category(),
-                                          "Printer write error");
+                    throw std::system_error(errno, std::system_category(), "Printer write error");
                 }
             }
         }
-        
+
         // Reset output buffer
         output_count_ = 0;
     }
@@ -299,18 +303,22 @@ private:    /**
 } // namespace xinim::commands::lpr
 
 /**
- * @brief Modern C++23 main entry point with exception safety
- * @param argc Argument count
- * @param argv Argument vector
- * @return Exit status code
- * @details Complete exception-safe implementation with comprehensive
- *          error handling and resource management
+ * @brief Entry point for the lpr utility.
+ * @param argc Number of command-line arguments.
+ *
+ * @param argv Array of command-line argument strings.
+ * @return Exit status code.
+ * @details
+ * Creates a UniversalLinePrinter instance and processes each
+ *          provided file path,
+ * falling back to standard input when no
+ *          paths are supplied.
  */
-int main(int argc, char* argv[]) noexcept {
+int main(int argc, char *argv[]) noexcept {
     try {
         // Create universal line printer instance
         xinim::commands::lpr::UniversalLinePrinter printer;
-        
+
         // Prepare file list from command line arguments
         std::vector<std::string> file_paths;
         if (argc > 1) {
@@ -319,16 +327,16 @@ int main(int argc, char* argv[]) noexcept {
                 file_paths.emplace_back(argv[i]);
             }
         }
-        
+
         // Process files
         printer.process_files(file_paths);
-        
+
         return EXIT_SUCCESS;
-        
-    } catch (const std::system_error& e) {
+
+    } catch (const std::system_error &e) {
         std::cerr << "lpr: System error: " << e.what() << '\n';
         return EXIT_FAILURE;
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << "lpr: Error: " << e.what() << '\n';
         return EXIT_FAILURE;
     } catch (...) {

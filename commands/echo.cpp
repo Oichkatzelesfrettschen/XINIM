@@ -1,119 +1,89 @@
 /**
  * @file echo.cpp
  * @brief Modern C++23 echo utility for XINIM
- * @author Andy Tanenbaum (original), modernized for XINIM
- * 
+ * @author Andy Tanenbaum (original), modernized for XINIM by AI
+ *
  * Echo command that outputs its arguments to stdout.
  * Supports -n flag to suppress trailing newline.
- * 
+ *
  * Fully modernized with C++23 features including:
- * - constexpr constants
- * - RAII resource management
- * - Type safety improvements
- * - Modern error handling
+ * - std::print / std::println for output
+ * - std::string_view for argument parsing
+ * - Standard library exit codes (EXIT_SUCCESS, EXIT_FAILURE)
+ * - Robust error handling with try-catch blocks
  */
 
-#include <array>
-#include <iostream>
-#include <string_view>
-#include <vector>
-
-// Modern constants with proper sizing
-constexpr size_t BUFFER_SIZE = 2048;
+#include <iostream>    // For std::cerr, std::ios_base (used for errors)
+#include <string_view> // For std::string_view
+#include <print>       // For std::print, std::println
+#include <cstdlib>     // For EXIT_SUCCESS, EXIT_FAILURE
+#include <exception>   // For std::exception
 
 /**
- * @brief Output buffer for collecting echo text
- */
-class EchoBuffer {
-private:
-    std::array<char, BUFFER_SIZE> buffer_{};
-    size_t position_{0};
-    
-public:
-    /**
-     * @brief Add text to the output buffer
-     * @param text String to add to buffer
-     * @return true if text was added, false if buffer would overflow
-     */
-    [[nodiscard]] bool add_text(std::string_view text) noexcept {
-        if (position_ + text.size() >= BUFFER_SIZE) {
-            return false;  // Buffer would overflow
-        }
-        
-        std::copy(text.begin(), text.end(), buffer_.begin() + position_);
-        position_ += text.size();
-        return true;
-    }
-    
-    /**
-     * @brief Flush buffer contents to stdout
-     */
-    void flush() const noexcept {
-        if (position_ > 0) {
-            std::cout.write(buffer_.data(), static_cast<std::streamsize>(position_));
-            std::cout.flush();
-        }
-    }
-    
-    /**
-     * @brief Check if buffer is empty
-     * @return true if buffer contains no data
-     */
-    [[nodiscard]] bool empty() const noexcept {
-        return position_ == 0;
-    }
-};
-
-/**
- * @brief Modern echo implementation with proper error handling
- * @param argc Number of command line arguments
- * @param argv Array of command line argument strings
- * @return Exit status (0 for success, 1 for error)
+ * @brief Modern echo implementation using std::print and std::println.
+ * @param argc Number of command line arguments.
+ * @param argv Array of command line argument strings.
+ * @return Exit status (EXIT_SUCCESS for success, EXIT_FAILURE for error).
  */
 int main(int argc, char* argv[]) {
+    // Optional: Disable synchronization with stdio for potentially faster I/O.
+    // It's unlikely to be critical for `echo`, but good practice in general
+    // when not mixing C-style I/O with C++ streams.
+    // std::ios_base::sync_with_stdio(false);
+
+    // Optional: Make std::cout throw exceptions on failure.
+    // This can simplify error checking if you prefer exceptions over checking stream states.
+    // std::cout.exceptions(std::ios_base::failbit | std::ios_base::badbit);
+
     try {
         bool suppress_newline = false;
-        int start_index = 1;
-        
-        // Check for -n flag (suppress trailing newline)
+        int first_arg_idx = 1; // Index of the first argument to print.
+
+        // Check for -n flag (suppress trailing newline).
+        // argv[0] is the program name. Arguments start at argv[1].
         if (argc > 1 && std::string_view{argv[1]} == "-n") {
             suppress_newline = true;
-            start_index = 2;
+            first_arg_idx = 2; // If -n is present, actual arguments start from index 2.
         }
-        
-        EchoBuffer output_buffer;
-        
-        // Process each argument
-        for (int i = start_index; i < argc; ++i) {
-            if (!output_buffer.add_text(argv[i])) {
-                std::cerr << "echo: output too long\n";
-                return 1;
-            }
-            
-            // Add space between arguments (except after the last one)
-            if (i < argc - 1) {
-                if (!output_buffer.add_text(" ")) {
-                    std::cerr << "echo: output too long\n";
-                    return 1;
-                }
+
+        // Iterate over arguments and print them.
+        for (int i = first_arg_idx; i < argc; ++i) {
+            // Use std::string_view to avoid copying, though argv elements are char*
+            // and std::print will handle them efficiently.
+            std::print("{}", std::string_view{argv[i]});
+
+            if (i < argc - 1) { // Add a space if it's not the last argument.
+                std::print(" ");
             }
         }
-        
-        // Add trailing newline unless -n flag was specified
-        if (!suppress_newline && !output_buffer.empty()) {
-            if (!output_buffer.add_text("\n")) {
-                std::cerr << "echo: output too long\n";
-                return 1;
-            }
+
+        // Add a newline unless -n was specified.
+        // This logic correctly handles various cases:
+        //   - "echo" (no arguments, newline not suppressed): prints a single newline.
+        //   - "echo -n" (no arguments, newline suppressed): prints nothing.
+        //   - "echo foo bar" (arguments, newline not suppressed): prints "foo bar\n".
+        //   - "echo -n foo bar" (arguments, newline suppressed): prints "foo bar".
+        if (!suppress_newline) {
+            std::println(""); // Efficiently prints a newline and flushes.
         }
-        
-        // Output the final result
-        output_buffer.flush();
-        
-        return 0;
-        
+        // If newline is suppressed and no arguments were printed (e.g. "echo -n"), nothing is printed.
+        // If newline is suppressed and arguments were printed, they were printed by std::print without a trailing newline.
+
+        return EXIT_SUCCESS; // Indicate successful execution.
+
+    } catch (const std::ios_base::failure& e) {
+        // Specifically catch I/O errors if std::cout.exceptions() was set
+        // or other iostream operations failed.
+        // Using std::println to std::cerr ensures the error message is flushed and ends with a newline.
+        std::println(std::cerr, "echo: I/O error: {}", e.what());
+        return EXIT_FAILURE; // Indicate failure due to I/O error.
     } catch (const std::exception& e) {
-        std::cerr << "echo: " << e.what() << '\n';
-        return 1;
+        // Catch other standard library exceptions (e.g., std::bad_alloc).
+        std::println(std::cerr, "echo: Error: {}", e.what());
+        return EXIT_FAILURE; // Indicate failure due to a standard exception.
+    } catch (...) {
+        // Catch any other unexpected errors not covered by previous catch blocks.
+        std::println(std::cerr, "echo: An unknown error occurred.");
+        return EXIT_FAILURE; // Indicate failure due to an unknown error.
     }
 }

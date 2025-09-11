@@ -1,0 +1,77 @@
+{
+    cuda_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    nasm_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    rust_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    go_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    yasm_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    gfortran_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    nim_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = false,
+        __global = true
+    },
+    envs_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    fpc_arch_arm64_plat_macosx = {
+        arch = "arm64",
+        plat = "macosx",
+        __checked = true,
+        __global = true
+    },
+    xcode_arch_arm64_plat_macosx = {
+        __global = true,
+        xcode_sdkver = "26.0",
+        xcode = "/Applications/Xcode-beta.app",
+        plat = "macosx",
+        arch = "arm64",
+        target_minver = "26.0",
+        xcode_sysroot = "/Applications/Xcode-beta.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX26.0.sdk",
+        __checked = true,
+        bindir = "/Applications/Xcode-beta.app/Contents/Developer/Toolchains/XcodeDefault.xctoolchain/usr/bin"
+    },
+    tool_target_xinim_kernel_macosx_arm64_cxx = {
+        toolname = "clangxx",
+        toolchain_info = {
+            arch = "arm64",
+            name = "envs",
+            plat = "macosx",
+            cachekey = "envs_arch_arm64_plat_macosx"
+        },
+        program = "/usr/bin/clang++"
+    }
+}

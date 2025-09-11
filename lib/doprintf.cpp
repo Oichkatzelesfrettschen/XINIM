@@ -1,5 +1,6 @@
 #include "../include/stdio.h"
 #include <string.h>
+#include <cstdint>  // For std::uintptr_t
 
 /* Forward declarations for helper routines. */
 #include "../include/shared/number_to_ascii.hpp"
@@ -55,8 +56,8 @@ static void _bintoascii(long num, int radix, char *a) {
 #define GET_ARG(arglist, mode) ((mode *)(arglist += sizeof(mode)))[-1]
 
 /* The main driver that handles formatted output similar to printf. */
-static void _doprintf(FILE *fp, char *format, int args) {
-    register char *vl;
+[[maybe_unused]] static void _doprintf(FILE *fp, char *format, int args) {
+    char *vl;
     int r, w1, w2, sign;
     long l;
     char c;
@@ -64,7 +65,7 @@ static void _doprintf(FILE *fp, char *format, int args) {
     char padchar;
     char a[kMaxDigits];
 
-    vl = (char *)args;
+    vl = reinterpret_cast<char *>(static_cast<std::uintptr_t>(args));
 
     while (*format != '\0') {
         if (*format != '%') {

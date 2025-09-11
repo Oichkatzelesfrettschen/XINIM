@@ -1,0 +1,10 @@
+{
+    cmdlines = {
+        "xmake build",
+        "xmake show -l targets",
+        "xmake config -m debug --maximal_compliance=y",
+        "xmake build",
+        "xmake config -m debug --maximal_compliance=y",
+        "xmake build"
+    }
+}

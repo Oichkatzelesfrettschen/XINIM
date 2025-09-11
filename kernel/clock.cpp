@@ -32,6 +32,7 @@
 #include "../h/signal.hpp"
 #include "../h/type.hpp"
 #include "../include/lib.hpp" // for send/receive primitives
+#include "../include/shared/signal_constants.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
@@ -82,7 +83,6 @@ static void init_clock() noexcept;
  * messages indicating timer events or requests from other system components
  * and dispatches them to the appropriate handlers.
  *
- * @return void
  */
 PUBLIC void clock_task() noexcept {
     /* Main program of clock task.  It determines which of the 4 possible
@@ -133,8 +133,7 @@ PUBLIC void clock_task() noexcept {
  * may request a callback function instead.
  *
  * @param m_ptr Message describing the alarm request.
- * @return void
- */
+*/
 static void do_setalarm(message *m_ptr) noexcept {
 
     struct proc *rp{};
@@ -174,7 +173,6 @@ static void do_setalarm(message *m_ptr) noexcept {
  * Places the current time expressed in seconds since boot into the
  * global reply message.
  *
- * @return void
  */
 static void do_get_time() noexcept {
     mc.m_type = REAL_TIME;
@@ -191,8 +189,7 @@ static void do_get_time() noexcept {
  * the supplied value. This call is normally restricted to privileged code.
  *
  * @param m_ptr Message containing the new time in seconds.
- * @return void
- */
+*/
 static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) - realtime / HZ; }
 
 /*===========================================================================*
@@ -205,7 +202,8 @@ static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) 
  * handles scheduling related bookkeeping. This function is invoked on
  * every timer interrupt.
  *
- * @return void
+ * @pre Programmable interval timer was configured by ::init_clock.
+ * @post Pending alarms are dispatched and scheduler counters updated.
  */
 static void do_clocktick() noexcept {
 
@@ -233,7 +231,7 @@ static void do_clocktick() noexcept {
                      */
                     proc_nr = &entry - proc - NR_TASKS;
                     if (proc_nr >= 0)
-                        cause_sig(proc_nr, SIGALRM);
+                        cause_sig(proc_nr, xinim::signals::SIGALRM);
                     else
                         (*watch_dog[-proc_nr])();
                     entry.p_alarm = 0;
@@ -251,7 +249,11 @@ static void do_clocktick() noexcept {
     /* If a user process has been running too long, pick another one. */
     if (--sched_ticks == 0) {
         if (bill_ptr == prev_ptr)
-            sched();              /* process has run too long */
+            /**
+             * @brief Round-robin scheduling decision.
+             * @warning Assumes a single CPU; SMP fairness needs review.
+             */
+            sched(); /* process has run too long */
         sched_ticks = SCHED_RATE; /* reset quantum */
         prev_ptr = bill_ptr;      /* new previous process */
 
@@ -272,7 +274,6 @@ static void do_clocktick() noexcept {
  * charged for the current tick. Depending on whether the system was in
  * user or kernel mode this function increments the corresponding counter.
  *
- * @return void
  */
 static void accounting() noexcept { // Changed (void) to ()
     /* Update user and system accounting times.  The variable 'bill_ptr' is always
@@ -296,7 +297,9 @@ static void accounting() noexcept { // Changed (void) to ()
  * Programs timer channel zero to generate periodic interrupts at the
  * system tick rate defined by @c HZ.
  *
- * @return void
+ * @pre I/O ports @c TIMER0 and @c TIMER_MODE must be accessible.
+ * @post Timer generates square-wave interrupts at @c HZ frequency.
+ * @todo Replace legacy PIT with HPET/APIC timer for higher precision.
  */
 static void init_clock() noexcept {
 

@@ -121,11 +121,12 @@ inline std::uint64_t detect_x86_capabilities() noexcept {
  * @param reg Register name
  * @return Register value
  */
-template<const char* reg>
-inline std::uint64_t read_system_register() noexcept {
-    std::uint64_t value;
+inline std::uint64_t read_system_register(const char* reg) noexcept {
+    std::uint64_t value = 0;
 #if defined(__GNUC__) || defined(__clang__)
-    asm volatile("mrs %0, " reg : "=r" (value));
+    // Note: This requires runtime register name which isn't supported
+    // For now, return 0 and rely on OS detection
+    (void)reg;
 #endif
     return value;
 }

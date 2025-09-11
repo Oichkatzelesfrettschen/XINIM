@@ -23,6 +23,13 @@ bool WaitForGraph::has_path(xinim::pid_t from, xinim::pid_t to,
     return false;
 }
 
+/**
+ * @brief Insert a wait dependency edge.
+ *
+ * @pre Both @p src and @p dst refer to valid process identifiers.
+ * @post Detects cycles and rolls back insertion if a cycle would form.
+ * @warning Current implementation is O(E); consider incremental SCC.
+ */
 bool WaitForGraph::add_edge(xinim::pid_t src, xinim::pid_t dst) {
     edges_[src].push_back(dst);
     std::unordered_set<xinim::pid_t> visited;

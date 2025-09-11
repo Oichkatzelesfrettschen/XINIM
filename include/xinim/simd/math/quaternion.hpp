@@ -20,8 +20,17 @@
 #include "../detect.hpp"
 #include <cmath>
 #include <array>
+#include <algorithm>
 #include <concepts>
 #include <type_traits>
+
+#ifdef __AVX__
+#include <immintrin.h>
+#endif
+
+#ifdef __ARM_NEON
+#include <arm_neon.h>
+#endif
 
 namespace xinim::simd::math {
 

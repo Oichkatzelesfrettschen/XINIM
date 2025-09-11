@@ -1,4 +1,4 @@
-#include "minix/io/file_stream.hpp"
+#include "xinim/io/file_stream.hpp"
 
 #include <cerrno>
 #include <cstring>

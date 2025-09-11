@@ -4,8 +4,8 @@
   ARM and x86/x86_64 hardware using C++23.
 >>>*/
 
-#ifndef SETJMP_H
-#define SETJMP_H
+#ifndef XINIM_SETJMP_H
+#define XINIM_SETJMP_H
 
 /*
  * Provide a thin wrapper around the C++ standard setjmp facilities so the
@@ -16,15 +16,9 @@
 
 #include <csetjmp>
 
-using jmp_buf = std::jmp_buf; /* expose the standard buffer type */
+// Just use the standard library versions directly
+using ::jmp_buf;
+using ::setjmp;
+using ::longjmp;
 
-/*
- * Delegate to the standard versions.  These are inline so calls are
- * forwarded directly without additional overhead.
- */
-inline int setjmp(jmp_buf env) { return std::setjmp(env); } // std::setjmp is not noexcept
-[[noreturn]] inline void longjmp(jmp_buf env, int val) noexcept {
-    std::longjmp(env, val);
-} // std::longjmp is [[noreturn]]
-
-#endif /* SETJMP_H */
+#endif /* XINIM_SETJMP_H */

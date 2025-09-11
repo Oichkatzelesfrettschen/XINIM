@@ -23,12 +23,25 @@ release = "0.1.0"  # Full version string including patch level
 
 # Extensions that add additional functionality to Sphinx.
 extensions = [
-    "breathe",  # Integrates Doxygen XML output for API reference
+    "breathe",      # Integrates Doxygen XML output for API reference
+    "myst_parser",  # Enables CommonMark and MyST markdown support
+    "sphinx.ext.coverage",  # Enables coverage reporting for documentation
 ]
 
-# Mapping of projects for the Breathe extension.
+# Allow Sphinx to parse both reStructuredText and Markdown sources.
+source_suffix = {
+    ".rst": "restructuredtext",
+    ".md": "markdown",
+}
+
+# Exclude duplicate or malformed documentation sources to keep the build
+# warnings manageable.
+exclude_patterns = ["* 2.rst", "lattice_ipc.rst", "wait_graph.rst"]
+
+# Mapping of projects for the Breathe extension.  The path is relative to this
+# configuration file and matches the ``OUTPUT_DIRECTORY`` from ``Doxyfile``.
 breathe_projects = {
-    "XINIM": str(Path("..") / "doxygen" / "xml"),
+    "XINIM": Path(__file__).resolve().parent.parent / "doxygen" / "xml",
 }
 breathe_default_project = "XINIM"  # Activate this project by default
 

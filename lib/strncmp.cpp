@@ -1,13 +1,24 @@
-int strncmp(s1, s2, n)
-register char *s1, *s2;
-int n;
-{
-/* Compare two strings, but at most n characters. */
+#include <cstring>
 
-  while (1) {
-	if (*s1 != *s2) return(*s1 - *s2);
-	if (*s1 == 0 || --n == 0) return(0);
-	s1++;
-	s2++;
-  }
+/**
+ * @brief Compare two strings up to n characters.
+ *
+ * @sideeffects None.
+ * @thread_safety Safe for concurrent use; operates on provided buffers only.
+ * @compat strncmp(3)
+ * @example
+ * if (strncmp("abC", "abc", 2) == 0) {
+ *     // First two characters match
+ * }
+ */
+int strncmp(const char *s1, const char *s2, int n) {
+    while (n-- > 0) {
+        if (*s1 != *s2)
+            return (*s1 - *s2);
+        if (*s1 == 0)
+            return 0;
+        ++s1;
+        ++s2;
+    }
+    return 0;
 }

@@ -18,6 +18,12 @@ int heading; /* set when heading printed */
 int error;
 
 // Entry point using modern parameters
+/**
+ * @brief Entry point for the size utility.
+ * @param argc Number of command-line arguments as per C++23 [basic.start.main].
+ * @param argv Array of command-line argument strings.
+ * @return Exit status as specified by C++23 [basic.start.main].
+ */
 int main(int argc, char *argv[]) {
     int i;
 

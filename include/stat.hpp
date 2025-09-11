@@ -24,3 +24,6 @@ inline constexpr xinim::mode_t S_ISVTX = 01000;   /* save swapped text even afte
 inline constexpr xinim::mode_t S_IREAD = 00400;   /* read permission, owner */
 inline constexpr xinim::mode_t S_IWRITE = 00200;  /* write permission, owner */
 inline constexpr xinim::mode_t S_IEXEC = 00100;   /* execute/search permission, owner */
+
+extern "C" int fstat(int fd, struct stat *buf) noexcept;
+extern "C" int isatty(int fd) noexcept;

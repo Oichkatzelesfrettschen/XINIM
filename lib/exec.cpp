@@ -1,4 +1,5 @@
 #include "../include/lib.hpp" // C++23 header
+#include <cstdint>  // For std::uintptr_t
 
 // Helper used when no arguments or environment pointers are passed.
 static char *null_argv[] = {nullptr};
@@ -44,12 +45,12 @@ int execve(const char *name, char *argv[], char *envp[]) {
     if (hp + nargs + nenvps >= &stack[MAX_ISTACK_BYTES])
         return static_cast<int>(ErrorCode::E2BIG);
     ap = (char **)stack;
-    *ap++ = (char *)nargs;
+    *ap++ = reinterpret_cast<char *>(static_cast<std::uintptr_t>(nargs));
 
     /* Prepare the argument pointers and strings. */
     for (i = 0; i < nargs; i++) {
         offset = hp - stack;
-        *ap++ = (char *)offset;
+        *ap++ = reinterpret_cast<char *>(static_cast<std::uintptr_t>(offset));
         p = *argv++;
         while (*p) {
             *hp++ = *p++;
@@ -63,7 +64,7 @@ int execve(const char *name, char *argv[], char *envp[]) {
     /* Prepare the environment pointers and strings. */
     for (i = 0; i < nenvps; i++) {
         offset = hp - stack;
-        *ap++ = (char *)offset;
+        *ap++ = reinterpret_cast<char *>(static_cast<std::uintptr_t>(offset));
         p = *envp++;
         while (*p) {
             *hp++ = *p++;

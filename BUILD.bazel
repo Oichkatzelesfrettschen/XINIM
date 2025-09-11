@@ -1,0 +1,348 @@
+# ═══════════════════════════════════════════════════════════════════════════════
+# XINIM - Main BUILD.bazel Configuration
+# Hyperscale Build Rules for C++23 Operating System
+# ═══════════════════════════════════════════════════════════════════════════════
+
+load("@hedron_compile_commands//:refresh_compile_commands.bzl", "refresh_compile_commands")
+load("//tools:xinim_rules.bzl", "xinim_kernel_binary", "xinim_command")
+
+package(default_visibility = ["//visibility:public"])
+
+# ──────────────────────────────────────────────────────────────────────────────
+# C++23 Global Configuration
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Common C++23 compilation flags
+XINIM_CXXOPTS = [
+    "-std=c++23",
+    "-stdlib=libc++",
+    "-Wall",
+    "-Wextra", 
+    "-Wpedantic",
+    "-Wcast-align",
+    "-Wcast-qual",
+    "-Wconversion",
+    "-Wdouble-promotion",
+    "-Wformat=2",
+    "-Wmissing-declarations",
+    "-Wnull-dereference", 
+    "-Wold-style-cast",
+    "-Woverloaded-virtual",
+    "-Wshadow",
+    "-Wsign-conversion",
+    "-Wunused",
+    "-Wzero-as-null-pointer-constant",
+    "-march=native",
+    "-mtune=native",
+]
+
+# Release optimization
+XINIM_RELEASE_OPTS = [
+    "-O3",
+    "-flto",
+    "-DNDEBUG",
+    "-DXINIM_RELEASE",
+]
+
+# Debug configuration  
+XINIM_DEBUG_OPTS = [
+    "-O0",
+    "-g3",
+    "-fno-omit-frame-pointer",
+    "-D_DEBUG", 
+    "-DXINIM_DEBUG",
+]
+
+# SIMD optimization flags
+XINIM_SIMD_OPTS = [
+    "-mavx2",
+    "-mavx512f", 
+    "-msse4.2",
+    "-DXINIM_SIMD_OPTIMIZED",
+]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 1. XINIM KERNEL COMPONENTS
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Core kernel library
+cc_library(
+    name = "xinim_kernel",
+    srcs = glob([
+        "kernel/*.cpp",
+        "kernel/**/*.cpp",
+        "kernel/**/*.c",
+        "arch/**/*.cpp",
+        "arch/**/*.c",
+    ], exclude = [
+        "**/*test*.cpp",
+        "**/*test*.c",
+        "kernel/main.cpp",
+    ]),
+    hdrs = glob([
+        "include/**/*.hpp",
+        "include/**/*.h",
+    ]),
+    copts = XINIM_CXXOPTS + [
+        "-ffreestanding",
+        "-nostdlib", 
+        "-fno-builtin",
+        "-fno-exceptions",
+        "-fno-rtti",
+        "-fno-stack-protector",
+        "-mno-red-zone", 
+        "-mcmodel=kernel",
+        "-DXINIM_KERNEL",
+        "-DXINIM_BARE_METAL",
+    ],
+    includes = [
+        "include",
+        "include/xinim",
+    ],
+    linkopts = ["-stdlib=libc++"],
+)
+
+# Memory management subsystem
+cc_library(
+    name = "xinim_mm",
+    srcs = glob(["mm/*.cpp", "mm/*.c"]),
+    hdrs = glob(["include/xinim/mm/*.hpp"]),
+    copts = XINIM_CXXOPTS + XINIM_SIMD_OPTS,
+    includes = ["include", "include/xinim"],
+    deps = [":xinim_kernel"],
+    linkopts = ["-stdlib=libc++"],
+)
+
+# Filesystem subsystem  
+cc_library(
+    name = "xinim_fs",
+    srcs = glob([
+        "fs/*.cpp", 
+        "fs/*.c",
+        "lib/xinim_fs/*.cpp",
+    ]),
+    hdrs = glob(["include/xinim/fs/*.hpp"]),
+    copts = XINIM_CXXOPTS + XINIM_SIMD_OPTS,
+    includes = ["include", "include/xinim"],
+    deps = [":xinim_kernel"],
+    linkopts = ["-stdlib=libc++"],
+)
+
+# Standard library implementation
+cc_library(
+    name = "xinim_libc", 
+    srcs = glob([
+        "lib/*.cpp",
+        "lib/*.c",
+        "lib/simd/*.cpp",
+    ], exclude = [
+        "lib/xinim_fs/*.cpp",
+    ]),
+    hdrs = glob(["include/xinim/libc/*.hpp"]),
+    copts = XINIM_CXXOPTS + XINIM_SIMD_OPTS,
+    includes = ["include", "include/xinim"],
+    linkopts = ["-stdlib=libc++"],
+)
+
+# Cryptography with post-quantum support
+cc_library(
+    name = "xinim_crypto",
+    srcs = glob([
+        "crypto/*.cpp", 
+        "crypto/*.c",
+    ]),
+    hdrs = glob(["include/xinim/crypto/*.hpp"]),
+    copts = XINIM_CXXOPTS + XINIM_SIMD_OPTS + [
+        "-DXINIM_CRYPTO",
+        "-DXINIM_POST_QUANTUM",
+    ],
+    includes = ["include", "include/xinim"],  
+    deps = [
+        ":xinim_kernel",
+        "@openssl//:crypto",
+        "@libsodium//:sodium",
+    ],
+    linkopts = ["-stdlib=libc++"],
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 2. KERNEL EXECUTABLE
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Main kernel executable
+xinim_kernel_binary(
+    name = "xinim.elf",
+    srcs = ["kernel/main.cpp"],
+    deps = [
+        ":xinim_kernel", 
+        ":xinim_mm",
+        ":xinim_fs", 
+        ":xinim_crypto",
+    ],
+    linker_script = "kernel/linker.ld",
+    copts = XINIM_CXXOPTS + XINIM_RELEASE_OPTS,
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 3. POSIX UTILITIES (C++23 IMPLEMENTATIONS)
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Generate POSIX command targets
+[xinim_command(
+    name = cmd[:-4],  # Remove .cpp extension
+    src = cmd,
+    deps = [
+        ":xinim_libc",
+        ":xinim_fs", 
+    ] + (
+        [":xinim_crypto"] if any(x in cmd for x in ["encrypt", "hash", "sign"]) else []
+    ),
+) for cmd in glob(["commands/*.cpp"], exclude = [
+    "**/test_*.cpp",
+    "**/legacy_backup/*.cpp",
+])]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 4. C++23 MODULES
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Core modules library
+cc_library(
+    name = "xinim_modules",
+    srcs = glob([
+        "include/xinim/modules/*.cppm",
+        "include/xinim/modules/*.cpp", 
+    ]),
+    copts = XINIM_CXXOPTS + [
+        "-fmodules-ts",
+        "-DXINIM_MODULES_ENABLED",
+    ],
+    includes = ["include", "include/xinim"],
+    linkopts = ["-stdlib=libc++"],
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 5. TESTING FRAMEWORK
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Core test library
+cc_library(
+    name = "xinim_test_lib",
+    testonly = 1,
+    hdrs = ["tests/test_common.hpp"],
+    deps = [
+        "@com_google_googletest//:gtest",
+        "@com_google_googletest//:gtest_main",
+    ],
+    copts = XINIM_CXXOPTS,
+)
+
+# Generate test targets for clean test sources
+[cc_test(
+    name = test[:-4].replace("tests/", "test_"),
+    srcs = [test],
+    deps = [
+        ":xinim_test_lib",
+        ":xinim_kernel",
+        ":xinim_crypto",
+        ":xinim_libc",
+    ],
+    copts = XINIM_CXXOPTS + XINIM_DEBUG_OPTS,
+    size = "small",
+) for test in glob([
+    "tests/test_*.cpp",
+    "tests/basic_*.cpp", 
+    "tests/memory_*.cpp",
+    "tests/filesystem_*.cpp",
+    "tests/network_*.cpp",
+    "tests/crypto_*.cpp",
+    "tests/scheduler_*.cpp",
+    "tests/service_*.cpp",
+    "tests/lattice_*.cpp", 
+    "tests/hypercomplex_*.cpp",
+    "tests/wait_graph_*.cpp",
+    "tests/extended_test_*.cpp",
+])]
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 6. BENCHMARKS
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Performance benchmarks
+cc_binary(
+    name = "xinim_benchmark",
+    srcs = ["benchmarks/xinim_benchmark.cpp"],
+    deps = [
+        ":xinim_libc",
+        ":xinim_crypto",
+        ":xinim_fs",
+        "@com_github_google_benchmark//:benchmark",
+        "@com_github_google_benchmark//:benchmark_main", 
+    ],
+    copts = XINIM_CXXOPTS + XINIM_RELEASE_OPTS,
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 7. TOOLING & UTILITIES
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Generate compile commands for IDE integration
+refresh_compile_commands(
+    name = "refresh_compile_commands",
+    targets = {
+        "//...": "",
+    },
+)
+
+# Code formatter
+genrule(
+    name = "format",
+    outs = ["format.txt"],
+    cmd = """
+        find . -name '*.cpp' -o -name '*.hpp' | head -100 | xargs clang-format -i
+        echo "Code formatted" > $@
+    """,
+)
+
+# Static analysis
+genrule(
+    name = "analyze", 
+    outs = ["analyze.txt"],
+    cmd = """
+        clang-tidy $(find . -name '*.cpp' | head -50) -- -std=c++23 -stdlib=libc++
+        echo "Analysis complete" > $@
+    """,
+)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# § 8. PACKAGE DEFINITIONS
+# ──────────────────────────────────────────────────────────────────────────────
+
+# Main distribution package
+filegroup(
+    name = "xinim_distribution",
+    srcs = [
+        ":xinim.elf",
+    ] + [
+        ":cmd_" + cmd[9:-4] for cmd in glob(["commands/*.cpp"], exclude=[
+            "**/test_*.cpp", 
+            "**/legacy_backup/*.cpp",
+        ])
+    ],
+)
+
+# Development package  
+filegroup(
+    name = "xinim_development",
+    srcs = [
+        ":xinim_distribution",
+        ":xinim_benchmark", 
+    ] + glob([
+        "include/**/*.hpp",
+        "include/**/*.h", 
+    ]),
+)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# END OF BAZEL BUILD CONFIGURATION  
+# ══════════════════════════════════════════════════════════════════════════════

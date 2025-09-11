@@ -1,122 +1,208 @@
+````text
 # Building and Testing
 
-This document describes how to build the Minix 1 sources and verify that the
-build environment works on a Unix-like host.
+This document explains how to build the (XINIM) sources and verify that the tool-chain works on a Unix-like host.
 
-The codebase is currently a **work in progress** focused on reproducing the
-original Minix simplicity on modern arm64 and x86_64 machines using C++23.
+The codebase is **work in progress**, aiming to reproduce classic Minix simplicity on modern **arm64** and **x86-64** machines using **C++23**.
 
-## Prerequisites
-A 64-bit x86 compiler toolchain supporting C++23 is required. Install Clang++ 18 and the full LLVM 18 suite—including lld and lldb—before building or running tests. GCC 13 or later can still be used. Either NASM 2.14 or YASM 1.3 are known to work. CMake 3.5 or newer is needed when using the CMake build system.
+-----
 
-## Building with Makefiles
+## 1 · Prerequisites
 
-Each top level component (for example `kernel`, `lib` and `mm`) contains a
-traditional `Makefile`.  Change into the directory and run `make` to build the
-component.  For example:
+* **C++23 tool-chain** – Clang 18 (lld, lldb) is recommended; GCC 13 or newer also works (Clang 20 is detected automatically if installed).
+* **Assembler** – NASM ≥ 2.14 *or* YASM ≥ 1.3.
+* **CMake** ≥ 3.5 (if you use the CMake flow).
+* **POSIX make + sh** for the classic Makefiles.
+* **libsodium** development headers for the crypto subsystem.
+
+Install everything with (see [tools/setup.md](../tools/setup.md) for the step-by-step package list):
+
+```sh
+sudo apt-get update && sudo apt-get install -y \
+    build-essential cmake ninja-build clang-18 lld-18 lldb-18 \
+    libsodium-dev nlohmann-json3-dev
+clang++ --version         # verify the compiler in PATH
+````
+
+-----
+
+## 2 · Building with Makefiles
 
 ```sh
 cd lib
-make
+make                      # builds the selected component in-place
 ```
 
-The Makefiles use relative paths to locate headers and the C library.
-Headers are taken from `../include` and the library defaults to
-`../lib/lib.a`.  Override `CC`, `CFLAGS`, or `LDFLAGS` on the command
-line to adjust the build.
+  * Headers are taken from `../include`.
+  * The default static library output is `../lib/lib.a`.
 
-## Building with CMake
+Override `CC`, `CFLAGS`, or `LDFLAGS` on the command line as needed.
 
-A more convenient option is to use CMake from the repository root:
+-----
+
+## 3 · Building with CMake
+
+The repository provides a convenience wrapper `build.sh` that selects
+well-tuned CMake profiles:
 
 ```sh
-cmake -B build
-cmake --build build
+./build.sh --profile=developer    # Debug build with sanitizers
+./build.sh --profile=performance  # Host-tuned benchmarking build
+./build.sh --profile=release      # Generic release with LTO
+./build.sh --help                 # list profiles and dependencies
 ```
 
-You can select the AT or PC/XT wini driver using the options described in the
-`README.md` file.
-
-## Cross Compiling for x86_64
-
-The build can target a bare x86\_64 system using a cross toolchain.  Specify the
-tool prefix through the `CROSS_PREFIX` variable.  When invoking CMake directly
-pass `-DCROSS_COMPILE_X86_64=ON` along with the prefix.  Clang will be invoked
-with that prefix for cross compiling:
+Additional arguments are forwarded to CMake, allowing fine-grained
+configuration when necessary. Artifacts default to `build/`; override with `--build-dir` and pass extra
+CMake options after `--`.
 
 ```sh
-cmake -B build -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf-
-cmake --build build
+# Configure (Debug build by default)
+cmake -B build -G Ninja -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+
+# Compile everything using Ninja
+ninja -C build
+
+# Build and run the unit tests
+cmake -S tests -B build_test
+ninja -C build_test
+ctest --test-dir build_test
 ```
 
-These commands will call `${CROSS_PREFIX}clang++` for compilation.
+Driver variants (AT vs PC/XT) and other options are configured via CMake flags—see `README.md`.
 
-The top-level `Makefile` accepts the same variable so the above commands can be
-simplified to:
+-----
+
+## 4 · Cross-compiling for x86-64
+
+```sh
+cmake -B build -G Ninja -DCROSS_COMPILE_X86_64=ON -DCROSS_PREFIX=x86_64-elf- \
+      -DCMAKE_C_COMPILER=clang-18 -DCMAKE_CXX_COMPILER=clang++-18
+ninja -C build
+```
+
+or, using Makefiles:
 
 ```sh
 make CROSS_PREFIX=x86_64-elf-
 ```
 
-The Makefile passes the prefix to clang++ automatically.
+Both flows call `${CROSS_PREFIX}clang++`.
 
-## Testing the Build
+-----
 
-To quickly check that the toolchain works you can compile one of the sample
-programs in the `test` directory.  For instance:
+## 5 · Build Modes & Recommended Flags
+
+| Profile       | Purpose                              | Representative flags                               |
+|---------------|--------------------------------------|----------------------------------------------------|
+| **developer** | Heavy diagnostics + sanitizers       | `-g3 -O0 -fsanitize=address,undefined`             |
+| **performance**| CPU-tuned benchmarking build         | `-O3 -DNDEBUG -march=native -flto`                 |
+| **release** | Generic release with link-time optimisation | `-O2 -DNDEBUG -flto`                               |
+
+Example manual build:
 
 ```sh
-make -C test f=t10a LIB=
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=x86-64-v1 \
+        example.cpp -o example
 ```
 
-Passing `LIB=` avoids linking against the project library, letting the example
-compile even if the rest of the system has not been built yet.  Successful
-compilation confirms the compiler and assembler are functioning correctly.
+Add **LTO**, **PGO**, or LLVM **Polly** (`-mllvm -polly`) as required.
 
-### Running the Example Programs
+-----
 
-Execute the newly built program directly from the `test/` directory:
+## 6 · Testing the Tool-chain
+
+Quick smoke test:
 
 ```sh
-./test/t10a
+make -C test f=t10a LIB=      # builds without lib.a, runs minimal test
+```
+
+or compile directly:
+
+```sh
+clang++ -std=c++23 -O2 -pipe -Wall -Wextra -Wpedantic -march=x86-64-v1 \
+        tests/t10a.cpp -o tests/t10a
+./tests/t10a && echo "✓ tool-chain OK"
+```
+
+-----
+
+## 7 · Running Example Programs
+
+```sh
+./tests/t10a
 echo $?
 ```
 
-The `t10a.cpp` program simply returns `0`, so `echo $?` prints `0` when the
-toolchain is working properly.
+Expected exit status is **0**.
 
-## Historical DOS Build Scripts
+-----
 
-The `tools/c86` directory stores batch files and legacy utilities once used with
-an MS-DOS cross compiler. They are kept for reference but are not executed by
-the current build. Modern equivalents written in C (for example `bootblok.cpp`)
-provide the needed functionality and are built automatically.
+## 8 · Historical DOS Build Scripts
 
-## Modernization Script
+Legacy MS-DOS batch files reside in `tools/c86`.
+They are retained for reference only; modern C++ replacements (e.g.,
+`bootblok.cpp`) build automatically in native and cross workflows.
 
-A helper script `tools/modernize_cpp17.sh` automates renaming sources to
-`.cpppp` and `.hpp`, updates include paths and drops a temporary modernization
-header into each file. Invoke it from the repository root when ready to move
-the codebase fully to C++23.
+-----
 
-## Development Tools
+## 9 · Modernisation Helper
 
-Several optional utilities generate code metrics and perform static analysis.
-Install them using the package manager and Python's package installer:
+`tools/modernize_cpp17.sh` upgrades legacy `.c`/`.h` sources to modern
+`.cpp`/`.hpp`, adjusts include paths, and inserts a temporary banner.
+Run it when migrating fully to C++23.
+
+-----
+
+## 10 · Development Utilities
 
 ```sh
 sudo apt-get install -y cloc cppcheck cscope
 python3 -m pip install --user lizard
 ```
 
-### Running the Tools
-
-Run the helper script `tools/run_cppcheck.sh` from the repository root to
-generate static analysis and metrics reports:
+Generate analysis reports:
 
 ```sh
 tools/run_cppcheck.sh
 ```
 
-Reports are written to `build/reports/` in XML or JSON format. The cscope
-database is also generated in this directory.
+Outputs are placed in `build/reports/` (XML / JSON) along with a `cscope`
+database.
+
+-----
+
+## 11 · Git Hooks
+
+Install the provided pre-commit hook to automatically format staged C and C++ sources:
+
+```sh
+ln -s ../../hooks/pre-commit .git/hooks/pre-commit
+```
+
+The hook runs `clang-format -i` on each staged file and re-adds the result to the commit.
+
+-----
+
+## 12 · Generating Documentation
+
+API reference and architecture manuals combine **Doxygen** with **Sphinx**
+using the **Breathe** extension. The mapping in `docs/sphinx/conf.py` is:
+
+```python
+breathe_projects = { "XINIM": "../doxygen/xml" }
+```
+
+Build the HTML site:
+
+```bash
+python3 -m pip install --user sphinx breathe
+doxygen docs/Doxyfile
+sphinx-build -b html docs/sphinx docs/sphinx/html
+```
+
+Open `docs/sphinx/html/index.html` in a browser to view the generated pages.
+
+```
+```

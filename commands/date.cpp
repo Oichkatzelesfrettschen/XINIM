@@ -8,42 +8,49 @@
  *
  * This program is a C++23 modernization of the original `date` utility from MINIX.
  * It can display the current date and time or set the system's date and time.
- * It leverages the C++ <chrono> library for time operations and provides robust
- * argument parsing and error handling.
+ * It leverages the C++ std::chrono library for time operations and provides robust
+ * argument
+ * parsing and error handling.
  *
  * Usage:
  *   date              // Print the current date and time
  *   date MMDDYYhhmmss  // Set the date and time
  */
 
+#include <cerrno>
+#include <chrono>
+#include <ctime>
+#include <iomanip>
 #include <iostream>
 #include <string>
 #include <string_view>
-#include <chrono>
 #include <system_error>
-#include <cerrno>
-#include <ctime>
-#include <iomanip>
 
 // For setting the system time (POSIX)
 #include <sys/time.h>
 
+/**
+ * @brief Internal helper utilities for the date command.
+ *
+ * These helper routines encapsulate the core logic for displaying and mutating
+ * the system clock.
+ */
 namespace {
 
 /**
  * @brief Prints the usage message to standard error.
+ * @note The message describes the accepted argument format.
  */
-void printUsage() {
-    std::cerr << "Usage: date [MMDDYYhhmmss]" << std::endl;
-}
+void printUsage() { std::cerr << "Usage: date [MMDDYYhhmmss]" << std::endl; }
 
 /**
  * @brief Prints the current date and time to standard output.
+ * @note Uses the user's current locale for formatting.
  */
 void printCurrentTime() {
     const auto now = std::chrono::system_clock::now();
     const time_t time_now = std::chrono::system_clock::to_time_t(now);
-    
+
     // Using std::put_time for safe, localized formatting.
     // Format: Www Mmm dd HH:MM:SS YYYY
     std::cout << std::put_time(std::localtime(&time_now), "%a %b %d %T %Y") << std::endl;
@@ -52,7 +59,9 @@ void printCurrentTime() {
 /**
  * @brief Sets the system time based on a formatted string.
  * @param time_str The time string in MMDDYYhhmmss format.
- * @throws std::runtime_error on parsing or system call errors.
+ * @throws std::runtime_error If the string cannot be parsed.
+ * @throws std::system_error  If the underlying system call fails.
+ * @note Requires superuser privileges to succeed.
  */
 void setSystemTime(std::string_view time_str) {
     if (time_str.length() != 12) {
@@ -83,9 +92,9 @@ void setSystemTime(std::string_view time_str) {
         // ss
         s = time_str.substr(10, 2);
         tm.tm_sec = std::stoi(s);
-    } catch (const std::invalid_argument& e) {
+    } catch (const std::invalid_argument &e) {
         throw std::runtime_error("Invalid character in date string.");
-    } catch (const std::out_of_range& e) {
+    } catch (const std::out_of_range &e) {
         throw std::runtime_error("Numeric value out of range in date string.");
     }
 
@@ -108,8 +117,9 @@ void setSystemTime(std::string_view time_str) {
  * @param argc The number of command-line arguments.
  * @param argv An array of command-line arguments.
  * @return 0 on success, 1 on error.
+ * @see setSystemTime
  */
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
     try {
         if (argc == 1) {
             // No arguments, print the current time.
@@ -122,7 +132,7 @@ int main(int argc, char* argv[]) {
             printUsage();
             return 1;
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         std::cerr << "date: " << e.what() << std::endl;
         return 1;
     }

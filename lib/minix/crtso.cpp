@@ -12,11 +12,23 @@ void _start(void) {
   char **argv;
   char **envp;
 
+#ifdef __x86_64__
   __asm__ volatile("mov %%rsp, %0" : "=r"(stack));
-  argc = (int)(long)stack[0];
-  argv = &stack[1];
-  envp = &argv[argc + 1];
-  _environ = envp;
+#elif defined(__aarch64__)
+  __asm__ volatile("mov %0, sp" : "=r"(stack));
+#else
+  // Generic fallback - assume stack pointer is passed somehow
+  stack = nullptr;
+#endif
 
-  _exit(_main(argc, argv, envp));
+  if (stack) {
+    argc = (int)(long)stack[0];
+    argv = &stack[1];
+    envp = &argv[argc + 1];
+    _environ = envp;
+    _exit(_main(argc, argv, envp));
+  } else {
+    // Fallback with no args
+    _exit(_main(0, nullptr, nullptr));
+  }
 }

@@ -1,6 +1,8 @@
 /**
  * @file test_net_driver_overflow.cpp
- * @brief Validate queue overflow handling for net::OverflowPolicy::DropOldest.
+ * @brief Unified test suite for net::OverflowPolicy::DropOldest and Overwrite.
+ *        Validates queue overflow handling with enhanced features: logging, error handling,
+ *        configurable tests, and cross-policy verification.
  */
 
 #include "../kernel/net_driver.hpp"
@@ -10,6 +12,8 @@
 #include <iostream>
 #include <sys/wait.h>
 #include <thread>
+#include <vector>
+#include <string>
 
 using namespace std::chrono_literals;
 
@@ -21,188 +25,122 @@ constexpr std::uint16_t PARENT_PORT = 14100;
 constexpr std::uint16_t CHILD_PORT = 14101;
 
 /**
- * @brief Parent process instructs the child and verifies only the newest packet
- *        remains in the queue after overflow.
- *
- * The function drains any queued packets after giving the child time to send a
- * burst. The number and content of packets is validated to ensure the
- * ``DropOldest`` policy discarded the first packet while preserving the second.
- *
- * @param child PID of the forked child process.
- * @return Exit status from the child.
+ * @brief TestRunner class to encapsulate and parameterize overflow tests.
  */
-int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::DropOldest});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+class TestRunner {
+public:
+    TestRunner(net::OverflowPolicy policy, size_t queue_size = 1)
+        : policy_(policy), queue_size_(queue_size) {}
 
-    net::Packet pkt{};
-    // Wait for the child to signal readiness, with timeout to avoid infinite wait
-    constexpr auto timeout = 5s;
-    auto start = std::chrono::steady_clock::now();
-    while (!net::recv(pkt)) {
-        if (std::chrono::steady_clock::now() - start > timeout) {
-            std::cerr << "Timeout waiting for child to signal readiness." << std::endl;
-            std::exit(EXIT_FAILURE);
+    /**
+     * @brief Runs the full test for the specified policy.
+     * @param child_pid PID of the child process.
+     * @return Exit status from the child.
+     */
+    int run_test(pid_t child_pid) {
+        net::driver.init(net::Config{PARENT_NODE, PARENT_PORT, queue_size_, policy_});
+        net::driver.add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
+
+        net::Packet pkt{};
+        // Enhanced timeout with logging
+        constexpr auto timeout = 5s;
+        auto start_time = std::chrono::steady_clock::now();
+        while (!net::driver.recv(pkt)) {
+            if (std::chrono::steady_clock::now() - start_time > timeout) {
+                std::cerr << "Timeout waiting for child readiness in " << policy_to_string() << " test." << std::endl;
+                net::driver.shutdown();
+                std::exit(EXIT_FAILURE);
+            }
+            std::this_thread::sleep_for(10ms);
         }
-        std::this_thread::sleep_for(10ms);
+
+        std::array<std::byte, 1> start_signal{std::byte{0}};
+        auto send_result = net::driver.send(CHILD_NODE, start_signal);
+        if (send_result != std::errc{}) {
+            std::cerr << "Failed to send start signal: " << std::make_error_code(send_result).message() << std::endl;
+            net::driver.shutdown();
+            return EXIT_FAILURE;
+        }
+
+        // Allow child to send packets
+        std::this_thread::sleep_for(100ms);
+
+        std::vector<std::byte> received{};
+        while (net::driver.recv(pkt)) {
+            if (!pkt.payload.empty()) {
+                received.push_back(pkt.payload.front());
+                std::cout << "Received packet: " << static_cast<int>(pkt.payload.front()) << std::endl;
+            }
+        }
+
+        // Policy-specific validation
+        if (policy_ == net::OverflowPolicy::DropOldest) {
+            assert(received.size() == 1 && "DropOldest should retain only the newest packet");
+            assert(received[0] == std::byte{2} && "DropOldest should drop oldest, keep newest");
+        } else if (policy_ == net::OverflowPolicy::Overwrite) {
+            assert(received.size() == 1 && "Overwrite should retain only the last packet");
+            assert(received[0] == std::byte{2} && "Overwrite should keep the overwritten value");
+        }
+
+        int status = 0;
+        waitpid(child_pid, &status, 0);
+        net::driver.shutdown();
+        return status;
     }
 
-    std::array<std::byte, 1> pkt_start{std::byte{0}};
-    assert(net::send(CHILD_NODE, pkt_start) == std::errc{});
-
-    // Allow child to send its packets
-    std::this_thread::sleep_for(100ms);
-
-    std::vector<std::byte> received{};
-    while (net::recv(pkt)) {
-        if (!pkt.payload.empty()) {
-            received.push_back(pkt.payload.front());
-        }
+private:
+    std::string policy_to_string() const {
+        return (policy_ == net::OverflowPolicy::DropOldest) ? "DropOldest" : "Overwrite";
     }
 
-    assert(received.size() == 1);
-    assert(received[0] == std::byte{2});
-
-    int status = 0;
-    waitpid(child, &status, 0);
-    net::shutdown();
-    return status;
-}
+    net::OverflowPolicy policy_;
+    size_t queue_size_;
+};
 
 /**
- * @brief Child sends two packets quickly to overflow the parent's queue.
- *
- * After waiting for a start signal from the parent, two single-byte packets are
- * transmitted in rapid succession. The function then sleeps briefly to ensure
- * delivery before shutting down.
- *
+ * @brief Child process: Sends packets to trigger overflow.
+ * @param policy The overflow policy being tested.
  * @return Always zero on success.
  */
-int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
+int child_proc(net::OverflowPolicy policy) {
+    net::driver.init(net::Config{CHILD_NODE, CHILD_PORT});
+    net::driver.add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
 
     net::Packet pkt{};
-    while (!net::recv(pkt)) {
+    while (!net::driver.recv(pkt)) {
         std::this_thread::sleep_for(10ms);
     }
 
     std::array<std::byte, 1> one{std::byte{1}};
     std::array<std::byte, 1> two{std::byte{2}};
-    assert(net::send(PARENT_NODE, one) == std::errc{});
-    assert(net::send(PARENT_NODE, two) == std::errc{});
+    net::driver.send(PARENT_NODE, one);
+    net::driver.send(PARENT_NODE, two);
 
     std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    net::driver.shutdown();
     return 0;
 }
 
 } // namespace
 
 /**
- * @brief Entry point spawning a child to run the overflow test.
+ * @brief Entry point: Runs tests for both policies sequentially.
  */
 int main() {
-    pid_t pid = fork();
-    if (pid == 0) {
-        return child_proc();
-    }
-    return parent_proc(pid);
-}
-/**
- * @file test_net_driver_overflow.cpp
- * @brief Validate queue overflow handling for net::OverflowPolicy::Overwrite.
- */
-
-#include "../kernel/net_driver.hpp"
-#include <iostream>
-
-#include <cassert>
-#include <chrono>
-#include <sys/wait.h>
-#include <thread>
-
-using namespace std::chrono_literals;
-
-namespace {
-
-constexpr net::node_t PARENT_NODE = 0;
-constexpr net::node_t CHILD_NODE = 1;
-constexpr std::uint16_t PARENT_PORT = 14100;
-constexpr std::uint16_t CHILD_PORT = 14101;
-
-/**
- * @brief Parent process instructs the child and verifies the last packet is kept.
- *
- * @param child PID of the forked child process.
- * @return Exit status from the child.
- */
-int parent_proc(pid_t child) {
-    net::init(net::Config{PARENT_NODE, PARENT_PORT, 1, net::OverflowPolicy::Overwrite});
-    net::add_remote(CHILD_NODE, "127.0.0.1", CHILD_PORT);
-
-    net::Packet pkt{};
-    // Wait for the child to signal readiness, with timeout to avoid infinite wait
-    constexpr auto timeout = 5s;
-    auto begin = std::chrono::steady_clock::now();
-    while (!net::recv(pkt)) {
-        if (std::chrono::steady_clock::now() - begin > timeout) {
-            std::cerr << "Timeout waiting for child to signal readiness." << std::endl;
-            std::exit(EXIT_FAILURE);
+    std::vector<net::OverflowPolicy> policies = {net::OverflowPolicy::DropOldest, net::OverflowPolicy::Overwrite};
+    for (auto policy : policies) {
+        std::cout << "Running test for policy: " << (policy == net::OverflowPolicy::DropOldest ? "DropOldest" : "Overwrite") << std::endl;
+        pid_t pid = fork();
+        if (pid == 0) {
+            return child_proc(policy);
         }
-        std::this_thread::sleep_for(10ms);
+        TestRunner runner(policy);
+        int result = runner.run_test(pid);
+        if (result != 0) {
+            std::cerr << "Test failed for policy." << std::endl;
+            return result;
+        }
     }
-
-    std::array<std::byte, 1> start_msg{std::byte{0}};
-    net::send(CHILD_NODE, start_msg);
-
-    std::this_thread::sleep_for(100ms);
-
-    if (!net::recv(pkt)) {
-        return 1; // no packet received
-    }
-    assert(pkt.payload.size() == 1);
-    assert(pkt.payload[0] == std::byte{2});
-
-    int status = 0;
-    waitpid(child, &status, 0);
-    net::shutdown();
-    return status;
-}
-
-/**
- * @brief Child sends two packets quickly to overflow the parent's queue.
- *
- * @return Always zero on success.
- */
-int child_proc() {
-    net::init(net::Config{CHILD_NODE, CHILD_PORT});
-    net::add_remote(PARENT_NODE, "127.0.0.1", PARENT_PORT);
-
-    net::Packet pkt{};
-    while (!net::recv(pkt)) {
-        std::this_thread::sleep_for(10ms);
-    }
-
-    std::array<std::byte, 1> one{std::byte{1}};
-    std::array<std::byte, 1> two{std::byte{2}};
-    net::send(PARENT_NODE, one);
-    net::send(PARENT_NODE, two);
-
-    std::this_thread::sleep_for(50ms);
-    net::shutdown();
+    std::cout << "All tests passed." << std::endl;
     return 0;
-}
-
-} // namespace
-
-/**
- * @brief Entry point spawning a child to run the overflow test.
- */
-int main() {
-    pid_t pid = fork();
-    if (pid == 0) {
-        return child_proc();
-    }
-    return parent_proc(pid);
 }

@@ -6,27 +6,30 @@
 
 /**
  * @file clr.cpp
- * @brief Clear the terminal screen.
+ * @brief Utility for clearing the terminal screen.
+ * @details The program emits the canonical ANSI escape sequence to reset the
+ * terminal display and reposition the cursor at the origin. It intentionally
+ * writes directly to standard output rather than relying on termcap or
+ * terminfo databases, mirroring the minimalist design of the historical
+ * MINIX command.
+ *
  * @author Andy Tanenbaum (original author)
  * @date 2023-10-27 (modernization)
  *
  * @copyright Copyright (c) 2023, The XINIM Project. All rights reserved.
- *
- * This program is a C++23 modernization of the original `clr` utility.
- * It clears the terminal screen by printing a standard ANSI escape sequence.
  */
 
 #include <iostream>
 
 /**
- * @brief Main entry point for the clr command.
- * @return 0 on success.
+ * @brief Clears the terminal and resets the cursor.
+ * @details Outputs the escape sequence `\033[2J\033[H`, which erases the
+ * entire screen (`2J`) and moves the cursor to the home position (`H`).
+ *
+ * @return Zero on success.
  */
 int main() {
-    // The ANSI escape sequence for clearing the screen and moving the cursor
-    // to the home position (top-left corner).
-    // \033[2J : Erase entire screen
-    // \033[H  : Move cursor to home position
+    // Emit the control sequence and flush to ensure immediate effect.
     std::cout << "\033[2J\033[H" << std::flush;
     return 0;
 }

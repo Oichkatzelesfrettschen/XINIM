@@ -5,8 +5,9 @@
  * @brief Kyber512-based encryption implementation.
  */
 
+#include "../tests/sodium.hpp"
+#include <openssl/core_names.h>
 #include <openssl/evp.h>
-#include <sodium.h>
 
 #include <algorithm>
 #include <array>
@@ -121,7 +122,7 @@ std::vector<std::byte> aes_gcm_decrypt(std::span<const std::byte> cipher,
 }
 
 /// Encrypt data using libsodium's ChaCha20-Poly1305 AEAD.
-std::vector<std::byte> sodium_aead_encrypt(
+[[maybe_unused]] std::vector<std::byte> sodium_aead_encrypt(
     std::span<const std::byte> plain, std::span<const std::byte, pqcrystals_kyber512_BYTES> key,
     std::span<const std::byte, NONCE_SIZE> nonce, std::array<std::byte, TAG_SIZE> &tag) {
     if (sodium_init() < 0) {
@@ -144,7 +145,7 @@ std::vector<std::byte> sodium_aead_encrypt(
 }
 
 /// Decrypt data using libsodium's ChaCha20-Poly1305 AEAD.
-std::vector<std::byte> sodium_aead_decrypt(
+[[maybe_unused]] std::vector<std::byte> sodium_aead_decrypt(
     std::span<const std::byte> cipher, std::span<const std::byte, pqcrystals_kyber512_BYTES> key,
     std::span<const std::byte, NONCE_SIZE> nonce, std::span<const std::byte, TAG_SIZE> tag) {
     if (sodium_init() < 0) {
@@ -178,9 +179,111 @@ void random_bytes(std::span<std::byte> buffer) {
     randombytes_buf(buffer.data(), buffer.size());
 }
 
+#if OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+/// Determine whether the current OpenSSL build exposes the Kyber KEM.
+bool has_openssl_kyber() {
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> ctx{
+        EVP_PKEY_CTX_new_from_name(nullptr, "KYBER512", nullptr), EVP_PKEY_CTX_free};
+    return static_cast<bool>(ctx);
+}
+
+/// Generate a Kyber key pair via OpenSSL's KEM API.
+KeyPair keypair_openssl() {
+    KeyPair kp{};
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> ctx{
+        EVP_PKEY_CTX_new_from_name(nullptr, "KYBER512", nullptr), EVP_PKEY_CTX_free};
+    if (!ctx || EVP_PKEY_keygen_init(ctx.get()) <= 0) {
+        throw std::runtime_error{"EVP_PKEY_keygen_init failed"};
+    }
+    EVP_PKEY *raw = nullptr;
+    if (EVP_PKEY_generate(ctx.get(), &raw) <= 0) {
+        throw std::runtime_error{"EVP_PKEY_generate failed"};
+    }
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey{raw, EVP_PKEY_free};
+
+    size_t pk_len = kp.public_key.size();
+    size_t sk_len = kp.private_key.size();
+    if (EVP_PKEY_get_raw_public_key(
+            pkey.get(), reinterpret_cast<unsigned char *>(kp.public_key.data()), &pk_len) <= 0 ||
+        pk_len != kp.public_key.size()) {
+        throw std::runtime_error{"EVP_PKEY_get_raw_public_key failed"};
+    }
+    if (EVP_PKEY_get_raw_private_key(
+            pkey.get(), reinterpret_cast<unsigned char *>(kp.private_key.data()), &sk_len) <= 0 ||
+        sk_len != kp.private_key.size()) {
+        throw std::runtime_error{"EVP_PKEY_get_raw_private_key failed"};
+    }
+    return kp;
+}
+
+/// Perform Kyber encapsulation using OpenSSL to derive a shared secret.
+void encapsulate_openssl(std::span<const std::byte, pqcrystals_kyber512_PUBLICKEYBYTES> pk,
+                         std::array<std::byte, pqcrystals_kyber512_CIPHERTEXTBYTES> &ct,
+                         std::array<std::byte, pqcrystals_kyber512_BYTES> &ss) {
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey{
+        EVP_PKEY_new_raw_public_key_ex(nullptr, "KYBER512", nullptr,
+                                       reinterpret_cast<const unsigned char *>(pk.data()),
+                                       pk.size()),
+        EVP_PKEY_free};
+    if (!pkey) {
+        throw std::runtime_error{"EVP_PKEY_new_raw_public_key_ex failed"};
+    }
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> ctx{
+        EVP_PKEY_CTX_new_from_pkey(nullptr, pkey.get(), nullptr), EVP_PKEY_CTX_free};
+    if (!ctx || EVP_PKEY_encapsulate_init(ctx.get(), nullptr) <= 0) {
+        throw std::runtime_error{"EVP_PKEY_encapsulate_init failed"};
+    }
+    size_t ct_len = ct.size();
+    size_t ss_len = ss.size();
+    if (EVP_PKEY_encapsulate(ctx.get(), reinterpret_cast<unsigned char *>(ct.data()), &ct_len,
+                             reinterpret_cast<unsigned char *>(ss.data()), &ss_len) <= 0 ||
+        ct_len != ct.size() || ss_len != ss.size()) {
+        throw std::runtime_error{"EVP_PKEY_encapsulate failed"};
+    }
+}
+
+/// Perform Kyber decapsulation via OpenSSL.
+void decapsulate_openssl(std::span<const std::byte, pqcrystals_kyber512_CIPHERTEXTBYTES> ct,
+                         std::span<const std::byte, pqcrystals_kyber512_SECRETKEYBYTES> sk,
+                         std::array<std::byte, pqcrystals_kyber512_BYTES> &ss) {
+    std::unique_ptr<EVP_PKEY, decltype(&EVP_PKEY_free)> pkey{
+        EVP_PKEY_new_raw_private_key_ex(nullptr, "KYBER512", nullptr,
+                                        reinterpret_cast<const unsigned char *>(sk.data()),
+                                        sk.size()),
+        EVP_PKEY_free};
+    if (!pkey) {
+        throw std::runtime_error{"EVP_PKEY_new_raw_private_key_ex failed"};
+    }
+    std::unique_ptr<EVP_PKEY_CTX, decltype(&EVP_PKEY_CTX_free)> ctx{
+        EVP_PKEY_CTX_new_from_pkey(nullptr, pkey.get(), nullptr), EVP_PKEY_CTX_free};
+    if (!ctx || EVP_PKEY_decapsulate_init(ctx.get(), nullptr) <= 0) {
+        throw std::runtime_error{"EVP_PKEY_decapsulate_init failed"};
+    }
+    size_t ss_len = ss.size();
+    if (EVP_PKEY_decapsulate(ctx.get(), reinterpret_cast<unsigned char *>(ss.data()), &ss_len,
+                             reinterpret_cast<const unsigned char *>(ct.data()), ct.size()) <= 0 ||
+        ss_len != ss.size()) {
+        throw std::runtime_error{"EVP_PKEY_decapsulate failed"};
+    }
+}
+
+#else
+
+bool has_openssl_kyber() { return false; }
+
+#endif
+
 } // namespace
 
 KeyPair keypair() {
+    if (has_openssl_kyber()) {
+        try {
+            return keypair_openssl();
+        } catch (...) {
+            // Fall back to reference implementation if OpenSSL fails.
+        }
+    }
     KeyPair kp{};
     pqcrystals_kyber512_ref_keypair(reinterpret_cast<uint8_t *>(kp.public_key.data()),
                                     reinterpret_cast<uint8_t *>(kp.private_key.data()));
@@ -193,9 +296,13 @@ encrypt(std::span<const std::byte> message,
     std::array<std::byte, pqcrystals_kyber512_CIPHERTEXTBYTES> kem_ct{};
     std::array<std::byte, pqcrystals_kyber512_BYTES> shared{};
 
-    pqcrystals_kyber512_ref_enc(reinterpret_cast<uint8_t *>(kem_ct.data()),
-                                reinterpret_cast<uint8_t *>(shared.data()),
-                                reinterpret_cast<const uint8_t *>(public_key.data()));
+    if (has_openssl_kyber()) {
+        encapsulate_openssl(public_key, kem_ct, shared);
+    } else {
+        pqcrystals_kyber512_ref_enc(reinterpret_cast<uint8_t *>(kem_ct.data()),
+                                    reinterpret_cast<uint8_t *>(shared.data()),
+                                    reinterpret_cast<const uint8_t *>(public_key.data()));
+    }
 
     std::array<std::byte, NONCE_SIZE> nonce{};
     random_bytes(nonce);
@@ -232,9 +339,13 @@ decrypt(std::span<const std::byte> ciphertext,
     std::span<const std::byte> enc_payload{enc_payload_begin, ciphertext.end()};
 
     std::array<std::byte, pqcrystals_kyber512_BYTES> shared{};
-    pqcrystals_kyber512_ref_dec(reinterpret_cast<uint8_t *>(shared.data()),
-                                reinterpret_cast<const uint8_t *>(kem_ct.data()),
-                                reinterpret_cast<const uint8_t *>(private_key.data()));
+    if (has_openssl_kyber()) {
+        decapsulate_openssl(kem_ct, private_key, shared);
+    } else {
+        pqcrystals_kyber512_ref_dec(reinterpret_cast<uint8_t *>(shared.data()),
+                                    reinterpret_cast<const uint8_t *>(kem_ct.data()),
+                                    reinterpret_cast<const uint8_t *>(private_key.data()));
+    }
 
     return aes_gcm_decrypt(enc_payload, shared, nonce, tag);
 }
