@@ -1,0 +1,9 @@
+{
+    packages = {
+        "/home/vscode/.xmake/packages/m/m4/1.4.19/8b7c7260096844c1a8b1c8d773e64b3d",
+        "/home/vscode/.xmake/packages/a/autoconf/2.72/acf1540df7454fb895001231995955f2",
+        "/home/vscode/.xmake/packages/a/automake/1.17/023583104f8e4bd8aa209b66cbeb4bee",
+        "/home/vscode/.xmake/packages/l/libtool/2.5.4/a39f42a4cf63482dafd96ea22a05e4c1",
+        "/home/vscode/.xmake/packages/l/libsodium/1.0.20/90aa7e3a1e86453f8aa0611885e28b0e"
+    }
+}

@@ -1,11 +1,15 @@
 # XINIM: Modern C++23 Post-Quantum Microkernel Operating System
 
+[![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
+[![POSIX](https://img.shields.io/badge/POSIX-2024-green.svg)](https://pubs.opengroup.org/onlinepubs/9799919799/)
+[![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
+
 XINIM is an advanced C++23 reimplementation of MINIX that extends the classic microkernel architecture with post-quantum cryptography, hardware abstraction layers, and sophisticated mathematical foundations. This research operating system demonstrates modern systems programming while maintaining educational clarity.
 
 ## 🚀 Key Innovations
 
 ### Pure C++23 Implementation
-- **100% C++23 Core**: No C files in core OS (previously 12, now 0)
+- **100% C++23 Core**: No C files in core OS
 - **Modern Language Features**: Concepts, ranges, coroutines, modules
 - **Compile-time Optimization**: Extensive constexpr and template metaprogramming
 - **RAII Throughout**: Automatic resource management and exception safety
@@ -28,194 +32,206 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **DAG Scheduling**: Dependency-aware scheduling with deadlock detection
 - **Service Resurrection**: Automatic fault recovery with dependency ordering
 
-## 📁 Project Structure
+## 📁 POSIX-Compliant Project Structure
 
 ```
 XINIM/
-├── kernel/         # Microkernel core (C++23)
-│   ├── arch/       # Architecture-specific code (x86_64, ARM64)
-│   ├── sys/        # System call dispatcher
-│   └── time/       # High-precision timing
-├── include/xinim/
-│   ├── hal/        # Hardware Abstraction Layer
-│   │   ├── arch.hpp    # CPU detection, barriers, prefetch
-│   │   └── simd.hpp    # Unified SIMD operations
-│   ├── boot/       # Boot protocol support
-│   └── network/    # Zero-overhead networking
-├── crypto/         # Post-quantum cryptography
-│   └── kyber_impl/ # ML-KEM implementation (C++23)
-├── mm/            # Memory management
-├── fs/            # MINIX filesystem
-├── lib/           # Standard library
-├── commands/      # POSIX utilities (75+ commands)
-└── tests/         # Comprehensive test suite
+├── bin/                    # Executables and scripts
+├── include/               # Public headers (.hpp only)
+│   ├── sys/              # System headers
+│   ├── c++/              # C++ standard library extensions
+│   ├── posix/            # POSIX API headers
+│   └── xinim/            # XINIM-specific headers
+├── lib/                   # Static/Shared libraries
+├── src/                   # Source code
+│   ├── kernel/           # Microkernel core
+│   ├── hal/              # Hardware Abstraction Layer
+│   ├── crypto/           # Cryptography implementations
+│   ├── fs/               # Filesystem implementations
+│   ├── mm/               # Memory management
+│   ├── net/              # Networking stack
+│   └── tools/            # Build tools and utilities
+├── test/                  # Test suites
+│   ├── unit/             # Unit tests
+│   ├── integration/      # Integration tests
+│   └── posix/            # POSIX compliance tests
+├── docs/                  # Documentation
+│   ├── api/              # API documentation
+│   ├── guides/           # User guides
+│   └── specs/            # Specifications
+├── scripts/               # Build and development scripts
+├── third_party/           # External dependencies
+└── xmake.lua             # Primary build system
 ```
 
-## 🛠️ Building
+## 🏗️ Build System
 
-### Prerequisites
+XINIM uses **xmake** as its primary build system, providing:
 
-- **Compiler**: Clang 17+ or GCC 13+ with C++23 support
-- **Build**: CMake 3.10+ or xmake 2.x
-- **Tools**: Python 3.x, Doxygen (optional)
+- **Native C++23 Support**: Full language feature detection
+- **Cross-platform**: Linux, macOS, Windows, BSD
+- **Multi-target**: Debug, Release, Profile, Coverage
+- **Dependency Management**: Automatic header/library detection
+- **Toolchain Flexibility**: GCC, Clang, MSVC support
 
-### Quick Build
+### Quick Start
 
 ```bash
-# Using xmake (recommended)
-xmake f -m release
-xmake
+# Install xmake (if not already installed)
+curl -fsSL https://xmake.io/shget.text | bash
+source ~/.xmake/profile
 
-# Using CMake
-mkdir build && cd build
-cmake -DCMAKE_BUILD_TYPE=Release ..
-make -j$(nproc)
-
-# Using Makefile wrapper
-make build     # Build with xmake
-make test      # Run tests
-make audit     # Code quality check
+# Clone and build
+git clone https://github.com/Oichkatzelesfrettschen/XINIM.git
+cd XINIM
+xmake config --toolchain=clang
+xmake build
 ```
 
-### Cross-compilation
+### Development Setup
 
 ```bash
-# For x86_64 target on ARM host
-xmake f --arch=x86_64 --cross=x86_64-elf-
-xmake
-
-# For ARM64 target on x86 host  
-xmake f --arch=arm64 --cross=aarch64-elf-
-xmake
+# Full development environment
+xmake config --mode=debug --toolchain=clang --ccache=y
+xmake build --verbose
+xmake run test_suite
 ```
 
-## 🏗️ Architecture Details
+## 🧪 Testing & Quality Assurance
 
-### Hardware Abstraction Layer
+### Comprehensive Test Coverage
+- **Unit Tests**: Individual component testing
+- **Integration Tests**: System-level verification
+- **POSIX Compliance**: Official test suite validation
+- **Performance Benchmarks**: Continuous optimization
 
-The HAL provides a unified interface across architectures:
+### Code Quality Tools
+- **Static Analysis**: Clang-Tidy, cppcheck
+- **Dynamic Analysis**: Valgrind, Sanitizers
+- **Coverage**: gcov, lcov integration
+- **Documentation**: Doxygen + Sphinx
+
+## 🔧 Architecture Deep Dive
+
+### Layered Design Philosophy
+
+XINIM follows a mathematically rigorous layered architecture:
+
+1. **L0 - Mathematical Foundations**
+   - Formal security models
+   - Capability algebra (octonion-based)
+   - Compositional verification
+
+2. **L1 - Abstract Contracts**
+   - State machines for capabilities
+   - IPC channel specifications
+   - Scheduling invariants
+
+3. **L2 - Algorithmic Realization**
+   - Concrete data structures
+   - Dependency DAG scheduling
+   - Lattice-based IPC
+
+4. **L3 - C++23 Implementation**
+   - Concepts and constraints
+   - Template metaprogramming
+   - RAII resource management
+
+5. **L4 - Tool Chain Integration**
+   - xmake build system
+   - Cross-platform toolchains
+   - Automated testing
+
+### Hardware Abstraction Layer (HAL)
+
+The HAL provides unified interfaces across architectures:
 
 ```cpp
-namespace xinim::hal {
-    // Architecture detection
-    inline constexpr bool is_x86_64 = /* compile-time detection */;
-    inline constexpr bool is_arm64 = /* compile-time detection */;
-    
-    // Memory barriers
-    inline void memory_barrier() noexcept {
-        #ifdef XINIM_ARCH_X86_64
-            asm volatile("mfence" ::: "memory");
-        #elif XINIM_ARCH_ARM64
-            asm volatile("dmb sy" ::: "memory");
-        #endif
+// Architecture-agnostic SIMD operations
+#include <xinim/hal/simd.hpp>
+
+void process_data(std::span<float> data) {
+    if (hal::simd::has_avx2()) {
+        hal::simd::avx2::vectorized_sum(data);
+    } else if (hal::simd::has_neon()) {
+        hal::simd::neon::vectorized_sum(data);
+    } else {
+        hal::simd::scalar::vectorized_sum(data);
     }
-    
-    // SIMD operations
-    struct vec128 {  // Unified 128-bit vector
-        #ifdef XINIM_ARCH_X86_64
-            __m128i xmm;
-        #elif XINIM_ARCH_ARM64
-            uint8x16_t neon;
-        #endif
-    };
 }
 ```
 
-### Performance Optimizations
+## 🔐 Post-Quantum Cryptography
 
-| Component | x86_64 | ARM64 | Speedup |
-|-----------|--------|-------|---------|
-| SHA3/Keccak | AVX2 | NEON | 2-3x |
-| NTT (Kyber) | AVX2 | NEON | 4-16x |
-| Memory Copy | REP MOVSB | NEON | 2x |
-| Atomic Ops | LOCK prefix | LSE | 1.5x |
+XINIM integrates NIST-standardized post-quantum algorithms:
 
-### QEMU Support
+### ML-KEM (Kyber) Implementation
+- **Lattice-based**: Resistant to quantum attacks
+- **SIMD Acceleration**: 4-16x performance improvement
+- **Constant-time**: Side-channel attack protection
+- **FIPS 203**: Compliant with NIST standards
 
-Run XINIM in QEMU for both architectures:
+```cpp
+#include <xinim/crypto/kyber.hpp>
 
-```bash
-# x86_64 with KVM acceleration
-qemu-system-x86_64 \
-    -enable-kvm \
-    -cpu host \
-    -m 2G \
-    -drive file=xinim.img,format=raw \
-    -serial stdio
+void secure_communication() {
+    // Generate keypair
+    auto [public_key, private_key] = kyber::generate_keypair();
 
-# ARM64 (Apple Silicon host)
-qemu-system-aarch64 \
-    -M virt \
-    -cpu host \
-    -accel hvf \
-    -m 2G \
-    -drive file=xinim.img,format=raw \
-    -serial stdio
+    // Encapsulate shared secret
+    auto [ciphertext, shared_secret] = kyber::encapsulate(public_key);
+
+    // Decapsulate on receiver side
+    auto received_secret = kyber::decapsulate(ciphertext, private_key);
+
+    // Use shared secret for symmetric encryption
+    assert(shared_secret == received_secret);
+}
 ```
-
-## 📊 Implementation Status
-
-### Core Components
-- ✅ **Kernel**: Microkernel with scheduling, IPC, memory management
-- ✅ **HAL**: Complete x86_64 and ARM64 abstraction
-- ✅ **Crypto**: SIMD-optimized Kyber, SHA3, ChaCha20
-- ✅ **Memory**: Virtual memory with paging
-- ✅ **Filesystem**: MINIX FS with caching
-- ✅ **Commands**: 75+ POSIX utilities
-- 🚧 **Networking**: TCP/IP stack (in progress)
-
-### Code Statistics
-- **Total Lines**: 85,813+ lines of C++23
-- **Architecture**: 98.3% C++23, 0% C in core
-- **Test Coverage**: 133 comprehensive tests
-- **SIMD Usage**: 92+ crypto integrations
-
-## 🧪 Testing
-
-```bash
-# Run all tests
-make test
-
-# Run specific test categories
-./build/tests/test_lattice_ipc    # IPC tests
-./build/tests/test_scheduler      # Scheduling tests
-./build/tests/test_kyber          # Crypto tests
-
-# Architecture verification
-./build/test_architecture_demo    # Validates all claims
-```
-
-## 📈 Benchmarks
-
-Performance compared to baseline MINIX:
-
-| Operation | XINIM | MINIX | Improvement |
-|-----------|-------|-------|-------------|
-| Context Switch | 0.8μs | 2.1μs | 2.6x faster |
-| IPC Round-trip | 1.2μs | 3.5μs | 2.9x faster |
-| Crypto (Kyber) | 45μs | 720μs | 16x faster |
-| File I/O | 120MB/s | 85MB/s | 1.4x faster |
-
-## 🔬 Research Contributions
-
-1. **First pure C++23 microkernel** with zero C code in core
-2. **Hardware abstraction layer** supporting x86_64 and ARM64 equally
-3. **SIMD-accelerated post-quantum crypto** in kernel space
-4. **Unified vector operations** across architectures
-5. **Compile-time architecture dispatch** with zero overhead
 
 ## 📚 Documentation
 
-- [Architecture Overview](docs/ARCHITECTURE.md)
-- [HAL Design](docs/ARCHITECTURE_HAL.md)
-- [Build Guide](docs/BUILDING.md)
-- [Code Distribution](docs/CODE_DISTRIBUTION.md)
-- [Migration Report](MIGRATION_REPORT.md)
+Comprehensive documentation is available in multiple formats:
+
+- **API Reference**: Doxygen-generated HTML
+- **Architecture Guide**: Sphinx-based documentation
+- **POSIX Compliance**: Detailed implementation notes
+- **Performance Analysis**: Benchmark results and optimization guides
+
+```bash
+# Generate full documentation
+xmake docs
+xdg-open docs/build/html/index.html
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [contributing guide](CONTRIBUTING.md) for details.
+
+### Development Workflow
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes with comprehensive tests
+4. Ensure all tests pass: `xmake test`
+5. Submit a pull request
+
+### Code Standards
+- **C++23**: Use modern language features
+- **POSIX Compliance**: Follow UNIX conventions
+- **Documentation**: Doxygen comments required
+- **Testing**: 100% test coverage expected
 
 ## 📄 License
 
-Licensed under the **BSD-3-Clause** license. See [LICENSE](LICENSE) for details.
+XINIM is licensed under the BSD 3-Clause License. See [LICENSE](LICENSE) for details.
+
+## 🙏 Acknowledgments
+
+- **Original MINIX**: Foundation for microkernel design
+- **NIST**: Post-quantum cryptography standards
+- **LLVM/Clang**: Excellent C++23 toolchain
+- **xmake**: Superior build system for C++ projects
 
 ---
 
-**XINIM** represents the evolution of educational operating systems - combining MINIX's pedagogical clarity with cutting-edge C++23, comprehensive hardware abstraction, and post-quantum security for the modern era.
+**XINIM**: Where mathematics meets systems programming in perfect harmony.

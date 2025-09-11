@@ -6,7 +6,7 @@
  */
 #pragma once
 
-#include "../../h/error.hpp" // For ErrorCode enum
+#include "../"sys/error.hpp" // For ErrorCode enum
 #include <string>            // For std::string
 #include <system_error>      // For std::error_category, std::error_code
 

@@ -1,0 +1,96 @@
+{
+    nim_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = false
+    },
+    gcc_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = {
+            program = "/usr/bin/gcc",
+            name = "gcc"
+        }
+    },
+    nasm_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    swift_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    clang_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = {
+            program = "/usr/lib/llvm-19/bin/clang",
+            name = "clang"
+        }
+    },
+    envs_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    rust_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    yasm_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    fasm_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    go_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    fpc_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    cuda_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    },
+    tool_target_xinim_linux_x86_64_cxx = {
+        toolchain_info = {
+            cachekey = "clang_arch_x86_64_plat_linux",
+            name = "clang",
+            plat = "linux",
+            arch = "x86_64"
+        },
+        program = "/usr/lib/llvm-19/bin/clang",
+        toolname = "clang"
+    },
+    gfortran_arch_x86_64_plat_linux = {
+        __global = true,
+        arch = "x86_64",
+        plat = "linux",
+        __checked = true
+    }
+}

@@ -7,10 +7,10 @@
 #For example,
 #-lpthread -D_GNU_SOURCE
 #
-#Recommended flags:
-#-D_XOPEN_SOURCE=600 -lpthread -lrt -lm
+#Recommended flags for C++23:
+-D_XOPEN_SOURCE=700 -D_GNU_SOURCE -lpthread -lrt -lm -lstdc++
 #
 # For use with Linux, you may try the following flags to
 # allow for the NPTL-specific compilation (used in some test cases)
 # Note: this sometimes require the package nptl-devel.*.rpm to be installed.
-#-I /usr/include/nptl -L /usr/lib/nptl -D_XOPEN_SOURCE=600 -lpthread -lrt -lm
+#-I /usr/include/nptl -L /usr/lib/nptl -D_XOPEN_SOURCE=700 -D_GNU_SOURCE -lpthread -lrt -lm -lstdc++

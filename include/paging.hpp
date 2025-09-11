@@ -12,8 +12,8 @@
 #ifndef PAGING_H
 #define PAGING_H
 
-#include "../h/const.hpp"
-#include "../h/type.hpp"
+#include <sys/const.hpp>
+#include <sys/type.hpp>
 #include <cstddef> // for std::size_t
 
 /* Generic 4-level paging structures for 48-bit virtual addresses. */

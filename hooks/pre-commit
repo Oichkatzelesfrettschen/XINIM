@@ -1,9 +1,0 @@
-#!/usr/bin/env bash
-# Formats staged C++ sources with clang-format.
-set -euo pipefail
-
-files=$(git diff --cached --name-only --diff-filter=ACMR | grep -E '\.(cc|cpp|cxx|hh|hpp|hxx)$') || exit 0
-for file in $files; do
-  clang-format -i "$file"
-  git add "$file"
-done

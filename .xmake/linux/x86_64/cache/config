@@ -1,0 +1,10 @@
+{
+    options = {
+        toolchain = "clang",
+        mode = "debug"
+    },
+    mtimes = {
+        ["xmake.lua"] = 1757630338
+    },
+    recheck = false
+}

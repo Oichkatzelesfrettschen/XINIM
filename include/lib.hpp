@@ -8,10 +8,10 @@
 #pragma once
 
 // Use the C++23 versions of the system headers
-#include "../h/callnr.hpp" // system call numbers
-#include "../h/const.hpp"  // system-wide constants
-#include "../h/error.hpp"  // error codes
-#include "../h/type.hpp"   // basic MINIX types (includes xinim/core_types.hpp indirectly)
+#include "sys/callnr.hpp" // system call numbers
+#include "sys/const.hpp"  // system-wide constants
+#include "sys/error.hpp"  // error codes
+#include "sys/type.hpp"   // basic MINIX types (includes xinim/core_types.hpp indirectly)
 #include "defs.hpp"        // project specific definitions
 #include <cstddef>         // for std::size_t, nullptr (though NIL_PTR is from h/const.hpp)
 // #include "xinim/core_types.hpp" // Explicitly if needed, but type.hpp should suffice
