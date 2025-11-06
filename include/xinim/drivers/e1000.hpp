@@ -16,7 +16,6 @@
 
 #include <cstdint>
 #include <memory>
-#include <xinim/hal/pci.hpp>
 
 namespace xinim::drivers {
 

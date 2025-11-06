@@ -119,8 +119,9 @@ bool E1000Driver::initialize() {
     write_reg(Registers::CTRL, ctrl);
 
     // Check link status
+    static constexpr uint32_t STATUS_LU = 0x02;  // Link Up bit
     uint32_t status = read_reg(Registers::STATUS);
-    link_up_ = (status & 0x02) != 0;
+    link_up_ = (status & STATUS_LU) != 0;
 
     std::cout << "[E1000] Link status: " << (link_up_ ? "UP" : "DOWN") << std::endl;
     std::cout << "[E1000] Initialization complete" << std::endl;
@@ -296,8 +297,9 @@ bool E1000Driver::receive_packet(uint8_t* buffer, uint16_t& length) {
 }
 
 bool E1000Driver::link_up() const {
+    static constexpr uint32_t STATUS_LU = 0x02;  // Link Up bit
     uint32_t status = read_reg(Registers::STATUS);
-    return (status & 0x02) != 0;
+    return (status & STATUS_LU) != 0;
 }
 
 void E1000Driver::get_mac_address(uint8_t mac[6]) const {

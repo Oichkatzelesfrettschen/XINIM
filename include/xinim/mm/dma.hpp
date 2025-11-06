@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <cstddef>
 #include <memory>
+#include <vector>
 
 namespace xinim::mm {
 
