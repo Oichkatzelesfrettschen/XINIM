@@ -10,6 +10,20 @@ add_rules("mode.debug", "mode.release")
 set_warnings("all", "error")
 set_policy("check.auto_ignore_flags", false)
 
+-- Architecture detection and configuration
+if is_arch("i386", "i686", "x86") then
+    add_defines("__XINIM_I386__")
+    add_cxflags("-m32")
+    add_ldflags("-m32")
+    add_cxflags("-march=i686", "-mtune=generic")
+    set_toolchains("clang")  -- Clang has better C++23 support for i386
+elseif is_arch("x86_64") then
+    add_defines("__XINIM_X86_64__")
+    add_cxflags("-march=x86-64", "-mtune=generic")
+elseif is_arch("arm64", "aarch64") then
+    add_defines("__XINIM_ARM64__")
+end
+
 -- POSIX compliance flags
 add_cxflags("-D_XOPEN_SOURCE=700", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Wpedantic")
 add_ldflags("-pthread", "-lrt")
@@ -49,10 +63,15 @@ target("xinim")
     add_files("src/kernel/wait_graph.cpp")
     add_files("src/kernel/net_driver.cpp")
 
-    -- HAL subsystem
+    -- HAL subsystem (architecture-specific)
     add_files("src/hal/hal.cpp")
-    add_files("src/hal/x86_64/hal/*.cpp")
-    add_files("src/hal/arm64/hal/*.cpp")
+    if is_arch("i386", "i686", "x86") then
+        add_files("src/hal/i386/hal/*.cpp")
+    elseif is_arch("x86_64") then
+        add_files("src/hal/x86_64/hal/*.cpp")
+    elseif is_arch("arm64", "aarch64") then
+        add_files("src/hal/arm64/hal/*.cpp")
+    end
 
     -- Memory management
     add_files("src/mm/memory.cpp")
@@ -116,6 +135,13 @@ target("xinim")
 
     -- Link with required libraries
     add_links("sodium", "rt", "pthread", "m")
+    
+    -- Architecture-specific linker script
+    if is_arch("i386", "i686", "x86") then
+        add_ldflags("-T" .. path.join(os.projectdir(), "linker_i386.ld"))
+    else
+        add_ldflags("-T" .. path.join(os.projectdir(), "linker.ld"))
+    end
 
 -- POSIX compliance test suite (native wrapper)
 target("posix-suite")

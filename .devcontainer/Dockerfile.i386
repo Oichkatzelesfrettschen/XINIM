@@ -1,0 +1,75 @@
+# XINIM i386 Build and Test Environment
+# Docker container for building and testing XINIM on i386 architecture
+
+FROM ubuntu:24.04
+
+# Prevent interactive prompts during package installation
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install base build tools and i386 cross-compilation support
+RUN apt-get update && apt-get install -y \
+    # Build essentials
+    build-essential \
+    cmake \
+    ninja-build \
+    git \
+    curl \
+    wget \
+    python3 \
+    python3-pip \
+    # C++ compiler and toolchain
+    clang-18 \
+    clang++-18 \
+    lld-18 \
+    lldb-18 \
+    gcc-multilib \
+    g++-multilib \
+    # i386 libraries and support
+    libc6-dev-i386 \
+    lib32gcc-13-dev \
+    lib32stdc++-13-dev \
+    # QEMU for testing
+    qemu-system-x86 \
+    qemu-utils \
+    # Additional tools
+    libsodium-dev \
+    nasm \
+    grub-pc-bin \
+    xorriso \
+    mtools \
+    # Debugging tools
+    gdb-multiarch \
+    valgrind \
+    # Documentation
+    doxygen \
+    graphviz \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set up clang as default compiler
+RUN update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100 && \
+    update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100 && \
+    update-alternatives --install /usr/bin/lld lld /usr/bin/lld-18 100
+
+# Install xmake build system
+RUN cd /tmp && \
+    wget https://github.com/xmake-io/xmake/releases/download/v2.8.7/xmake-v2.8.7.gz.run && \
+    chmod +x xmake-v2.8.7.gz.run && \
+    ./xmake-v2.8.7.gz.run --prefix=/usr/local && \
+    rm xmake-v2.8.7.gz.run
+
+# Create workspace directory
+WORKDIR /workspace
+
+# Environment variables for i386 builds
+ENV CC=clang-18
+ENV CXX=clang++-18
+ENV CFLAGS="-m32"
+ENV CXXFLAGS="-m32 -std=c++23"
+ENV LDFLAGS="-m32"
+
+# Copy entry point script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+CMD ["/bin/bash"]

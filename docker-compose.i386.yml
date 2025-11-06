@@ -1,0 +1,41 @@
+# Docker Compose configuration for XINIM i386 development
+# Usage: docker-compose -f docker-compose.i386.yml up -d
+
+version: '3.8'
+
+services:
+  xinim-i386-build:
+    build:
+      context: .devcontainer
+      dockerfile: Dockerfile.i386
+    container_name: xinim-i386-dev
+    volumes:
+      - .:/workspace:cached
+      - xinim-i386-build:/workspace/build
+      - xinim-i386-cache:/root/.xmake
+    working_dir: /workspace
+    stdin_open: true
+    tty: true
+    privileged: true  # Required for KVM acceleration if available
+    devices:
+      - /dev/kvm:/dev/kvm  # KVM device for hardware acceleration
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - XINIM_ARCH=i386
+    cap_add:
+      - NET_ADMIN  # For networking tests
+      - SYS_ADMIN  # For QEMU
+    security_opt:
+      - apparmor:unconfined  # Allow QEMU to run
+    networks:
+      - xinim-net
+
+volumes:
+  xinim-i386-build:
+    driver: local
+  xinim-i386-cache:
+    driver: local
+
+networks:
+  xinim-net:
+    driver: bridge
