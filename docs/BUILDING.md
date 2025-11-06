@@ -3,7 +3,7 @@
 
 This document explains how to build the (XINIM) sources and verify that the tool-chain works on a Unix-like host.
 
-The codebase is **work in progress**, aiming to reproduce classic Minix simplicity on modern **arm64** and **x86-64** machines using **C++23**.
+The codebase is **work in progress**, aiming to reproduce classic Minix simplicity on modern **x86-64** machines using **C++23**.
 
 -----
 

@@ -15,11 +15,11 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **RAII Throughout**: Automatic resource management and exception safety
 
 ### Hardware Abstraction Layer (HAL)
-- **Multi-Architecture Support**: Native x86_64, i386 (32-bit x86), and ARM64 (including Apple Silicon)
-- **SIMD Optimization**: AVX2/AVX512 for x86_64, SSE/MMX for i386, NEON for ARM64
+- **x86_64 Architecture**: Focused on modern 64-bit Intel/AMD processors
+- **SIMD Optimization**: AVX2/AVX512 vectorization for high-performance operations
 - **Runtime CPU Detection**: Automatic selection of optimal code paths
-- **Cross-platform Primitives**: Unified interface for memory barriers, prefetch, atomics
-- **QEMU Validation**: Full support for i386 QEMU virtualization with optimal settings
+- **Platform Primitives**: Unified interface for memory barriers, prefetch, atomics
+- **QEMU Support**: Full support for x86_64 QEMU virtualization
 
 ### Post-Quantum Security
 - **ML-KEM (Kyber)**: NIST-standardized lattice-based key encapsulation
@@ -97,28 +97,6 @@ xmake config --mode=debug --toolchain=clang --ccache=y
 xmake build --verbose
 xmake run test_suite
 ```
-
-### Building for i386 (32-bit x86)
-
-XINIM supports 32-bit i386 architecture for QEMU virtualization:
-
-```bash
-# Configure for i386
-xmake config --arch=i386 --toolchain=clang
-
-# Build
-xmake build
-
-# Run in QEMU
-./scripts/qemu_i386.sh
-
-# Or use Docker for isolated build environment
-docker-compose -f docker-compose.i386.yml up -d
-docker exec -it xinim-i386-dev /bin/bash
-```
-
-📖 **See [I386 QEMU Guide](docs/I386_QEMU_GUIDE.md) for comprehensive i386 setup, build, and testing instructions.**
-
 
 ## 🧪 Testing & Quality Assurance
 
