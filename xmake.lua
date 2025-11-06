@@ -53,7 +53,7 @@ target("xinim")
     add_files("src/kernel/wait_graph.cpp")
     add_files("src/kernel/net_driver.cpp")
 
-    -- HAL subsystem (x86_64 only)
+    -- HAL subsystem (generic HAL + x86_64-specific implementation)
     add_files("src/hal/hal.cpp")
     add_files("src/hal/x86_64/hal/*.cpp")
 

@@ -115,7 +115,7 @@ inline std::uint64_t detect_x86_capabilities() noexcept {
 }
 
 #else
-#error "XINIM only supports x86_64 architecture"
+#error "XINIM only supports x86_64 architecture. Ensure __x86_64__ or _M_X64 is defined. Compile with -march=x86-64 or appropriate 64-bit target."
 #endif
 
 } // namespace detail

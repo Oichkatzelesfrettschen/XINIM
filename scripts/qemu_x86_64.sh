@@ -179,9 +179,8 @@ QEMU_ARGS=(
     # Display
     $DISPLAY
     
-    # Additional useful options
-    -no-reboot                                # Exit on reboot
-    -no-shutdown                              # Keep QEMU running after guest shutdown
+    # Exit on reboot for clean termination
+    -no-reboot
 )
 
 # Add kernel command line if specified

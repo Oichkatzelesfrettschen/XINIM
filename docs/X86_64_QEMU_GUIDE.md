@@ -62,9 +62,26 @@ sudo dnf install -y \
 ```
 
 ### Install xmake
+
+**Option 1: Official installer (recommended)**
 ```bash
+# Download and install xmake (uses HTTPS)
 curl -fsSL https://xmake.io/shget.text | bash
 source ~/.xmake/profile
+
+# Verify installation
+xmake --version
+```
+
+**Option 2: Package manager (more secure)**
+```bash
+# Ubuntu/Debian (via snap)
+sudo snap install xmake --classic
+
+# Or build from source
+git clone https://github.com/xmake-io/xmake.git
+cd xmake
+./scripts/get.sh __local__
 ```
 
 ---
