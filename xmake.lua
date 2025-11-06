@@ -21,6 +21,7 @@ add_ldflags("-pthread", "-lrt")
 -- Include paths
 add_includedirs("include")
 add_includedirs("include/xinim")
+add_includedirs("include/xinim/drivers")
 add_includedirs("third_party/limine")
 
 -- Dependencies
@@ -103,6 +104,12 @@ target("xinim")
 
     -- Network subsystem
     add_files("src/net/network.cpp")
+    
+    -- Modern drivers for x86_64
+    add_files("src/drivers/net/e1000.cpp")
+    -- TODO: Add more drivers as they are implemented
+    -- add_files("src/drivers/block/ahci.cpp")
+    -- add_files("src/drivers/virtio/*.cpp")
 
     -- Commands/utilities
     add_files("src/commands/*.cpp")
