@@ -128,6 +128,26 @@ target("xinim")
 
     -- Tools
     add_files("src/tools/*.cpp")
+    
+-- Userland components
+
+-- mksh shell
+target("mksh")
+    set_kind("binary")
+    set_languages("c17")
+    add_files("userland/shell/mksh/integration/*.c")
+    add_includedirs("include")
+    -- TODO: Add mksh source when downloaded
+    -- add_files("userland/shell/mksh/mksh.c")
+target_end()
+
+-- Userland libraries (libc, libm, libpthread)
+-- TODO: Implement in Week 4
+-- target("xinim_libc")
+--     set_kind("shared")
+--     add_files("userland/libc/src/**/*.c")
+--     add_files("userland/libc/arch/x86_64/**/*.S")
+-- target_end()
 
     -- Boot and early initialization
     add_files("src/boot/limine/*.cpp")
