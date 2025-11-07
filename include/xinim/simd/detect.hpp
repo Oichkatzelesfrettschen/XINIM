@@ -18,10 +18,10 @@ namespace xinim::simd {
  */
 namespace detail {
 
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#if defined(__x86_64__) || defined(_M_X64)
 
 /**
- * @brief x86/x86-64 CPUID wrapper
+ * @brief x86-64 CPUID wrapper
  */
 struct CpuidResult {
     std::uint32_t eax, ebx, ecx, edx;
@@ -114,90 +114,8 @@ inline std::uint64_t detect_x86_capabilities() noexcept {
     return caps;
 }
 
-#elif defined(__aarch64__) || defined(_M_ARM64)
-
-/**
- * @brief Read ARM system register
- * @param reg Register name
- * @return Register value
- */
-inline std::uint64_t read_system_register(const char* reg) noexcept {
-    std::uint64_t value = 0;
-#if defined(__GNUC__) || defined(__clang__)
-    // Note: This requires runtime register name which isn't supported
-    // For now, return 0 and rely on OS detection
-    (void)reg;
-#endif
-    return value;
-}
-
-/**
- * @brief Detect ARM64 SIMD capabilities
- * @return Capability flags
- */
-inline std::uint64_t detect_arm64_capabilities() noexcept {
-    std::uint64_t caps = 0;
-    
-#if defined(__GNUC__) || defined(__clang__)
-    // Read ID_AA64PFR0_EL1 (Processor Feature Register 0)
-    std::uint64_t pfr0;
-    asm volatile("mrs %0, id_aa64pfr0_el1" : "=r" (pfr0));
-    
-    // Check FP field (bits 19:16)
-    std::uint64_t fp = (pfr0 >> 16) & 0xF;
-    if (fp >= 0x0) caps |= static_cast<std::uint64_t>(Capability::VFP);
-    if (fp >= 0x1) caps |= static_cast<std::uint64_t>(Capability::VFP4);
-    
-    // Check AdvSIMD field (bits 23:20)  
-    std::uint64_t advsimd = (pfr0 >> 20) & 0xF;
-    if (advsimd >= 0x0) caps |= static_cast<std::uint64_t>(Capability::NEON);
-    if (advsimd >= 0x1) caps |= static_cast<std::uint64_t>(Capability::NEON_FP16);
-    
-    // Check SVE field (bits 35:32)
-    std::uint64_t sve = (pfr0 >> 32) & 0xF;
-    if (sve >= 0x1) caps |= static_cast<std::uint64_t>(Capability::SVE);
-    
-    // Read ID_AA64ISAR0_EL1 (Instruction Set Attribute Register 0)
-    std::uint64_t isar0;
-    asm volatile("mrs %0, id_aa64isar0_el1" : "=r" (isar0));
-    
-    // Check AES field (bits 7:4)
-    std::uint64_t aes = (isar0 >> 4) & 0xF;
-    if (aes >= 0x1) caps |= static_cast<std::uint64_t>(Capability::CRYPTO);
-    
-    // Check CRC32 field (bits 19:16)
-    std::uint64_t crc32 = (isar0 >> 16) & 0xF;
-    if (crc32 >= 0x1) caps |= static_cast<std::uint64_t>(Capability::CRC32);
-    
-    // Read ID_AA64ZFR0_EL1 (SVE Feature Register) if SVE is present
-    if (caps & static_cast<std::uint64_t>(Capability::SVE)) {
-        std::uint64_t zfr0;
-        asm volatile("mrs %0, id_aa64zfr0_el1" : "=r" (zfr0));
-        
-        // Check SVE version
-        std::uint64_t svever = zfr0 & 0xF;
-        if (svever >= 0x1) caps |= static_cast<std::uint64_t>(Capability::SVE2);
-    }
-#endif
-    
-    return caps;
-}
-
-#elif defined(__riscv)
-
-/**
- * @brief Detect RISC-V vector capabilities
- * @return Capability flags
- */
-inline std::uint64_t detect_riscv_capabilities() noexcept {
-    std::uint64_t caps = 0;
-    
-    // RISC-V vector detection would go here
-    // This is future work as RISC-V vector extensions are still evolving
-    
-    return caps;
-}
-
+#else
+#error "XINIM only supports x86_64 architecture. Ensure __x86_64__ or _M_X64 is defined. Compile with -march=x86-64 or appropriate 64-bit target."
 #endif
 
 } // namespace detail
@@ -207,14 +125,10 @@ inline std::uint64_t detect_riscv_capabilities() noexcept {
  * @return Detected SIMD capabilities
  */
 inline std::uint64_t detect_capabilities() noexcept {
-#if defined(__x86_64__) || defined(_M_X64) || defined(__i386__) || defined(_M_IX86)
+#if defined(__x86_64__) || defined(_M_X64)
     return detail::detect_x86_capabilities();
-#elif defined(__aarch64__) || defined(_M_ARM64)
-    return detail::detect_arm64_capabilities();
-#elif defined(__riscv)
-    return detail::detect_riscv_capabilities();
 #else
-    return 0; // No SIMD support detected
+    #error "XINIM only supports x86_64 architecture"
 #endif
 }
 
@@ -223,19 +137,7 @@ inline std::uint64_t detect_capabilities() noexcept {
  * @return Architecture name
  */
 constexpr const char* get_architecture_name() noexcept {
-#if defined(__x86_64__) || defined(_M_X64)
     return "x86-64";
-#elif defined(__i386__) || defined(_M_IX86)
-    return "x86";
-#elif defined(__aarch64__) || defined(_M_ARM64)
-    return "ARM64";
-#elif defined(__arm__) || defined(_M_ARM)
-    return "ARM32";
-#elif defined(__riscv)
-    return "RISC-V";
-#else
-    return "Unknown";
-#endif
 }
 
 /**
@@ -268,19 +170,6 @@ constexpr const char* get_capability_name(Capability cap) noexcept {
         case Capability::AVX512VNNI:    return "AVX-512VNNI";
         case Capability::AMD_3DNOW:     return "3DNow!";
         case Capability::AMD_3DNOWEXT:  return "3DNow! Extended";
-        case Capability::VFP:           return "VFP";
-        case Capability::VFP3:          return "VFPv3";
-        case Capability::VFP4:          return "VFPv4";
-        case Capability::NEON:          return "NEON";
-        case Capability::NEON_FP16:     return "NEON FP16";
-        case Capability::CRYPTO:        return "ARM Crypto";
-        case Capability::CRC32:         return "CRC32";
-        case Capability::SVE:           return "SVE";
-        case Capability::SVE2:          return "SVE2";
-        case Capability::RV_V:          return "RISC-V Vector";
-        case Capability::RV_ZVL128B:    return "RISC-V ZVL128B";
-        case Capability::RV_ZVL256B:    return "RISC-V ZVL256B";
-        case Capability::RV_ZVL512B:    return "RISC-V ZVL512B";
         default:                        return "Unknown";
     }
 }

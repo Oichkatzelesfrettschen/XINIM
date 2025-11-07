@@ -15,10 +15,11 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **RAII Throughout**: Automatic resource management and exception safety
 
 ### Hardware Abstraction Layer (HAL)
-- **Multi-Architecture Support**: Native x86_64 and ARM64 (including Apple Silicon)
-- **SIMD Optimization**: AVX2/AVX512 for x86_64, NEON for ARM64
+- **x86_64 Architecture**: Focused on modern 64-bit Intel/AMD processors
+- **SIMD Optimization**: AVX2/AVX512 vectorization for high-performance operations
 - **Runtime CPU Detection**: Automatic selection of optimal code paths
-- **Cross-platform Primitives**: Unified interface for memory barriers, prefetch, atomics
+- **Platform Primitives**: Unified interface for memory barriers, prefetch, atomics
+- **QEMU Support**: Full support for x86_64 QEMU virtualization
 
 ### Post-Quantum Security
 - **ML-KEM (Kyber)**: NIST-standardized lattice-based key encapsulation

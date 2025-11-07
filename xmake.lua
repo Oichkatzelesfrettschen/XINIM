@@ -10,6 +10,10 @@ add_rules("mode.debug", "mode.release")
 set_warnings("all", "error")
 set_policy("check.auto_ignore_flags", false)
 
+-- x86_64 architecture configuration
+add_defines("__XINIM_X86_64__")
+add_cxflags("-march=x86-64", "-mtune=generic")
+
 -- POSIX compliance flags
 add_cxflags("-D_XOPEN_SOURCE=700", "-D_GNU_SOURCE", "-pthread", "-Wall", "-Wextra", "-Wpedantic")
 add_ldflags("-pthread", "-lrt")
@@ -17,6 +21,7 @@ add_ldflags("-pthread", "-lrt")
 -- Include paths
 add_includedirs("include")
 add_includedirs("include/xinim")
+add_includedirs("include/xinim/drivers")
 add_includedirs("third_party/limine")
 
 -- Dependencies
@@ -49,10 +54,9 @@ target("xinim")
     add_files("src/kernel/wait_graph.cpp")
     add_files("src/kernel/net_driver.cpp")
 
-    -- HAL subsystem
+    -- HAL subsystem (generic HAL + x86_64-specific implementation)
     add_files("src/hal/hal.cpp")
     add_files("src/hal/x86_64/hal/*.cpp")
-    add_files("src/hal/arm64/hal/*.cpp")
 
     -- Memory management
     add_files("src/mm/memory.cpp")
@@ -100,6 +104,21 @@ target("xinim")
 
     -- Network subsystem
     add_files("src/net/network.cpp")
+    
+    -- Modern drivers for x86_64
+    add_files("src/drivers/net/e1000.cpp")
+    add_files("src/drivers/block/ahci.cpp")
+    -- TODO: Add VirtIO drivers
+    -- add_files("src/drivers/virtio/*.cpp")
+    
+    -- Microkernel servers
+    add_files("src/servers/reincarnation_server.cpp")
+    
+    -- VFS layer
+    add_files("src/vfs/vfs.cpp")
+    
+    -- DMA management
+    add_files("src/mm/dma.cpp")
 
     -- Commands/utilities
     add_files("src/commands/*.cpp")
@@ -109,6 +128,26 @@ target("xinim")
 
     -- Tools
     add_files("src/tools/*.cpp")
+    
+-- Userland components
+
+-- mksh shell
+target("mksh")
+    set_kind("binary")
+    set_languages("c17")
+    add_files("userland/shell/mksh/integration/*.c")
+    add_includedirs("include")
+    -- TODO: Add mksh source when downloaded
+    -- add_files("userland/shell/mksh/mksh.c")
+target_end()
+
+-- Userland libraries (libc, libm, libpthread)
+-- TODO: Implement in Week 4
+-- target("xinim_libc")
+--     set_kind("shared")
+--     add_files("userland/libc/src/**/*.c")
+--     add_files("userland/libc/arch/x86_64/**/*.S")
+-- target_end()
 
     -- Boot and early initialization
     add_files("src/boot/limine/*.cpp")
