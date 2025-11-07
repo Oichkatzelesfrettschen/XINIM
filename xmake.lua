@@ -107,9 +107,18 @@ target("xinim")
     
     -- Modern drivers for x86_64
     add_files("src/drivers/net/e1000.cpp")
-    -- TODO: Add more drivers as they are implemented
-    -- add_files("src/drivers/block/ahci.cpp")
+    add_files("src/drivers/block/ahci.cpp")
+    -- TODO: Add VirtIO drivers
     -- add_files("src/drivers/virtio/*.cpp")
+    
+    -- Microkernel servers
+    add_files("src/servers/reincarnation_server.cpp")
+    
+    -- VFS layer
+    add_files("src/vfs/vfs.cpp")
+    
+    -- DMA management
+    add_files("src/mm/dma.cpp")
 
     -- Commands/utilities
     add_files("src/commands/*.cpp")
