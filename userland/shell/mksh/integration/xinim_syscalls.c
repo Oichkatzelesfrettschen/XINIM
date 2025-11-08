@@ -71,7 +71,7 @@ int xinim_execve(const char *pathname, char *const argv[], char *const envp[]) {
                               (long)argv, (long)envp, 0, 0);
 }
 
-void xinim_exit(int status) {
+_Noreturn void xinim_exit(int status) {
     xinim_syscall(XINIM_SYS_EXIT, status, 0, 0, 0, 0);
     __builtin_unreachable();
 }
