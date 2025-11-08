@@ -3,7 +3,7 @@
 
 set_project("XINIM")
 set_version("1.0.0")
-set_languages("c++23")
+set_languages("c17", "cxx23")
 
 -- Basic configuration
 add_rules("mode.debug", "mode.release")
@@ -30,6 +30,8 @@ add_requires("libsodium")
 -- Main XINIM kernel target
 target("xinim")
     set_kind("binary")
+    set_languages("cxx23")
+    add_cxflags("-std=c++23")
     add_files("src/main.cpp")
 
     -- Kernel subsystem
@@ -186,19 +188,10 @@ target("posix-comprehensive")
 
 -- GNU POSIX Test Suite integration target
 target("posix-gnu-test")
-    set_kind("phony")
-    on_build(function (target)
-        import("core.project.task")
-        import("core.base.global")
-
-        -- Run the GNU POSIX test suite
-        local gnu_test_dir = path.join(os.projectdir(), "third_party/gpl/posixtestsuite-main")
-        if os.isdir(gnu_test_dir) then
-            os.cd(gnu_test_dir)
-            os.exec("./run_tests")
-        else
-            print("GNU POSIX test suite not found at: " .. gnu_test_dir)
-        end
+    set_kind("binary")
+    on_run(function (target)
+        os.cd("third_party/gpl/posixtestsuite-main/")
+        os.exec("./run_tests AIO")
     end)
 
 -- All tests target

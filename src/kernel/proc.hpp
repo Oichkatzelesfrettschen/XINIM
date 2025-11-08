@@ -16,6 +16,17 @@
 #undef printf
 #endif
 
+// Function prototypes
+PUBLIC int mini_send(int caller, int dest, message *m_ptr);
+static int mini_rec(int caller, int src, message *m_ptr);
+PUBLIC void pick_proc();
+PUBLIC void ready(struct proc *rp);
+PUBLIC void unready(struct proc *rp);
+PUBLIC void cp_mess(int src, uint64_t src_phys, void* src_vir, uint64_t dest_phys, void* dest_vir);
+PUBLIC void inform(int proc_nr);
+PUBLIC void lock();
+PUBLIC void restore();
+
 /**
  * @brief Process descriptor stored in the kernel table.
  *

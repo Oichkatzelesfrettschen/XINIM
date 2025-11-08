@@ -12,6 +12,9 @@
 #include <signal.h>
 #include <errno.h>
 #include <termios.h>
+#include <sys/ioctl.h>
+#include <syscall.h>
+#include <stdio.h>
 
 /* Process group management */
 

@@ -173,7 +173,7 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
     len = caller_ptr->p_map[D].mem_len;        // mem_len is vir_clicks (std::size_t)
     vb = reinterpret_cast<std::size_t>(m_ptr); // m_ptr is message*
     vlo = vb >> CLICK_SHIFT;                   /* vir click for bottom of message */
-    vhi = (vb + MESS_SIZE - 1) >>
+    vhi = (vb + sizeof(message) - 1) >>
           CLICK_SHIFT; /* vir click for top of message. MESS_SIZE is sizeof(message) */
     // p_map[D].mem_vir is vir_clicks (std::size_t)
     if (vhi < vlo || vhi - caller_ptr->p_map[D].mem_vir >= len)
