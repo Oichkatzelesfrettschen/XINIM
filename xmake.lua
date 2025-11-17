@@ -56,15 +56,21 @@ target("xinim")
     add_files("src/kernel/wait_graph.cpp")
     add_files("src/kernel/net_driver.cpp")
 
-    -- Week 8: Preemptive scheduling and context switching
+    -- Week 8 Phase 2: Preemptive scheduling and context switching
     add_files("src/kernel/server_spawn.cpp")
     add_files("src/kernel/scheduler.cpp")
     add_files("src/kernel/timer.cpp")
     add_files("src/kernel/arch/x86_64/idt.cpp")
 
-    -- Week 8: Assembly files for context switching and interrupts
+    -- Week 8 Phase 3: Ring 3 transition (GDT, TSS)
+    add_files("src/kernel/arch/x86_64/gdt.cpp")
+    add_files("src/kernel/arch/x86_64/tss.cpp")
+
+    -- Week 8: Assembly files for context switching, interrupts, GDT, TSS
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")
+    add_files("src/arch/x86_64/gdt_load.S")
+    add_files("src/arch/x86_64/tss_load.S")
 
     -- HAL subsystem (generic HAL + x86_64-specific implementation)
     add_files("src/hal/hal.cpp")

@@ -9,6 +9,8 @@
 #include "server_spawn.hpp"  // Week 7: Server spawning infrastructure
 #include "scheduler.hpp"      // Week 8 Phase 2: Preemptive scheduler
 #include "timer.hpp"           // Week 8 Phase 2: Timer interrupts
+#include "arch/x86_64/gdt.hpp"  // Week 8 Phase 3: GDT for Ring 3
+#include "arch/x86_64/tss.hpp"  // Week 8 Phase 3: TSS for kernel stacks
 
 #ifdef XINIM_ARCH_X86_64
 #include "../arch/x86_64/hal/apic.hpp"
@@ -235,6 +237,17 @@ extern "C" void _start() {
     kputs("Boot: Stub mode (testing)\n");
     Console::printf("XINIM kernel stub\n");
 #endif
+
+    // ========================================
+    // Week 8 Phase 3: Initialize GDT and TSS
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8 Phase 3: GDT and TSS Setup\n");
+    kputs("========================================\n");
+
+    xinim::kernel::initialize_gdt();
+    xinim::kernel::initialize_tss();
 
     // ========================================
     // Week 8 Phase 2: Initialize Scheduler

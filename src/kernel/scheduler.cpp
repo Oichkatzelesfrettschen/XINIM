@@ -13,6 +13,7 @@
 #include "scheduler.hpp"
 #include "pcb.hpp"  // Week 8: Consolidated Process Control Block
 #include "context.hpp"
+#include "arch/x86_64/tss.hpp"  // Week 8 Phase 3: For set_kernel_stack()
 #include "early/serial_16550.hpp"
 #include <cstdio>
 #include <cstring>
@@ -24,6 +25,7 @@ extern xinim::early::Serial16550 early_serial;
 extern "C" void context_switch(xinim::kernel::CpuContext* current,
                                xinim::kernel::CpuContext* next);
 extern "C" void load_context(xinim::kernel::CpuContext* ctx);
+extern "C" [[noreturn]] void load_context_ring3(xinim::kernel::CpuContext* ctx);
 
 namespace xinim::kernel {
 
@@ -141,6 +143,10 @@ static void switch_to(ProcessControlBlock* next) {
     next->state = ProcessState::RUNNING;
     next->time_quantum_start = g_ticks;
 
+    // Week 8 Phase 3: Set kernel stack for next process
+    // When interrupt occurs in Ring 3, CPU will use this stack
+    set_kernel_stack(next->kernel_rsp);
+
     // Update current process pointer
     g_current_process = next;
 
@@ -149,7 +155,14 @@ static void switch_to(ProcessControlBlock* next) {
         context_switch(&current->context, &next->context);
     } else {
         // First time - no previous context to save
-        load_context(&next->context);
+        // Check if Ring 3 or Ring 0
+        if (next->context.cs == 0x1B) {
+            // Ring 3 process - use iretq transition
+            load_context_ring3(&next->context);
+        } else {
+            // Ring 0 process - use normal load
+            load_context(&next->context);
+        }
     }
 }
 
@@ -291,16 +304,28 @@ void initialize_scheduler() {
     first->state = ProcessState::RUNNING;
     g_current_process = first;
 
+    // Week 8 Phase 3: Set kernel stack before starting Ring 3 process
+    set_kernel_stack(first->kernel_rsp);
+
     char buffer[128];
     snprintf(buffer, sizeof(buffer),
-             "[SCHEDULER] Starting first process: %s (PID %d)\n",
-             first->name, first->pid);
+             "[SCHEDULER] Starting first process: %s (PID %d) in Ring %d\n",
+             first->name, first->pid,
+             (first->context.cs == 0x1B) ? 3 : 0);
     early_serial.write(buffer);
 
     // Enable interrupts and load first process
     // This will start the first process and begin timer-based preemption
     __asm__ volatile ("sti");  // Enable interrupts
-    load_context(&first->context);
+
+    // Check if Ring 3 or Ring 0
+    if (first->context.cs == 0x1B) {
+        // Ring 3 process - use iretq transition
+        load_context_ring3(&first->context);
+    } else {
+        // Ring 0 process - use normal load
+        load_context(&first->context);
+    }
 
     // Never returns
 }

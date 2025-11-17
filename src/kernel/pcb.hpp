@@ -80,8 +80,13 @@ struct ProcessControlBlock {
     // Memory Allocation
     // ========================================
 
-    void* stack_base;               ///< Base of stack allocation
-    uint64_t stack_size;            ///< Stack size in bytes
+    void* stack_base;               ///< Base of user stack allocation
+    uint64_t stack_size;            ///< User stack size in bytes
+
+    // Week 8 Phase 3: Kernel stack for Ring 3 processes
+    void* kernel_stack_base;        ///< Base of kernel stack allocation
+    uint64_t kernel_stack_size;     ///< Kernel stack size in bytes (typically 4 KB)
+    uint64_t kernel_rsp;            ///< Current kernel stack pointer (top of stack)
 
     // ========================================
     // CPU Context

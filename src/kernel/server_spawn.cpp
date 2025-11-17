@@ -181,10 +181,10 @@ int spawn_server(const ServerDescriptor& desc) {
              "[SPAWN] Spawning server '%s' (PID %d)...\n", desc.name, desc.pid);
     early_serial.write(buffer);
 
-    // Step 1: Allocate stack
+    // Step 1: Allocate user stack
     void* stack = kmalloc(desc.stack_size);
     if (!stack) {
-        early_serial.write("[ERROR] Failed to allocate stack\n");
+        early_serial.write("[ERROR] Failed to allocate user stack\n");
         return -1;
     }
 
@@ -192,8 +192,23 @@ int spawn_server(const ServerDescriptor& desc) {
     void* stack_top = static_cast<char*>(stack) + desc.stack_size;
 
     snprintf(buffer, sizeof(buffer),
-             "  Stack: base=%p size=%lu top=%p\n",
+             "  User stack: base=%p size=%lu top=%p\n",
              stack, desc.stack_size, stack_top);
+    early_serial.write(buffer);
+
+    // Step 1b: Allocate kernel stack (Week 8 Phase 3: Ring 3 support)
+    constexpr uint64_t KERNEL_STACK_SIZE = 4096;  // 4 KB
+    void* kernel_stack = kmalloc(KERNEL_STACK_SIZE);
+    if (!kernel_stack) {
+        early_serial.write("[ERROR] Failed to allocate kernel stack\n");
+        return -1;
+    }
+
+    void* kernel_stack_top = static_cast<char*>(kernel_stack) + KERNEL_STACK_SIZE;
+
+    snprintf(buffer, sizeof(buffer),
+             "  Kernel stack: base=%p size=%lu top=%p\n",
+             kernel_stack, KERNEL_STACK_SIZE, kernel_stack_top);
     early_serial.write(buffer);
 
     // Step 2: Create PCB with well-known PID
@@ -206,17 +221,23 @@ int spawn_server(const ServerDescriptor& desc) {
     pcb->name = desc.name;
     pcb->state = ProcessState::READY;
     pcb->priority = desc.priority;
+
+    // User stack
     pcb->stack_base = stack;
     pcb->stack_size = desc.stack_size;
 
+    // Kernel stack (Week 8 Phase 3)
+    pcb->kernel_stack_base = kernel_stack;
+    pcb->kernel_stack_size = KERNEL_STACK_SIZE;
+    pcb->kernel_rsp = reinterpret_cast<uint64_t>(kernel_stack_top);
+
     // Step 3: Set up initial CPU context
-    // Week 8: Servers run in Ring 0 initially, will transition to Ring 3 later
+    // Week 8 Phase 3: Servers run in Ring 3 (user mode) for privilege separation
     uint64_t entry_point = reinterpret_cast<uint64_t>(desc.entry_point);
     uint64_t stack_ptr = reinterpret_cast<uint64_t>(stack_top);
 
-    // Use CpuContext::initialize() for clean setup
-    // Ring 0 for Week 8 (will be Ring 3 once privilege separation is complete)
-    pcb->context.initialize(entry_point, stack_ptr, 0);
+    // Initialize context for Ring 3 (user mode)
+    pcb->context.initialize(entry_point, stack_ptr, 3);  // Ring 3
 
     snprintf(buffer, sizeof(buffer),
              "  Context: RIP=%p RSP=%p RFLAGS=0x%lx\n",
