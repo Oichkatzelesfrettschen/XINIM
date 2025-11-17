@@ -26,6 +26,7 @@
  */
 
 #include "server_spawn.hpp"
+#include "context.hpp"  // Week 8: Full CPU context for context switching
 #include "early/serial_16550.hpp"
 #include "../include/xinim/ipc/message_types.h"
 #include <cstring>
@@ -42,27 +43,8 @@ extern "C" void mem_mgr_main();
 namespace xinim::kernel {
 
 // ============================================================================
-// Simple Process Control Block (PCB) for Week 7
+// Process Control Block (PCB) for Week 8
 // ============================================================================
-
-/**
- * @brief CPU context for server threads
- *
- * Stores register state for context switching. Week 7 uses a simplified
- * model - full context switching comes in Week 8.
- */
-struct CpuContext {
-    uint64_t rsp;       // Stack pointer
-    uint64_t rip;       // Instruction pointer
-    uint64_t rflags;    // CPU flags
-    uint64_t cs;        // Code segment
-    uint64_t ss;        // Stack segment
-
-    // General purpose registers (saved during context switch)
-    uint64_t rax, rbx, rcx, rdx;
-    uint64_t rsi, rdi, rbp;
-    uint64_t r8, r9, r10, r11, r12, r13, r14, r15;
-};
 
 /**
  * @brief Process state enumeration
@@ -290,16 +272,13 @@ int spawn_server(const ServerDescriptor& desc) {
     pcb->stack_size = desc.stack_size;
 
     // Step 3: Set up initial CPU context
-    // For Week 7, servers run in kernel mode (Ring 0)
-    pcb->context.rsp = reinterpret_cast<uint64_t>(stack_top);
-    pcb->context.rip = reinterpret_cast<uint64_t>(desc.entry_point);
-    pcb->context.rflags = 0x202;  // IF=1 (interrupts enabled)
+    // Week 8: Servers run in Ring 0 initially, will transition to Ring 3 later
+    uint64_t entry_point = reinterpret_cast<uint64_t>(desc.entry_point);
+    uint64_t stack_ptr = reinterpret_cast<uint64_t>(stack_top);
 
-#ifdef XINIM_ARCH_X86_64
-    // x86_64 segment selectors (kernel mode)
-    pcb->context.cs = 0x08;  // Kernel code segment
-    pcb->context.ss = 0x10;  // Kernel data/stack segment
-#endif
+    // Use CpuContext::initialize() for clean setup
+    // Ring 0 for Week 8 (will be Ring 3 once privilege separation is complete)
+    pcb->context.initialize(entry_point, stack_ptr, 0);
 
     snprintf(buffer, sizeof(buffer),
              "  Context: RIP=%p RSP=%p RFLAGS=0x%lx\n",
