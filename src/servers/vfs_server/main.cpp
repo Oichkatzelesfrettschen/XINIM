@@ -536,10 +536,8 @@ int main() {
 extern "C" void vfs_server_main() {
     main();  // Call C++ main
 
-    // Server should never exit, but if it does, notify and halt
-    // TODO: Send crash notification to resurrection server
-    early_serial.write("[FATAL] VFS server exited unexpectedly\n");
-
+    // Server should never exit, but if it does, halt
+    // TODO Week 8: Send crash notification to resurrection server
     for(;;) {
 #ifdef XINIM_ARCH_X86_64
         __asm__ volatile ("hlt");
