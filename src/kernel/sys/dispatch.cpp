@@ -1,9 +1,43 @@
 #include <stdint.h>
+#include <string.h>
 #include <xinim/sys/syscalls.h>
+#include "../../../include/xinim/ipc/message_types.h"
+#include "../../../include/xinim/ipc/vfs_protocol.hpp"
+#include "../../../include/sys/type.hpp"
 #include "../early/serial_16550.hpp"
 #include "../time/monotonic.hpp"
+#include "../lattice_ipc.hpp"
 
 extern xinim::early::Serial16550 early_serial;
+
+// ============================================================================
+// IPC Helper Functions
+// ============================================================================
+
+/**
+ * @brief Send IPC request to a server and wait for response
+ * @param caller_pid PID of calling process
+ * @param server_pid PID of target server
+ * @param request Request message
+ * @param response Response message buffer
+ * @return 0 on success, -1 on error
+ */
+static int send_ipc_request(xinim::pid_t caller_pid, xinim::pid_t server_pid,
+                             const message& request, message& response) {
+    // Send request
+    int result = lattice::lattice_send(caller_pid, server_pid, request, lattice::IpcFlags::NONE);
+    if (result != OK) {
+        return -1;
+    }
+
+    // Wait for response
+    result = lattice::lattice_recv(caller_pid, &response, lattice::IpcFlags::NONE);
+    if (result != OK) {
+        return -1;
+    }
+
+    return 0;
+}
 
 // ============================================================================
 // Debug/Legacy Syscalls
@@ -23,45 +57,210 @@ static uint64_t sys_monotonic_ns_impl() {
 // ============================================================================
 
 static int64_t sys_open_impl(const char* path, int flags, int mode) {
-    // TODO: Send IPC message to VFS server
-    // For now, return stub error
-    return -1; // ENOENT
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();  // TODO: Get actual PID
+    request.m_type = VFS_OPEN;
+
+    auto* req = reinterpret_cast<VfsOpenRequest*>(&request.m_u);
+    *req = VfsOpenRequest(path, flags, mode, request.m_source);
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsOpenResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    return resp->fd;
 }
 
 static int64_t sys_close_impl(int fd) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_CLOSE;
+
+    auto* req = reinterpret_cast<VfsCloseRequest*>(&request.m_u);
+    *req = VfsCloseRequest(fd, request.m_source);
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsCloseResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 static int64_t sys_read_impl(int fd, void* buf, uint64_t count) {
-    // TODO: Send IPC message to VFS server
+    using namespace xinim::ipc;
+
     // Special case: fd 0 (stdin) - for now, return 0 (EOF)
     if (fd == 0) return 0;
-    return -1;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_READ;
+
+    auto* req = reinterpret_cast<VfsReadRequest*>(&request.m_u);
+    *req = VfsReadRequest(fd, count, -1, request.m_source);  // -1 = use fd offset
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsReadResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // Copy inline data to user buffer (for small reads)
+    if (resp->bytes_read > 0 && resp->bytes_read <= 256) {
+        memcpy(buf, resp->inline_data, resp->bytes_read);
+    }
+
+    return resp->bytes_read;
 }
 
 static int64_t sys_write_impl(int fd, const void* buf, uint64_t count) {
+    using namespace xinim::ipc;
+
     // Special case: fd 1 (stdout) and fd 2 (stderr) - write to serial
     if (fd == 1 || fd == 2) {
         return sys_debug_write_impl((const char*)buf, count);
     }
-    // TODO: Send IPC message to VFS server
-    return -1;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_WRITE;
+
+    auto* req = reinterpret_cast<VfsWriteRequest*>(&request.m_u);
+    req->fd = fd;
+    req->count = count;
+    req->offset = -1;  // Use fd offset
+    req->caller_pid = request.m_source;
+
+    // Copy inline data (for small writes)
+    if (count <= 256) {
+        memcpy(req->inline_data, buf, count);
+    }
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsWriteResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    return resp->bytes_written;
 }
 
 static int64_t sys_lseek_impl(int fd, int64_t offset, int whence) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_LSEEK;
+
+    auto* req = reinterpret_cast<VfsLseekRequest*>(&request.m_u);
+    *req = VfsLseekRequest(fd, offset, whence, request.m_source);
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsLseekResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    return resp->new_offset;
 }
 
 static int64_t sys_stat_impl(const char* path, void* statbuf) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_STAT;
+
+    auto* req = reinterpret_cast<VfsStatRequest*>(&request.m_u);
+    strncpy(req->path, path, sizeof(req->path) - 1);
+    req->path[sizeof(req->path) - 1] = '\0';
+    req->caller_pid = request.m_source;
+    req->is_fstat = false;
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsStatResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // Copy stat info to user buffer
+    if (statbuf) {
+        memcpy(statbuf, &resp->stat, sizeof(VfsStatInfo));
+    }
+
+    return 0;
 }
 
 static int64_t sys_fstat_impl(int fd, void* statbuf) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_FSTAT;
+
+    auto* req = reinterpret_cast<VfsStatRequest*>(&request.m_u);
+    req->fd = fd;
+    req->caller_pid = request.m_source;
+    req->is_fstat = true;
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsStatResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // Copy stat info to user buffer
+    if (statbuf) {
+        memcpy(statbuf, &resp->stat, sizeof(VfsStatInfo));
+    }
+
+    return 0;
 }
 
 static int64_t sys_access_impl(const char* path, int mode) {
@@ -99,22 +298,57 @@ static int64_t sys_fcntl_impl(int fd, int cmd, uint64_t arg) {
 // ============================================================================
 
 static int64_t sys_mkdir_impl(const char* path, int mode) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_MKDIR;
+
+    auto* req = reinterpret_cast<VfsMkdirRequest*>(&request.m_u);
+    *req = VfsMkdirRequest(path, mode, request.m_source);
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsMkdirResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 static int64_t sys_rmdir_impl(const char* path) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_RMDIR;
+
+    auto* req = reinterpret_cast<VfsRmdirRequest*>(&request.m_u);
+    strncpy(req->path, path, sizeof(req->path) - 1);
+    req->path[sizeof(req->path) - 1] = '\0';
+    req->caller_pid = request.m_source;
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsRmdirResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 static int64_t sys_chdir_impl(const char* path) {
-    // TODO: Update current process working directory
+    // TODO: Update current process working directory in process table
+    // For now, delegate to VFS server for validation
     return -1;
 }
 
 static int64_t sys_getcwd_impl(char* buf, uint64_t size) {
-    // TODO: Read from current process working directory
+    // TODO: Read from current process working directory in process table
     return -1;
 }
 
@@ -124,8 +358,26 @@ static int64_t sys_link_impl(const char* oldpath, const char* newpath) {
 }
 
 static int64_t sys_unlink_impl(const char* path) {
-    // TODO: Send IPC message to VFS server
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = VFS_UNLINK;
+
+    auto* req = reinterpret_cast<VfsUnlinkRequest*>(&request.m_u);
+    strncpy(req->path, path, sizeof(req->path) - 1);
+    req->path[sizeof(req->path) - 1] = '\0';
+    req->caller_pid = request.m_source;
+
+    // Send to VFS server
+    if (send_ipc_request(request.m_source, VFS_SERVER_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const VfsGenericResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 static int64_t sys_rename_impl(const char* oldpath, const char* newpath) {
