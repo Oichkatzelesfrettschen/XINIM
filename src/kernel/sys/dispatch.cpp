@@ -3,6 +3,8 @@
 #include <xinim/sys/syscalls.h>
 #include "../../../include/xinim/ipc/message_types.h"
 #include "../../../include/xinim/ipc/vfs_protocol.hpp"
+#include "../../../include/xinim/ipc/proc_protocol.hpp"
+#include "../../../include/xinim/ipc/mm_protocol.hpp"
 #include "../../../include/sys/type.hpp"
 #include "../early/serial_16550.hpp"
 #include "../time/monotonic.hpp"
@@ -396,77 +398,388 @@ static int64_t sys_chown_impl(const char* path, int uid, int gid) {
 }
 
 // ============================================================================
-// Process Management
+// Process Management (delegated to Process Manager via lattice IPC)
 // ============================================================================
 
 static void sys_exit_impl(int status) {
-    // TODO: Terminate current process via process manager
-    // This should not return
-    while (1) {} // Halt for now
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_EXIT;
+
+    auto* req = reinterpret_cast<ProcExitRequest*>(&request.m_u);
+    req->pid = request.m_source;
+    req->exit_code = status;
+
+    // Send to Process Manager (no response expected)
+    lattice::lattice_send(request.m_source, PROC_MGR_PID, request, lattice::IpcFlags::NONE);
+
+    // TODO: Kernel cleanup:
+    // - Free process memory
+    // - Close file descriptors
+    // - Remove from scheduler
+    // - Send SIGCHLD to parent
+
+    // Loop forever (process should be removed from scheduler)
+    while (1) {}
 }
 
 static int64_t sys_fork_impl() {
-    // TODO: Create new process via process manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_FORK;
+
+    auto* req = reinterpret_cast<ProcForkRequest*>(&request.m_u);
+    req->parent_pid = request.m_source;
+    // TODO: Save parent registers (rsp, rip, rflags) from syscall context
+    req->parent_rsp = 0;
+    req->parent_rip = 0;
+    req->parent_rflags = 0;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcForkResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // TODO: Kernel needs to:
+    // 1. Copy parent's page tables to child
+    // 2. Copy parent's FD table (via VFS IPC)
+    // 3. Set child's return value to 0
+    // 4. Add both processes to scheduler
+
+    return resp->child_pid;  // Parent gets child PID, child gets 0
 }
 
 static int64_t sys_execve_impl(const char* filename, char* const argv[], char* const envp[]) {
-    // TODO: Load new program via VFS and process manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_EXEC;
+
+    auto* req = reinterpret_cast<ProcExecRequest*>(&request.m_u);
+    std::strncpy(req->path, filename, sizeof(req->path) - 1);
+    req->path[sizeof(req->path) - 1] = '\0';
+    req->argc = 0;  // TODO: Count argv
+    req->envc = 0;  // TODO: Count envp
+    req->caller_pid = request.m_source;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // TODO: Kernel needs to:
+    // 1. Load ELF binary from VFS
+    // 2. Parse ELF headers
+    // 3. Unmap old address space (via Memory Manager)
+    // 4. Map new sections (via Memory Manager)
+    // 5. Set up stack with argc/argv/envp
+    // 6. Jump to entry point
+
+    // exec() only returns on error
+    const auto* resp = reinterpret_cast<const ProcExecResponse*>(&response.m_u);
+    return resp->result;
 }
 
 static int64_t sys_wait4_impl(int pid, int* status, int options, void* rusage) {
-    // TODO: Wait for child process
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_WAIT;
+
+    auto* req = reinterpret_cast<ProcWaitRequest*>(&request.m_u);
+    req->parent_pid = request.m_source;
+    req->target_pid = pid;
+    req->options = options;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcWaitResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // Copy exit status to user buffer
+    if (status) {
+        *status = resp->exit_status;
+    }
+
+    // TODO: Copy rusage if requested
+
+    return resp->child_pid;
 }
 
 static int64_t sys_getpid_impl() {
-    // TODO: Return current process ID from process table
-    return 1; // Stub: return PID 1
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = 1;  // Bootstrap: assume PID 1 until we have proper context
+    request.m_type = PROC_GETPID;
+
+    auto* req = reinterpret_cast<ProcGetpidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return 1;  // Fallback
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcGetpidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->pid : 1;
 }
 
 static int64_t sys_getppid_impl() {
-    // TODO: Return parent process ID from process table
-    return 0; // Stub: return PID 0 (kernel)
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_GETPPID;
+
+    auto* req = reinterpret_cast<ProcGetppidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcGetppidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->ppid : -1;
 }
 
 static int64_t sys_kill_impl(int pid, int sig) {
-    // TODO: Send signal to process via process manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_KILL;
+
+    auto* req = reinterpret_cast<ProcKillRequest*>(&request.m_u);
+    req->target_pid = pid;
+    req->signal = sig;
+    req->sender_pid = request.m_source;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcGenericResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 static int64_t sys_signal_impl(int signum, uint64_t handler) {
-    // TODO: Register signal handler in process table
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request (signal() is simplified sigaction)
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_SIGACTION;
+
+    auto* req = reinterpret_cast<ProcSigactionRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->signal = signum;
+    req->handler = handler;
+    req->sigaction_flags = 0;
+    req->sa_mask = 0;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcSigactionResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->old_handler : -1;
 }
 
 static int64_t sys_sigaction_impl(int signum, const void* act, void* oldact) {
-    // TODO: Register signal handler in process table
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_SIGACTION;
+
+    auto* req = reinterpret_cast<ProcSigactionRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->signal = signum;
+
+    // TODO: Parse struct sigaction from userspace
+    // For now, use simplified version
+    req->handler = 0;
+    req->sigaction_flags = 0;
+    req->sa_mask = 0;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcSigactionResponse*>(&response.m_u);
+
+    // TODO: Copy old sigaction to userspace if oldact != NULL
+
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 // ============================================================================
-// Memory Management
+// Memory Management (delegated to Memory Manager via lattice IPC)
 // ============================================================================
 
 static int64_t sys_brk_impl(void* addr) {
-    // TODO: Adjust process heap via memory manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = MM_BRK;
+
+    auto* req = reinterpret_cast<MmBrkRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_brk = reinterpret_cast<uint64_t>(addr);
+
+    // Send to Memory Manager
+    if (send_ipc_request(request.m_source, MEM_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const MmBrkResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // TODO: Kernel needs to allocate/free pages based on brk change
+
+    return resp->current_brk;
 }
 
 static int64_t sys_mmap_impl(void* addr, uint64_t length, int prot, int flags, int fd, int64_t offset) {
-    // TODO: Map memory via memory manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = MM_MMAP;
+
+    auto* req = reinterpret_cast<MmMmapRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->addr = reinterpret_cast<uint64_t>(addr);
+    req->length = length;
+    req->prot = prot;
+    req->flags = flags;
+    req->fd = fd;
+    req->offset = offset;
+
+    // Send to Memory Manager
+    if (send_ipc_request(request.m_source, MEM_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const MmMmapResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // TODO: Kernel needs to:
+    // 1. Allocate page table entries
+    // 2. If MAP_ANONYMOUS, allocate pages
+    // 3. If file-backed, set up demand paging
+    // 4. Set permissions in page table
+
+    return resp->mapped_addr;
 }
 
 static int64_t sys_munmap_impl(void* addr, uint64_t length) {
-    // TODO: Unmap memory via memory manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = MM_MUNMAP;
+
+    auto* req = reinterpret_cast<MmMunmapRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->addr = reinterpret_cast<uint64_t>(addr);
+    req->length = length;
+
+    // Send to Memory Manager
+    if (send_ipc_request(request.m_source, MEM_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const MmMunmapResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // TODO: Kernel needs to:
+    // 1. Unmap pages from page table
+    // 2. Free physical pages
+    // 3. Flush TLB
+
+    return 0;
 }
 
 static int64_t sys_mprotect_impl(void* addr, uint64_t length, int prot) {
-    // TODO: Change memory protection via memory manager
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = MM_MPROTECT;
+
+    auto* req = reinterpret_cast<MmMprotectRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->addr = reinterpret_cast<uint64_t>(addr);
+    req->length = length;
+    req->prot = prot;
+
+    // Send to Memory Manager
+    if (send_ipc_request(request.m_source, MEM_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const MmMprotectResponse*>(&response.m_u);
+    if (resp->error != IPC_SUCCESS) {
+        return -1;
+    }
+
+    // TODO: Kernel needs to:
+    // 1. Update page table entry permissions
+    // 2. Flush TLB
+
+    return 0;
 }
 
 // ============================================================================
@@ -520,37 +833,139 @@ static int64_t sys_nanosleep_impl(const void* req, void* rem) {
 }
 
 // ============================================================================
-// User/Group IDs
+// User/Group IDs (delegated to Process Manager via lattice IPC)
 // ============================================================================
 
 static int64_t sys_getuid_impl() {
-    // TODO: Get real user ID from process table
-    return 0; // Stub: root
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_GETUID;
+
+    auto* req = reinterpret_cast<ProcUidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_uid = -1;  // -1 means "get", not "set"
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return 0;  // Fallback to root
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcUidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->uid : 0;
 }
 
 static int64_t sys_geteuid_impl() {
-    // TODO: Get effective user ID from process table
-    return 0; // Stub: root
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_GETEUID;
+
+    auto* req = reinterpret_cast<ProcUidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_uid = -1;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return 0;  // Fallback to root
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcUidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->uid : 0;
 }
 
 static int64_t sys_getgid_impl() {
-    // TODO: Get real group ID from process table
-    return 0; // Stub: root
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_GETGID;
+
+    auto* req = reinterpret_cast<ProcGidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_gid = -1;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return 0;  // Fallback to root
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcGidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->gid : 0;
 }
 
 static int64_t sys_getegid_impl() {
-    // TODO: Get effective group ID from process table
-    return 0; // Stub: root
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_GETEGID;
+
+    auto* req = reinterpret_cast<ProcGidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_gid = -1;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return 0;  // Fallback to root
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcGidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? resp->gid : 0;
 }
 
 static int64_t sys_setuid_impl(int uid) {
-    // TODO: Set user ID in process table
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_SETUID;
+
+    auto* req = reinterpret_cast<ProcUidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_uid = uid;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcUidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 static int64_t sys_setgid_impl(int gid) {
-    // TODO: Set group ID in process table
-    return -1;
+    using namespace xinim::ipc;
+
+    // Prepare IPC request
+    message request{}, response{};
+    request.m_source = sys_getpid_impl();
+    request.m_type = PROC_SETGID;
+
+    auto* req = reinterpret_cast<ProcGidRequest*>(&request.m_u);
+    req->caller_pid = request.m_source;
+    req->new_gid = gid;
+
+    // Send to Process Manager
+    if (send_ipc_request(request.m_source, PROC_MGR_PID, request, response) != 0) {
+        return -1;
+    }
+
+    // Parse response
+    const auto* resp = reinterpret_cast<const ProcGidResponse*>(&response.m_u);
+    return (resp->error == IPC_SUCCESS) ? 0 : -1;
 }
 
 // ============================================================================
