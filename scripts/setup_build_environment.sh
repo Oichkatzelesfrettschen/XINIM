@@ -22,14 +22,14 @@ XINIM_SOURCES_DIR="${XINIM_SOURCES_DIR:-$HOME/xinim-sources}"
 # Versions
 BINUTILS_VERSION="2.41"
 GCC_VERSION="13.2.0"
-MUSL_VERSION="1.2.4"
+DIETLIBC_VERSION="0.34"
 LINUX_HEADERS_VERSION="6.6"
 LLVM_VERSION="18.1.0"
 
 # URLs
 BINUTILS_URL="https://ftp.gnu.org/gnu/binutils/binutils-${BINUTILS_VERSION}.tar.xz"
 GCC_URL="https://ftp.gnu.org/gnu/gcc/gcc-${GCC_VERSION}/gcc-${GCC_VERSION}.tar.xz"
-MUSL_URL="https://musl.libc.org/releases/musl-${MUSL_VERSION}.tar.gz"
+DIETLIBC_GIT="https://github.com/ensc/dietlibc.git"
 LINUX_HEADERS_URL="https://cdn.kernel.org/pub/linux/kernel/v6.x/linux-${LINUX_HEADERS_VERSION}.tar.xz"
 
 # Logging
@@ -159,13 +159,16 @@ download_sources() {
         log_info "GCC ${GCC_VERSION} already downloaded"
     fi
 
-    # Download musl libc
-    if [[ ! -f "musl-${MUSL_VERSION}.tar.gz" ]]; then
-        log_info "Downloading musl libc ${MUSL_VERSION}..."
-        wget -c "$MUSL_URL"
-        log_success "Downloaded musl libc"
+    # Clone dietlibc
+    if [[ ! -d "dietlibc-${DIETLIBC_VERSION}" ]]; then
+        log_info "Cloning dietlibc ${DIETLIBC_VERSION}..."
+        git clone --depth 1 --branch v${DIETLIBC_VERSION} "$DIETLIBC_GIT" "dietlibc-${DIETLIBC_VERSION}" 2>/dev/null || {
+            log_warning "Tag v${DIETLIBC_VERSION} not found, cloning main branch..."
+            git clone "$DIETLIBC_GIT" "dietlibc-${DIETLIBC_VERSION}"
+        }
+        log_success "Cloned dietlibc"
     else
-        log_info "musl libc ${MUSL_VERSION} already downloaded"
+        log_info "dietlibc ${DIETLIBC_VERSION} already cloned"
     fi
 
     # Download Linux headers (for reference, not strictly needed for freestanding)
@@ -198,12 +201,7 @@ extract_sources() {
         log_success "Extracted GCC"
     fi
 
-    # Extract musl
-    if [[ ! -d "musl-${MUSL_VERSION}" ]]; then
-        log_info "Extracting musl libc..."
-        tar xf "musl-${MUSL_VERSION}.tar.gz"
-        log_success "Extracted musl libc"
-    fi
+    # dietlibc is cloned directly, no extraction needed
 
     # Extract Linux headers
     if [[ ! -d "linux-${LINUX_HEADERS_VERSION}" ]]; then
@@ -293,7 +291,7 @@ XINIM_SOURCES_DIR="$XINIM_SOURCES_DIR"
 # Versions
 BINUTILS_VERSION="$BINUTILS_VERSION"
 GCC_VERSION="$GCC_VERSION"
-MUSL_VERSION="$MUSL_VERSION"
+DIETLIBC_VERSION="$DIETLIBC_VERSION"
 LINUX_HEADERS_VERSION="$LINUX_HEADERS_VERSION"
 LLVM_VERSION="$LLVM_VERSION"
 
@@ -333,7 +331,7 @@ display_summary() {
     echo "Versions:"
     echo "  binutils: $BINUTILS_VERSION"
     echo "  GCC:      $GCC_VERSION"
-    echo "  musl:     $MUSL_VERSION"
+    echo "  dietlibc: $DIETLIBC_VERSION"
     echo "  Linux:    $LINUX_HEADERS_VERSION (headers)"
     echo
     echo "Next steps:"
@@ -347,8 +345,8 @@ display_summary() {
     echo "  3. Build GCC Stage 1:"
     echo "     ./build_gcc_stage1.sh"
     echo
-    echo "  4. Build musl libc:"
-    echo "     ./build_musl.sh"
+    echo "  4. Build dietlibc:"
+    echo "     ./build_dietlibc.sh"
     echo
     echo "  5. Build GCC Stage 2:"
     echo "     ./build_gcc_stage2.sh"

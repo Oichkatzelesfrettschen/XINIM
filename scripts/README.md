@@ -16,7 +16,7 @@ source /opt/xinim-toolchain/xinim-env.sh
 # 3. Build toolchain (in order)
 ./build_binutils.sh      # ~10 minutes
 ./build_gcc_stage1.sh    # ~30 minutes
-./build_musl.sh          # ~5 minutes
+./build_dietlibc.sh          # ~5 minutes
 ./build_gcc_stage2.sh    # ~60 minutes
 ```
 
@@ -35,7 +35,7 @@ source /opt/xinim-toolchain/xinim-env.sh
 - Creates `/opt/xinim-sysroot` (target system root)
 - Creates `~/xinim-build` (build directories)
 - Creates `~/xinim-sources` (source code)
-- Downloads binutils, GCC, musl, Linux headers
+- Downloads binutils, GCC, dietlibc, Linux headers
 - Extracts all sources
 - Downloads GCC prerequisites (GMP, MPFR, MPC, ISL)
 - Generates environment script
@@ -137,12 +137,12 @@ source /opt/xinim-toolchain/xinim-env.sh
 
 ---
 
-### 4. `build_musl.sh` 📚
+### 4. `build_dietlibc.sh` 📚
 
-**Purpose:** Build musl libc (C standard library)
+**Purpose:** Build dietlibc (C standard library)
 
 **What it does:**
-- Configures musl 1.2.4 for x86_64
+- Configures dietlibc 0.34 for x86_64
 - Builds static libc.a
 - Installs headers to `/opt/xinim-sysroot/usr/include/`
 - Installs libraries to `/opt/xinim-sysroot/lib/`
@@ -159,7 +159,7 @@ source /opt/xinim-toolchain/xinim-env.sh
 **Usage:**
 ```bash
 source /opt/xinim-toolchain/xinim-env.sh
-./build_musl.sh
+./build_dietlibc.sh
 ```
 
 **Prerequisites:**
@@ -176,7 +176,7 @@ source /opt/xinim-toolchain/xinim-env.sh
 **Purpose:** Build GCC Stage 2 (full compiler with libc and libstdc++)
 
 **What it does:**
-- Configures GCC 13.2.0 with musl libc
+- Configures GCC 13.2.0 with dietlibc
 - Builds full C and C++ compilers
 - Builds libstdc++ (C++ standard library)
 - Enables POSIX threads, TLS, LTO
@@ -197,7 +197,7 @@ source /opt/xinim-toolchain/xinim-env.sh
 ```
 
 **Prerequisites:**
-- `build_musl.sh` must complete successfully
+- `build_dietlibc.sh` must complete successfully
 
 **Time:** ~30-60 minutes
 
@@ -281,7 +281,7 @@ echo 'source /opt/xinim-toolchain/xinim-env.sh' >> ~/.bashrc
 1. setup_build_environment.sh  (setup)
 2. build_binutils.sh           (assembler, linker)
 3. build_gcc_stage1.sh         (bootstrap compiler)
-4. build_musl.sh               (C library)
+4. build_dietlibc.sh               (C library)
 5. build_gcc_stage2.sh         (full compiler)
 ```
 
@@ -293,7 +293,7 @@ build_binutils.sh
     ↓
 build_gcc_stage1.sh
     ↓
-build_musl.sh
+build_dietlibc.sh
     ↓
 build_gcc_stage2.sh
     ↓
@@ -330,7 +330,7 @@ rm test.c test
 | **Sources** | N/A | ~500 MB |
 | **binutils** | ~500 MB | ~150 MB |
 | **GCC Stage 1** | ~2 GB | ~500 MB |
-| **musl** | ~100 MB | ~2 MB |
+| **dietlibc** | ~100 MB | ~2 MB |
 | **GCC Stage 2** | ~3 GB | ~2 GB |
 | **Total** | ~6 GB | ~3 GB |
 
@@ -427,5 +427,5 @@ export XINIM_BUILD_DIR=/tmp/xinim-build
 ---
 
 **Last Updated:** 2025-11-17
-**Toolchain Version:** binutils 2.41, GCC 13.2.0, musl 1.2.4
+**Toolchain Version:** binutils 2.41, GCC 13.2.0, dietlibc 0.34
 **Maintainer:** XINIM Toolchain Team
