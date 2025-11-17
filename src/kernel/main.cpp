@@ -6,6 +6,7 @@
 #include "platform_traits.hpp"
 #include "time/monotonic.hpp"
 #include "time/calibrate.hpp"
+#include "server_spawn.hpp"  // Week 7: Server spawning infrastructure
 
 #ifdef XINIM_ARCH_X86_64
 #include "../arch/x86_64/hal/apic.hpp"
@@ -227,18 +228,52 @@ extern "C" void _start() {
     kputs("Boot: Stub mode (testing)\n");
     Console::printf("XINIM kernel stub\n");
 #endif
-    
-    // Main kernel loop
-    kputs("Entering main loop...\n");
+
+    // ========================================
+    // Week 7: Spawn System Servers
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 7: Spawning System Servers\n");
+    kputs("========================================\n");
+
+    // Initialize and spawn all system servers (VFS, Process Mgr, Memory Mgr)
+    if (xinim::kernel::initialize_system_servers() != 0) {
+        kputs("[FATAL] Failed to spawn system servers\n");
+        for(;;) {
+#ifdef XINIM_ARCH_X86_64
+            __asm__ volatile ("hlt");
+#elif defined(XINIM_ARCH_ARM64)
+            __asm__ volatile ("wfi");
+#endif
+        }
+    }
+
+    // Optionally spawn init process (PID 1)
+    // Note: This will fail in Week 7 (no ELF loader yet)
+    xinim::kernel::spawn_init_process("/sbin/init");
+
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("XINIM is now running!\n");
+    kputs("========================================\n");
+    kputs("\n");
+
+    // ========================================
+    // Enter Scheduler Loop
+    // ========================================
+    kputs("Starting scheduler...\n");
+
+    // Week 7: Call simple scheduler (never returns)
+    xinim::kernel::schedule_forever();
+
+    // Should never reach here
+    kputs("[FATAL] Scheduler returned unexpectedly\n");
     for(;;) {
 #ifdef XINIM_ARCH_X86_64
         __asm__ volatile ("hlt");
 #elif defined(XINIM_ARCH_ARM64)
         __asm__ volatile ("wfi");
-#else
-        // Generic busy wait for unknown architectures
-        volatile int x = 0;
-        for(int i = 0; i < 1000000; ++i) x++;
 #endif
     }
 }

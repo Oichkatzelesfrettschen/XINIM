@@ -696,3 +696,21 @@ int main() {
 
     return 0;
 }
+
+/**
+ * @brief C-compatible entry point for kernel spawn
+ *
+ * This wrapper allows the kernel to spawn the Process Manager during boot.
+ */
+extern "C" void proc_mgr_main() {
+    main();  // Call C++ main
+
+    // Server should never exit
+    for(;;) {
+#ifdef XINIM_ARCH_X86_64
+        __asm__ volatile ("hlt");
+#elif defined(XINIM_ARCH_ARM64)
+        __asm__ volatile ("wfi");
+#endif
+    }
+}

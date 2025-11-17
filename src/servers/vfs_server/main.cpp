@@ -525,3 +525,26 @@ int main() {
 
     return 0;
 }
+
+/**
+ * @brief C-compatible entry point for kernel spawn
+ *
+ * This wrapper allows the kernel to spawn the VFS server during boot.
+ * The kernel's server_spawn.cpp calls this function after setting up
+ * the server's PCB and stack.
+ */
+extern "C" void vfs_server_main() {
+    main();  // Call C++ main
+
+    // Server should never exit, but if it does, notify and halt
+    // TODO: Send crash notification to resurrection server
+    early_serial.write("[FATAL] VFS server exited unexpectedly\n");
+
+    for(;;) {
+#ifdef XINIM_ARCH_X86_64
+        __asm__ volatile ("hlt");
+#elif defined(XINIM_ARCH_ARM64)
+        __asm__ volatile ("wfi");
+#endif
+    }
+}
