@@ -28,10 +28,12 @@
 #include "server_spawn.hpp"
 #include "context.hpp"  // Week 8: Full CPU context for context switching
 #include "scheduler.hpp"  // Week 8 Phase 2: Preemptive scheduler
+#include "pcb.hpp"        // Week 8: Consolidated Process Control Block
 #include "early/serial_16550.hpp"
 #include "../include/xinim/ipc/message_types.h"
 #include <cstring>
 #include <cstdint>
+#include <cstdio>  // For snprintf
 
 // External references
 extern xinim::early::Serial16550 early_serial;
@@ -43,43 +45,7 @@ extern "C" void mem_mgr_main();
 
 namespace xinim::kernel {
 
-// ============================================================================
-// Process Control Block (PCB) for Week 8
-// ============================================================================
-
-/**
- * @brief Process state enumeration
- */
-enum class ProcessState {
-    CREATED,    // PCB allocated, not yet ready
-    READY,      // Ready to be scheduled
-    RUNNING,    // Currently executing
-    BLOCKED,    // Waiting for IPC or event
-    ZOMBIE,     // Exited but not reaped
-    DEAD        // Fully cleaned up
-};
-
-/**
- * @brief Simple Process Control Block for Week 7
- *
- * This is a minimal PCB for server threads. Full process support
- * (with page tables, FD tables, etc.) comes from the Process Manager
- * server itself.
- */
-struct ProcessControlBlock {
-    xinim::pid_t pid;           // Process ID
-    const char* name;           // Human-readable name
-    ProcessState state;         // Current state
-    uint32_t priority;          // Scheduling priority (0-31)
-
-    void* stack_base;           // Base of stack allocation
-    uint64_t stack_size;        // Stack size in bytes
-
-    CpuContext context;         // Saved CPU context
-
-    // Linked list for scheduler queue
-    ProcessControlBlock* next;
-};
+// Week 8: PCB, ProcessState, BlockReason now defined in pcb.hpp (consolidated)
 
 // ============================================================================
 // Simple Kernel Heap Allocator (Week 7)
@@ -124,8 +90,8 @@ static void* kmalloc(uint64_t size) {
 // ============================================================================
 
 namespace {
-    ProcessControlBlock* g_ready_queue_head = nullptr;
-    ProcessControlBlock* g_current_process = nullptr;
+    // Week 8: Queue management moved to scheduler.cpp
+    // Only keep PID allocation here for server spawning
     uint64_t g_next_pid = 1;  // Start at 1 (0 is reserved for kernel)
 }
 
@@ -169,37 +135,8 @@ static ProcessControlBlock* create_pcb_with_pid(xinim::pid_t pid) {
     return pcb;
 }
 
-/**
- * @brief Add process to scheduler ready queue
- */
-static void scheduler_add_process(ProcessControlBlock* pcb) {
-    if (!g_ready_queue_head) {
-        g_ready_queue_head = pcb;
-        pcb->next = nullptr;
-    } else {
-        // Insert at end (simple FIFO scheduling for Week 7)
-        ProcessControlBlock* current = g_ready_queue_head;
-        while (current->next) {
-            current = current->next;
-        }
-        current->next = pcb;
-        pcb->next = nullptr;
-    }
-}
-
-/**
- * @brief Find PCB by PID
- */
-static ProcessControlBlock* find_pcb_by_pid(xinim::pid_t pid) {
-    ProcessControlBlock* current = g_ready_queue_head;
-    while (current) {
-        if (current->pid == pid) {
-            return current;
-        }
-        current = current->next;
-    }
-    return nullptr;
-}
+// Week 8: scheduler_add_process() and find_process_by_pid() are now
+// defined in scheduler.cpp (declared in scheduler.hpp)
 
 // ============================================================================
 // Lattice IPC Registration (Stub for Week 7)

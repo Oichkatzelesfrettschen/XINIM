@@ -87,15 +87,20 @@ static int parse_hpet_gsi(const char* cmdline) {
 }
 
 static void setup_x86_64_timers(const xinim::boot::BootInfo& bi, const xinim::acpi::AcpiInfo& acpi) {
-    xinim::hal::x86_64::Lapic lapic;
+    // Week 8: Make lapic static so it persists for timer EOI
+    static xinim::hal::x86_64::Lapic lapic;
+
     if (!acpi.lapic_mmio) {
         kputs("LAPIC not found.\n");
         for(;;) { __asm__ volatile ("hlt"); }
     }
-    
+
     auto lapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.lapic_mmio);
     lapic.init(lapic_virt);
     interrupts_init(early_serial, lapic);
+
+    // Week 8: Set LAPIC reference for timer interrupt handler
+    xinim::kernel::set_timer_lapic(&lapic);
     
     // Calibrate APIC timer using HPET if present
     uint32_t init_count = 20000000u;

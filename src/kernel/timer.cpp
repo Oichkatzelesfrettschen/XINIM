@@ -12,29 +12,33 @@
 
 #include "timer.hpp"
 #include "scheduler.hpp"
+#include "pcb.hpp"  // For ProcessState
 #include "context.hpp"
 #include "early/serial_16550.hpp"
+#include "../hal/x86_64/hal/apic.hpp"  // For LAPIC EOI
 #include <cstring>
+#include <cstdio>  // For snprintf
 
 extern xinim::early::Serial16550 early_serial;
 
 namespace xinim::kernel {
 
 static uint64_t g_timer_ticks = 0;
-static constexpr uint64_t APIC_EOI_REGISTER = 0xFEE000B0;
+static xinim::hal::x86_64::Lapic* g_lapic = nullptr;
 
 /**
  * @brief Send End of Interrupt (EOI) to APIC
  *
  * This must be called after handling any APIC interrupt
  * to allow the next interrupt to be delivered.
+ *
+ * Week 8: Uses LAPIC eoi() method instead of direct memory access
+ * to avoid physical address mapping issues.
  */
 static inline void send_apic_eoi() {
-    // Write 0 to APIC EOI register
-    // Note: This is a physical address, needs to be mapped with HHDM
-    // For Week 8, we'll assume it's identity mapped or accessible
-    volatile uint32_t* eoi = reinterpret_cast<volatile uint32_t*>(APIC_EOI_REGISTER);
-    *eoi = 0;
+    if (g_lapic) {
+        g_lapic->eoi();
+    }
 }
 
 /**
@@ -88,6 +92,18 @@ extern "C" void timer_interrupt_c_handler(xinim::kernel::CpuContext* context) {
 }
 
 /**
+ * @brief Set LAPIC reference for EOI
+ *
+ * Must be called before timer interrupts are enabled.
+ *
+ * @param lapic Pointer to initialized LAPIC object
+ */
+void set_timer_lapic(xinim::hal::x86_64::Lapic* lapic) {
+    using namespace xinim::kernel;
+    g_lapic = lapic;
+}
+
+/**
  * @brief Initialize timer subsystem
  *
  * Sets up the APIC timer to fire at the desired frequency.
@@ -107,6 +123,12 @@ extern "C" void initialize_timer(uint32_t frequency_hz) {
 
     // Timer initialization is done in kernel main (APIC setup)
     // This function just resets state
+
+    if (g_lapic) {
+        early_serial.write("[TIMER] LAPIC reference set for EOI\n");
+    } else {
+        early_serial.write("[WARN] LAPIC not set - EOI will not work!\n");
+    }
 
     early_serial.write("[TIMER] Preemptive scheduling enabled\n");
 }

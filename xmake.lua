@@ -56,6 +56,16 @@ target("xinim")
     add_files("src/kernel/wait_graph.cpp")
     add_files("src/kernel/net_driver.cpp")
 
+    -- Week 8: Preemptive scheduling and context switching
+    add_files("src/kernel/server_spawn.cpp")
+    add_files("src/kernel/scheduler.cpp")
+    add_files("src/kernel/timer.cpp")
+    add_files("src/kernel/arch/x86_64/idt.cpp")
+
+    -- Week 8: Assembly files for context switching and interrupts
+    add_files("src/arch/x86_64/context_switch.S")
+    add_files("src/arch/x86_64/interrupts.S")
+
     -- HAL subsystem (generic HAL + x86_64-specific implementation)
     add_files("src/hal/hal.cpp")
     add_files("src/hal/x86_64/hal/*.cpp")

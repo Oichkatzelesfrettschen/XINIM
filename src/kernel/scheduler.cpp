@@ -11,6 +11,7 @@
  */
 
 #include "scheduler.hpp"
+#include "pcb.hpp"  // Week 8: Consolidated Process Control Block
 #include "context.hpp"
 #include "early/serial_16550.hpp"
 #include <cstdio>
@@ -26,61 +27,7 @@ extern "C" void load_context(xinim::kernel::CpuContext* ctx);
 
 namespace xinim::kernel {
 
-// ============================================================================
-// Process State and Queue Management
-// ============================================================================
-
-/**
- * @brief Process state enumeration
- */
-enum class ProcessState {
-    CREATED,    // PCB allocated, not yet ready
-    READY,      // Ready to be scheduled
-    RUNNING,    // Currently executing
-    BLOCKED,    // Waiting for IPC or event
-    ZOMBIE,     // Exited but not reaped
-    DEAD        // Fully cleaned up
-};
-
-/**
- * @brief Block reason for BLOCKED processes
- */
-enum class BlockReason {
-    NONE,           // Not blocked
-    IPC_RECV,       // Waiting for IPC message
-    IPC_SEND,       // Waiting for IPC send completion
-    TIMER,          // Sleeping
-    IO              // Waiting for I/O
-};
-
-/**
- * @brief Process Control Block
- *
- * Stores complete process state including context, state, priority, etc.
- */
-struct ProcessControlBlock {
-    pid_t pid;                  // Process ID
-    const char* name;           // Human-readable name
-    ProcessState state;         // Current state
-    uint32_t priority;          // Scheduling priority (0-31, higher = more important)
-
-    void* stack_base;           // Base of stack allocation
-    uint64_t stack_size;        // Stack size in bytes
-
-    CpuContext context;         // Saved CPU context (for context switch)
-
-    // Blocking information
-    BlockReason blocked_on;     // Why this process is blocked
-    pid_t ipc_wait_source;      // PID we're waiting for (if IPC_RECV)
-
-    // Time accounting
-    uint64_t time_quantum_start;  // Tick when this quantum started
-    uint64_t total_ticks;         // Total CPU ticks consumed
-
-    // Linked list for scheduler queues
-    ProcessControlBlock* next;
-    ProcessControlBlock* prev;
-};
+// Week 8: PCB, ProcessState, BlockReason now defined in pcb.hpp (consolidated)
 
 // ============================================================================
 // Global Scheduler State
