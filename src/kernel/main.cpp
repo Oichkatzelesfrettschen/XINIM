@@ -7,6 +7,8 @@
 #include "time/monotonic.hpp"
 #include "time/calibrate.hpp"
 #include "server_spawn.hpp"  // Week 7: Server spawning infrastructure
+#include "scheduler.hpp"      // Week 8 Phase 2: Preemptive scheduler
+#include "timer.hpp"           // Week 8 Phase 2: Timer interrupts
 
 #ifdef XINIM_ARCH_X86_64
 #include "../arch/x86_64/hal/apic.hpp"
@@ -230,11 +232,21 @@ extern "C" void _start() {
 #endif
 
     // ========================================
-    // Week 7: Spawn System Servers
+    // Week 8 Phase 2: Initialize Scheduler
     // ========================================
     kputs("\n");
     kputs("========================================\n");
-    kputs("Week 7: Spawning System Servers\n");
+    kputs("Week 8: Initializing Scheduler\n");
+    kputs("========================================\n");
+
+    xinim::kernel::initialize_scheduler();
+
+    // ========================================
+    // Week 8: Spawn System Servers
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8: Spawning System Servers\n");
     kputs("========================================\n");
 
     // Initialize and spawn all system servers (VFS, Process Mgr, Memory Mgr)
@@ -260,11 +272,18 @@ extern "C" void _start() {
     kputs("\n");
 
     // ========================================
-    // Enter Scheduler Loop
+    // Week 8 Phase 2: Initialize Timer
     // ========================================
-    kputs("Starting scheduler...\n");
+    kputs("Initializing timer interrupts...\n");
+    initialize_timer(100);  // 100 Hz (10ms per tick)
 
-    // Week 7: Call simple scheduler (never returns)
+    // ========================================
+    // Enter Scheduler Loop (Never Returns)
+    // ========================================
+    kputs("Starting preemptive scheduler...\n");
+
+    // Week 8: Call preemptive scheduler (never returns)
+    // This enables interrupts and starts the first process
     xinim::kernel::schedule_forever();
 
     // Should never reach here

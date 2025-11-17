@@ -27,6 +27,7 @@
 
 #include "server_spawn.hpp"
 #include "context.hpp"  // Week 8: Full CPU context for context switching
+#include "scheduler.hpp"  // Week 8 Phase 2: Preemptive scheduler
 #include "early/serial_16550.hpp"
 #include "../include/xinim/ipc/message_types.h"
 #include <cstring>
@@ -370,84 +371,26 @@ int spawn_init_process(const char* init_path) {
 }
 
 // ============================================================================
-// Simple Scheduler Entry Point (Week 7)
+// Scheduler Entry Point (Week 8)
 // ============================================================================
 
 /**
- * @brief Simple round-robin scheduler loop
+ * @brief Start preemptive scheduler
  *
- * This is a VERY simple cooperative scheduler for Week 7. Each server
- * runs its main loop and voluntarily yields control.
+ * Week 8: Delegates to the real preemptive scheduler in scheduler.cpp.
+ * This enables timer-based context switching between processes.
  *
- * Week 8+ will implement:
- * - Preemptive scheduling with timer interrupts
- * - Priority-based scheduling
- * - CPU affinity for SMP
- * - Real-time guarantees
+ * @note This function never returns
  */
 [[noreturn]] void schedule_forever() {
     early_serial.write("\n========================================\n");
-    early_serial.write("Starting Scheduler\n");
+    early_serial.write("Starting Preemptive Scheduler (Week 8)\n");
     early_serial.write("========================================\n");
 
-    if (!g_ready_queue_head) {
-        early_serial.write("[WARN] No processes to schedule\n");
-        early_serial.write("Entering idle loop...\n");
+    // Week 8: Use real preemptive scheduler
+    start_scheduler();
 
-        for(;;) {
-#ifdef XINIM_ARCH_X86_64
-            __asm__ volatile ("hlt");
-#elif defined(XINIM_ARCH_ARM64)
-            __asm__ volatile ("wfi");
-#endif
-        }
-    }
-
-    // For Week 7, we'll just call each server's main function sequentially
-    // This is NOT real scheduling, but allows servers to initialize
-
-    early_serial.write("\n[SCHEDULER] Calling server entry points...\n");
-
-    ProcessControlBlock* current = g_ready_queue_head;
-    while (current) {
-        char buffer[128];
-        snprintf(buffer, sizeof(buffer),
-                 "[SCHEDULER] Starting '%s' (PID %d)\n",
-                 current->name, current->pid);
-        early_serial.write(buffer);
-
-        current->state = ProcessState::RUNNING;
-        g_current_process = current;
-
-        // Call server entry point
-        // Note: In Week 7, servers run to completion (cooperative)
-        // Week 8 will implement proper preemption
-        auto entry_fn = reinterpret_cast<void(*)()>(current->context.rip);
-
-        // TEMPORARY: Just call the function directly
-        // Week 8 will properly set up stack and jump to RIP
-        entry_fn();
-
-        // If server returns (shouldn't happen), mark as ZOMBIE
-        current->state = ProcessState::ZOMBIE;
-
-        snprintf(buffer, sizeof(buffer),
-                 "[WARN] Server '%s' exited unexpectedly\n", current->name);
-        early_serial.write(buffer);
-
-        current = current->next;
-    }
-
-    early_serial.write("\n[SCHEDULER] All servers completed\n");
-    early_serial.write("Entering idle loop...\n");
-
-    for(;;) {
-#ifdef XINIM_ARCH_X86_64
-        __asm__ volatile ("hlt");
-#elif defined(XINIM_ARCH_ARM64)
-        __asm__ volatile ("wfi");
-#endif
-    }
+    // Never returns
 }
 
 // ============================================================================
