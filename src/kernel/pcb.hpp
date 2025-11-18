@@ -45,7 +45,19 @@ enum class BlockReason {
     IPC_RECV,       ///< Waiting for IPC message
     IPC_SEND,       ///< Waiting for IPC send completion
     TIMER,          ///< Sleeping (waiting for timeout)
-    IO              ///< Waiting for I/O completion
+    IO,             ///< Waiting for I/O completion
+    WAIT_CHILD      ///< Waiting for child process (Week 9 Phase 2)
+};
+
+/**
+ * @brief Child process node for parent's children list
+ *
+ * Week 9 Phase 2: Tracks parent-child relationships.
+ * Parent maintains linked list of all child PIDs.
+ */
+struct ChildNode {
+    xinim::pid_t pid;       ///< Child process PID
+    ChildNode* next;        ///< Next child in list
 };
 
 /**
@@ -120,6 +132,16 @@ struct ProcessControlBlock {
     // ========================================
 
     int exit_status;                ///< Exit status code (for wait/waitpid)
+
+    // ========================================
+    // Parent-Child Relationships (Week 9 Phase 2)
+    // ========================================
+
+    xinim::pid_t parent_pid;        ///< Parent process PID (0 if orphaned or init)
+    ChildNode* children_head;       ///< Head of children list (linked list)
+
+    bool has_exited;                ///< Has this process called exit()?
+    bool has_been_waited;           ///< Has parent called wait() on this zombie?
 
     // ========================================
     // Scheduler Queue Linkage

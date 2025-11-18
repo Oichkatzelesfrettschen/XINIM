@@ -77,6 +77,9 @@ target("xinim")
     add_files("src/kernel/vfs_interface.cpp")
     add_files("src/kernel/syscalls/file_ops.cpp")
 
+    -- Week 9 Phase 2: Process management (fork, wait, getppid)
+    add_files("src/kernel/syscalls/process_mgmt.cpp")
+
     -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")

@@ -127,6 +127,12 @@ static ProcessControlBlock* create_pcb_with_pid(xinim::pid_t pid) {
     pcb->next = nullptr;
     pcb->exit_status = 0;  // Week 9 Phase 1
 
+    // Week 9 Phase 2: Initialize parent-child tracking
+    pcb->parent_pid = 0;         // No parent initially (set by spawn_server or fork)
+    pcb->children_head = nullptr;
+    pcb->has_exited = false;
+    pcb->has_been_waited = false;
+
     // Zero initialize context
     memset(&pcb->context, 0, sizeof(CpuContext));
 

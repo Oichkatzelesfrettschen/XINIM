@@ -32,8 +32,12 @@ int64_t sys_close(uint64_t fd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)
 int64_t sys_lseek(uint64_t fd, uint64_t offset, uint64_t whence,
                   uint64_t, uint64_t, uint64_t);
 
-// Process management (from syscalls/basic.cpp)
+// Process management (from syscalls/basic.cpp and syscalls/process_mgmt.cpp)
 int64_t sys_getpid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_getppid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_fork(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_wait4(uint64_t pid, uint64_t status, uint64_t options, uint64_t rusage,
+                  uint64_t, uint64_t);
 int64_t sys_exit(uint64_t status, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
 // Placeholder for unimplemented syscalls
@@ -61,13 +65,13 @@ static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
     [3]  = sys_close,          // close
     [8]  = sys_lseek,          // lseek
 
-    // Process management
+    // Process management (Week 9 Phase 2)
     [39] = sys_getpid,         // getpid
-    [57] = sys_unimplemented,  // fork
-    [59] = sys_unimplemented,  // execve
+    [57] = sys_fork,           // fork
+    [59] = sys_unimplemented,  // execve (Week 9 Phase 3)
     [60] = sys_exit,           // exit
-    [61] = sys_unimplemented,  // wait4
-    [110] = sys_unimplemented, // getppid
+    [61] = sys_wait4,          // wait4
+    [110] = sys_getppid,       // getppid
 
     // All other entries are nullptr by default
 };

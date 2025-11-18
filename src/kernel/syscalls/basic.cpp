@@ -113,11 +113,7 @@ int64_t sys_getpid(uint64_t, uint64_t, uint64_t,
 /**
  * @brief Terminate calling process
  *
- * Week 8 Phase 4: Simple implementation that marks process as ZOMBIE.
- * Future versions will:
- * - Free process resources
- * - Notify parent via wait/waitpid
- * - Handle orphaned children
+ * Week 9 Phase 2: Full implementation with parent notification and orphan handling.
  *
  * @param status Exit status code
  * @return Does not return
@@ -137,12 +133,49 @@ int64_t sys_getpid(uint64_t, uint64_t, uint64_t,
              current->pid, current->name, status);
     early_serial.write(buffer);
 
-    // Mark process as ZOMBIE
+    // 1. Save exit status
+    current->exit_status = (int)status;
+    current->has_exited = true;
+
+    // 2. Reparent children to init (PID 1)
+    ChildNode* child = current->children_head;
+    while (child) {
+        ProcessControlBlock* child_pcb = find_process_by_pid(child->pid);
+        if (child_pcb) {
+            child_pcb->parent_pid = 1;  // Reparent to init
+
+            // Add to init's children list
+            ProcessControlBlock* init = find_process_by_pid(1);
+            if (init) {
+                ChildNode* new_node = new ChildNode;
+                new_node->pid = child_pcb->pid;
+                new_node->next = init->children_head;
+                init->children_head = new_node;
+            }
+        }
+        child = child->next;
+    }
+
+    // 3. Wake parent if it's waiting for us
+    if (current->parent_pid != 0) {
+        ProcessControlBlock* parent = find_process_by_pid(current->parent_pid);
+        if (parent && parent->state == ProcessState::BLOCKED &&
+            parent->blocked_on == BlockReason::WAIT_CHILD) {
+            // Wake parent
+            parent->state = ProcessState::READY;
+            parent->blocked_on = BlockReason::NONE;
+
+            snprintf(buffer, sizeof(buffer),
+                     "[SYSCALL] Process %d woke parent %d\n",
+                     current->pid, current->parent_pid);
+            early_serial.write(buffer);
+        }
+    }
+
+    // 4. Mark process as ZOMBIE
     current->state = ProcessState::ZOMBIE;
 
-    // TODO: Free resources, notify parent, handle children
-
-    // Yield to next process
+    // 5. Yield to next process (never returns)
     schedule();
 
     // Should never return, but if we do, halt
