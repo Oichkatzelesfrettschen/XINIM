@@ -84,6 +84,11 @@ target("xinim")
     add_files("src/kernel/pipe.cpp")
     add_files("src/kernel/syscalls/fd_advanced.cpp")
 
+    -- Week 10 Phase 1: Program execution (execve, ELF loading, stack setup)
+    add_files("src/kernel/elf_loader.cpp")
+    add_files("src/kernel/exec_stack.cpp")
+    add_files("src/kernel/syscalls/exec.cpp")
+
     -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")

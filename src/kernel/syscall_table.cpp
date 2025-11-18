@@ -38,10 +38,12 @@ int64_t sys_dup(uint64_t oldfd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t
 int64_t sys_dup2(uint64_t oldfd, uint64_t newfd, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg, uint64_t, uint64_t, uint64_t);
 
-// Process management (from syscalls/basic.cpp and syscalls/process_mgmt.cpp)
+// Process management (from syscalls/basic.cpp, syscalls/process_mgmt.cpp, and syscalls/exec.cpp)
 int64_t sys_getpid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_getppid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_fork(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_execve(uint64_t pathname, uint64_t argv, uint64_t envp,
+                   uint64_t, uint64_t, uint64_t);
 int64_t sys_wait4(uint64_t pid, uint64_t status, uint64_t options, uint64_t rusage,
                   uint64_t, uint64_t);
 int64_t sys_exit(uint64_t status, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
@@ -77,10 +79,10 @@ static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
     [33] = sys_dup2,           // dup2
     [72] = sys_fcntl,          // fcntl
 
-    // Process management (Week 9 Phase 2)
+    // Process management (Week 9 Phase 2, Week 10 Phase 1)
     [39] = sys_getpid,         // getpid
     [57] = sys_fork,           // fork
-    [59] = sys_unimplemented,  // execve (Week 10)
+    [59] = sys_execve,         // execve (Week 10 Phase 1)
     [60] = sys_exit,           // exit
     [61] = sys_wait4,          // wait4
     [110] = sys_getppid,       // getppid
