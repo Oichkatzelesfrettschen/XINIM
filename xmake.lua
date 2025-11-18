@@ -66,11 +66,17 @@ target("xinim")
     add_files("src/kernel/arch/x86_64/gdt.cpp")
     add_files("src/kernel/arch/x86_64/tss.cpp")
 
-    -- Week 8: Assembly files for context switching, interrupts, GDT, TSS
+    -- Week 8 Phase 4: Syscall infrastructure
+    add_files("src/kernel/syscall_table.cpp")
+    add_files("src/kernel/arch/x86_64/syscall_init.cpp")
+    add_files("src/kernel/syscalls/basic.cpp")
+
+    -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")
     add_files("src/arch/x86_64/gdt_load.S")
     add_files("src/arch/x86_64/tss_load.S")
+    add_files("src/arch/x86_64/syscall_handler.S")
 
     -- HAL subsystem (generic HAL + x86_64-specific implementation)
     add_files("src/hal/hal.cpp")

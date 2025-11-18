@@ -534,6 +534,42 @@ int main() {
  * the server's PCB and stack.
  */
 extern "C" void vfs_server_main() {
+    // Week 8 Phase 4: Test syscalls from Ring 3
+    #include "../../userland/libc/syscall.h"
+
+    // Test getpid syscall
+    pid_t my_pid = getpid();
+
+    // Test write syscall
+    const char* msg1 = "[VFS Server] Hello from Ring 3!\n";
+    const char* msg2 = "[VFS Server] My PID is: ";
+    const char* msg3 = "\n";
+    const char* msg4 = "[VFS Server] Syscalls working! ✓\n";
+
+    write(1, msg1, 32);
+    write(1, msg2, 24);
+
+    // Convert PID to string and write
+    char pid_str[16];
+    int len = 0;
+    int pid_copy = my_pid;
+    do {
+        pid_str[len++] = '0' + (pid_copy % 10);
+        pid_copy /= 10;
+    } while (pid_copy > 0);
+
+    // Reverse string
+    for (int i = 0; i < len / 2; i++) {
+        char tmp = pid_str[i];
+        pid_str[i] = pid_str[len - 1 - i];
+        pid_str[len - 1 - i] = tmp;
+    }
+
+    write(1, pid_str, len);
+    write(1, msg3, 1);
+    write(1, msg4, 35);
+
+    // Continue with normal server initialization
     main();  // Call C++ main
 
     // Server should never exit, but if it does, halt

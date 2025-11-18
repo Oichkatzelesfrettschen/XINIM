@@ -11,6 +11,7 @@
 #include "timer.hpp"           // Week 8 Phase 2: Timer interrupts
 #include "arch/x86_64/gdt.hpp"  // Week 8 Phase 3: GDT for Ring 3
 #include "arch/x86_64/tss.hpp"  // Week 8 Phase 3: TSS for kernel stacks
+#include "arch/x86_64/syscall_init.hpp"  // Week 8 Phase 4: Syscall/sysret
 
 #ifdef XINIM_ARCH_X86_64
 #include "../arch/x86_64/hal/apic.hpp"
@@ -248,6 +249,16 @@ extern "C" void _start() {
 
     xinim::kernel::initialize_gdt();
     xinim::kernel::initialize_tss();
+
+    // ========================================
+    // Week 8 Phase 4: Initialize Syscalls
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8 Phase 4: Syscall Setup\n");
+    kputs("========================================\n");
+
+    xinim::kernel::initialize_syscall();
 
     // ========================================
     // Week 8 Phase 2: Initialize Scheduler
