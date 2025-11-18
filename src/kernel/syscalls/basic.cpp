@@ -12,9 +12,13 @@
 #include "../syscall_table.hpp"
 #include "../scheduler.hpp"
 #include "../pcb.hpp"
+#include "../uaccess.hpp"
+#include "../fd_table.hpp"
+#include "../vfs_interface.hpp"
 #include "../early/serial_16550.hpp"
 #include <cstdio>
 #include <cstring>
+#include <cerrno>
 
 extern xinim::early::Serial16550 early_serial;
 
@@ -27,46 +31,58 @@ namespace xinim::kernel {
 /**
  * @brief Write to file descriptor
  *
- * Week 8 Phase 4: Simple implementation that writes to serial console.
- * Future versions will delegate to VFS server via Lattice IPC.
+ * Week 9 Phase 1: VFS-integrated implementation using FD table.
+ * Week 10+: Will delegate to VFS server via Lattice IPC.
  *
- * @param fd File descriptor (1=stdout, 2=stderr)
+ * @param fd File descriptor
  * @param buf_addr User buffer address
  * @param count Number of bytes to write
  * @return Number of bytes written or negative error code
+ *         -EBADF: Invalid FD or FD not open for writing
+ *         -EFAULT: Invalid user buffer
  */
 int64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t count,
                   uint64_t, uint64_t, uint64_t) {
-    // Validate file descriptor
-    if (fd != 1 && fd != 2) {
-        return -EBADF;  // Bad file descriptor
+    ProcessControlBlock* current = get_current_process();
+    if (!current) return -ESRCH;
+
+    // Validate FD
+    if (fd >= MAX_FDS_PER_PROCESS) return -EBADF;
+    FileDescriptor* fd_entry = current->fd_table.get_fd((int)fd);
+    if (!fd_entry || !fd_entry->is_open) return -EBADF;
+
+    // Check write permission (O_WRONLY or O_RDWR)
+    uint32_t access_mode = fd_entry->file_flags & (uint32_t)FileFlags::ACCMODE;
+    if (access_mode == (uint32_t)FileFlags::RDONLY) {
+        return -EBADF;  // FD not open for writing
     }
 
-    // Validate count
-    if (count == 0) {
-        return 0;
+    // Validate user buffer
+    if (!is_user_address(buf_addr, count)) return -EFAULT;
+
+    // Limit write size (prevent kernel stack overflow)
+    if (count > 4096) count = 4096;
+
+    // Copy from user space to kernel buffer
+    char kernel_buf[4096];
+    int ret = copy_from_user(kernel_buf, buf_addr, count);
+    if (ret < 0) return ret;
+
+    // Write to VFS
+    ssize_t bytes_written = vfs_write(fd_entry->inode, kernel_buf, count, fd_entry->offset);
+    if (bytes_written < 0) {
+        return bytes_written;  // VFS error
     }
 
-    if (count > 4096) {
-        // Limit write size to prevent abuse
-        count = 4096;
+    // Update file offset (always append if APPEND flag set)
+    if (fd_entry->file_flags & (uint32_t)FileFlags::APPEND) {
+        fd_entry->offset = vfs_get_size(fd_entry->inode);
+    } else if (!vfs_is_device(fd_entry->inode)) {
+        // Only update offset for regular files, not devices
+        fd_entry->offset += (uint64_t)bytes_written;
     }
 
-    // Validate buffer address (basic check)
-    // TODO: Proper user memory validation
-    if (buf_addr == 0) {
-        return -EFAULT;
-    }
-
-    const char* buf = reinterpret_cast<const char*>(buf_addr);
-
-    // Week 8: Write directly to serial console
-    // Future: Delegate to VFS server via Lattice IPC
-    for (uint64_t i = 0; i < count; i++) {
-        early_serial.write_char(buf[i]);
-    }
-
-    return (int64_t)count;  // Return bytes written
+    return bytes_written;
 }
 
 // ============================================================================

@@ -21,8 +21,18 @@ namespace xinim::kernel {
 // Forward Declarations of Syscall Handlers
 // ============================================================================
 
+// File I/O (from syscalls/file_ops.cpp and syscalls/basic.cpp)
+int64_t sys_read(uint64_t fd, uint64_t buf, uint64_t count,
+                 uint64_t, uint64_t, uint64_t);
 int64_t sys_write(uint64_t fd, uint64_t buf, uint64_t count,
                   uint64_t, uint64_t, uint64_t);
+int64_t sys_open(uint64_t pathname, uint64_t flags, uint64_t mode,
+                 uint64_t, uint64_t, uint64_t);
+int64_t sys_close(uint64_t fd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_lseek(uint64_t fd, uint64_t offset, uint64_t whence,
+                  uint64_t, uint64_t, uint64_t);
+
+// Process management (from syscalls/basic.cpp)
 int64_t sys_getpid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_exit(uint64_t status, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
@@ -44,12 +54,12 @@ static int64_t sys_unimplemented(uint64_t, uint64_t, uint64_t,
  * Initialized at compile time using designated initializers.
  */
 static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
-    // File I/O
-    [0]  = sys_unimplemented,  // read (not implemented yet)
-    [1]  = sys_write,          // write
-    [2]  = sys_unimplemented,  // open
-    [3]  = sys_unimplemented,  // close
-    [8]  = sys_unimplemented,  // lseek
+    // File I/O (Week 9 Phase 1: VFS-integrated)
+    [0]  = sys_read,           // read
+    [1]  = sys_write,          // write (updated for VFS)
+    [2]  = sys_open,           // open
+    [3]  = sys_close,          // close
+    [8]  = sys_lseek,          // lseek
 
     // Process management
     [39] = sys_getpid,         // getpid

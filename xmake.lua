@@ -71,6 +71,12 @@ target("xinim")
     add_files("src/kernel/arch/x86_64/syscall_init.cpp")
     add_files("src/kernel/syscalls/basic.cpp")
 
+    -- Week 9 Phase 1: VFS integration and file operations
+    add_files("src/kernel/uaccess.cpp")
+    add_files("src/kernel/fd_table.cpp")
+    add_files("src/kernel/vfs_interface.cpp")
+    add_files("src/kernel/syscalls/file_ops.cpp")
+
     -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")

@@ -29,6 +29,8 @@
 #include "context.hpp"  // Week 8: Full CPU context for context switching
 #include "scheduler.hpp"  // Week 8 Phase 2: Preemptive scheduler
 #include "pcb.hpp"        // Week 8: Consolidated Process Control Block
+#include "fd_table.hpp"   // Week 9 Phase 1: File descriptor tables
+#include "vfs_interface.hpp"  // Week 9 Phase 1: VFS interface
 #include "early/serial_16550.hpp"
 #include "../include/xinim/ipc/message_types.h"
 #include <cstring>
@@ -123,9 +125,54 @@ static ProcessControlBlock* create_pcb_with_pid(xinim::pid_t pid) {
     pcb->stack_base = nullptr;
     pcb->stack_size = 0;
     pcb->next = nullptr;
+    pcb->exit_status = 0;  // Week 9 Phase 1
 
     // Zero initialize context
     memset(&pcb->context, 0, sizeof(CpuContext));
+
+    // Week 9 Phase 1: Initialize file descriptor table
+    pcb->fd_table.initialize();
+
+    // Week 9 Phase 1: Set up standard file descriptors (stdin, stdout, stderr)
+    // All three point to /dev/console
+    void* console_inode = vfs_lookup("/dev/console");
+    if (console_inode) {
+        // FD 0: stdin (read-only)
+        int fd0 = pcb->fd_table.allocate_fd();
+        if (fd0 == 0) {
+            FileDescriptor* stdin_fd = pcb->fd_table.get_fd(0);
+            stdin_fd->is_open = true;
+            stdin_fd->flags = 0;
+            stdin_fd->file_flags = (uint32_t)FileFlags::RDONLY;
+            stdin_fd->offset = 0;
+            stdin_fd->inode = console_inode;
+            stdin_fd->private_data = nullptr;
+        }
+
+        // FD 1: stdout (write-only)
+        int fd1 = pcb->fd_table.allocate_fd();
+        if (fd1 == 1) {
+            FileDescriptor* stdout_fd = pcb->fd_table.get_fd(1);
+            stdout_fd->is_open = true;
+            stdout_fd->flags = 0;
+            stdout_fd->file_flags = (uint32_t)FileFlags::WRONLY;
+            stdout_fd->offset = 0;
+            stdout_fd->inode = console_inode;
+            stdout_fd->private_data = nullptr;
+        }
+
+        // FD 2: stderr (write-only)
+        int fd2 = pcb->fd_table.allocate_fd();
+        if (fd2 == 2) {
+            FileDescriptor* stderr_fd = pcb->fd_table.get_fd(2);
+            stderr_fd->is_open = true;
+            stderr_fd->flags = 0;
+            stderr_fd->file_flags = (uint32_t)FileFlags::WRONLY;
+            stderr_fd->offset = 0;
+            stderr_fd->inode = console_inode;
+            stderr_fd->private_data = nullptr;
+        }
+    }
 
     // Update g_next_pid if necessary
     if (static_cast<uint64_t>(pid) >= g_next_pid) {

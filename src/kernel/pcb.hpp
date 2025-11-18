@@ -17,6 +17,7 @@
 #include <cstdint>
 #include "../include/sys/type.hpp"  // For pid_t
 #include "context.hpp"               // For CpuContext
+#include "fd_table.hpp"              // For FileDescriptorTable (Week 9 Phase 1)
 
 namespace xinim::kernel {
 
@@ -107,6 +108,18 @@ struct ProcessControlBlock {
 
     uint64_t time_quantum_start;    ///< Tick when this quantum started
     uint64_t total_ticks;           ///< Total CPU ticks consumed by this process
+
+    // ========================================
+    // File Descriptor Table (Week 9 Phase 1)
+    // ========================================
+
+    FileDescriptorTable fd_table;   ///< Per-process file descriptor table
+
+    // ========================================
+    // Process Exit Status
+    // ========================================
+
+    int exit_status;                ///< Exit status code (for wait/waitpid)
 
     // ========================================
     // Scheduler Queue Linkage
