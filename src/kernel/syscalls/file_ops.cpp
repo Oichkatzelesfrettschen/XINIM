@@ -15,6 +15,7 @@
 #include "../vfs_interface.hpp"
 #include "../pcb.hpp"
 #include "../scheduler.hpp"
+#include "../pipe.hpp"
 #include "../../early/serial_16550.hpp"
 #include <cerrno>
 #include <cstdio>
@@ -159,6 +160,26 @@ extern "C" int64_t sys_read(uint64_t fd, uint64_t buf_addr, uint64_t count,
     // Limit read size (prevent kernel stack overflow)
     if (count > 4096) count = 4096;
 
+    // Week 9 Phase 3: Check if this is a pipe
+    if (fd_entry->private_data != nullptr) {
+        // This is a pipe - use Pipe::read()
+        Pipe* pipe = static_cast<Pipe*>(fd_entry->private_data);
+        char kernel_buf[4096];
+
+        ssize_t bytes_read = pipe->read(kernel_buf, count);
+        if (bytes_read < 0) {
+            return bytes_read;  // Pipe error
+        }
+
+        // Copy to user space
+        if (bytes_read > 0) {
+            int ret = copy_to_user(buf_addr, kernel_buf, (size_t)bytes_read);
+            if (ret < 0) return ret;
+        }
+
+        return bytes_read;
+    }
+
     // Read from VFS into kernel buffer
     char kernel_buf[4096];
     ssize_t bytes_read = vfs_read(fd_entry->inode, kernel_buf, count, fd_entry->offset);
@@ -205,6 +226,21 @@ extern "C" int64_t sys_close(uint64_t fd, uint64_t, uint64_t,
     FileDescriptor* fd_entry = current->fd_table.get_fd((int)fd);
     if (!fd_entry) return -EBADF;
 
+    // Week 9 Phase 3: Handle pipe cleanup
+    if (fd_entry->private_data != nullptr) {
+        Pipe* pipe = static_cast<Pipe*>(fd_entry->private_data);
+
+        // Determine if this is read end or write end based on flags
+        uint32_t access_mode = fd_entry->file_flags & (uint32_t)FileFlags::ACCMODE;
+        if (access_mode == (uint32_t)FileFlags::RDONLY) {
+            pipe->close_read_end();
+        } else {
+            pipe->close_write_end();
+        }
+
+        // TODO Week 10: Free pipe when both ends are closed
+    }
+
     // TODO Week 9 Phase 2: Call VFS close on inode (decrement ref count)
     // For now, we just deallocate the FD
 
@@ -248,6 +284,11 @@ extern "C" int64_t sys_lseek(uint64_t fd, uint64_t offset, uint64_t whence,
     if (fd >= MAX_FDS_PER_PROCESS) return -EBADF;
     FileDescriptor* fd_entry = current->fd_table.get_fd((int)fd);
     if (!fd_entry || !fd_entry->is_open) return -EBADF;
+
+    // Week 9 Phase 3: lseek doesn't work on pipes
+    if (fd_entry->private_data != nullptr) {
+        return -ESPIPE;  // Illegal seek on pipe
+    }
 
     // lseek doesn't work on devices
     if (vfs_is_device(fd_entry->inode)) {

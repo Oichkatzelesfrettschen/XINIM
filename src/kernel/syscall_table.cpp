@@ -32,6 +32,12 @@ int64_t sys_close(uint64_t fd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t)
 int64_t sys_lseek(uint64_t fd, uint64_t offset, uint64_t whence,
                   uint64_t, uint64_t, uint64_t);
 
+// Advanced FD operations (from syscalls/fd_advanced.cpp - Week 9 Phase 3)
+int64_t sys_pipe(uint64_t pipefd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_dup(uint64_t oldfd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_dup2(uint64_t oldfd, uint64_t newfd, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg, uint64_t, uint64_t, uint64_t);
+
 // Process management (from syscalls/basic.cpp and syscalls/process_mgmt.cpp)
 int64_t sys_getpid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_getppid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
@@ -65,10 +71,16 @@ static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
     [3]  = sys_close,          // close
     [8]  = sys_lseek,          // lseek
 
+    // Advanced FD operations (Week 9 Phase 3)
+    [22] = sys_pipe,           // pipe
+    [32] = sys_dup,            // dup
+    [33] = sys_dup2,           // dup2
+    [72] = sys_fcntl,          // fcntl
+
     // Process management (Week 9 Phase 2)
     [39] = sys_getpid,         // getpid
     [57] = sys_fork,           // fork
-    [59] = sys_unimplemented,  // execve (Week 9 Phase 3)
+    [59] = sys_unimplemented,  // execve (Week 10)
     [60] = sys_exit,           // exit
     [61] = sys_wait4,          // wait4
     [110] = sys_getppid,       // getppid

@@ -80,6 +80,10 @@ target("xinim")
     -- Week 9 Phase 2: Process management (fork, wait, getppid)
     add_files("src/kernel/syscalls/process_mgmt.cpp")
 
+    -- Week 9 Phase 3: Advanced FD operations and pipes (dup, dup2, pipe, fcntl)
+    add_files("src/kernel/pipe.cpp")
+    add_files("src/kernel/syscalls/fd_advanced.cpp")
+
     -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")

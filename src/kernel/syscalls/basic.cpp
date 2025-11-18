@@ -15,6 +15,7 @@
 #include "../uaccess.hpp"
 #include "../fd_table.hpp"
 #include "../vfs_interface.hpp"
+#include "../pipe.hpp"
 #include "../early/serial_16550.hpp"
 #include <cstdio>
 #include <cstring>
@@ -67,6 +68,19 @@ int64_t sys_write(uint64_t fd, uint64_t buf_addr, uint64_t count,
     char kernel_buf[4096];
     int ret = copy_from_user(kernel_buf, buf_addr, count);
     if (ret < 0) return ret;
+
+    // Week 9 Phase 3: Check if this is a pipe
+    if (fd_entry->private_data != nullptr) {
+        // This is a pipe - use Pipe::write()
+        Pipe* pipe = static_cast<Pipe*>(fd_entry->private_data);
+
+        ssize_t bytes_written = pipe->write(kernel_buf, count);
+        if (bytes_written < 0) {
+            return bytes_written;  // Pipe error (e.g., -EPIPE if read end closed)
+        }
+
+        return bytes_written;
+    }
 
     // Write to VFS
     ssize_t bytes_written = vfs_write(fd_entry->inode, kernel_buf, count, fd_entry->offset);
