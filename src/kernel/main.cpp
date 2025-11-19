@@ -6,6 +6,12 @@
 #include "platform_traits.hpp"
 #include "time/monotonic.hpp"
 #include "time/calibrate.hpp"
+#include "server_spawn.hpp"  // Week 7: Server spawning infrastructure
+#include "scheduler.hpp"      // Week 8 Phase 2: Preemptive scheduler
+#include "timer.hpp"           // Week 8 Phase 2: Timer interrupts
+#include "arch/x86_64/gdt.hpp"  // Week 8 Phase 3: GDT for Ring 3
+#include "arch/x86_64/tss.hpp"  // Week 8 Phase 3: TSS for kernel stacks
+#include "arch/x86_64/syscall_init.hpp"  // Week 8 Phase 4: Syscall/sysret
 
 #ifdef XINIM_ARCH_X86_64
 #include "../arch/x86_64/hal/apic.hpp"
@@ -84,15 +90,20 @@ static int parse_hpet_gsi(const char* cmdline) {
 }
 
 static void setup_x86_64_timers(const xinim::boot::BootInfo& bi, const xinim::acpi::AcpiInfo& acpi) {
-    xinim::hal::x86_64::Lapic lapic;
+    // Week 8: Make lapic static so it persists for timer EOI
+    static xinim::hal::x86_64::Lapic lapic;
+
     if (!acpi.lapic_mmio) {
         kputs("LAPIC not found.\n");
         for(;;) { __asm__ volatile ("hlt"); }
     }
-    
+
     auto lapic_virt = static_cast<uintptr_t>(bi.hhdm_offset + acpi.lapic_mmio);
     lapic.init(lapic_virt);
     interrupts_init(early_serial, lapic);
+
+    // Week 8: Set LAPIC reference for timer interrupt handler
+    xinim::kernel::set_timer_lapic(&lapic);
     
     // Calibrate APIC timer using HPET if present
     uint32_t init_count = 20000000u;
@@ -227,18 +238,90 @@ extern "C" void _start() {
     kputs("Boot: Stub mode (testing)\n");
     Console::printf("XINIM kernel stub\n");
 #endif
-    
-    // Main kernel loop
-    kputs("Entering main loop...\n");
+
+    // ========================================
+    // Week 8 Phase 3: Initialize GDT and TSS
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8 Phase 3: GDT and TSS Setup\n");
+    kputs("========================================\n");
+
+    xinim::kernel::initialize_gdt();
+    xinim::kernel::initialize_tss();
+
+    // ========================================
+    // Week 8 Phase 4: Initialize Syscalls
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8 Phase 4: Syscall Setup\n");
+    kputs("========================================\n");
+
+    xinim::kernel::initialize_syscall();
+
+    // ========================================
+    // Week 8 Phase 2: Initialize Scheduler
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8: Initializing Scheduler\n");
+    kputs("========================================\n");
+
+    xinim::kernel::initialize_scheduler();
+
+    // ========================================
+    // Week 8: Spawn System Servers
+    // ========================================
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("Week 8: Spawning System Servers\n");
+    kputs("========================================\n");
+
+    // Initialize and spawn all system servers (VFS, Process Mgr, Memory Mgr)
+    if (xinim::kernel::initialize_system_servers() != 0) {
+        kputs("[FATAL] Failed to spawn system servers\n");
+        for(;;) {
+#ifdef XINIM_ARCH_X86_64
+            __asm__ volatile ("hlt");
+#elif defined(XINIM_ARCH_ARM64)
+            __asm__ volatile ("wfi");
+#endif
+        }
+    }
+
+    // Optionally spawn init process (PID 1)
+    // Note: This will fail in Week 7 (no ELF loader yet)
+    xinim::kernel::spawn_init_process("/sbin/init");
+
+    kputs("\n");
+    kputs("========================================\n");
+    kputs("XINIM is now running!\n");
+    kputs("========================================\n");
+    kputs("\n");
+
+    // ========================================
+    // Week 8 Phase 2: Initialize Timer
+    // ========================================
+    kputs("Initializing timer interrupts...\n");
+    initialize_timer(100);  // 100 Hz (10ms per tick)
+
+    // ========================================
+    // Enter Scheduler Loop (Never Returns)
+    // ========================================
+    kputs("Starting preemptive scheduler...\n");
+
+    // Week 8: Call preemptive scheduler (never returns)
+    // This enables interrupts and starts the first process
+    xinim::kernel::schedule_forever();
+
+    // Should never reach here
+    kputs("[FATAL] Scheduler returned unexpectedly\n");
     for(;;) {
 #ifdef XINIM_ARCH_X86_64
         __asm__ volatile ("hlt");
 #elif defined(XINIM_ARCH_ARM64)
         __asm__ volatile ("wfi");
-#else
-        // Generic busy wait for unknown architectures
-        volatile int x = 0;
-        for(int i = 0; i < 1000000; ++i) x++;
 #endif
     }
 }

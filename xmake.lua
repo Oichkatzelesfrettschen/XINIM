@@ -56,6 +56,54 @@ target("xinim")
     add_files("src/kernel/wait_graph.cpp")
     add_files("src/kernel/net_driver.cpp")
 
+    -- Week 8 Phase 2: Preemptive scheduling and context switching
+    add_files("src/kernel/server_spawn.cpp")
+    add_files("src/kernel/scheduler.cpp")
+    add_files("src/kernel/timer.cpp")
+    add_files("src/kernel/arch/x86_64/idt.cpp")
+
+    -- Week 8 Phase 3: Ring 3 transition (GDT, TSS)
+    add_files("src/kernel/arch/x86_64/gdt.cpp")
+    add_files("src/kernel/arch/x86_64/tss.cpp")
+
+    -- Week 8 Phase 4: Syscall infrastructure
+    add_files("src/kernel/syscall_table.cpp")
+    add_files("src/kernel/arch/x86_64/syscall_init.cpp")
+    add_files("src/kernel/syscalls/basic.cpp")
+
+    -- Week 9 Phase 1: VFS integration and file operations
+    add_files("src/kernel/uaccess.cpp")
+    add_files("src/kernel/fd_table.cpp")
+    add_files("src/kernel/vfs_interface.cpp")
+    add_files("src/kernel/syscalls/file_ops.cpp")
+
+    -- Week 9 Phase 2: Process management (fork, wait, getppid)
+    add_files("src/kernel/syscalls/process_mgmt.cpp")
+
+    -- Week 9 Phase 3: Advanced FD operations and pipes (dup, dup2, pipe, fcntl)
+    add_files("src/kernel/pipe.cpp")
+    add_files("src/kernel/syscalls/fd_advanced.cpp")
+
+    -- Week 10 Phase 1: Program execution (execve, ELF loading, stack setup)
+    add_files("src/kernel/elf_loader.cpp")
+    add_files("src/kernel/exec_stack.cpp")
+    add_files("src/kernel/syscalls/exec.cpp")
+
+    -- Week 10 Phase 2: Signal framework (POSIX signals, signal delivery, signal syscalls)
+    add_files("src/kernel/signal.cpp")
+    add_files("src/kernel/syscalls/signal.cpp")
+
+    -- Week 10 Phase 3: Process groups and sessions (job control)
+    add_files("src/kernel/process_group.cpp")
+    add_files("src/kernel/tty_signals.cpp")
+
+    -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
+    add_files("src/arch/x86_64/context_switch.S")
+    add_files("src/arch/x86_64/interrupts.S")
+    add_files("src/arch/x86_64/gdt_load.S")
+    add_files("src/arch/x86_64/tss_load.S")
+    add_files("src/arch/x86_64/syscall_handler.S")
+
     -- HAL subsystem (generic HAL + x86_64-specific implementation)
     add_files("src/hal/hal.cpp")
     add_files("src/hal/x86_64/hal/*.cpp")
@@ -130,8 +178,17 @@ target("xinim")
 
     -- Tools
     add_files("src/tools/*.cpp")
-    
+
 -- Userland components
+
+-- XINIM Shell (xinim-sh) - Week 10 Phase 3
+target("xinim-sh")
+    set_kind("binary")
+    set_languages("cxx23")
+    add_files("userland/shell/xinim-sh/*.cpp")
+    add_includedirs("include")
+    add_links("pthread")
+target_end()
 
 -- mksh shell
 target("mksh")
@@ -193,6 +250,13 @@ target("posix-gnu-test")
         os.cd("third_party/gpl/posixtestsuite-main/")
         os.exec("./run_tests AIO")
     end)
+
+-- Week 10 Phase 3: Signal testing
+target("signal-test")
+    set_kind("binary")
+    add_files("tests/signal/test_signal_comprehensive.cpp")
+    add_includedirs("include")
+    add_links("pthread")
 
 -- All tests target
 target("test-all")

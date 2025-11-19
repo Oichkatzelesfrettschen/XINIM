@@ -6,6 +6,7 @@
 
 #include "service.hpp"
 #include "schedule.hpp"
+#include "lock_manager.hpp"
 
 #include <algorithm>
 #include <fstream>
@@ -164,6 +165,12 @@ void ServiceManager::restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pi
 
 /**
  * @brief React to a service crash by marking it inactive and restarting.
+ *
+ * When a service crashes, this method:
+ * 1. Marks the service as not running
+ * 2. Releases all locks held by the crashed service (via LockManager)
+ * 3. Checks restart limits
+ * 4. Restarts the service and its dependents if allowed
  */
 bool ServiceManager::handle_crash(xinim::pid_t pid) {
     auto it = services_.find(pid);
@@ -174,10 +181,21 @@ bool ServiceManager::handle_crash(xinim::pid_t pid) {
     auto &info = it->second;
     info.running = false;
 
+    // **NEW: Release all locks held by the crashed service**
+    // This prevents deadlock and allows other services to acquire the locks
+    size_t locks_released = xinim::LockManager::instance().handle_crash(pid);
+
+    // Log warning if the crashed service was holding locks
+    // TODO: Add proper logging infrastructure
+    // For now, we rely on LockManager's internal logging
+    (void)locks_released; // Suppress unused variable warning
+
+    // Check restart limits
     if (info.contract.policy.limit != 0 && info.contract.restarts >= info.contract.policy.limit) {
         return false;
     }
 
+    // Restart the service and all dependent services
     std::unordered_set<xinim::pid_t> visited;
     restart_tree(pid, visited);
     return true;

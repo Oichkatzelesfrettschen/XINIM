@@ -1,6 +1,19 @@
 # Build Instructions
 
-## Prerequisites
+> **⚠️ DEPRECATED:** This document is outdated and contains incorrect information.
+>
+> **XINIM does NOT use CMake.** The actual build system is **xmake**.
+>
+> **Please refer to:**
+> - `docs/REQUIREMENTS.md` - Complete requirements and build instructions (CURRENT)
+> - `README.md` - Quick start guide
+> - `xmake.lua` - Actual build configuration
+>
+> This file will be removed or updated in a future release.
+
+---
+
+## Prerequisites (OUTDATED - DO NOT FOLLOW)
 - CMake 3.5 or newer
 - Clang 18 toolchain and LLVM utilities (`lld`, `lldb`)
 - Doxygen for API documentation
