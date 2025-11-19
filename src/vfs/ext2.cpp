@@ -2507,8 +2507,160 @@ int Ext2Node::rmdir(const std::string& name) {
 
     return 0;
 }
-int Ext2Node::link(const std::string& name, VNode* target) { return -EROFS; }
-int Ext2Node::symlink(const std::string& name, const std::string& target) { return -EROFS; }
+int Ext2Node::link(const std::string& name, VNode* target) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Cast target to Ext2Node
+    Ext2Node* ext2_target = dynamic_cast<Ext2Node*>(target);
+    if (!ext2_target) {
+        return -EXDEV;  // Cross-device link
+    }
+
+    // Check if target is from the same filesystem
+    if (ext2_target->ext2fs_ != ext2fs_) {
+        return -EXDEV;  // Cross-device link
+    }
+
+    // Cannot hard link directories (POSIX restriction)
+    if ((ext2_target->inode_.i_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR) {
+        return -EPERM;
+    }
+
+    // Check if name already exists
+    VNode* existing = lookup(name);
+    if (existing) {
+        existing->unref();
+        return -EEXIST;
+    }
+
+    // Get target inode info
+    uint32_t target_inode_num = ext2_target->inode_num_;
+    uint8_t file_type = Ext2DirEntry::EXT2_FT_REG_FILE;
+
+    // Determine file type
+    if ((ext2_target->inode_.i_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFLNK) {
+        file_type = Ext2DirEntry::EXT2_FT_SYMLINK;
+    }
+
+    // Add directory entry
+    int ret = add_directory_entry(name, target_inode_num, file_type);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Increment link count on target inode
+    Ext2Inode target_inode;
+    ret = ext2fs_->read_inode(target_inode_num, target_inode);
+    if (ret == 0) {
+        target_inode.i_links_count++;
+        target_inode.i_ctime = static_cast<uint32_t>(get_current_time());
+        ext2fs_->write_inode(target_inode_num, target_inode);
+    }
+
+    // Update directory times
+    update_times(false, true, true);
+    dirty_ = true;
+
+    return 0;
+}
+int Ext2Node::symlink(const std::string& name, const std::string& target) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Check if name already exists
+    VNode* existing = lookup(name);
+    if (existing) {
+        existing->unref();
+        return -EEXIST;
+    }
+
+    // Create new inode for symlink
+    uint32_t new_inode_num;
+    uint16_t mode = Ext2Inode::EXT2_S_IFLNK | 0777;  // Symlink with full permissions
+    int ret = create_new_inode(mode, new_inode_num);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Read the new inode
+    Ext2Inode new_inode;
+    ret = ext2fs_->read_inode(new_inode_num, new_inode);
+    if (ret < 0) {
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Set symlink target path
+    // Fast symlink: if target fits in i_block[] (60 bytes)
+    // Slow symlink: allocate a data block
+    size_t target_len = target.length();
+    new_inode.i_size = target_len;
+
+    if (target_len <= 60) {
+        // Fast symlink: store in i_block[] array
+        std::memcpy(new_inode.i_block, target.c_str(), target_len);
+        new_inode.i_blocks = 0;  // No actual disk blocks allocated
+    } else {
+        // Slow symlink: allocate data block
+        uint32_t block_num;
+        uint32_t group = ext2fs_->get_block_group(new_inode_num);
+        ret = ext2fs_->allocate_block(group, block_num);
+        if (ret < 0) {
+            ext2fs_->free_inode(new_inode_num);
+            return ret;
+        }
+
+        // Write target path to block
+        std::vector<uint8_t> block_buffer(ext2fs_->get_block_size(), 0);
+        std::memcpy(block_buffer.data(), target.c_str(), target_len);
+        ret = ext2fs_->write_data_block(block_num, block_buffer.data());
+        if (ret < 0) {
+            ext2fs_->free_block(block_num);
+            ext2fs_->free_inode(new_inode_num);
+            return ret;
+        }
+
+        // Set block pointer
+        new_inode.i_block[0] = block_num;
+        new_inode.i_blocks = (ext2fs_->get_block_size() + 511) / 512;
+    }
+
+    // Write inode
+    ret = ext2fs_->write_inode(new_inode_num, new_inode);
+    if (ret < 0) {
+        if (target_len > 60 && new_inode.i_block[0] != 0) {
+            ext2fs_->free_block(new_inode.i_block[0]);
+        }
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Add directory entry
+    ret = add_directory_entry(name, new_inode_num, Ext2DirEntry::EXT2_FT_SYMLINK);
+    if (ret < 0) {
+        // Clean up
+        if (target_len > 60 && new_inode.i_block[0] != 0) {
+            ext2fs_->free_block(new_inode.i_block[0]);
+        }
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Update directory times
+    update_times(false, true, true);
+    dirty_ = true;
+
+    return 0;
+}
 int Ext2Node::rename(const std::string& oldname, const std::string& newname) {
     std::lock_guard<std::mutex> lock(mutex_);
 
