@@ -56,6 +56,13 @@ int64_t sys_wait4(uint64_t pid, uint64_t status, uint64_t options, uint64_t rusa
                   uint64_t, uint64_t);
 int64_t sys_exit(uint64_t status, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
+// Process groups and sessions (from process_group.cpp - Week 10 Phase 3)
+int64_t sys_setpgid(uint64_t pid, uint64_t pgid, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_getpgid(uint64_t pid, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_getpgrp(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_setsid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_getsid(uint64_t pid, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+
 // Placeholder for unimplemented syscalls
 static int64_t sys_unimplemented(uint64_t, uint64_t, uint64_t,
                                   uint64_t, uint64_t, uint64_t) {
@@ -100,6 +107,13 @@ static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
     [60] = sys_exit,           // exit
     [61] = sys_wait4,          // wait4
     [110] = sys_getppid,       // getppid
+
+    // Process groups and sessions (Week 10 Phase 3)
+    [109] = sys_setpgid,       // setpgid
+    [111] = sys_getpgrp,       // getpgrp
+    [112] = sys_setsid,        // setsid
+    [121] = sys_getpgid,       // getpgid
+    [124] = sys_getsid,        // getsid
 
     // All other entries are nullptr by default
 };

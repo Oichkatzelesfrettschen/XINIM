@@ -31,6 +31,7 @@
 #include "pcb.hpp"        // Week 8: Consolidated Process Control Block
 #include "fd_table.hpp"   // Week 9 Phase 1: File descriptor tables
 #include "vfs_interface.hpp"  // Week 9 Phase 1: VFS interface
+#include "signal.hpp"     // Week 10 Phase 3: Signal state initialization
 #include "early/serial_16550.hpp"
 #include "../include/xinim/ipc/message_types.h"
 #include <cstring>
@@ -133,6 +134,12 @@ static ProcessControlBlock* create_pcb_with_pid(xinim::pid_t pid) {
     pcb->has_exited = false;
     pcb->has_been_waited = false;
 
+    // Week 10 Phase 3: Initialize process group and session
+    pcb->pgid = pid;             // Initially, process is its own group leader
+    pcb->sid = pid;              // Initially, process is its own session leader
+    pcb->pg_next = nullptr;
+    pcb->pg_prev = nullptr;
+
     // Zero initialize context
     memset(&pcb->context, 0, sizeof(CpuContext));
 
@@ -179,6 +186,9 @@ static ProcessControlBlock* create_pcb_with_pid(xinim::pid_t pid) {
             stderr_fd->private_data = nullptr;
         }
     }
+
+    // Week 10 Phase 3: Initialize signal state for new process
+    init_signal_state(pcb);
 
     // Update g_next_pid if necessary
     if (static_cast<uint64_t>(pid) >= g_next_pid) {

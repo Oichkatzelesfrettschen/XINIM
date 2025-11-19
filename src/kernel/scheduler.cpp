@@ -14,6 +14,7 @@
 #include "pcb.hpp"  // Week 8: Consolidated Process Control Block
 #include "context.hpp"
 #include "arch/x86_64/tss.hpp"  // Week 8 Phase 3: For set_kernel_stack()
+#include "signal.hpp"  // Week 10 Phase 3: Signal delivery
 #include "early/serial_16550.hpp"
 #include <cstdio>
 #include <cstring>
@@ -149,6 +150,12 @@ static void switch_to(ProcessControlBlock* next) {
 
     // Update current process pointer
     g_current_process = next;
+
+    // Week 10 Phase 3: Deliver pending signals before returning to user mode
+    // Only deliver signals if process is returning to Ring 3 (user mode)
+    if (next->context.cs == 0x23 || next->context.cs == 0x1B) {
+        deliver_pending_signals(next);
+    }
 
     // Perform actual context switch
     if (current) {

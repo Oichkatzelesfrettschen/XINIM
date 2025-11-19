@@ -161,6 +161,15 @@ struct ProcessControlBlock {
     SignalState* signal_state;      ///< Signal state (handlers, pending, blocked)
 
     // ========================================
+    // Process Groups and Sessions (Week 10 Phase 3)
+    // ========================================
+
+    xinim::pid_t pgid;              ///< Process group ID
+    xinim::pid_t sid;               ///< Session ID
+    ProcessControlBlock* pg_next;   ///< Next process in same process group
+    ProcessControlBlock* pg_prev;   ///< Previous process in same process group
+
+    // ========================================
     // Scheduler Queue Linkage
     // ========================================
 
