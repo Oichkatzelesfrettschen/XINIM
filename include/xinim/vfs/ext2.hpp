@@ -264,8 +264,13 @@ private:
     int save_inode();
     int read_block_data(uint32_t block_idx, void* buffer);
     int get_data_block(uint32_t block_idx, uint32_t& block_num);
+    int allocate_data_block(uint32_t block_idx, uint32_t& block_num);
+    int free_data_blocks(uint32_t start_block, uint32_t count);
+    int extend_file(uint64_t new_size);
+    int shrink_file(uint64_t new_size);
     FileType inode_type_to_file_type() const;
     void update_times(bool atime, bool mtime, bool ctime);
+    uint64_t get_current_time();
 };
 
 // ============================================================================
@@ -297,6 +302,14 @@ public:
     int read_data_block(uint32_t block_num, void* buffer);
     int write_data_block(uint32_t block_num, const void* buffer);
 
+    // Block allocation/deallocation
+    int allocate_block(uint32_t preferred_group, uint32_t& block_num);
+    int free_block(uint32_t block_num);
+
+    // Inode allocation/deallocation
+    int allocate_inode(uint32_t parent_dir_inode, bool is_directory, uint32_t& inode_num);
+    int free_inode(uint32_t inode_num);
+
     const Ext2Superblock& get_superblock() const { return superblock_; }
     const std::vector<Ext2GroupDescriptor>& get_group_descriptors() const { return group_descriptors_; }
 
@@ -319,9 +332,18 @@ private:
     // Helper methods
     int validate_superblock();
     int read_group_descriptors();
+    int write_group_descriptors();
     uint32_t get_block_group(uint32_t inode_num) const;
     uint32_t get_group_index(uint32_t inode_num) const;
     uint64_t get_inode_offset(uint32_t inode_num) const;
+
+    // Bitmap operations
+    int read_bitmap(uint32_t block_num, std::vector<uint8_t>& bitmap);
+    int write_bitmap(uint32_t block_num, const std::vector<uint8_t>& bitmap);
+    int find_free_bit(const std::vector<uint8_t>& bitmap, uint32_t& bit_index);
+    void set_bit(std::vector<uint8_t>& bitmap, uint32_t bit_index);
+    void clear_bit(std::vector<uint8_t>& bitmap, uint32_t bit_index);
+    bool test_bit(const std::vector<uint8_t>& bitmap, uint32_t bit_index);
 
     friend class Ext2Node;
 };

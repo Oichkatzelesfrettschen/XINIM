@@ -11,6 +11,7 @@
 #include <cstring>
 #include <algorithm>
 #include <stdexcept>
+#include <ctime>
 
 // Error codes
 #define EINVAL 22  // Invalid argument
@@ -173,8 +174,44 @@ int Ext2Filesystem::read_group_descriptors() {
 }
 
 int Ext2Filesystem::write_superblock() {
-    // TODO: Implement when adding write support
-    // For now, read-only filesystem
+    // ext2 superblock is located at byte offset 1024
+    constexpr uint64_t SUPERBLOCK_OFFSET = 1024;
+
+    auto block_dev = get_block_device();
+    if (!block_dev) {
+        return -EIO;
+    }
+
+    size_t dev_block_size = block_dev->get_block_size();
+
+    // Calculate which device block contains the superblock
+    uint64_t dev_block = SUPERBLOCK_OFFSET / dev_block_size;
+    uint64_t offset_in_block = SUPERBLOCK_OFFSET % dev_block_size;
+
+    // Read the existing block
+    std::vector<uint8_t> block_buffer(dev_block_size);
+    int ret = block_dev->read_blocks(dev_block, 1, block_buffer.data());
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to read block for superblock write: %d", ret);
+        return ret;
+    }
+
+    // Update timestamps
+    superblock_.s_wtime = static_cast<uint32_t>(time(nullptr));  // TODO: Use kernel time
+
+    // Copy superblock to buffer
+    std::memcpy(block_buffer.data() + offset_in_block, &superblock_, sizeof(Ext2Superblock));
+
+    // Write the block back
+    ret = block_dev->write_blocks(dev_block, 1, block_buffer.data());
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to write superblock: %d", ret);
+        return ret;
+    }
+
+    // Sync to ensure it's written
+    block_dev->flush();
+
     return 0;
 }
 
@@ -192,7 +229,28 @@ VNode* Ext2Filesystem::create_root_vnode() {
 }
 
 int Ext2Filesystem::flush_all() {
-    // TODO: Implement when adding write support
+    int ret;
+
+    // Write group descriptors
+    ret = write_group_descriptors();
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to write group descriptors during flush: %d", ret);
+        return ret;
+    }
+
+    // Write superblock
+    ret = write_superblock();
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to write superblock during flush: %d", ret);
+        return ret;
+    }
+
+    // Flush block device cache
+    auto block_dev = get_block_device();
+    if (block_dev) {
+        block_dev->flush();
+    }
+
     return 0;
 }
 
@@ -265,8 +323,47 @@ int Ext2Filesystem::read_inode(uint32_t inode_num, Ext2Inode& inode) {
 }
 
 int Ext2Filesystem::write_inode(uint32_t inode_num, const Ext2Inode& inode) {
-    // TODO: Implement when adding write support
-    return -EROFS;
+    if (inode_num == 0 || inode_num > superblock_.s_inodes_count) {
+        LOG_ERROR("ext2: Invalid inode number: %u", inode_num);
+        return -EINVAL;
+    }
+
+    uint32_t group = get_block_group(inode_num);
+    uint32_t index = get_group_index(inode_num);
+
+    if (group >= num_block_groups_) {
+        LOG_ERROR("ext2: Inode %u is in invalid group %u", inode_num, group);
+        return -EINVAL;
+    }
+
+    // Get inode table block
+    uint32_t inode_table_block = group_descriptors_[group].bg_inode_table;
+
+    // Calculate which block contains this inode
+    uint32_t inodes_per_block = block_size_ / inode_size_;
+    uint32_t block_offset = index / inodes_per_block;
+    uint32_t inode_offset = index % inodes_per_block;
+
+    // Read the block containing the inode
+    std::vector<uint8_t> block_buffer(block_size_);
+    int ret = read_block(inode_table_block + block_offset, block_buffer.data());
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to read inode block for write %u: %d", inode_num, ret);
+        return ret;
+    }
+
+    // Update inode in buffer
+    size_t inode_pos = inode_offset * inode_size_;
+    std::memcpy(block_buffer.data() + inode_pos, &inode, sizeof(Ext2Inode));
+
+    // Write the block back
+    ret = write_block(inode_table_block + block_offset, block_buffer.data());
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to write inode %u: %d", inode_num, ret);
+        return ret;
+    }
+
+    return 0;
 }
 
 int Ext2Filesystem::read_data_block(uint32_t block_num, void* buffer) {
@@ -285,8 +382,346 @@ int Ext2Filesystem::read_data_block(uint32_t block_num, void* buffer) {
 }
 
 int Ext2Filesystem::write_data_block(uint32_t block_num, const void* buffer) {
-    // TODO: Implement when adding write support
-    return -EROFS;
+    if (block_num == 0 || block_num >= superblock_.s_blocks_count) {
+        LOG_ERROR("ext2: Invalid block number for write: %u", block_num);
+        return -EINVAL;
+    }
+
+    return write_block(block_num, buffer);
+}
+
+// ============================================================================
+// Bitmap Operations
+// ============================================================================
+
+int Ext2Filesystem::read_bitmap(uint32_t block_num, std::vector<uint8_t>& bitmap) {
+    bitmap.resize(block_size_);
+    return read_data_block(block_num, bitmap.data());
+}
+
+int Ext2Filesystem::write_bitmap(uint32_t block_num, const std::vector<uint8_t>& bitmap) {
+    return write_data_block(block_num, bitmap.data());
+}
+
+int Ext2Filesystem::find_free_bit(const std::vector<uint8_t>& bitmap, uint32_t& bit_index) {
+    size_t num_bits = bitmap.size() * 8;
+
+    for (size_t i = 0; i < num_bits; i++) {
+        if (!test_bit(bitmap, i)) {
+            bit_index = i;
+            return 0;
+        }
+    }
+
+    return -ENOSPC;  // No free bit found
+}
+
+void Ext2Filesystem::set_bit(std::vector<uint8_t>& bitmap, uint32_t bit_index) {
+    uint32_t byte_index = bit_index / 8;
+    uint32_t bit_offset = bit_index % 8;
+
+    if (byte_index < bitmap.size()) {
+        bitmap[byte_index] |= (1 << bit_offset);
+    }
+}
+
+void Ext2Filesystem::clear_bit(std::vector<uint8_t>& bitmap, uint32_t bit_index) {
+    uint32_t byte_index = bit_index / 8;
+    uint32_t bit_offset = bit_index % 8;
+
+    if (byte_index < bitmap.size()) {
+        bitmap[byte_index] &= ~(1 << bit_offset);
+    }
+}
+
+bool Ext2Filesystem::test_bit(const std::vector<uint8_t>& bitmap, uint32_t bit_index) {
+    uint32_t byte_index = bit_index / 8;
+    uint32_t bit_offset = bit_index % 8;
+
+    if (byte_index >= bitmap.size()) {
+        return false;
+    }
+
+    return (bitmap[byte_index] & (1 << bit_offset)) != 0;
+}
+
+// ============================================================================
+// Block Allocation
+// ============================================================================
+
+int Ext2Filesystem::allocate_block(uint32_t preferred_group, uint32_t& block_num) {
+    std::lock_guard<std::mutex> lock(fs_mutex_);
+
+    // Ensure preferred group is valid
+    if (preferred_group >= num_block_groups_) {
+        preferred_group = 0;
+    }
+
+    // Try preferred group first
+    for (uint32_t attempt = 0; attempt < num_block_groups_; attempt++) {
+        uint32_t group = (preferred_group + attempt) % num_block_groups_;
+
+        // Check if group has free blocks
+        if (group_descriptors_[group].bg_free_blocks_count == 0) {
+            continue;
+        }
+
+        // Read block bitmap
+        std::vector<uint8_t> bitmap;
+        int ret = read_bitmap(group_descriptors_[group].bg_block_bitmap, bitmap);
+        if (ret < 0) {
+            continue;
+        }
+
+        // Find free block in bitmap
+        uint32_t bit_index;
+        ret = find_free_bit(bitmap, bit_index);
+        if (ret < 0) {
+            continue;  // No free block in this group
+        }
+
+        // Mark block as used
+        set_bit(bitmap, bit_index);
+
+        // Write bitmap back
+        ret = write_bitmap(group_descriptors_[group].bg_block_bitmap, bitmap);
+        if (ret < 0) {
+            LOG_ERROR("ext2: Failed to write block bitmap for group %u", group);
+            return ret;
+        }
+
+        // Calculate absolute block number
+        block_num = superblock_.s_first_data_block + (group * superblock_.s_blocks_per_group) + bit_index;
+
+        // Update group descriptor
+        group_descriptors_[group].bg_free_blocks_count--;
+
+        // Update superblock
+        superblock_.s_free_blocks_count--;
+        free_blocks_--;
+
+        // Write updates to disk
+        write_group_descriptors();
+        write_superblock();
+
+        LOG_DEBUG("ext2: Allocated block %u from group %u", block_num, group);
+        return 0;
+    }
+
+    LOG_ERROR("ext2: No free blocks available");
+    return -ENOSPC;
+}
+
+int Ext2Filesystem::free_block(uint32_t block_num) {
+    std::lock_guard<std::mutex> lock(fs_mutex_);
+
+    if (block_num == 0 || block_num >= superblock_.s_blocks_count) {
+        return -EINVAL;
+    }
+
+    // Calculate which group this block belongs to
+    uint32_t relative_block = block_num - superblock_.s_first_data_block;
+    uint32_t group = relative_block / superblock_.s_blocks_per_group;
+    uint32_t bit_index = relative_block % superblock_.s_blocks_per_group;
+
+    if (group >= num_block_groups_) {
+        return -EINVAL;
+    }
+
+    // Read block bitmap
+    std::vector<uint8_t> bitmap;
+    int ret = read_bitmap(group_descriptors_[group].bg_block_bitmap, bitmap);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Check if block is actually allocated
+    if (!test_bit(bitmap, bit_index)) {
+        LOG_WARN("ext2: Attempting to free already-free block %u", block_num);
+        return 0;  // Already free
+    }
+
+    // Mark block as free
+    clear_bit(bitmap, bit_index);
+
+    // Write bitmap back
+    ret = write_bitmap(group_descriptors_[group].bg_block_bitmap, bitmap);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Update group descriptor
+    group_descriptors_[group].bg_free_blocks_count++;
+
+    // Update superblock
+    superblock_.s_free_blocks_count++;
+    free_blocks_++;
+
+    // Write updates to disk
+    write_group_descriptors();
+    write_superblock();
+
+    LOG_DEBUG("ext2: Freed block %u from group %u", block_num, group);
+    return 0;
+}
+
+// ============================================================================
+// Inode Allocation
+// ============================================================================
+
+int Ext2Filesystem::allocate_inode(uint32_t parent_dir_inode, bool is_directory, uint32_t& inode_num) {
+    std::lock_guard<std::mutex> lock(fs_mutex_);
+
+    // Try to allocate in same group as parent directory for locality
+    uint32_t preferred_group = get_block_group(parent_dir_inode);
+
+    // Try preferred group first, then all groups
+    for (uint32_t attempt = 0; attempt < num_block_groups_; attempt++) {
+        uint32_t group = (preferred_group + attempt) % num_block_groups_;
+
+        // Check if group has free inodes
+        if (group_descriptors_[group].bg_free_inodes_count == 0) {
+            continue;
+        }
+
+        // Read inode bitmap
+        std::vector<uint8_t> bitmap;
+        int ret = read_bitmap(group_descriptors_[group].bg_inode_bitmap, bitmap);
+        if (ret < 0) {
+            continue;
+        }
+
+        // Find free inode in bitmap
+        uint32_t bit_index;
+        ret = find_free_bit(bitmap, bit_index);
+        if (ret < 0) {
+            continue;  // No free inode in this group
+        }
+
+        // Mark inode as used
+        set_bit(bitmap, bit_index);
+
+        // Write bitmap back
+        ret = write_bitmap(group_descriptors_[group].bg_inode_bitmap, bitmap);
+        if (ret < 0) {
+            LOG_ERROR("ext2: Failed to write inode bitmap for group %u", group);
+            return ret;
+        }
+
+        // Calculate absolute inode number (inodes start at 1)
+        inode_num = 1 + (group * superblock_.s_inodes_per_group) + bit_index;
+
+        // Update group descriptor
+        group_descriptors_[group].bg_free_inodes_count--;
+        if (is_directory) {
+            group_descriptors_[group].bg_used_dirs_count++;
+        }
+
+        // Update superblock
+        superblock_.s_free_inodes_count--;
+        free_inodes_--;
+
+        // Write updates to disk
+        write_group_descriptors();
+        write_superblock();
+
+        LOG_DEBUG("ext2: Allocated inode %u from group %u", inode_num, group);
+        return 0;
+    }
+
+    LOG_ERROR("ext2: No free inodes available");
+    return -ENOSPC;
+}
+
+int Ext2Filesystem::free_inode(uint32_t inode_num) {
+    std::lock_guard<std::mutex> lock(fs_mutex_);
+
+    if (inode_num == 0 || inode_num > superblock_.s_inodes_count) {
+        return -EINVAL;
+    }
+
+    // Calculate which group this inode belongs to
+    uint32_t group = get_block_group(inode_num);
+    uint32_t bit_index = get_group_index(inode_num);
+
+    if (group >= num_block_groups_) {
+        return -EINVAL;
+    }
+
+    // Read the inode to check if it's a directory
+    Ext2Inode inode;
+    int ret = read_inode(inode_num, inode);
+    bool is_directory = (ret == 0) && ((inode.i_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR);
+
+    // Read inode bitmap
+    std::vector<uint8_t> bitmap;
+    ret = read_bitmap(group_descriptors_[group].bg_inode_bitmap, bitmap);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Check if inode is actually allocated
+    if (!test_bit(bitmap, bit_index)) {
+        LOG_WARN("ext2: Attempting to free already-free inode %u", inode_num);
+        return 0;  // Already free
+    }
+
+    // Mark inode as free
+    clear_bit(bitmap, bit_index);
+
+    // Write bitmap back
+    ret = write_bitmap(group_descriptors_[group].bg_inode_bitmap, bitmap);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Update group descriptor
+    group_descriptors_[group].bg_free_inodes_count++;
+    if (is_directory) {
+        if (group_descriptors_[group].bg_used_dirs_count > 0) {
+            group_descriptors_[group].bg_used_dirs_count--;
+        }
+    }
+
+    // Update superblock
+    superblock_.s_free_inodes_count++;
+    free_inodes_++;
+
+    // Write updates to disk
+    write_group_descriptors();
+    write_superblock();
+
+    LOG_DEBUG("ext2: Freed inode %u from group %u", inode_num, group);
+    return 0;
+}
+
+// ============================================================================
+// Group Descriptor and Superblock Write Operations
+// ============================================================================
+
+int Ext2Filesystem::write_group_descriptors() {
+    // Group descriptors start immediately after the superblock
+    uint32_t gdt_block = (block_size_ == 1024) ? 2 : 1;
+
+    // Calculate how many blocks the GDT spans
+    size_t gdt_size = num_block_groups_ * sizeof(Ext2GroupDescriptor);
+    size_t gdt_blocks = (gdt_size + block_size_ - 1) / block_size_;
+
+    // Allocate buffer for GDT
+    std::vector<uint8_t> gdt_buffer(gdt_blocks * block_size_, 0);
+
+    // Copy group descriptors to buffer
+    std::memcpy(gdt_buffer.data(), group_descriptors_.data(),
+                num_block_groups_ * sizeof(Ext2GroupDescriptor));
+
+    // Write GDT blocks
+    int ret = write_blocks(gdt_block, gdt_blocks, gdt_buffer.data());
+    if (ret < 0) {
+        LOG_ERROR("ext2: Failed to write group descriptors: %d", ret);
+        return ret;
+    }
+
+    return 0;
 }
 
 // ============================================================================
@@ -461,6 +896,87 @@ int Ext2Node::get_data_block(uint32_t block_idx, uint32_t& block_num) {
 
     block_num = indirect[block_offset];
     return 0;
+}
+
+int Ext2Node::allocate_data_block(uint32_t block_idx, uint32_t& block_num) {
+    uint32_t blocks_per_indirect = ext2fs_->get_block_size() / sizeof(uint32_t);
+    uint32_t group = ext2fs_->get_block_group(inode_num_);
+
+    // Direct blocks (0-11)
+    if (block_idx < Ext2Inode::EXT2_NDIR_BLOCKS) {
+        if (inode_.i_block[block_idx] != 0) {
+            block_num = inode_.i_block[block_idx];
+            return 0;  // Already allocated
+        }
+
+        // Allocate new block
+        int ret = ext2fs_->allocate_block(group, block_num);
+        if (ret < 0) {
+            return ret;
+        }
+
+        inode_.i_block[block_idx] = block_num;
+        dirty_ = true;
+        return 0;
+    }
+
+    block_idx -= Ext2Inode::EXT2_NDIR_BLOCKS;
+
+    // Single indirect block (12)
+    if (block_idx < blocks_per_indirect) {
+        // Allocate indirect block if needed
+        if (inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] == 0) {
+            uint32_t indirect_block;
+            int ret = ext2fs_->allocate_block(group, indirect_block);
+            if (ret < 0) {
+                return ret;
+            }
+
+            inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] = indirect_block;
+
+            // Zero the indirect block
+            std::vector<uint8_t> zero_buffer(ext2fs_->get_block_size(), 0);
+            ext2fs_->write_data_block(indirect_block, zero_buffer.data());
+
+            dirty_ = true;
+        }
+
+        // Read indirect block
+        std::vector<uint32_t> indirect(blocks_per_indirect);
+        int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                          indirect.data());
+        if (ret < 0) {
+            return ret;
+        }
+
+        // Check if block already allocated
+        if (indirect[block_idx] != 0) {
+            block_num = indirect[block_idx];
+            return 0;
+        }
+
+        // Allocate new data block
+        ret = ext2fs_->allocate_block(group, block_num);
+        if (ret < 0) {
+            return ret;
+        }
+
+        indirect[block_idx] = block_num;
+
+        // Write indirect block back
+        ret = ext2fs_->write_data_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                       indirect.data());
+        if (ret < 0) {
+            ext2fs_->free_block(block_num);  // Cleanup
+            return ret;
+        }
+
+        return 0;
+    }
+
+    // TODO: Implement double and triple indirect blocks for very large files
+    LOG_ERROR("ext2: File too large, double/triple indirect not yet implemented");
+    return -ENOSPC;
 }
 
 int Ext2Node::read(void* buffer, size_t size, uint64_t offset) {
@@ -672,9 +1188,119 @@ void Ext2Node::unref() {
 }
 
 // Unimplemented write operations (read-only for now)
-int Ext2Node::write(const void* buffer, size_t size, uint64_t offset) { return -EROFS; }
-int Ext2Node::truncate(uint64_t size) { return -EROFS; }
-int Ext2Node::sync() { return 0; }
+int Ext2Node::write(const void* buffer, size_t size, uint64_t offset) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a regular file
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFREG) {
+        return -EISDIR;
+    }
+
+    if (size == 0) {
+        return 0;
+    }
+
+    uint32_t block_size = ext2fs_->get_block_size();
+    size_t bytes_written = 0;
+    const uint8_t* src = static_cast<const uint8_t*>(buffer);
+
+    while (bytes_written < size) {
+        // Calculate block index and offset within block
+        uint32_t block_idx = (offset + bytes_written) / block_size;
+        uint32_t block_offset = (offset + bytes_written) % block_size;
+        size_t bytes_to_write = std::min(size - bytes_written, (size_t)(block_size - block_offset));
+
+        // Allocate block if needed
+        uint32_t block_num = 0;
+        int ret = allocate_data_block(block_idx, block_num);
+        if (ret < 0) {
+            return ret < 0 ? ret : bytes_written;
+        }
+
+        // If partial block write, need to read-modify-write
+        std::vector<uint8_t> block_buffer(block_size);
+        if (block_offset != 0 || bytes_to_write != block_size) {
+            // Read existing data
+            ret = ext2fs_->read_data_block(block_num, block_buffer.data());
+            if (ret < 0) {
+                return ret;
+            }
+        }
+
+        // Copy new data
+        std::memcpy(block_buffer.data() + block_offset, src + bytes_written, bytes_to_write);
+
+        // Write block
+        ret = ext2fs_->write_data_block(block_num, block_buffer.data());
+        if (ret < 0) {
+            return ret;
+        }
+
+        bytes_written += bytes_to_write;
+    }
+
+    // Update file size if we extended it
+    if (offset + size > inode_.i_size) {
+        inode_.i_size = offset + size;
+    }
+
+    // Update block count (512-byte blocks)
+    uint32_t total_blocks = (inode_.i_size + 511) / 512;
+    inode_.i_blocks = total_blocks;
+
+    // Update modification and change times
+    update_times(false, true, true);
+
+    // Mark inode dirty
+    dirty_ = true;
+
+    return bytes_written;
+}
+int Ext2Node::truncate(uint64_t new_size) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a regular file
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFREG) {
+        return -EISDIR;
+    }
+
+    if (new_size == inode_.i_size) {
+        return 0;  // No change
+    }
+
+    // TODO: Implement shrinking (freeing blocks)
+    if (new_size < inode_.i_size) {
+        LOG_WARN("ext2: Shrinking files not yet implemented");
+        return -ENOSPC;
+    }
+
+    // Extending: just update size (blocks allocated on write)
+    inode_.i_size = new_size;
+
+    // Update block count
+    uint32_t total_blocks = (inode_.i_size + 511) / 512;
+    inode_.i_blocks = total_blocks;
+
+    // Update times
+    update_times(false, true, true);
+
+    dirty_ = true;
+    return 0;
+}
+
+int Ext2Node::sync() {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    if (dirty_) {
+        int ret = save_inode();
+        if (ret < 0) {
+            return ret;
+        }
+        dirty_ = false;
+    }
+
+    return 0;
+}
 int Ext2Node::create(const std::string& name, FilePermissions perms) { return -EROFS; }
 int Ext2Node::mkdir(const std::string& name, FilePermissions perms) { return -EROFS; }
 int Ext2Node::remove(const std::string& name) { return -EROFS; }
@@ -683,8 +1309,26 @@ int Ext2Node::link(const std::string& name, VNode* target) { return -EROFS; }
 int Ext2Node::symlink(const std::string& name, const std::string& target) { return -EROFS; }
 int Ext2Node::rename(const std::string& oldname, const std::string& newname) { return -EROFS; }
 
-void Ext2Node::update_times(bool atime, bool mtime, bool ctime) {
-    // TODO: Implement when adding write support
+uint64_t Ext2Node::get_current_time() {
+    return static_cast<uint64_t>(time(nullptr));
+}
+
+void Ext2Node::update_times(bool update_atime, bool update_mtime, bool update_ctime) {
+    uint32_t current_time = static_cast<uint32_t>(get_current_time());
+
+    if (update_atime) {
+        inode_.i_atime = current_time;
+    }
+    if (update_mtime) {
+        inode_.i_mtime = current_time;
+    }
+    if (update_ctime) {
+        inode_.i_ctime = current_time;
+    }
+
+    if (update_atime || update_mtime || update_ctime) {
+        dirty_ = true;
+    }
 }
 
 } // namespace xinim::vfs
