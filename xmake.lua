@@ -51,6 +51,7 @@ target("xinim")
     add_files("src/kernel/memory.cpp")
     add_files("src/kernel/clock.cpp")
     add_files("src/kernel/timing.cpp")  -- udelay/mdelay for drivers
+    add_files("src/kernel/irq.cpp")     -- IRQ management subsystem
     add_files("src/kernel/dmp.cpp")
     add_files("src/kernel/wormhole.cpp")
     add_files("src/kernel/lattice_ipc.cpp")
