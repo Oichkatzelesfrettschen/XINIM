@@ -50,6 +50,7 @@ target("xinim")
     add_files("src/kernel/paging.cpp")
     add_files("src/kernel/memory.cpp")
     add_files("src/kernel/clock.cpp")
+    add_files("src/kernel/timing.cpp")  -- udelay/mdelay for drivers
     add_files("src/kernel/dmp.cpp")
     add_files("src/kernel/wormhole.cpp")
     add_files("src/kernel/lattice_ipc.cpp")
@@ -154,7 +155,10 @@ target("xinim")
 
     -- Network subsystem
     add_files("src/net/network.cpp")
-    
+
+    -- PCI subsystem (required for drivers)
+    add_files("src/pci/pci.cpp")
+
     -- Modern drivers for x86_64
     add_files("src/drivers/net/e1000.cpp")
     add_files("src/drivers/block/ahci.cpp")
@@ -169,6 +173,7 @@ target("xinim")
     
     -- DMA management
     add_files("src/mm/dma.cpp")
+    add_files("src/mm/dma_allocator.cpp")  -- New complete DMA allocator for drivers
 
     -- Commands/utilities
     add_files("src/commands/*.cpp")
