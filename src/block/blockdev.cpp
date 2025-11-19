@@ -7,6 +7,7 @@
  */
 
 #include <xinim/block/blockdev.hpp>
+#include <xinim/block/partition.hpp>
 #include <xinim/log.hpp>
 #include <cstring>
 #include <algorithm>
@@ -234,42 +235,43 @@ int BlockDeviceManager::scan_partitions(std::shared_ptr<BlockDevice> device) {
         return -EINVAL;
     }
 
+    std::lock_guard<std::mutex> lock(mutex_);
+
     LOG_INFO("Block: Scanning %s for partitions...", device->get_name().c_str());
 
-    // Read MBR/GPT header (first sector)
-    size_t block_size = device->get_block_size();
-    uint8_t* sector = new uint8_t[block_size];
+    // Parse partition table
+    std::vector<Partition> partitions;
+    int result = PartitionTableParser::parse(device, partitions);
 
-    int result = device->read_blocks(0, 1, sector);
-    if (result <= 0) {
-        LOG_ERROR("Block: Failed to read partition table from %s", device->get_name().c_str());
-        delete[] sector;
+    if (result < 0) {
+        LOG_ERROR("Block: Failed to parse partition table on %s", device->get_name().c_str());
         return result;
     }
 
-    int partitions_found = 0;
-
-    // Check for GPT signature
-    if (block_size >= 512 && memcmp(sector + 510, "\x55\xAA", 2) == 0) {
-        // MBR signature present - could be MBR or protective MBR for GPT
-        // Check if it's a protective MBR (partition type 0xEE)
-        bool is_protective_mbr = (sector[0x1BE + 4] == 0xEE);
-
-        if (is_protective_mbr) {
-            LOG_INFO("Block: Detected GPT partition table (protected by MBR)");
-            // TODO: Parse GPT partitions
-            // For now, just log detection
-        } else {
-            LOG_INFO("Block: Detected MBR partition table");
-            // TODO: Parse MBR partitions
-            // For now, just log detection
-        }
-    } else {
-        LOG_INFO("Block: No partition table found on %s", device->get_name().c_str());
+    if (partitions.empty()) {
+        LOG_INFO("Block: No partitions found on %s", device->get_name().c_str());
+        return 0;
     }
 
-    delete[] sector;
-    return partitions_found;
+    // Create and register partition devices
+    int registered_count = 0;
+    for (const auto& partition : partitions) {
+        // Create partitioned block device
+        auto part_dev = std::make_shared<PartitionedBlockDevice>(device, partition);
+
+        // Register partition device
+        std::string part_name = register_device(part_dev);
+        if (!part_name.empty()) {
+            registered_count++;
+            LOG_INFO("Block: Registered partition %s (LBA %lu, %lu blocks)",
+                     part_name.c_str(), partition.start_lba, partition.size_blocks);
+        } else {
+            LOG_ERROR("Block: Failed to register partition %s", partition.name.c_str());
+        }
+    }
+
+    LOG_INFO("Block: Found and registered %d partitions on %s", registered_count, device->get_name().c_str());
+    return registered_count;
 }
 
 void BlockDeviceManager::print_device_table() {
