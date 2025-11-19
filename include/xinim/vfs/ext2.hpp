@@ -271,6 +271,13 @@ private:
     FileType inode_type_to_file_type() const;
     void update_times(bool atime, bool mtime, bool ctime);
     uint64_t get_current_time();
+
+    // Directory entry helpers
+    uint16_t calculate_rec_len(uint8_t name_len) const;
+    int add_directory_entry(const std::string& name, uint32_t inode_num, uint8_t file_type);
+    int remove_directory_entry(const std::string& name);
+    int find_directory_entry(const std::string& name, uint32_t& block_idx, uint32_t& offset);
+    int create_new_inode(uint16_t mode, uint32_t& new_inode_num);
 };
 
 // ============================================================================

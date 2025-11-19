@@ -14,13 +14,15 @@
 #include <ctime>
 
 // Error codes
-#define EINVAL 22  // Invalid argument
-#define EIO    5   // I/O error
-#define ENOENT 2   // No such file or directory
-#define EISDIR 21  // Is a directory
-#define ENOTDIR 20 // Not a directory
-#define EROFS  30  // Read-only filesystem
-#define ENOSPC 28  // No space left on device
+#define EINVAL 22     // Invalid argument
+#define EIO    5      // I/O error
+#define ENOENT 2      // No such file or directory
+#define EISDIR 21     // Is a directory
+#define ENOTDIR 20    // Not a directory
+#define EROFS  30     // Read-only filesystem
+#define ENOSPC 28     // No space left on device
+#define EEXIST 17     // File exists
+#define ENOTEMPTY 39  // Directory not empty
 
 namespace xinim::vfs {
 
@@ -1187,7 +1189,282 @@ void Ext2Node::unref() {
     }
 }
 
-// Unimplemented write operations (read-only for now)
+// ============================================================================
+// Directory Entry Helpers
+// ============================================================================
+
+uint16_t Ext2Node::calculate_rec_len(uint8_t name_len) const {
+    // Directory entry: inode(4) + rec_len(2) + name_len(1) + file_type(1) + name(variable)
+    // Must be aligned to 4-byte boundary
+    uint16_t min_len = 8 + name_len;  // 8 bytes for fixed fields + name
+    return ((min_len + 3) / 4) * 4;    // Round up to 4-byte boundary
+}
+
+int Ext2Node::add_directory_entry(const std::string& name, uint32_t new_inode_num, uint8_t file_type) {
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    if (name.length() > Ext2DirEntry::EXT2_NAME_LEN) {
+        return -EINVAL;
+    }
+
+    uint32_t block_size = ext2fs_->get_block_size();
+    uint16_t required_len = calculate_rec_len(name.length());
+    uint32_t dir_blocks = (inode_.i_size + block_size - 1) / block_size;
+
+    // Try to find space in existing blocks
+    for (uint32_t block_idx = 0; block_idx < dir_blocks; block_idx++) {
+        uint32_t block_num;
+        int ret = get_data_block(block_idx, block_num);
+        if (ret < 0) {
+            continue;
+        }
+
+        // Read directory block
+        std::vector<uint8_t> block_buffer(block_size);
+        ret = ext2fs_->read_data_block(block_num, block_buffer.data());
+        if (ret < 0) {
+            continue;
+        }
+
+        // Scan for space in this block
+        uint32_t offset = 0;
+        while (offset < block_size) {
+            Ext2DirEntry* entry = reinterpret_cast<Ext2DirEntry*>(block_buffer.data() + offset);
+
+            if (entry->rec_len == 0) {
+                break;  // Invalid entry
+            }
+
+            // Check if this is the last entry in the block
+            uint32_t next_offset = offset + entry->rec_len;
+            if (next_offset >= block_size || next_offset + 8 > block_size) {
+                // This is the last entry - check if we can split it
+                uint16_t actual_len = calculate_rec_len(entry->name_len);
+                uint16_t available = entry->rec_len - actual_len;
+
+                if (available >= required_len) {
+                    // Split this entry
+                    entry->rec_len = actual_len;
+
+                    // Create new entry after this one
+                    uint32_t new_offset = offset + actual_len;
+                    Ext2DirEntry* new_entry = reinterpret_cast<Ext2DirEntry*>(
+                        block_buffer.data() + new_offset);
+
+                    new_entry->inode = new_inode_num;
+                    new_entry->rec_len = available;
+                    new_entry->name_len = name.length();
+                    new_entry->file_type = file_type;
+                    std::memcpy(new_entry->name, name.c_str(), name.length());
+
+                    // Write block back
+                    ret = ext2fs_->write_data_block(block_num, block_buffer.data());
+                    if (ret < 0) {
+                        return ret;
+                    }
+
+                    // Update directory times
+                    update_times(false, true, true);
+                    dirty_ = true;
+
+                    return 0;
+                }
+                break;
+            }
+
+            offset = next_offset;
+        }
+    }
+
+    // No space in existing blocks - allocate new block
+    uint32_t new_block_num;
+    int ret = allocate_data_block(dir_blocks, new_block_num);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Create new directory block with single entry
+    std::vector<uint8_t> block_buffer(block_size, 0);
+    Ext2DirEntry* entry = reinterpret_cast<Ext2DirEntry*>(block_buffer.data());
+
+    entry->inode = new_inode_num;
+    entry->rec_len = block_size;  // Takes entire block
+    entry->name_len = name.length();
+    entry->file_type = file_type;
+    std::memcpy(entry->name, name.c_str(), name.length());
+
+    // Write new block
+    ret = ext2fs_->write_data_block(new_block_num, block_buffer.data());
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Update directory size
+    inode_.i_size += block_size;
+    update_times(false, true, true);
+    dirty_ = true;
+
+    return 0;
+}
+
+int Ext2Node::remove_directory_entry(const std::string& name) {
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    uint32_t block_size = ext2fs_->get_block_size();
+    uint32_t dir_blocks = (inode_.i_size + block_size - 1) / block_size;
+
+    // Scan directory blocks
+    for (uint32_t block_idx = 0; block_idx < dir_blocks; block_idx++) {
+        uint32_t block_num;
+        int ret = get_data_block(block_idx, block_num);
+        if (ret < 0) {
+            continue;
+        }
+
+        // Read directory block
+        std::vector<uint8_t> block_buffer(block_size);
+        ret = ext2fs_->read_data_block(block_num, block_buffer.data());
+        if (ret < 0) {
+            continue;
+        }
+
+        // Scan entries in this block
+        uint32_t offset = 0;
+        uint32_t prev_offset = 0;
+        Ext2DirEntry* prev_entry = nullptr;
+
+        while (offset < block_size) {
+            Ext2DirEntry* entry = reinterpret_cast<Ext2DirEntry*>(block_buffer.data() + offset);
+
+            if (entry->rec_len == 0) {
+                break;
+            }
+
+            // Check if this is the entry to remove
+            if (entry->inode != 0 && entry->name_len == name.length() &&
+                std::memcmp(entry->name, name.c_str(), name.length()) == 0) {
+
+                // Found it! Remove by extending previous entry's rec_len
+                if (prev_entry) {
+                    prev_entry->rec_len += entry->rec_len;
+                } else {
+                    // First entry - just zero the inode
+                    entry->inode = 0;
+                }
+
+                // Write block back
+                ret = ext2fs_->write_data_block(block_num, block_buffer.data());
+                if (ret < 0) {
+                    return ret;
+                }
+
+                // Update directory times
+                update_times(false, true, true);
+                dirty_ = true;
+
+                return 0;
+            }
+
+            prev_entry = entry;
+            prev_offset = offset;
+            offset += entry->rec_len;
+        }
+    }
+
+    return -ENOENT;  // Entry not found
+}
+
+int Ext2Node::find_directory_entry(const std::string& name, uint32_t& block_idx, uint32_t& entry_offset) {
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    uint32_t block_size = ext2fs_->get_block_size();
+    uint32_t dir_blocks = (inode_.i_size + block_size - 1) / block_size;
+
+    for (uint32_t bidx = 0; bidx < dir_blocks; bidx++) {
+        uint32_t block_num;
+        int ret = get_data_block(bidx, block_num);
+        if (ret < 0) {
+            continue;
+        }
+
+        // Read directory block
+        std::vector<uint8_t> block_buffer(block_size);
+        ret = ext2fs_->read_data_block(block_num, block_buffer.data());
+        if (ret < 0) {
+            continue;
+        }
+
+        // Scan entries
+        uint32_t offset = 0;
+        while (offset < block_size) {
+            Ext2DirEntry* entry = reinterpret_cast<Ext2DirEntry*>(block_buffer.data() + offset);
+
+            if (entry->rec_len == 0) {
+                break;
+            }
+
+            if (entry->inode != 0 && entry->name_len == name.length() &&
+                std::memcmp(entry->name, name.c_str(), name.length()) == 0) {
+                block_idx = bidx;
+                entry_offset = offset;
+                return 0;
+            }
+
+            offset += entry->rec_len;
+        }
+    }
+
+    return -ENOENT;
+}
+
+int Ext2Node::create_new_inode(uint16_t mode, uint32_t& new_inode_num) {
+    bool is_directory = (mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR;
+
+    // Allocate inode
+    int ret = ext2fs_->allocate_inode(inode_num_, is_directory, new_inode_num);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Initialize new inode
+    Ext2Inode new_inode;
+    std::memset(&new_inode, 0, sizeof(Ext2Inode));
+
+    new_inode.i_mode = mode;
+    new_inode.i_uid = inode_.i_uid;  // Inherit owner from parent
+    new_inode.i_gid = inode_.i_gid;  // Inherit group from parent
+    new_inode.i_size = 0;
+    new_inode.i_links_count = is_directory ? 2 : 1;  // Directories have "." link
+
+    uint32_t current_time = static_cast<uint32_t>(get_current_time());
+    new_inode.i_atime = current_time;
+    new_inode.i_ctime = current_time;
+    new_inode.i_mtime = current_time;
+    new_inode.i_dtime = 0;
+    new_inode.i_blocks = 0;
+
+    // Write inode to disk
+    ret = ext2fs_->write_inode(new_inode_num, new_inode);
+    if (ret < 0) {
+        ext2fs_->free_inode(new_inode_num);  // Cleanup
+        return ret;
+    }
+
+    return 0;
+}
+
+// ============================================================================
+// File and Directory Operations
+// ============================================================================
 int Ext2Node::write(const void* buffer, size_t size, uint64_t offset) {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -1301,10 +1578,260 @@ int Ext2Node::sync() {
 
     return 0;
 }
-int Ext2Node::create(const std::string& name, FilePermissions perms) { return -EROFS; }
-int Ext2Node::mkdir(const std::string& name, FilePermissions perms) { return -EROFS; }
-int Ext2Node::remove(const std::string& name) { return -EROFS; }
-int Ext2Node::rmdir(const std::string& name) { return -EROFS; }
+int Ext2Node::create(const std::string& name, FilePermissions perms) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if parent is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Check if file already exists
+    VNode* existing = lookup(name);
+    if (existing) {
+        existing->unref();
+        return -EEXIST;
+    }
+
+    // Create new inode for regular file
+    uint16_t mode = Ext2Inode::EXT2_S_IFREG | (perms.mode & 0x0FFF);
+    uint32_t new_inode_num;
+    int ret = create_new_inode(mode, new_inode_num);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Add directory entry
+    ret = add_directory_entry(name, new_inode_num, Ext2DirEntry::EXT2_FT_REG_FILE);
+    if (ret < 0) {
+        // Cleanup: free the inode
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Success!
+    return 0;
+}
+
+int Ext2Node::mkdir(const std::string& name, FilePermissions perms) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if parent is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Check if directory already exists
+    VNode* existing = lookup(name);
+    if (existing) {
+        existing->unref();
+        return -EEXIST;
+    }
+
+    // Create new inode for directory
+    uint16_t mode = Ext2Inode::EXT2_S_IFDIR | (perms.mode & 0x0FFF);
+    uint32_t new_inode_num;
+    int ret = create_new_inode(mode, new_inode_num);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Load the new inode to modify it
+    Ext2Inode new_inode;
+    ret = ext2fs_->read_inode(new_inode_num, new_inode);
+    if (ret < 0) {
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Allocate first block for directory
+    uint32_t dir_block_num;
+    uint32_t group = ext2fs_->get_block_group(new_inode_num);
+    ret = ext2fs_->allocate_block(group, dir_block_num);
+    if (ret < 0) {
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    new_inode.i_block[0] = dir_block_num;
+    new_inode.i_size = ext2fs_->get_block_size();
+    new_inode.i_blocks = (new_inode.i_size + 511) / 512;
+
+    // Create "." and ".." entries
+    uint32_t block_size = ext2fs_->get_block_size();
+    std::vector<uint8_t> block_buffer(block_size, 0);
+
+    // Create "." entry
+    Ext2DirEntry* dot = reinterpret_cast<Ext2DirEntry*>(block_buffer.data());
+    dot->inode = new_inode_num;
+    dot->rec_len = calculate_rec_len(1);
+    dot->name_len = 1;
+    dot->file_type = Ext2DirEntry::EXT2_FT_DIR;
+    dot->name[0] = '.';
+
+    // Create ".." entry
+    Ext2DirEntry* dotdot = reinterpret_cast<Ext2DirEntry*>(
+        block_buffer.data() + dot->rec_len);
+    dotdot->inode = inode_num_;  // Parent directory
+    dotdot->rec_len = block_size - dot->rec_len;  // Rest of block
+    dotdot->name_len = 2;
+    dotdot->file_type = Ext2DirEntry::EXT2_FT_DIR;
+    dotdot->name[0] = '.';
+    dotdot->name[1] = '.';
+
+    // Write directory block
+    ret = ext2fs_->write_data_block(dir_block_num, block_buffer.data());
+    if (ret < 0) {
+        ext2fs_->free_block(dir_block_num);
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Write new inode
+    ret = ext2fs_->write_inode(new_inode_num, new_inode);
+    if (ret < 0) {
+        ext2fs_->free_block(dir_block_num);
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Add directory entry to parent
+    ret = add_directory_entry(name, new_inode_num, Ext2DirEntry::EXT2_FT_DIR);
+    if (ret < 0) {
+        // Cleanup
+        ext2fs_->free_block(dir_block_num);
+        ext2fs_->free_inode(new_inode_num);
+        return ret;
+    }
+
+    // Increment parent link count (for ".." in new directory)
+    inode_.i_links_count++;
+    dirty_ = true;
+
+    return 0;
+}
+
+int Ext2Node::remove(const std::string& name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Find the file
+    VNode* target = lookup(name);
+    if (!target) {
+        return -ENOENT;
+    }
+
+    Ext2Node* ext2_target = dynamic_cast<Ext2Node*>(target);
+    if (!ext2_target) {
+        target->unref();
+        return -EINVAL;
+    }
+
+    // Check it's not a directory
+    if ((ext2_target->inode_.i_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR) {
+        target->unref();
+        return -EISDIR;  // Use rmdir for directories
+    }
+
+    uint32_t target_inode_num = ext2_target->inode_num_;
+    target->unref();
+
+    // Remove directory entry
+    int ret = remove_directory_entry(name);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Load target inode and decrement link count
+    Ext2Inode target_inode;
+    ret = ext2fs_->read_inode(target_inode_num, target_inode);
+    if (ret < 0) {
+        return ret;
+    }
+
+    target_inode.i_links_count--;
+
+    // If link count reaches 0, free the inode and all its blocks
+    if (target_inode.i_links_count == 0) {
+        // Mark as deleted
+        target_inode.i_dtime = static_cast<uint32_t>(get_current_time());
+
+        // TODO: Free all data blocks
+        // For now, just free the inode
+        ext2fs_->write_inode(target_inode_num, target_inode);
+        ext2fs_->free_inode(target_inode_num);
+    } else {
+        // Still has links, just update link count
+        ext2fs_->write_inode(target_inode_num, target_inode);
+    }
+
+    return 0;
+}
+
+int Ext2Node::rmdir(const std::string& name) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Find the directory
+    VNode* target = lookup(name);
+    if (!target) {
+        return -ENOENT;
+    }
+
+    Ext2Node* ext2_target = dynamic_cast<Ext2Node*>(target);
+    if (!ext2_target) {
+        target->unref();
+        return -EINVAL;
+    }
+
+    // Check it's a directory
+    if ((ext2_target->inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        target->unref();
+        return -ENOTDIR;
+    }
+
+    // Check if directory is empty (only "." and "..")
+    auto entries = ext2_target->readdir();
+    bool is_empty = true;
+    for (const auto& entry : entries) {
+        if (entry != "." && entry != "..") {
+            is_empty = false;
+            break;
+        }
+    }
+
+    if (!is_empty) {
+        target->unref();
+        return -ENOTEMPTY;
+    }
+
+    uint32_t target_inode_num = ext2_target->inode_num_;
+    target->unref();
+
+    // Remove directory entry from parent
+    int ret = remove_directory_entry(name);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Decrement parent link count (remove ".." link)
+    inode_.i_links_count--;
+    dirty_ = true;
+
+    // Free the directory inode and its blocks
+    // TODO: Free directory data blocks
+    ext2fs_->free_inode(target_inode_num);
+
+    return 0;
+}
 int Ext2Node::link(const std::string& name, VNode* target) { return -EROFS; }
 int Ext2Node::symlink(const std::string& name, const std::string& target) { return -EROFS; }
 int Ext2Node::rename(const std::string& oldname, const std::string& newname) { return -EROFS; }
