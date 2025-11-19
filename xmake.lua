@@ -95,6 +95,7 @@ target("xinim")
 
     -- Week 10 Phase 3: Process groups and sessions (job control)
     add_files("src/kernel/process_group.cpp")
+    add_files("src/kernel/tty_signals.cpp")
 
     -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")

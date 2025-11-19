@@ -17,6 +17,7 @@
 #include "../vfs_interface.hpp"
 #include "../pipe.hpp"
 #include "../signal.hpp"
+#include "../process_group.hpp"  // Week 10 Phase 3: Process group cleanup
 #include "../early/serial_16550.hpp"
 #include <cstdio>
 #include <cstring>
@@ -170,6 +171,10 @@ int64_t sys_getpid(uint64_t, uint64_t, uint64_t,
         }
         child = child->next;
     }
+
+    // 2a. Week 10 Phase 3: Remove from process group
+    // This may delete the process group if we're the last member
+    remove_from_process_group(current);
 
     // 3. Notify parent and wake if waiting
     if (current->parent_pid != 0) {
