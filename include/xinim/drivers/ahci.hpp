@@ -195,6 +195,251 @@ public:
         static constexpr uint8_t FLUSH_CACHE_EXT = 0xEA;
     };
 
+    // ========================================================================
+    // Memory-Mapped Structures (AHCI 1.3.1 Specification)
+    // All structures must be packed and properly aligned
+    // ========================================================================
+
+    /**
+     * @brief FIS_REG_H2D: Register FIS - Host to Device
+     * Used to send ATA commands from host to device
+     */
+    struct FIS_REG_H2D {
+        uint8_t  fis_type;      // FISType::REG_H2D (0x27)
+        uint8_t  pmport:4;      // Port multiplier
+        uint8_t  rsv0:3;        // Reserved
+        uint8_t  c:1;           // 1: Command, 0: Control
+        uint8_t  command;       // ATA command register
+        uint8_t  featurel;      // Feature register, 7:0
+
+        uint8_t  lba0;          // LBA low register, 7:0
+        uint8_t  lba1;          // LBA mid register, 15:8
+        uint8_t  lba2;          // LBA high register, 23:16
+        uint8_t  device;        // Device register
+
+        uint8_t  lba3;          // LBA register, 31:24
+        uint8_t  lba4;          // LBA register, 39:32
+        uint8_t  lba5;          // LBA register, 47:40
+        uint8_t  featureh;      // Feature register, 15:8
+
+        uint8_t  countl;        // Count register, 7:0
+        uint8_t  counth;        // Count register, 15:8
+        uint8_t  icc;           // Isochronous command completion
+        uint8_t  control;       // Control register
+
+        uint8_t  rsv1[4];       // Reserved
+    } __attribute__((packed));
+
+    /**
+     * @brief FIS_REG_D2H: Register FIS - Device to Host
+     * Used to notify host of device status changes
+     */
+    struct FIS_REG_D2H {
+        uint8_t  fis_type;      // FISType::REG_D2H (0x34)
+        uint8_t  pmport:4;      // Port multiplier
+        uint8_t  rsv0:2;        // Reserved
+        uint8_t  i:1;           // Interrupt bit
+        uint8_t  rsv1:1;        // Reserved
+        uint8_t  status;        // Status register
+        uint8_t  error;         // Error register
+
+        uint8_t  lba0;          // LBA low register, 7:0
+        uint8_t  lba1;          // LBA mid register, 15:8
+        uint8_t  lba2;          // LBA high register, 23:16
+        uint8_t  device;        // Device register
+
+        uint8_t  lba3;          // LBA register, 31:24
+        uint8_t  lba4;          // LBA register, 39:32
+        uint8_t  lba5;          // LBA register, 47:40
+        uint8_t  rsv2;          // Reserved
+
+        uint8_t  countl;        // Count register, 7:0
+        uint8_t  counth;        // Count register, 15:8
+        uint8_t  rsv3[2];       // Reserved
+
+        uint8_t  rsv4[4];       // Reserved
+    } __attribute__((packed));
+
+    /**
+     * @brief FIS_DMA_SETUP: DMA Setup FIS - Bidirectional
+     * Used to initiate DMA transfers
+     */
+    struct FIS_DMA_SETUP {
+        uint8_t  fis_type;      // FISType::DMA_SETUP (0x41)
+        uint8_t  pmport:4;      // Port multiplier
+        uint8_t  rsv0:1;        // Reserved
+        uint8_t  d:1;           // Data transfer direction, 1: device to host
+        uint8_t  i:1;           // Interrupt bit
+        uint8_t  a:1;           // Auto-activate
+        uint8_t  rsv1[2];       // Reserved
+
+        uint64_t dma_buffer_id; // DMA Buffer Identifier (from host)
+        uint32_t rsv2;          // Reserved
+        uint32_t dma_buffer_offset; // Byte offset into buffer
+        uint32_t transfer_count;    // Number of bytes to transfer
+        uint32_t rsv3;          // Reserved
+    } __attribute__((packed));
+
+    /**
+     * @brief FIS_PIO_SETUP: PIO Setup FIS - Device to Host
+     * Used for PIO data transfers
+     */
+    struct FIS_PIO_SETUP {
+        uint8_t  fis_type;      // FISType::PIO_SETUP (0x5F)
+        uint8_t  pmport:4;      // Port multiplier
+        uint8_t  rsv0:1;        // Reserved
+        uint8_t  d:1;           // Data transfer direction, 1: device to host
+        uint8_t  i:1;           // Interrupt bit
+        uint8_t  rsv1:1;        // Reserved
+        uint8_t  status;        // Status register
+        uint8_t  error;         // Error register
+
+        uint8_t  lba0;          // LBA low register, 7:0
+        uint8_t  lba1;          // LBA mid register, 15:8
+        uint8_t  lba2;          // LBA high register, 23:16
+        uint8_t  device;        // Device register
+
+        uint8_t  lba3;          // LBA register, 31:24
+        uint8_t  lba4;          // LBA register, 39:32
+        uint8_t  lba5;          // LBA register, 47:40
+        uint8_t  rsv2;          // Reserved
+
+        uint8_t  countl;        // Count register, 7:0
+        uint8_t  counth;        // Count register, 15:8
+        uint8_t  rsv3;          // Reserved
+        uint8_t  e_status;      // New value of status register
+
+        uint16_t tc;            // Transfer count
+        uint8_t  rsv4[2];       // Reserved
+    } __attribute__((packed));
+
+    /**
+     * @brief HBAPRDTEntry: Physical Region Descriptor Table Entry
+     * Describes a physical memory region for DMA transfer
+     */
+    struct HBAPRDTEntry {
+        uint32_t dba;           // Data base address (lower 32 bits)
+        uint32_t dbau;          // Data base address upper (upper 32 bits)
+        uint32_t rsv0;          // Reserved
+        uint32_t dbc:22;        // Byte count, 4M max (0-based, so 0 = 1 byte)
+        uint32_t rsv1:9;        // Reserved
+        uint32_t i:1;           // Interrupt on completion
+    } __attribute__((packed));
+
+    /**
+     * @brief HBACommandTable: Command Table
+     * Contains command FIS, ATAPI command, and PRDT
+     */
+    struct HBACommandTable {
+        uint8_t  cfis[64];      // Command FIS
+        uint8_t  acmd[16];      // ATAPI command (12 or 16 bytes)
+        uint8_t  rsv[48];       // Reserved
+        HBAPRDTEntry prdt_entry[1]; // Physical region descriptor table (variable length)
+    } __attribute__((packed));
+
+    /**
+     * @brief HBACommandHeader: Command List Entry
+     * Each command slot has one of these (32 bytes)
+     */
+    struct HBACommandHeader {
+        uint8_t  cfl:5;         // Command FIS length in DWORDS, 2 ~ 16
+        uint8_t  a:1;           // ATAPI
+        uint8_t  w:1;           // Write, 1: H2D, 0: D2H
+        uint8_t  p:1;           // Prefetchable
+        uint8_t  r:1;           // Reset
+        uint8_t  b:1;           // BIST
+        uint8_t  c:1;           // Clear busy upon R_OK
+        uint8_t  rsv0:1;        // Reserved
+        uint8_t  pmp:4;         // Port multiplier port
+        uint16_t prdtl;         // Physical region descriptor table length
+
+        volatile uint32_t prdbc; // PRD byte count transferred
+        uint32_t ctba;          // Command table descriptor base address (lower 32 bits)
+        uint32_t ctbau;         // Command table descriptor base address (upper 32 bits)
+        uint32_t rsv1[4];       // Reserved
+    } __attribute__((packed));
+
+    /**
+     * @brief HBAFIS: Received FIS Structure
+     * Contains all FIS types received from device (256 bytes)
+     */
+    struct HBAFIS {
+        FIS_DMA_SETUP dsfis;    // DMA Setup FIS (0x00)
+        uint8_t       pad0[4];  // Padding
+        FIS_PIO_SETUP psfis;    // PIO Setup FIS (0x20)
+        uint8_t       pad1[12]; // Padding
+        FIS_REG_D2H   rfis;     // Register – Device to Host FIS (0x40)
+        uint8_t       pad2[4];  // Padding
+        uint8_t       sdbfis[8]; // Set Device Bit FIS (0x58)
+        uint8_t       ufis[64]; // Unknown FIS (0x60)
+        uint8_t       rsv[96];  // Reserved (0xA0)
+    } __attribute__((packed));
+
+    /**
+     * @brief HBAPort: Port Registers (per port, 128 bytes)
+     * Memory-mapped port control registers
+     */
+    struct HBAPort {
+        volatile uint32_t clb;       // 0x00: Command list base address (lower 32 bits)
+        volatile uint32_t clbu;      // 0x04: Command list base address (upper 32 bits)
+        volatile uint32_t fb;        // 0x08: FIS base address (lower 32 bits)
+        volatile uint32_t fbu;       // 0x0C: FIS base address (upper 32 bits)
+        volatile uint32_t is;        // 0x10: Interrupt status
+        volatile uint32_t ie;        // 0x14: Interrupt enable
+        volatile uint32_t cmd;       // 0x18: Command and status
+        volatile uint32_t rsv0;      // 0x1C: Reserved
+        volatile uint32_t tfd;       // 0x20: Task file data
+        volatile uint32_t sig;       // 0x24: Signature
+        volatile uint32_t ssts;      // 0x28: SATA status (SCR0:SStatus)
+        volatile uint32_t sctl;      // 0x2C: SATA control (SCR2:SControl)
+        volatile uint32_t serr;      // 0x30: SATA error (SCR1:SError)
+        volatile uint32_t sact;      // 0x34: SATA active (SCR3:SActive)
+        volatile uint32_t ci;        // 0x38: Command issue
+        volatile uint32_t sntf;      // 0x3C: SATA notification (SCR4:SNotification)
+        volatile uint32_t fbs;       // 0x40: FIS-based switch control
+        volatile uint32_t rsv1[11];  // 0x44 ~ 0x6F: Reserved
+        volatile uint32_t vendor[4]; // 0x70 ~ 0x7F: Vendor specific
+    } __attribute__((packed));
+
+    /**
+     * @brief HBAMemory: Generic Host Control Registers
+     * Main AHCI HBA register set (256 bytes + 32 port register sets)
+     */
+    struct HBAMemory {
+        // Generic Host Control Registers (0x00 - 0x2B)
+        volatile uint32_t cap;       // 0x00: Host capabilities
+        volatile uint32_t ghc;       // 0x04: Global host control
+        volatile uint32_t is;        // 0x08: Interrupt status
+        volatile uint32_t pi;        // 0x0C: Ports implemented
+        volatile uint32_t vs;        // 0x10: Version
+        volatile uint32_t ccc_ctl;   // 0x14: Command completion coalescing control
+        volatile uint32_t ccc_ports; // 0x18: Command completion coalescing ports
+        volatile uint32_t em_loc;    // 0x1C: Enclosure management location
+        volatile uint32_t em_ctl;    // 0x20: Enclosure management control
+        volatile uint32_t cap2;      // 0x24: Host capabilities extended
+        volatile uint32_t bohc;      // 0x28: BIOS/OS handoff control and status
+
+        // Reserved (0x2C - 0x9F)
+        volatile uint32_t rsv[29];   // 0x2C ~ 0x9F
+
+        // Vendor Specific (0xA0 - 0xFF)
+        volatile uint32_t vendor[24]; // 0xA0 ~ 0xFF
+
+        // Port Control Registers (0x100 - 0x10FF)
+        HBAPort ports[32];           // 0x100 ~ 0x10FF: Port 0-31 registers
+    } __attribute__((packed));
+
+    // Structure size assertions to ensure proper layout
+    static_assert(sizeof(FIS_REG_H2D) == 20, "FIS_REG_H2D must be 20 bytes");
+    static_assert(sizeof(FIS_REG_D2H) == 20, "FIS_REG_D2H must be 20 bytes");
+    static_assert(sizeof(FIS_DMA_SETUP) == 28, "FIS_DMA_SETUP must be 28 bytes");
+    static_assert(sizeof(FIS_PIO_SETUP) == 20, "FIS_PIO_SETUP must be 20 bytes");
+    static_assert(sizeof(HBAPRDTEntry) == 16, "HBAPRDTEntry must be 16 bytes");
+    static_assert(sizeof(HBACommandHeader) == 32, "HBACommandHeader must be 32 bytes");
+    static_assert(sizeof(HBAFIS) == 256, "HBAFIS must be 256 bytes");
+    static_assert(sizeof(HBAPort) == 128, "HBAPort must be 128 bytes");
+    static_assert(sizeof(HBAMemory) == 4352, "HBAMemory must be 4352 bytes (0x1100)");
+
     // Constructor and destructor
     AHCIDriver();
     ~AHCIDriver();
