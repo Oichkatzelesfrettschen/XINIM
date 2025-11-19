@@ -2509,7 +2509,155 @@ int Ext2Node::rmdir(const std::string& name) {
 }
 int Ext2Node::link(const std::string& name, VNode* target) { return -EROFS; }
 int Ext2Node::symlink(const std::string& name, const std::string& target) { return -EROFS; }
-int Ext2Node::rename(const std::string& oldname, const std::string& newname) { return -EROFS; }
+int Ext2Node::rename(const std::string& oldname, const std::string& newname) {
+    std::lock_guard<std::mutex> lock(mutex_);
+
+    // Check if this is a directory
+    if ((inode_.i_mode & Ext2Inode::EXT2_S_IFMT) != Ext2Inode::EXT2_S_IFDIR) {
+        return -ENOTDIR;
+    }
+
+    // Can't rename to same name
+    if (oldname == newname) {
+        return 0;  // Success, nothing to do
+    }
+
+    // Can't rename "." or ".."
+    if (oldname == "." || oldname == ".." || newname == "." || newname == "..") {
+        return -EINVAL;
+    }
+
+    // Look up old entry to get inode number and type
+    VNode* old_vnode = lookup(oldname);
+    if (!old_vnode) {
+        return -ENOENT;
+    }
+
+    Ext2Node* old_ext2_node = dynamic_cast<Ext2Node*>(old_vnode);
+    if (!old_ext2_node) {
+        old_vnode->unref();
+        return -EINVAL;
+    }
+
+    uint32_t old_inode_num = old_ext2_node->inode_num_;
+    uint16_t old_mode = old_ext2_node->inode_.i_mode;
+    uint8_t old_file_type = 0;
+
+    // Determine file type for directory entry
+    if ((old_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR) {
+        old_file_type = Ext2DirEntry::EXT2_FT_DIR;
+    } else if ((old_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFREG) {
+        old_file_type = Ext2DirEntry::EXT2_FT_REG_FILE;
+    } else if ((old_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFLNK) {
+        old_file_type = Ext2DirEntry::EXT2_FT_SYMLINK;
+    }
+
+    old_vnode->unref();
+
+    // Check if newname already exists
+    VNode* new_vnode = lookup(newname);
+    if (new_vnode) {
+        Ext2Node* new_ext2_node = dynamic_cast<Ext2Node*>(new_vnode);
+        if (!new_ext2_node) {
+            new_vnode->unref();
+            return -EINVAL;
+        }
+
+        uint32_t new_inode_num = new_ext2_node->inode_num_;
+        uint16_t new_mode = new_ext2_node->inode_.i_mode;
+        bool new_is_dir = (new_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR;
+        bool old_is_dir = (old_mode & Ext2Inode::EXT2_S_IFMT) == Ext2Inode::EXT2_S_IFDIR;
+
+        // Check type compatibility
+        if (old_is_dir && !new_is_dir) {
+            new_vnode->unref();
+            return -ENOTDIR;  // Can't replace non-directory with directory
+        }
+        if (!old_is_dir && new_is_dir) {
+            new_vnode->unref();
+            return -EISDIR;  // Can't replace directory with non-directory
+        }
+
+        // For directories, check if empty (only "." and "..")
+        if (new_is_dir) {
+            auto entries = new_ext2_node->readdir();
+            bool is_empty = true;
+            for (const auto& entry : entries) {
+                if (entry != "." && entry != "..") {
+                    is_empty = false;
+                    break;
+                }
+            }
+            if (!is_empty) {
+                new_vnode->unref();
+                return -ENOTEMPTY;
+            }
+        }
+
+        new_vnode->unref();
+
+        // Remove the directory entry for newname
+        int ret = remove_directory_entry(newname);
+        if (ret < 0) {
+            return ret;
+        }
+
+        // Read and update the target inode
+        Ext2Inode target_inode;
+        ret = ext2fs_->read_inode(new_inode_num, target_inode);
+        if (ret == 0) {
+            target_inode.i_links_count--;
+
+            // If link count reaches 0, free the inode and its blocks
+            if (target_inode.i_links_count == 0) {
+                // Mark as deleted
+                target_inode.i_dtime = static_cast<uint32_t>(get_current_time());
+
+                // For directories, decrement parent link count
+                if (new_is_dir) {
+                    inode_.i_links_count--;
+                    dirty_ = true;
+                }
+
+                // Free all data blocks (simplified - just free direct and indirect blocks)
+                uint32_t block_size = ext2fs_->get_block_size();
+                for (uint32_t i = 0; i < Ext2Inode::EXT2_NDIR_BLOCKS; i++) {
+                    if (target_inode.i_block[i] != 0) {
+                        ext2fs_->free_block(target_inode.i_block[i]);
+                    }
+                }
+
+                // Write updated inode and free it
+                ext2fs_->write_inode(new_inode_num, target_inode);
+                ext2fs_->free_inode(new_inode_num);
+            } else {
+                // Still has links, just update link count
+                ext2fs_->write_inode(new_inode_num, target_inode);
+            }
+        }
+    }
+
+    // Add new directory entry with old inode
+    int ret = add_directory_entry(newname, old_inode_num, old_file_type);
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Remove old directory entry
+    ret = remove_directory_entry(oldname);
+    if (ret < 0) {
+        // Uh oh, we added new but couldn't remove old
+        // Try to clean up by removing the new entry
+        remove_directory_entry(newname);
+        return ret;
+    }
+
+    // Update directory times
+    update_times(false, true, true);
+    dirty_ = true;
+
+    return 0;
+}
 
 uint64_t Ext2Node::get_current_time() {
     return static_cast<uint64_t>(time(nullptr));
