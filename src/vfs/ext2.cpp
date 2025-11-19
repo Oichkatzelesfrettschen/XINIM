@@ -981,6 +981,85 @@ int Ext2Node::allocate_data_block(uint32_t block_idx, uint32_t& block_num) {
     return -ENOSPC;
 }
 
+int Ext2Node::free_data_blocks(uint32_t start_block, uint32_t count) {
+    if (count == 0) {
+        return 0;
+    }
+
+    uint32_t blocks_per_indirect = ext2fs_->get_block_size() / sizeof(uint32_t);
+    uint32_t blocks_freed = 0;
+
+    // Free blocks starting from start_block
+    for (uint32_t block_idx = start_block; block_idx < start_block + count && blocks_freed < count; block_idx++) {
+        uint32_t block_num = 0;
+        int ret = get_data_block(block_idx, block_num);
+        if (ret < 0 || block_num == 0) {
+            continue;  // Skip sparse blocks or errors
+        }
+
+        // Free the data block
+        ret = ext2fs_->free_block(block_num);
+        if (ret < 0) {
+            LOG_WARN("ext2: Failed to free block %u: %d", block_num, ret);
+        } else {
+            blocks_freed++;
+        }
+
+        // Clear the block pointer
+        if (block_idx < Ext2Inode::EXT2_NDIR_BLOCKS) {
+            // Direct block
+            inode_.i_block[block_idx] = 0;
+            dirty_ = true;
+        } else if (block_idx < Ext2Inode::EXT2_NDIR_BLOCKS + blocks_per_indirect) {
+            // Single indirect block
+            uint32_t indirect_idx = block_idx - Ext2Inode::EXT2_NDIR_BLOCKS;
+
+            if (inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] != 0) {
+                // Read indirect block
+                std::vector<uint32_t> indirect(blocks_per_indirect);
+                ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                              indirect.data());
+                if (ret == 0) {
+                    indirect[indirect_idx] = 0;
+
+                    // Write back indirect block
+                    ext2fs_->write_data_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                            indirect.data());
+                }
+            }
+        }
+        // TODO: Handle double and triple indirect blocks
+    }
+
+    // Free indirect block itself if all entries are now zero
+    if (start_block >= Ext2Inode::EXT2_NDIR_BLOCKS &&
+        inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] != 0) {
+
+        // Check if indirect block is now empty
+        std::vector<uint32_t> indirect(blocks_per_indirect);
+        int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                          indirect.data());
+        if (ret == 0) {
+            bool all_zero = true;
+            for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                if (indirect[i] != 0) {
+                    all_zero = false;
+                    break;
+                }
+            }
+
+            if (all_zero) {
+                // Free the indirect block itself
+                ext2fs_->free_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK]);
+                inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] = 0;
+                dirty_ = true;
+            }
+        }
+    }
+
+    return blocks_freed;
+}
+
 int Ext2Node::read(void* buffer, size_t size, uint64_t offset) {
     std::lock_guard<std::mutex> lock(mutex_);
 
@@ -1545,16 +1624,26 @@ int Ext2Node::truncate(uint64_t new_size) {
         return 0;  // No change
     }
 
-    // TODO: Implement shrinking (freeing blocks)
+    uint32_t block_size = ext2fs_->get_block_size();
+
     if (new_size < inode_.i_size) {
-        LOG_WARN("ext2: Shrinking files not yet implemented");
-        return -ENOSPC;
+        // Shrinking: free blocks beyond new size
+        uint32_t old_blocks = (inode_.i_size + block_size - 1) / block_size;
+        uint32_t new_blocks = (new_size + block_size - 1) / block_size;
+
+        if (new_blocks < old_blocks) {
+            // Free blocks from new_blocks to old_blocks
+            free_data_blocks(new_blocks, old_blocks - new_blocks);
+        }
+
+        // Update file size
+        inode_.i_size = new_size;
+    } else {
+        // Extending: just update size (blocks allocated on write)
+        inode_.i_size = new_size;
     }
 
-    // Extending: just update size (blocks allocated on write)
-    inode_.i_size = new_size;
-
-    // Update block count
+    // Update block count (512-byte blocks)
     uint32_t total_blocks = (inode_.i_size + 511) / 512;
     inode_.i_blocks = total_blocks;
 
@@ -1760,8 +1849,41 @@ int Ext2Node::remove(const std::string& name) {
         // Mark as deleted
         target_inode.i_dtime = static_cast<uint32_t>(get_current_time());
 
-        // TODO: Free all data blocks
-        // For now, just free the inode
+        // Free all data blocks
+        uint32_t block_size = ext2fs_->get_block_size();
+        uint32_t num_blocks = (target_inode.i_size + block_size - 1) / block_size;
+
+        // Free direct blocks
+        for (uint32_t i = 0; i < Ext2Inode::EXT2_NDIR_BLOCKS && i < num_blocks; i++) {
+            if (target_inode.i_block[i] != 0) {
+                ext2fs_->free_block(target_inode.i_block[i]);
+                target_inode.i_block[i] = 0;
+            }
+        }
+
+        // Free single indirect block and its data blocks
+        if (target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK] != 0) {
+            uint32_t blocks_per_indirect = block_size / sizeof(uint32_t);
+            std::vector<uint32_t> indirect(blocks_per_indirect);
+
+            if (ext2fs_->read_data_block(target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                        indirect.data()) == 0) {
+                // Free each data block pointed to by indirect block
+                for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                    if (indirect[i] != 0) {
+                        ext2fs_->free_block(indirect[i]);
+                    }
+                }
+            }
+
+            // Free the indirect block itself
+            ext2fs_->free_block(target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK]);
+            target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK] = 0;
+        }
+
+        // TODO: Free double and triple indirect blocks when implemented
+
+        // Write updated inode and free it
         ext2fs_->write_inode(target_inode_num, target_inode);
         ext2fs_->free_inode(target_inode_num);
     } else {
@@ -1827,7 +1949,50 @@ int Ext2Node::rmdir(const std::string& name) {
     dirty_ = true;
 
     // Free the directory inode and its blocks
-    // TODO: Free directory data blocks
+    Ext2Inode target_inode;
+    ret = ext2fs_->read_inode(target_inode_num, target_inode);
+    if (ret == 0) {
+        // Mark as deleted
+        target_inode.i_dtime = static_cast<uint32_t>(get_current_time());
+
+        // Free all directory data blocks
+        uint32_t block_size = ext2fs_->get_block_size();
+        uint32_t num_blocks = (target_inode.i_size + block_size - 1) / block_size;
+
+        // Free direct blocks
+        for (uint32_t i = 0; i < Ext2Inode::EXT2_NDIR_BLOCKS && i < num_blocks; i++) {
+            if (target_inode.i_block[i] != 0) {
+                ext2fs_->free_block(target_inode.i_block[i]);
+                target_inode.i_block[i] = 0;
+            }
+        }
+
+        // Free single indirect block and its data blocks
+        if (target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK] != 0) {
+            uint32_t blocks_per_indirect = block_size / sizeof(uint32_t);
+            std::vector<uint32_t> indirect(blocks_per_indirect);
+
+            if (ext2fs_->read_data_block(target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK],
+                                        indirect.data()) == 0) {
+                // Free each data block pointed to by indirect block
+                for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                    if (indirect[i] != 0) {
+                        ext2fs_->free_block(indirect[i]);
+                    }
+                }
+            }
+
+            // Free the indirect block itself
+            ext2fs_->free_block(target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK]);
+            target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK] = 0;
+        }
+
+        // TODO: Free double and triple indirect blocks when implemented
+
+        // Write updated inode and free it
+        ext2fs_->write_inode(target_inode_num, target_inode);
+    }
+
     ext2fs_->free_inode(target_inode_num);
 
     return 0;
