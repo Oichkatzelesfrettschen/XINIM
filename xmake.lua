@@ -178,8 +178,17 @@ target("xinim")
 
     -- Tools
     add_files("src/tools/*.cpp")
-    
+
 -- Userland components
+
+-- XINIM Shell (xinim-sh) - Week 10 Phase 3
+target("xinim-sh")
+    set_kind("binary")
+    set_languages("cxx23")
+    add_files("userland/shell/xinim-sh/*.cpp")
+    add_includedirs("include")
+    add_links("pthread")
+target_end()
 
 -- mksh shell
 target("mksh")
@@ -241,6 +250,13 @@ target("posix-gnu-test")
         os.cd("third_party/gpl/posixtestsuite-main/")
         os.exec("./run_tests AIO")
     end)
+
+-- Week 10 Phase 3: Signal testing
+target("signal-test")
+    set_kind("binary")
+    add_files("tests/signal/test_signal_comprehensive.cpp")
+    add_includedirs("include")
+    add_links("pthread")
 
 -- All tests target
 target("test-all")
