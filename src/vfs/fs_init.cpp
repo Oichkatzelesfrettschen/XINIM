@@ -9,6 +9,7 @@
 #include <xinim/vfs/fs_init.hpp>
 #include <xinim/vfs/filesystem.hpp>
 #include <xinim/vfs/tmpfs.hpp>
+#include <xinim/vfs/ext2.hpp>
 #include <xinim/log.hpp>
 #include <memory>
 
@@ -31,7 +32,18 @@ int initialize_filesystems() {
         LOG_INFO("VFS: Registered tmpfs");
     }
 
-    // TODO: Register other filesystems (ext2, fat32, etc.) when implemented
+    // Register ext2
+    ret = registry.register_filesystem("ext2", []() -> std::unique_ptr<FileSystem> {
+        return std::make_unique<Ext2Filesystem>();
+    });
+    if (ret < 0) {
+        LOG_ERROR("VFS: Failed to register ext2: %d", ret);
+        errors++;
+    } else {
+        LOG_INFO("VFS: Registered ext2");
+    }
+
+    // TODO: Register other filesystems (ext3, ext4, fat32, etc.) when implemented
 
     if (errors > 0) {
         LOG_ERROR("VFS: Filesystem initialization completed with %d errors", errors);
