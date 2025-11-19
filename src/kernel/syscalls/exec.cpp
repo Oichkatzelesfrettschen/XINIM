@@ -16,6 +16,7 @@
 #include "../uaccess.hpp"
 #include "../pcb.hpp"
 #include "../fd_table.hpp"
+#include "../signal.hpp"
 #include "../scheduler.hpp"
 #include "../../early/serial_16550.hpp"
 #include <cerrno>
@@ -308,10 +309,10 @@ extern "C" [[noreturn]] int64_t sys_execve(uint64_t pathname_addr,
     // Step 6: Reset signal handlers
     // ========================================================================
 
-    // TODO Week 10 Phase 2: Reset signal handlers to default
-    // reset_signal_handlers(current);
+    // Week 10 Phase 2: Reset signal handlers to default
+    reset_signal_handlers(current);
 
-    early_serial.write("[EXECVE] Signal handlers reset (placeholder)\n");
+    early_serial.write("[EXECVE] Signal handlers reset to default\n");
 
     // ========================================================================
     // Step 7: Update process state

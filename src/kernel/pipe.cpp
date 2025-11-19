@@ -10,6 +10,7 @@
 #include "pipe.hpp"
 #include "pcb.hpp"
 #include "scheduler.hpp"
+#include "signal.hpp"
 #include <cerrno>
 #include <cstring>
 #include <algorithm>
@@ -33,6 +34,11 @@ namespace xinim::kernel {
 ssize_t Pipe::write(const void* data, size_t len) {
     // Check if read end is closed
     if (!read_end_open) {
+        // Week 10 Phase 2: Send SIGPIPE to writing process
+        ProcessControlBlock* current = get_current_process();
+        if (current) {
+            send_signal(current, SIGPIPE);
+        }
         return -EPIPE;  // Broken pipe
     }
 

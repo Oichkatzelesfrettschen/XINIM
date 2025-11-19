@@ -16,6 +16,7 @@
 #include "../fd_table.hpp"
 #include "../vfs_interface.hpp"
 #include "../pipe.hpp"
+#include "../signal.hpp"
 #include "../early/serial_16550.hpp"
 #include <cstdio>
 #include <cstring>
@@ -170,19 +171,29 @@ int64_t sys_getpid(uint64_t, uint64_t, uint64_t,
         child = child->next;
     }
 
-    // 3. Wake parent if it's waiting for us
+    // 3. Notify parent and wake if waiting
     if (current->parent_pid != 0) {
         ProcessControlBlock* parent = find_process_by_pid(current->parent_pid);
-        if (parent && parent->state == ProcessState::BLOCKED &&
-            parent->blocked_on == BlockReason::WAIT_CHILD) {
-            // Wake parent
-            parent->state = ProcessState::READY;
-            parent->blocked_on = BlockReason::NONE;
+        if (parent) {
+            // Week 10 Phase 2: Send SIGCHLD to parent
+            send_signal(parent, SIGCHLD);
 
             snprintf(buffer, sizeof(buffer),
-                     "[SYSCALL] Process %d woke parent %d\n",
+                     "[SYSCALL] Process %d sent SIGCHLD to parent %d\n",
                      current->pid, current->parent_pid);
             early_serial.write(buffer);
+
+            // Wake parent if it's waiting for us
+            if (parent->state == ProcessState::BLOCKED &&
+                parent->blocked_on == BlockReason::WAIT_CHILD) {
+                parent->state = ProcessState::READY;
+                parent->blocked_on = BlockReason::NONE;
+
+                snprintf(buffer, sizeof(buffer),
+                         "[SYSCALL] Process %d woke parent %d\n",
+                         current->pid, current->parent_pid);
+                early_serial.write(buffer);
+            }
         }
     }
 
