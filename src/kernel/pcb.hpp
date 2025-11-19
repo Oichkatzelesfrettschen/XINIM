@@ -19,6 +19,11 @@
 #include "context.hpp"               // For CpuContext
 #include "fd_table.hpp"              // For FileDescriptorTable (Week 9 Phase 1)
 
+// Forward declaration for signal state (Week 10 Phase 2)
+namespace xinim::kernel {
+    struct SignalState;
+}
+
 namespace xinim::kernel {
 
 /**
@@ -142,6 +147,18 @@ struct ProcessControlBlock {
 
     bool has_exited;                ///< Has this process called exit()?
     bool has_been_waited;           ///< Has parent called wait() on this zombie?
+
+    // ========================================
+    // Memory Management (Week 10 Phase 1)
+    // ========================================
+
+    uint64_t brk;                   ///< Current program break (end of heap)
+
+    // ========================================
+    // Signal Handling (Week 10 Phase 2)
+    // ========================================
+
+    SignalState* signal_state;      ///< Signal state (handlers, pending, blocked)
 
     // ========================================
     // Scheduler Queue Linkage
