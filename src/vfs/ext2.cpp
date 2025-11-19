@@ -976,9 +976,206 @@ int Ext2Node::allocate_data_block(uint32_t block_idx, uint32_t& block_num) {
         return 0;
     }
 
-    // TODO: Implement double and triple indirect blocks for very large files
-    LOG_ERROR("ext2: File too large, double/triple indirect not yet implemented");
-    return -ENOSPC;
+    block_idx -= blocks_per_indirect;
+
+    // Double indirect block (13)
+    if (block_idx < blocks_per_indirect * blocks_per_indirect) {
+        // Allocate double indirect block if needed
+        if (inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK] == 0) {
+            uint32_t dindirect_block;
+            int ret = ext2fs_->allocate_block(group, dindirect_block);
+            if (ret < 0) {
+                return ret;
+            }
+
+            inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK] = dindirect_block;
+
+            // Zero the double indirect block
+            std::vector<uint8_t> zero_buffer(ext2fs_->get_block_size(), 0);
+            ext2fs_->write_data_block(dindirect_block, zero_buffer.data());
+
+            dirty_ = true;
+        }
+
+        // Read double indirect block
+        std::vector<uint32_t> dindirect(blocks_per_indirect);
+        int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK],
+                                          dindirect.data());
+        if (ret < 0) {
+            return ret;
+        }
+
+        uint32_t indirect_idx = block_idx / blocks_per_indirect;
+        uint32_t block_offset = block_idx % blocks_per_indirect;
+
+        // Allocate indirect block if needed
+        if (dindirect[indirect_idx] == 0) {
+            uint32_t indirect_block;
+            ret = ext2fs_->allocate_block(group, indirect_block);
+            if (ret < 0) {
+                return ret;
+            }
+
+            dindirect[indirect_idx] = indirect_block;
+
+            // Zero the indirect block
+            std::vector<uint8_t> zero_buffer(ext2fs_->get_block_size(), 0);
+            ext2fs_->write_data_block(indirect_block, zero_buffer.data());
+
+            // Write double indirect block back
+            ret = ext2fs_->write_data_block(inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK],
+                                           dindirect.data());
+            if (ret < 0) {
+                ext2fs_->free_block(indirect_block);  // Cleanup
+                return ret;
+            }
+        }
+
+        // Read indirect block
+        std::vector<uint32_t> indirect(blocks_per_indirect);
+        ret = ext2fs_->read_data_block(dindirect[indirect_idx], indirect.data());
+        if (ret < 0) {
+            return ret;
+        }
+
+        // Check if block already allocated
+        if (indirect[block_offset] != 0) {
+            block_num = indirect[block_offset];
+            return 0;
+        }
+
+        // Allocate new data block
+        ret = ext2fs_->allocate_block(group, block_num);
+        if (ret < 0) {
+            return ret;
+        }
+
+        indirect[block_offset] = block_num;
+
+        // Write indirect block back
+        ret = ext2fs_->write_data_block(dindirect[indirect_idx], indirect.data());
+        if (ret < 0) {
+            ext2fs_->free_block(block_num);  // Cleanup
+            return ret;
+        }
+
+        return 0;
+    }
+
+    block_idx -= blocks_per_indirect * blocks_per_indirect;
+
+    // Triple indirect block (14)
+    // Allocate triple indirect block if needed
+    if (inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK] == 0) {
+        uint32_t tindirect_block;
+        int ret = ext2fs_->allocate_block(group, tindirect_block);
+        if (ret < 0) {
+            return ret;
+        }
+
+        inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK] = tindirect_block;
+
+        // Zero the triple indirect block
+        std::vector<uint8_t> zero_buffer(ext2fs_->get_block_size(), 0);
+        ext2fs_->write_data_block(tindirect_block, zero_buffer.data());
+
+        dirty_ = true;
+    }
+
+    // Read triple indirect block
+    std::vector<uint32_t> tindirect(blocks_per_indirect);
+    int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK],
+                                      tindirect.data());
+    if (ret < 0) {
+        return ret;
+    }
+
+    uint32_t dindirect_idx = block_idx / (blocks_per_indirect * blocks_per_indirect);
+    uint32_t remaining = block_idx % (blocks_per_indirect * blocks_per_indirect);
+    uint32_t indirect_idx = remaining / blocks_per_indirect;
+    uint32_t block_offset = remaining % blocks_per_indirect;
+
+    // Allocate double indirect block if needed
+    if (tindirect[dindirect_idx] == 0) {
+        uint32_t dindirect_block;
+        ret = ext2fs_->allocate_block(group, dindirect_block);
+        if (ret < 0) {
+            return ret;
+        }
+
+        tindirect[dindirect_idx] = dindirect_block;
+
+        // Zero the double indirect block
+        std::vector<uint8_t> zero_buffer(ext2fs_->get_block_size(), 0);
+        ext2fs_->write_data_block(dindirect_block, zero_buffer.data());
+
+        // Write triple indirect block back
+        ret = ext2fs_->write_data_block(inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK],
+                                       tindirect.data());
+        if (ret < 0) {
+            ext2fs_->free_block(dindirect_block);  // Cleanup
+            return ret;
+        }
+    }
+
+    // Read double indirect block
+    std::vector<uint32_t> dindirect(blocks_per_indirect);
+    ret = ext2fs_->read_data_block(tindirect[dindirect_idx], dindirect.data());
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Allocate indirect block if needed
+    if (dindirect[indirect_idx] == 0) {
+        uint32_t indirect_block;
+        ret = ext2fs_->allocate_block(group, indirect_block);
+        if (ret < 0) {
+            return ret;
+        }
+
+        dindirect[indirect_idx] = indirect_block;
+
+        // Zero the indirect block
+        std::vector<uint8_t> zero_buffer(ext2fs_->get_block_size(), 0);
+        ext2fs_->write_data_block(indirect_block, zero_buffer.data());
+
+        // Write double indirect block back
+        ret = ext2fs_->write_data_block(tindirect[dindirect_idx], dindirect.data());
+        if (ret < 0) {
+            ext2fs_->free_block(indirect_block);  // Cleanup
+            return ret;
+        }
+    }
+
+    // Read indirect block
+    std::vector<uint32_t> indirect(blocks_per_indirect);
+    ret = ext2fs_->read_data_block(dindirect[indirect_idx], indirect.data());
+    if (ret < 0) {
+        return ret;
+    }
+
+    // Check if block already allocated
+    if (indirect[block_offset] != 0) {
+        block_num = indirect[block_offset];
+        return 0;
+    }
+
+    // Allocate new data block
+    ret = ext2fs_->allocate_block(group, block_num);
+    if (ret < 0) {
+        return ret;
+    }
+
+    indirect[block_offset] = block_num;
+
+    // Write indirect block back
+    ret = ext2fs_->write_data_block(dindirect[indirect_idx], indirect.data());
+    if (ret < 0) {
+        ext2fs_->free_block(block_num);  // Cleanup
+        return ret;
+    }
+
+    return 0;
 }
 
 int Ext2Node::free_data_blocks(uint32_t start_block, uint32_t count) {
@@ -1027,15 +1224,71 @@ int Ext2Node::free_data_blocks(uint32_t start_block, uint32_t count) {
                                             indirect.data());
                 }
             }
+        } else if (block_idx < Ext2Inode::EXT2_NDIR_BLOCKS + blocks_per_indirect +
+                                blocks_per_indirect * blocks_per_indirect) {
+            // Double indirect block
+            uint32_t dind_base = Ext2Inode::EXT2_NDIR_BLOCKS + blocks_per_indirect;
+            uint32_t dind_idx = block_idx - dind_base;
+            uint32_t indirect_idx = dind_idx / blocks_per_indirect;
+            uint32_t block_offset = dind_idx % blocks_per_indirect;
+
+            if (inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK] != 0) {
+                // Read double indirect block
+                std::vector<uint32_t> dindirect(blocks_per_indirect);
+                ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK],
+                                              dindirect.data());
+                if (ret == 0 && dindirect[indirect_idx] != 0) {
+                    // Read indirect block
+                    std::vector<uint32_t> indirect(blocks_per_indirect);
+                    ret = ext2fs_->read_data_block(dindirect[indirect_idx], indirect.data());
+                    if (ret == 0) {
+                        indirect[block_offset] = 0;
+
+                        // Write back indirect block
+                        ext2fs_->write_data_block(dindirect[indirect_idx], indirect.data());
+                    }
+                }
+            }
+        } else {
+            // Triple indirect block
+            uint32_t tind_base = Ext2Inode::EXT2_NDIR_BLOCKS + blocks_per_indirect +
+                                  blocks_per_indirect * blocks_per_indirect;
+            uint32_t tind_idx = block_idx - tind_base;
+            uint32_t dindirect_idx = tind_idx / (blocks_per_indirect * blocks_per_indirect);
+            uint32_t remaining = tind_idx % (blocks_per_indirect * blocks_per_indirect);
+            uint32_t indirect_idx = remaining / blocks_per_indirect;
+            uint32_t block_offset = remaining % blocks_per_indirect;
+
+            if (inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK] != 0) {
+                // Read triple indirect block
+                std::vector<uint32_t> tindirect(blocks_per_indirect);
+                ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK],
+                                              tindirect.data());
+                if (ret == 0 && tindirect[dindirect_idx] != 0) {
+                    // Read double indirect block
+                    std::vector<uint32_t> dindirect(blocks_per_indirect);
+                    ret = ext2fs_->read_data_block(tindirect[dindirect_idx], dindirect.data());
+                    if (ret == 0 && dindirect[indirect_idx] != 0) {
+                        // Read indirect block
+                        std::vector<uint32_t> indirect(blocks_per_indirect);
+                        ret = ext2fs_->read_data_block(dindirect[indirect_idx], indirect.data());
+                        if (ret == 0) {
+                            indirect[block_offset] = 0;
+
+                            // Write back indirect block
+                            ext2fs_->write_data_block(dindirect[indirect_idx], indirect.data());
+                        }
+                    }
+                }
+            }
         }
-        // TODO: Handle double and triple indirect blocks
     }
 
-    // Free indirect block itself if all entries are now zero
-    if (start_block >= Ext2Inode::EXT2_NDIR_BLOCKS &&
-        inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] != 0) {
+    // Clean up empty indirect blocks after freeing data blocks
+    // This is done bottom-up: indirect -> double indirect -> triple indirect
 
-        // Check if indirect block is now empty
+    // Free single indirect block if all entries are zero
+    if (inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] != 0) {
         std::vector<uint32_t> indirect(blocks_per_indirect);
         int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK],
                                           indirect.data());
@@ -1049,9 +1302,130 @@ int Ext2Node::free_data_blocks(uint32_t start_block, uint32_t count) {
             }
 
             if (all_zero) {
-                // Free the indirect block itself
                 ext2fs_->free_block(inode_.i_block[Ext2Inode::EXT2_IND_BLOCK]);
                 inode_.i_block[Ext2Inode::EXT2_IND_BLOCK] = 0;
+                dirty_ = true;
+            }
+        }
+    }
+
+    // Free double indirect block and its indirect blocks if all entries are zero
+    if (inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK] != 0) {
+        std::vector<uint32_t> dindirect(blocks_per_indirect);
+        int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK],
+                                          dindirect.data());
+        if (ret == 0) {
+            // First, free any empty indirect blocks
+            for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                if (dindirect[i] != 0) {
+                    std::vector<uint32_t> indirect(blocks_per_indirect);
+                    ret = ext2fs_->read_data_block(dindirect[i], indirect.data());
+                    if (ret == 0) {
+                        bool all_zero = true;
+                        for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                            if (indirect[j] != 0) {
+                                all_zero = false;
+                                break;
+                            }
+                        }
+
+                        if (all_zero) {
+                            ext2fs_->free_block(dindirect[i]);
+                            dindirect[i] = 0;
+                        }
+                    }
+                }
+            }
+
+            // Write back updated double indirect block
+            ext2fs_->write_data_block(inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK], dindirect.data());
+
+            // Check if double indirect block is now empty
+            bool all_zero = true;
+            for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                if (dindirect[i] != 0) {
+                    all_zero = false;
+                    break;
+                }
+            }
+
+            if (all_zero) {
+                ext2fs_->free_block(inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK]);
+                inode_.i_block[Ext2Inode::EXT2_DIND_BLOCK] = 0;
+                dirty_ = true;
+            }
+        }
+    }
+
+    // Free triple indirect block and its double/indirect blocks if all entries are zero
+    if (inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK] != 0) {
+        std::vector<uint32_t> tindirect(blocks_per_indirect);
+        int ret = ext2fs_->read_data_block(inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK],
+                                          tindirect.data());
+        if (ret == 0) {
+            // First, free any empty double indirect and indirect blocks
+            for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                if (tindirect[i] != 0) {
+                    std::vector<uint32_t> dindirect(blocks_per_indirect);
+                    ret = ext2fs_->read_data_block(tindirect[i], dindirect.data());
+                    if (ret == 0) {
+                        // Free empty indirect blocks
+                        for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                            if (dindirect[j] != 0) {
+                                std::vector<uint32_t> indirect(blocks_per_indirect);
+                                ret = ext2fs_->read_data_block(dindirect[j], indirect.data());
+                                if (ret == 0) {
+                                    bool all_zero = true;
+                                    for (uint32_t k = 0; k < blocks_per_indirect; k++) {
+                                        if (indirect[k] != 0) {
+                                            all_zero = false;
+                                            break;
+                                        }
+                                    }
+
+                                    if (all_zero) {
+                                        ext2fs_->free_block(dindirect[j]);
+                                        dindirect[j] = 0;
+                                    }
+                                }
+                            }
+                        }
+
+                        // Write back updated double indirect block
+                        ext2fs_->write_data_block(tindirect[i], dindirect.data());
+
+                        // Check if double indirect block is now empty
+                        bool all_zero = true;
+                        for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                            if (dindirect[j] != 0) {
+                                all_zero = false;
+                                break;
+                            }
+                        }
+
+                        if (all_zero) {
+                            ext2fs_->free_block(tindirect[i]);
+                            tindirect[i] = 0;
+                        }
+                    }
+                }
+            }
+
+            // Write back updated triple indirect block
+            ext2fs_->write_data_block(inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK], tindirect.data());
+
+            // Check if triple indirect block is now empty
+            bool all_zero = true;
+            for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                if (tindirect[i] != 0) {
+                    all_zero = false;
+                    break;
+                }
+            }
+
+            if (all_zero) {
+                ext2fs_->free_block(inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK]);
+                inode_.i_block[Ext2Inode::EXT2_TIND_BLOCK] = 0;
                 dirty_ = true;
             }
         }
@@ -1881,7 +2255,75 @@ int Ext2Node::remove(const std::string& name) {
             target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK] = 0;
         }
 
-        // TODO: Free double and triple indirect blocks when implemented
+        // Free double indirect block and its indirect/data blocks
+        if (target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK] != 0) {
+            uint32_t blocks_per_indirect = block_size / sizeof(uint32_t);
+            std::vector<uint32_t> dindirect(blocks_per_indirect);
+
+            if (ext2fs_->read_data_block(target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK],
+                                        dindirect.data()) == 0) {
+                // Free each indirect block and its data blocks
+                for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                    if (dindirect[i] != 0) {
+                        std::vector<uint32_t> indirect(blocks_per_indirect);
+                        if (ext2fs_->read_data_block(dindirect[i], indirect.data()) == 0) {
+                            // Free data blocks
+                            for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                                if (indirect[j] != 0) {
+                                    ext2fs_->free_block(indirect[j]);
+                                }
+                            }
+                        }
+                        // Free indirect block
+                        ext2fs_->free_block(dindirect[i]);
+                    }
+                }
+            }
+
+            // Free the double indirect block itself
+            ext2fs_->free_block(target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK]);
+            target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK] = 0;
+        }
+
+        // Free triple indirect block and its double indirect/indirect/data blocks
+        if (target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK] != 0) {
+            uint32_t blocks_per_indirect = block_size / sizeof(uint32_t);
+            std::vector<uint32_t> tindirect(blocks_per_indirect);
+
+            if (ext2fs_->read_data_block(target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK],
+                                        tindirect.data()) == 0) {
+                // Free each double indirect block and its contents
+                for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                    if (tindirect[i] != 0) {
+                        std::vector<uint32_t> dindirect(blocks_per_indirect);
+                        if (ext2fs_->read_data_block(tindirect[i], dindirect.data()) == 0) {
+                            // Free each indirect block and its data blocks
+                            for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                                if (dindirect[j] != 0) {
+                                    std::vector<uint32_t> indirect(blocks_per_indirect);
+                                    if (ext2fs_->read_data_block(dindirect[j], indirect.data()) == 0) {
+                                        // Free data blocks
+                                        for (uint32_t k = 0; k < blocks_per_indirect; k++) {
+                                            if (indirect[k] != 0) {
+                                                ext2fs_->free_block(indirect[k]);
+                                            }
+                                        }
+                                    }
+                                    // Free indirect block
+                                    ext2fs_->free_block(dindirect[j]);
+                                }
+                            }
+                        }
+                        // Free double indirect block
+                        ext2fs_->free_block(tindirect[i]);
+                    }
+                }
+            }
+
+            // Free the triple indirect block itself
+            ext2fs_->free_block(target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK]);
+            target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK] = 0;
+        }
 
         // Write updated inode and free it
         ext2fs_->write_inode(target_inode_num, target_inode);
@@ -1987,7 +2429,75 @@ int Ext2Node::rmdir(const std::string& name) {
             target_inode.i_block[Ext2Inode::EXT2_IND_BLOCK] = 0;
         }
 
-        // TODO: Free double and triple indirect blocks when implemented
+        // Free double indirect block and its indirect/data blocks
+        if (target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK] != 0) {
+            uint32_t blocks_per_indirect = block_size / sizeof(uint32_t);
+            std::vector<uint32_t> dindirect(blocks_per_indirect);
+
+            if (ext2fs_->read_data_block(target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK],
+                                        dindirect.data()) == 0) {
+                // Free each indirect block and its data blocks
+                for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                    if (dindirect[i] != 0) {
+                        std::vector<uint32_t> indirect(blocks_per_indirect);
+                        if (ext2fs_->read_data_block(dindirect[i], indirect.data()) == 0) {
+                            // Free data blocks
+                            for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                                if (indirect[j] != 0) {
+                                    ext2fs_->free_block(indirect[j]);
+                                }
+                            }
+                        }
+                        // Free indirect block
+                        ext2fs_->free_block(dindirect[i]);
+                    }
+                }
+            }
+
+            // Free the double indirect block itself
+            ext2fs_->free_block(target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK]);
+            target_inode.i_block[Ext2Inode::EXT2_DIND_BLOCK] = 0;
+        }
+
+        // Free triple indirect block and its double indirect/indirect/data blocks
+        if (target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK] != 0) {
+            uint32_t blocks_per_indirect = block_size / sizeof(uint32_t);
+            std::vector<uint32_t> tindirect(blocks_per_indirect);
+
+            if (ext2fs_->read_data_block(target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK],
+                                        tindirect.data()) == 0) {
+                // Free each double indirect block and its contents
+                for (uint32_t i = 0; i < blocks_per_indirect; i++) {
+                    if (tindirect[i] != 0) {
+                        std::vector<uint32_t> dindirect(blocks_per_indirect);
+                        if (ext2fs_->read_data_block(tindirect[i], dindirect.data()) == 0) {
+                            // Free each indirect block and its data blocks
+                            for (uint32_t j = 0; j < blocks_per_indirect; j++) {
+                                if (dindirect[j] != 0) {
+                                    std::vector<uint32_t> indirect(blocks_per_indirect);
+                                    if (ext2fs_->read_data_block(dindirect[j], indirect.data()) == 0) {
+                                        // Free data blocks
+                                        for (uint32_t k = 0; k < blocks_per_indirect; k++) {
+                                            if (indirect[k] != 0) {
+                                                ext2fs_->free_block(indirect[k]);
+                                            }
+                                        }
+                                    }
+                                    // Free indirect block
+                                    ext2fs_->free_block(dindirect[j]);
+                                }
+                            }
+                        }
+                        // Free double indirect block
+                        ext2fs_->free_block(tindirect[i]);
+                    }
+                }
+            }
+
+            // Free the triple indirect block itself
+            ext2fs_->free_block(target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK]);
+            target_inode.i_block[Ext2Inode::EXT2_TIND_BLOCK] = 0;
+        }
 
         // Write updated inode and free it
         ext2fs_->write_inode(target_inode_num, target_inode);
