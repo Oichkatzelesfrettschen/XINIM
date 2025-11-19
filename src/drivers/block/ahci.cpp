@@ -11,6 +11,8 @@
 #include <xinim/drivers/ahci.hpp>
 #include <xinim/kernel/irq.hpp>
 #include <xinim/mm/dma_allocator.hpp>
+#include <xinim/block/ahci_blockdev.hpp>
+#include <xinim/block/blockdev.hpp>
 #include <cstring>
 #include <iostream>
 
@@ -110,6 +112,9 @@ bool AHCIDriver::initialize() {
                 init_port(i);
                 rebase_port(i);
                 ports_[i].active = true;
+
+                // Register device with BlockDeviceManager
+                register_block_device(i);
             }
         }
     }
@@ -640,6 +645,35 @@ void AHCIDriver::handle_interrupt() {
 
     // Clear HBA interrupt status
     hba->is = is;
+}
+
+void AHCIDriver::register_block_device(uint8_t port) {
+    if (port >= MAX_PORTS) {
+        std::cerr << "[AHCI] Invalid port number: " << static_cast<int>(port) << std::endl;
+        return;
+    }
+
+    // Create shared pointer to this driver (needed for AHCIBlockDevice)
+    // Note: This assumes the driver is managed externally
+    // TODO: Improve lifecycle management
+    auto driver_ptr = std::shared_ptr<AHCIDriver>(this, [](AHCIDriver*){});
+
+    // Create block device for this port
+    auto block_dev = std::make_shared<xinim::block::AHCIBlockDevice>(driver_ptr, port);
+
+    // Register with BlockDeviceManager
+    auto& mgr = xinim::block::BlockDeviceManager::instance();
+    std::string dev_name = mgr.register_device(block_dev);
+
+    if (!dev_name.empty()) {
+        std::cout << "[AHCI] Registered block device: " << dev_name << std::endl;
+
+        // Scan for partitions
+        int partitions = mgr.scan_partitions(block_dev);
+        std::cout << "[AHCI] Found " << partitions << " partitions on " << dev_name << std::endl;
+    } else {
+        std::cerr << "[AHCI] Failed to register block device for port " << static_cast<int>(port) << std::endl;
+    }
 }
 
 } // namespace xinim::drivers
