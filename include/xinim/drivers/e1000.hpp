@@ -297,10 +297,11 @@ private:
     volatile uint8_t* mmio_base_;
     uint64_t mmio_phys_;
     size_t mmio_size_;
-    
+
     uint8_t mac_address_[6];
     bool has_eeprom_;
     bool link_up_;
+    uint8_t irq_vector_;
 
     // Descriptor rings
     static constexpr size_t RX_DESC_COUNT = 256;
@@ -320,6 +321,10 @@ private:
 
     uint32_t rx_tail_;
     uint32_t tx_tail_;
+
+    // DMA buffers for descriptors
+    void* rx_desc_dma_buffer_;
+    void* tx_desc_dma_buffer_;
 };
 
 } // namespace xinim::drivers
