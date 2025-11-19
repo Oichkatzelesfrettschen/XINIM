@@ -89,6 +89,10 @@ target("xinim")
     add_files("src/kernel/exec_stack.cpp")
     add_files("src/kernel/syscalls/exec.cpp")
 
+    -- Week 10 Phase 2: Signal framework (POSIX signals, signal delivery, signal syscalls)
+    add_files("src/kernel/signal.cpp")
+    add_files("src/kernel/syscalls/signal.cpp")
+
     -- Week 8: Assembly files for context switching, interrupts, GDT, TSS, syscalls
     add_files("src/arch/x86_64/context_switch.S")
     add_files("src/arch/x86_64/interrupts.S")

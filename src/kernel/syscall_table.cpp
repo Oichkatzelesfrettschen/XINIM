@@ -38,6 +38,14 @@ int64_t sys_dup(uint64_t oldfd, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t
 int64_t sys_dup2(uint64_t oldfd, uint64_t newfd, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_fcntl(uint64_t fd, uint64_t cmd, uint64_t arg, uint64_t, uint64_t, uint64_t);
 
+// Signal handling (from syscalls/signal.cpp - Week 10 Phase 2)
+int64_t sys_sigaction(uint64_t signum, uint64_t act, uint64_t oldact,
+                      uint64_t, uint64_t, uint64_t);
+int64_t sys_sigprocmask(uint64_t how, uint64_t set, uint64_t oldset,
+                        uint64_t, uint64_t, uint64_t);
+int64_t sys_sigreturn(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
+int64_t sys_kill(uint64_t pid, uint64_t sig, uint64_t, uint64_t, uint64_t, uint64_t);
+
 // Process management (from syscalls/basic.cpp, syscalls/process_mgmt.cpp, and syscalls/exec.cpp)
 int64_t sys_getpid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_getppid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
@@ -78,6 +86,12 @@ static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
     [32] = sys_dup,            // dup
     [33] = sys_dup2,           // dup2
     [72] = sys_fcntl,          // fcntl
+
+    // Signal handling (Week 10 Phase 2)
+    [13] = sys_sigaction,      // rt_sigaction
+    [14] = sys_sigprocmask,    // rt_sigprocmask
+    [15] = sys_sigreturn,      // rt_sigreturn
+    [37] = sys_kill,           // kill
 
     // Process management (Week 9 Phase 2, Week 10 Phase 1)
     [39] = sys_getpid,         // getpid
