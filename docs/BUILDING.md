@@ -1,6 +1,19 @@
 ````text
 # Building and Testing
 
+> **⚠️ DEPRECATED:** This document is outdated and contains incorrect information.
+>
+> **XINIM does NOT use CMake.** The actual build system is **xmake**.
+>
+> **Please refer to:**
+> - `docs/REQUIREMENTS.md` - Complete requirements and build instructions (CURRENT)
+> - `README.md` - Quick start guide
+> - `xmake.lua` - Actual build configuration
+>
+> This file will be removed or updated in a future release.
+
+---
+
 This document explains how to build the (XINIM) sources and verify that the tool-chain works on a Unix-like host.
 
 The codebase is **work in progress**, aiming to reproduce classic Minix simplicity on modern **x86-64** machines using **C++23**.

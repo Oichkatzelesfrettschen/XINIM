@@ -1,31 +1,31 @@
-# Contributing Guidelines
+# Contributing
 
-This project employs [pre-commit](https://pre-commit.com) to guarantee stylistic and
-compilability checks before any commit reaches the repository.
+This project employs [pre-commit](https://pre-commit.com/) to consolidate
+formatting and static-analysis tasks. Each hook calls a wrapper under
+`tools/` so local runs mirror continuous integration.
 
-## Quick start
-1. Install the tooling:
-   ```bash
-   pip install pre-commit
-   ```
-2. Register the git hook:
-   ```bash
-   pre-commit install
-   ```
-3. Run checks manually (optional):
-   ```bash
-   pre-commit run --files <path/to/file.cpp>
-   ```
+## Local Setup
 
-The configured hooks perform two actions on every staged C++ source file:
-
-* **Formatting** – `clang-format` enforces the project's `.clang-format` style.
-* **Compilation** – `g++ -std=c++23 -Wall -Wextra -Werror -pedantic -fsyntax-only`
-  validates that the file passes a pedantic compilation step without producing
-  warnings.
-
-To update hook versions, execute:
 ```bash
-pre-commit autoupdate
+sudo apt-get update
+sudo apt-get install clang-format clang-tidy cppcheck cloc cscope
+pip install pre-commit lizard
+pre-commit install
 ```
 
+## Running Checks
+
+Execute the full suite before pushing changes:
+
+```bash
+pre-commit run --all-files
+```
+
+The invocation above sequentially runs:
+
+- `tools/pre-commit-clang-format.sh` for style enforcement
+- `tools/run_clang_tidy.sh` for semantic analysis
+- `tools/run_cppcheck.sh` for static diagnostics and code metrics
+
+GitHub Actions repeats the same command for every push and pull request
+via `.github/workflows/pre-commit.yml`.

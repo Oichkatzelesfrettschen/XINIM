@@ -1,4 +1,170 @@
+# ==============================================================================
+# XINIM OS Build System Ignores
+# ==============================================================================
 
-# xmake build output
+# xmake build system
 .xmake/
+build/
+*.xmake
+
+# Third-party source downloads
 third_party/dietlibc-src/
+
+# ==============================================================================
+# Build Artifacts
+# ==============================================================================
+
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Libraries
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# Binary directories (pattern from dietlibc cleanup)
+bin-*/
+libc/dietlibc-xinim/bin-*/
+libc/dietlibc-xinim/bin-*
+
+# Kernel images
+*.iso
+*.img
+kernel.bin
+xinim.bin
+
+# ==============================================================================
+# Backup and Temporary Files
+# ==============================================================================
+
+# Backup files
+*.backup
+*.bak
+*.old
+*~
+*.swp
+*.swo
+
+# Temporary files
+*.tmp
+*.temp
+.DS_Store
+Thumbs.db
+
+# ==============================================================================
+# Editor and IDE Files
+# ==============================================================================
+
+# VSCode
+.vscode/
+*.code-workspace
+
+# IntelliJ / CLion
+.idea/
+*.iml
+*.iws
+
+# Vim
+*.swp
+*.swo
+*~
+.*.swp
+.*.swo
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# ==============================================================================
+# Development and Debug
+# ==============================================================================
+
+# Core dumps
+core
+core.*
+vgcore.*
+
+# Debug symbols
+*.dSYM/
+*.su
+*.idb
+*.pdb
+
+# Profiling data
+*.gcov
+*.gcda
+*.gcno
+gmon.out
+
+# ==============================================================================
+# Logs and Documentation Generated Files
+# ==============================================================================
+
+# Log files
+*.log
+logs/
+
+# Doxygen output (will be regenerated)
+docs/doxygen/html/
+docs/doxygen/latex/
+docs/api/
+
+# ==============================================================================
+# Testing and Analysis
+# ==============================================================================
+
+# Test outputs
+test/output/
+test/results/
+*.test
+
+# Coverage reports
+coverage/
+*.coverage
+
+# Static analysis
+.ccls-cache/
+compile_commands.json
+
+# ==============================================================================
+# System-specific
+# ==============================================================================
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+*~
+.fuse_hidden*
+.directory
+.Trash-*
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ==============================================================================
+# Archive and Legacy (explicitly track if needed)
+# ==============================================================================
+
+# Archive directory contents are tracked via git
+# Individual archived files should be explicitly added if needed
