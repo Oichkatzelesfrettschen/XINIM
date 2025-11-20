@@ -7,6 +7,7 @@
  */
 
 #include <xinim/vfs/filesystem.hpp>
+#include <xinim/vfs/buffer_cache.hpp>
 #include <xinim/block/blockdev.hpp>
 #include <xinim/log.hpp>
 #include <cstring>
@@ -21,6 +22,77 @@
 #define EEXIST 17  // File exists
 
 namespace xinim::vfs {
+
+// ============================================================================
+// Global Buffer Cache I/O Callbacks
+// ============================================================================
+
+namespace {
+    // Map device name to device pointer
+    std::unordered_map<uint64_t, std::shared_ptr<block::BlockDevice>> device_map_;
+    std::mutex device_map_mutex_;
+
+    // Callback for buffer cache to read from device
+    int cache_read_callback(uint64_t device_id, uint64_t block_num,
+                           uint32_t block_size, void* buffer) {
+        std::lock_guard<std::mutex> lock(device_map_mutex_);
+
+        auto it = device_map_.find(device_id);
+        if (it == device_map_.end()) {
+            return -ENODEV;
+        }
+
+        auto device = it->second;
+        if (!device) {
+            return -ENODEV;
+        }
+
+        // Read from device
+        size_t dev_block_size = device->get_block_size();
+        uint64_t blocks_per_fs_block = block_size / dev_block_size;
+        uint64_t dev_block = block_num * blocks_per_fs_block;
+
+        return device->read_blocks(dev_block, blocks_per_fs_block,
+                                  static_cast<uint8_t*>(buffer));
+    }
+
+    // Callback for buffer cache to write to device
+    int cache_write_callback(uint64_t device_id, uint64_t block_num,
+                            uint32_t block_size, const void* buffer) {
+        std::lock_guard<std::mutex> lock(device_map_mutex_);
+
+        auto it = device_map_.find(device_id);
+        if (it == device_map_.end()) {
+            return -ENODEV;
+        }
+
+        auto device = it->second;
+        if (!device) {
+            return -ENODEV;
+        }
+
+        // Write to device
+        size_t dev_block_size = device->get_block_size();
+        uint64_t blocks_per_fs_block = block_size / dev_block_size;
+        uint64_t dev_block = block_num * blocks_per_fs_block;
+
+        return device->write_blocks(dev_block, blocks_per_fs_block,
+                                   static_cast<const uint8_t*>(buffer));
+    }
+
+    // Initialize buffer cache callbacks (once)
+    bool init_buffer_cache() {
+        static bool initialized = false;
+        if (!initialized) {
+            auto& cache = get_global_buffer_cache();
+            cache.set_read_callback(cache_read_callback);
+            cache.set_write_callback(cache_write_callback);
+            initialized = true;
+            LOG_INFO("FS: Buffer cache initialized with I/O callbacks");
+        }
+        return true;
+    }
+}  // anonymous namespace
 
 // ============================================================================
 // MountOptions Implementation
@@ -120,6 +192,9 @@ int BlockFilesystem::mount(const std::string& device, uint32_t flags) {
         return -EBUSY;
     }
 
+    // Initialize buffer cache (one-time setup)
+    init_buffer_cache();
+
     // Parse mount options
     mount_options_ = MountOptions::from_flags(flags);
     device_name_ = device;
@@ -133,6 +208,13 @@ int BlockFilesystem::mount(const std::string& device, uint32_t flags) {
         return -ENODEV;
     }
 
+    // Register device in device map for buffer cache callbacks
+    {
+        std::lock_guard<std::mutex> dev_lock(device_map_mutex_);
+        uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+        device_map_[device_id] = block_device_;
+    }
+
     LOG_INFO("FS: Mounting %s on %s (%s)", device.c_str(), get_type().c_str(),
              mount_options_.read_only ? "ro" : "rw");
 
@@ -140,6 +222,14 @@ int BlockFilesystem::mount(const std::string& device, uint32_t flags) {
     int ret = read_superblock();
     if (ret < 0) {
         LOG_ERROR("FS: Failed to read superblock from %s: %d", device.c_str(), ret);
+
+        // Unregister device
+        {
+            std::lock_guard<std::mutex> dev_lock(device_map_mutex_);
+            uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+            device_map_.erase(device_id);
+        }
+
         block_device_ = nullptr;
         return ret;
     }
@@ -148,6 +238,14 @@ int BlockFilesystem::mount(const std::string& device, uint32_t flags) {
     root_vnode_ = create_root_vnode();
     if (!root_vnode_) {
         LOG_ERROR("FS: Failed to create root vnode for %s", device.c_str());
+
+        // Unregister device
+        {
+            std::lock_guard<std::mutex> dev_lock(device_map_mutex_);
+            uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+            device_map_.erase(device_id);
+        }
+
         block_device_ = nullptr;
         return -EIO;
     }
@@ -170,6 +268,19 @@ int BlockFilesystem::unmount() {
     int ret = sync();
     if (ret < 0) {
         LOG_WARN("FS: Sync failed during unmount: %d", ret);
+    }
+
+    // Invalidate all cached blocks for this device
+    if (block_device_) {
+        uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+        auto& cache = get_global_buffer_cache();
+        cache.invalidate_device(device_id);
+
+        // Unregister device from device map
+        {
+            std::lock_guard<std::mutex> dev_lock(device_map_mutex_);
+            device_map_.erase(device_id);
+        }
     }
 
     // Clean up root vnode
@@ -200,6 +311,17 @@ int BlockFilesystem::sync() {
 
     if (mount_options_.read_only) {
         return 0;  // Nothing to sync on read-only filesystem
+    }
+
+    // Flush buffer cache for this device
+    if (block_device_) {
+        uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+        auto& cache = get_global_buffer_cache();
+        int ret = cache.sync_device(device_id);
+        if (ret < 0) {
+            LOG_ERROR("FS: Failed to flush buffer cache: %d", ret);
+            return ret;
+        }
     }
 
     // Write superblock (implemented by subclass)
@@ -245,18 +367,11 @@ int BlockFilesystem::read_block(uint64_t block_num, void* buffer) {
         return -ENODEV;
     }
 
-    // Convert filesystem block to device blocks
-    size_t dev_block_size = block_device_->get_block_size();
-    uint64_t blocks_per_fs_block = block_size_ / dev_block_size;
-    uint64_t dev_block = block_num * blocks_per_fs_block;
+    // Use buffer cache for all reads
+    uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+    auto& cache = get_global_buffer_cache();
 
-    int result = block_device_->read_blocks(dev_block, blocks_per_fs_block,
-                                            static_cast<uint8_t*>(buffer));
-    if (result < 0) {
-        return result;
-    }
-
-    return 0;
+    return cache.get_block(device_id, block_num, block_size_, buffer);
 }
 
 int BlockFilesystem::write_block(uint64_t block_num, const void* buffer) {
@@ -268,18 +383,11 @@ int BlockFilesystem::write_block(uint64_t block_num, const void* buffer) {
         return -EROFS;
     }
 
-    // Convert filesystem block to device blocks
-    size_t dev_block_size = block_device_->get_block_size();
-    uint64_t blocks_per_fs_block = block_size_ / dev_block_size;
-    uint64_t dev_block = block_num * blocks_per_fs_block;
+    // Use buffer cache for all writes
+    uint64_t device_id = reinterpret_cast<uint64_t>(block_device_.get());
+    auto& cache = get_global_buffer_cache();
 
-    int result = block_device_->write_blocks(dev_block, blocks_per_fs_block,
-                                             static_cast<const uint8_t*>(buffer));
-    if (result < 0) {
-        return result;
-    }
-
-    return 0;
+    return cache.put_block(device_id, block_num, block_size_, buffer);
 }
 
 int BlockFilesystem::read_blocks(uint64_t start_block, uint32_t count, void* buffer) {
