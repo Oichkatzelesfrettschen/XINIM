@@ -465,6 +465,9 @@ public:
     // Interrupt handling
     void handle_interrupt();
 
+    // Block device registration
+    void register_block_device(uint8_t port);
+
 private:
     // Hardware access
     uint32_t read_hba_reg(uint32_t reg) const;
