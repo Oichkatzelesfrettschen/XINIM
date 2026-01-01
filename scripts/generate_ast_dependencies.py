@@ -63,8 +63,8 @@ class DependencyGraph:
 def _strip_quotes(raw: str) -> str:
     """Remove surrounding quotes or angle brackets from preprocessor paths or import strings."""
 
-    if len(raw) >= 2 and raw[0] in {'"', "'", '<'} and raw[-1] in {raw[0], '>'}:
-        if (raw[0] == '<' and raw[-1] == '>') or (raw[0] == raw[-1]):
+    if len(raw) >= 2:
+        if (raw[0] == '"' and raw[-1] == '"') or (raw[0] == "'" and raw[-1] == "'") or (raw[0] == '<' and raw[-1] == '>'):
             return raw[1:-1]
     return raw
 
