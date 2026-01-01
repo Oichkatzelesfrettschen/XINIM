@@ -22,6 +22,7 @@ The documentation is divided into several sections:
     api
     architecture
     compiler_driver
+    ast_dependency_graphs
     libsodium_tests
     precommit
     process_control

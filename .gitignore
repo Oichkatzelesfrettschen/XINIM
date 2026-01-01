@@ -168,3 +168,4 @@ $RECYCLE.BIN/
 
 # Archive directory contents are tracked via git
 # Individual archived files should be explicitly added if needed
+scripts/__pycache__/
