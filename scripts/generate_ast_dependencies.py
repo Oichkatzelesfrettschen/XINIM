@@ -64,8 +64,11 @@ def _strip_quotes(raw: str) -> str:
     """Remove surrounding quotes or angle brackets from preprocessor paths or import strings."""
 
     if len(raw) >= 2:
-        if (raw[0] == '"' and raw[-1] == '"') or (raw[0] == "'" and raw[-1] == "'") or (raw[0] == '<' and raw[-1] == '>'):
-            return raw[1:-1]
+        # Check for matching quote/bracket pairs
+        matching_pairs = [('"', '"'), ("'", "'"), ('<', '>')]
+        for open_char, close_char in matching_pairs:
+            if raw[0] == open_char and raw[-1] == close_char:
+                return raw[1:-1]
     return raw
 
 
