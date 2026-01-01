@@ -61,10 +61,11 @@ class DependencyGraph:
 
 
 def _strip_quotes(raw: str) -> str:
-    """Remove surrounding quotes from preprocessor paths or import strings."""
+    """Remove surrounding quotes or angle brackets from preprocessor paths or import strings."""
 
-    if len(raw) >= 2 and raw[0] in {'"', "'"} and raw[-1] == raw[0]:
-        return raw[1:-1]
+    if len(raw) >= 2 and raw[0] in {'"', "'", '<'} and raw[-1] in {raw[0], '>'}:
+        if (raw[0] == '<' and raw[-1] == '>') or (raw[0] == raw[-1]):
+            return raw[1:-1]
     return raw
 
 
@@ -72,9 +73,9 @@ def _query_c_includes(source_bytes: bytes, language_id: str) -> list[str]:
     language = get_language(language_id)
     parser = get_parser(language_id)
     tree = parser.parse(source_bytes)
-    query = language.query("(preproc_include path: (string_literal) @include)")
+    query = language.query("(preproc_include path: [(string_literal) (system_lib_string)] @include)")
     includes: list[str] = []
-    for capture, node in query.captures(tree.root_node):
+    for node, capture in query.captures(tree.root_node):
         if capture == "include":
             text = source_bytes[node.start_byte : node.end_byte].decode()
             includes.append(_strip_quotes(text))
@@ -93,7 +94,7 @@ def _query_python_imports(source_bytes: bytes, language_id: str) -> list[str]:
             "(import_statement (dotted_name) @module)"
             "\n(import_from_statement module_name: (dotted_name) @module)"
         )
-        for capture, node in query.captures(tree.root_node):
+        for node, capture in query.captures(tree.root_node):
             if capture == "module":
                 modules.append(source_bytes[node.start_byte : node.end_byte].decode())
     except Exception:
@@ -113,7 +114,7 @@ def _query_bash_sources(source_bytes: bytes, language_id: str) -> list[str]:
             "((command name: (command_name) @cmd argument: (word) @path)"
             " (#match? @cmd \"source|\\.\"))"
         )
-        for capture, node in query.captures(tree.root_node):
+        for node, capture in query.captures(tree.root_node):
             if capture == "path":
                 paths.append(source_bytes[node.start_byte : node.end_byte].decode())
     except Exception:
@@ -133,7 +134,7 @@ def _query_lua_requires(source_bytes: bytes, language_id: str) -> list[str]:
             "((function_call name: (identifier) @func arguments: (arguments (string) @mod))"
             " (#eq? @func \"require\"))"
         )
-        for capture, node in query.captures(tree.root_node):
+        for node, capture in query.captures(tree.root_node):
             if capture == "mod":
                 modules.append(_strip_quotes(source_bytes[node.start_byte : node.end_byte].decode()))
     except Exception:
@@ -150,7 +151,7 @@ def _query_perl_uses(source_bytes: bytes, language_id: str) -> list[str]:
     modules: list[str] = []
     try:
         query = language.query("((use_statement module: (scoped_identifier) @module))")
-        for capture, node in query.captures(tree.root_node):
+        for node, capture in query.captures(tree.root_node):
             if capture == "module":
                 modules.append(source_bytes[node.start_byte : node.end_byte].decode())
     except Exception:
