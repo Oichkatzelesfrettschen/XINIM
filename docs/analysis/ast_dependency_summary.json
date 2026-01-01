@@ -1,0 +1,159 @@
+{
+  "languages": {
+    "bash": {
+      "edges": 7,
+      "files": 23,
+      "top_emitters": [
+        [
+          "scripts/build_dietlibc.sh",
+          1
+        ],
+        [
+          "scripts/build.sh",
+          1
+        ],
+        [
+          "scripts/harmonize.sh",
+          1
+        ],
+        [
+          "scripts/build_gcc_stage1.sh",
+          1
+        ],
+        [
+          "scripts/build_binutils.sh",
+          1
+        ],
+        [
+          "scripts/build_gcc_stage2.sh",
+          1
+        ],
+        [
+          "libc/dietlibc-xinim/test/runtests-X.sh",
+          1
+        ]
+      ]
+    },
+    "c": {
+      "edges": 5311,
+      "files": 2049,
+      "top_emitters": [
+        [
+          "libc/dietlibc-xinim/x86_64/dyn_syscalls.S",
+          269
+        ],
+        [
+          "libc/dietlibc-xinim/i386/dyn_syscalls.S",
+          267
+        ],
+        [
+          "libc/dietlibc-xinim/arm/dyn_syscalls.S",
+          246
+        ],
+        [
+          "libc/dietlibc-xinim/t.c",
+          48
+        ],
+        [
+          "libc/dietlibc-xinim/syscalls.h",
+          15
+        ],
+        [
+          "libc/dietlibc-xinim/libdl/_dl_main.c",
+          15
+        ],
+        [
+          "libc/dietlibc-xinim/contrib/dnsd.c",
+          14
+        ],
+        [
+          "libc/dietlibc-xinim/libpthread/pthread_internal.c",
+          14
+        ],
+        [
+          "libc/dietlibc-xinim/libcruft/res_query.c",
+          14
+        ],
+        [
+          "libc/dietlibc-xinim/lib/stackgap-common.h",
+          13
+        ]
+      ]
+    },
+    "cpp": {
+      "edges": 3909,
+      "files": 585,
+      "top_emitters": [
+        [
+          "include/xinim/stdlib_bridge.hpp",
+          123
+        ],
+        [
+          "include/xinim/posix.hpp",
+          53
+        ],
+        [
+          "src/commands/mkfs.cpp",
+          52
+        ],
+        [
+          "src/commands/make.cpp",
+          40
+        ],
+        [
+          "src/commands/ls.cpp",
+          35
+        ],
+        [
+          "src/commands/mined_unified.hpp",
+          34
+        ],
+        [
+          "include/xinim/posix.cppm",
+          32
+        ],
+        [
+          "src/commands/mined_final.hpp",
+          29
+        ],
+        [
+          "src/commands/login.cpp",
+          28
+        ],
+        [
+          "src/commands/uniq.cpp",
+          25
+        ]
+      ]
+    },
+    "lua": {
+      "edges": 0,
+      "files": 2,
+      "top_emitters": []
+    },
+    "perl": {
+      "edges": 0,
+      "files": 1,
+      "top_emitters": []
+    },
+    "python": {
+      "edges": 10,
+      "files": 2,
+      "top_emitters": [
+        [
+          "scripts/generate_ast_dependencies.py",
+          9
+        ],
+        [
+          "docs/sphinx/conf.py",
+          1
+        ]
+      ]
+    }
+  },
+  "totals": {
+    "edges": 9237,
+    "files": 2662,
+    "languages": 6
+  }
+}
