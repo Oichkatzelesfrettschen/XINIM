@@ -105,6 +105,10 @@ xmake run test_suite
 - **Integration Tests**: System-level verification
 - **POSIX Compliance**: Official test suite validation
 - **Performance Benchmarks**: Continuous optimization
+- **Property & Contract Suites**: RapidCheck-driven property tests (`xmake run property-suite`) and Catch2 contracts (`xmake run contract-suite`) validate algebraic invariants.
+- **Chaos & Mutation Harnesses**: Deterministic chaos runners (`xmake run chaos-suite`, `python3 scripts/testing/chaos_runner.py`) and optional Mull-based mutation analysis (`xmake run mutation-suite`).
+- **Coverage Heatmaps**: `xmake run coverage-heatmap` converts LLVM coverage exports into browsable HTML dashboards for quick hotspots triage.
+- **Docs-as-Code Pipeline**: `xmake run docs-pipeline` drives Doxygen XML generation and Sphinx+Breathe rendering to keep documentation synchronized with code.
 
 ### Code Quality Tools
 - **Static Analysis**: Clang-Tidy, cppcheck
