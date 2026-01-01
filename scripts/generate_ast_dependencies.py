@@ -297,13 +297,16 @@ def main(argv: MutableSequence[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--root", type=Path, default=Path("."), help="Repository root to scan.")
     parser.add_argument(
-        "--output",
-        type=Path,
-        default=Path("docs/analysis/ast_dependency_graphs.json"),
-        help="Path for the detailed graph JSON output.",
+        default=None,
+        help="Directories to omit while scanning.",
     )
-    parser.add_argument(
-        "--summary",
+    args = parser.parse_args(argv)
+
+    root = args.root.resolve()
+    if args.omit is None:
+        omit = set(DEFAULT_OMIT)
+    else:
+        omit = set(args.omit)
         type=Path,
         default=Path("docs/analysis/ast_dependency_summary.json"),
         help="Path for the summary statistics JSON output.",
