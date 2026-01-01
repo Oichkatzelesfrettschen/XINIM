@@ -97,10 +97,24 @@ def _query_python_imports(source_bytes: bytes, language_id: str) -> list[str]:
             if capture == "module":
                 modules.append(source_bytes[node.start_byte : node.end_byte].decode())
     except Exception:
+        # Fallback to regex-based parsing if the tree-sitter query fails
         modules.extend(_regex_python_imports(source_bytes.decode(errors="ignore")))
     if not modules:
+        # If the AST-based approach did not find anything, fall back to regex
         modules.extend(_regex_python_imports(source_bytes.decode(errors="ignore")))
-    return modules
+
+    # Normalize multi-import statements (e.g., "import a, b") into separate entries
+    normalized_modules: list[str] = []
+    for module in modules:
+        # Split on commas and strip whitespace to handle "a, b" -> ["a", "b"]
+        parts = [part.strip() for part in module.split(",") if part.strip()]
+        if len(parts) > 1:
+            normalized_modules.extend(parts)
+        else:
+            # Preserve single imports as-is (with surrounding whitespace removed)
+            normalized_modules.append(module.strip())
+
+    return normalized_modules
 
 
 def _query_bash_sources(source_bytes: bytes, language_id: str) -> list[str]:
