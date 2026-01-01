@@ -26,6 +26,8 @@ add_includedirs("third_party/limine")
 
 -- Dependencies
 add_requires("libsodium")
+add_requires("rapidcheck")
+add_requires("catch2 3.4.0")
 
 -- Main XINIM kernel target
 target("xinim")
@@ -185,6 +187,8 @@ target("xinim")
     -- Tools
     add_files("src/tools/*.cpp")
 
+target_end()
+
 -- Userland components
 
 -- XINIM Shell (xinim-sh) - Week 10 Phase 3
@@ -227,6 +231,7 @@ target("posix-suite")
     add_files("test/posix_compliance_suite.cpp")
     add_includedirs("include")
     add_links("rt", "pthread")
+target_end()
 
 -- POSIX compliance verification (comprehensive)
 target("posix-verify")
@@ -234,6 +239,7 @@ target("posix-verify")
     add_files("test/posix_compliance_verification.cpp")
     add_includedirs("include")
     add_links("rt", "pthread")
+target_end()
 
 -- POSIX compliance test target (basic)
 target("posix-test")
@@ -241,6 +247,7 @@ target("posix-test")
     add_files("test/posix_compliance_test.cpp")
     add_includedirs("include")
     add_links("rt", "pthread")
+target_end()
 
 -- Comprehensive POSIX compliance test target
 target("posix-comprehensive")
@@ -248,14 +255,16 @@ target("posix-comprehensive")
     add_files("test/posix_comprehensive_test.cpp")
     add_includedirs("include")
     add_links("rt", "pthread")
+target_end()
 
 -- GNU POSIX Test Suite integration target
 target("posix-gnu-test")
-    set_kind("binary")
+    set_kind("phony")
     on_run(function (target)
         os.cd("third_party/gpl/posixtestsuite-main/")
         os.exec("./run_tests AIO")
     end)
+target_end()
 
 -- Week 10 Phase 3: Signal testing
 target("signal-test")
@@ -263,15 +272,82 @@ target("signal-test")
     add_files("tests/signal/test_signal_comprehensive.cpp")
     add_includedirs("include")
     add_links("pthread")
+target_end()
+
+-- Property-based testing harness
+target("property-suite")
+    set_kind("binary")
+    set_languages("cxx23")
+    add_files("test/property/*.cpp")
+    add_packages("rapidcheck")
+    on_run(function (target)
+        os.execv(target:targetfile())
+    end)
+target_end()
+
+-- Contract testing harness
+target("contract-suite")
+    set_kind("binary")
+    set_languages("cxx23")
+    add_files("test/contract/*.cpp")
+    add_packages("catch2")
+    add_includedirs("include")
+    on_run(function (target)
+        os.execv(target:targetfile())
+    end)
+target_end()
+
+-- Chaos engineering scenarios
+target("chaos-suite")
+    set_kind("binary")
+    set_languages("cxx23")
+    add_files("test/chaos/*.cpp")
+    add_packages("catch2")
+    on_run(function (target)
+        os.execv(target:targetfile())
+    end)
+target_end()
+
+-- Mutation testing orchestration
+target("mutation-suite")
+    set_kind("phony")
+    on_run(function (target)
+        os.exec("python3 scripts/testing/mutation_runner.py")
+    end)
+target_end()
+
+-- Coverage heatmap generation
+target("coverage-heatmap")
+    set_kind("phony")
+    on_run(function (target)
+        local binary = path.join("$(buildir)", "xinim")
+        local profdata = path.join("$(buildir)", "coverage", "default.profdata")
+        os.exec("python3 scripts/testing/coverage_heatmap.py --binary " .. binary ..
+            " --profdata " .. profdata .. " --source-root $(projectdir)")
+    end)
+target_end()
+
+-- Documentation pipeline wrapper
+target("docs-pipeline")
+    set_kind("phony")
+    on_run(function (target)
+        os.exec("python3 scripts/docs/doc_pipeline.py")
+    end)
+target_end()
 
 -- All tests target
 target("test-all")
     set_kind("phony")
-    add_deps("posix-test", "posix-comprehensive", "posix-suite", "posix-verify")
+    add_deps("posix-test", "posix-comprehensive", "posix-suite", "posix-verify", "property-suite",
+        "contract-suite", "chaos-suite")
     on_build(function (target)
         import("core.project.task")
         task.run("posix-test")
         task.run("posix-comprehensive")
         task.run("posix-suite")
         task.run("posix-verify")
+        task.run("property-suite")
+        task.run("contract-suite")
+        task.run("chaos-suite")
     end)
+target_end()
