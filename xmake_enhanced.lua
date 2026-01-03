@@ -1,5 +1,5 @@
-# XINIM Build System Enhancement
-# Adds coverage, sanitizers, and advanced analysis targets
+-- XINIM Build System Enhancement
+-- Adds coverage, sanitizers, and advanced analysis targets
 
 -- Coverage build target
 target("xinim-coverage")
@@ -113,7 +113,17 @@ target("format")
     set_kind("phony")
     on_build(function (target)
         print("Formatting all C++ files...")
-        os.exec("find src/ include/ -type f \\( -name '*.cpp' -o -name '*.hpp' -o -name '*.h' \\) -exec clang-format -i {} \\;")
+        local files = {}
+        for _, dir in ipairs({"src", "include"}) do
+            for _, ext in ipairs({"cpp", "hpp", "h"}) do
+                for _, file in ipairs(os.files(path.join(dir, "**." .. ext))) do
+                    table.insert(files, file)
+                end
+            end
+        end
+        for _, file in ipairs(files) do
+            os.exec("clang-format -i " .. file)
+        end
         print("Formatting complete!")
     end)
 target_end()

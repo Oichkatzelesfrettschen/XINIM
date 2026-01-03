@@ -86,25 +86,47 @@ run_tool "File count" \
 
 # Generate summary report
 echo -e "\n${GREEN}Generating Summary...${NC}"
+
+# Get safe metrics with defaults
+SLOC_TOTAL="N/A"
+if [ -f "${CODE_METRICS}/analysis_sloccount_fresh.txt" ]; then
+    SLOC_TOTAL=$(tail -5 "${CODE_METRICS}/analysis_sloccount_fresh.txt" || echo "N/A")
+fi
+
+HIGH_CCN="0"
+if [ -f "${CODE_METRICS}/analysis_lizard_fresh_detailed.txt" ]; then
+    HIGH_CCN=$(grep -c "warning:" "${CODE_METRICS}/analysis_lizard_fresh_detailed.txt" || echo "0")
+fi
+
+SECURITY_ISSUES="0"
+if [ -f "${STATIC_ANALYSIS}/analysis_flawfinder_fresh.txt" ]; then
+    SECURITY_ISSUES=$(wc -l < "${STATIC_ANALYSIS}/analysis_flawfinder_fresh.txt" || echo "0")
+fi
+
+FILE_COUNT="N/A"
+if [ -f "${TOOLS_MISC}/file_count.txt" ]; then
+    FILE_COUNT=$(cat "${TOOLS_MISC}/file_count.txt" || echo "N/A")
+fi
+
 cat > "${OUTPUT_DIR}/analysis_summary.txt" << EOF
 XINIM Code Analysis Summary
 Generated: $(date)
 
 Code Metrics:
 -------------
-$(tail -5 "${CODE_METRICS}/analysis_sloccount_fresh.txt")
+${SLOC_TOTAL}
 
 Complexity (High CCN):
 ----------------------
-$(grep -c "warning:" "${CODE_METRICS}/analysis_lizard_fresh_detailed.txt" || echo "0") functions with CCN > 15
+${HIGH_CCN} functions with CCN > 15
 
 Security Issues:
 ----------------
-$(wc -l < "${STATIC_ANALYSIS}/analysis_flawfinder_fresh.txt") findings from Flawfinder
+${SECURITY_ISSUES} findings from Flawfinder
 
 Files Analyzed:
 ---------------
-$(cat "${TOOLS_MISC}/file_count.txt") C++ source files
+${FILE_COUNT} C++ source files
 
 Report Location:
 ----------------

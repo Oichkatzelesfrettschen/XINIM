@@ -89,8 +89,8 @@ block/             606 SLOC (0.9%)  - Block device layer
 | `Archiver::process` | `src/commands/ar.cpp` | 41 | 121 | 🔴 Critical |
 | `execute` | `src/commands/sh3.cpp` | 41 | 124 | 🔴 Critical |
 | `main` | `src/commands/sh1.cpp` | 40 | 120 | 🔴 Critical |
-| `CopyTestCase::run` | `tests/*.cpp` | 40 | 76 | 🔴 Critical |
-| `LinkTestCase::run` | `tests/*.cpp` | 40 | 113 | 🔴 Critical |
+| `CopyTestCase::run` | `src/commands/tests/test_xinim_fs_copy.cpp` | 40 | 76 | 🔴 Critical |
+| `LinkTestCase::run` | `src/commands/tests/test_xinim_fs_links.cpp` | 40 | 113 | 🔴 Critical |
 
 **Moderate Complexity (CCN 30-40):**
 - 12 functions in command utilities (chmod, ln, cut, chown)

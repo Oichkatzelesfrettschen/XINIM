@@ -27,7 +27,7 @@ FAILED=0
 for FILE in $STAGED_FILES; do
     if [ -f "$FILE" ]; then
         echo "  Checking: $FILE"
-        if ! clang-tidy -p build "$FILE" 2>&1 | grep -E "warning:|error:"; then
+        if clang-tidy -p build "$FILE" 2>&1 | grep -E "warning:|error:"; then
             FAILED=1
         fi
     fi
