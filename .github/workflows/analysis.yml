@@ -1,0 +1,241 @@
+name: Comprehensive Analysis & Quality
+
+on:
+  push:
+    branches: ["master", "develop"]
+  pull_request:
+  schedule:
+    - cron: "0 0 * * 0"  # Weekly on Sunday
+
+jobs:
+  code-metrics:
+    name: Code Metrics & Complexity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install analysis tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cloc pmccabe sloccount
+          pip3 install lizard
+      
+      - name: Run CLOC
+        run: |
+          cloc src/ include/ --md --by-file --report-file=cloc_report.md
+          cat cloc_report.md >> $GITHUB_STEP_SUMMARY
+      
+      - name: Run Lizard Complexity Analysis
+        run: |
+          lizard src/ include/ -l cpp -C 15 -w -o lizard_report.txt
+          echo "### High Complexity Functions (CCN > 15)" >> $GITHUB_STEP_SUMMARY
+          grep "warning:" lizard_report.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "None found" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Run SLOCCount
+        run: |
+          sloccount src/ > sloccount_report.txt
+          echo "### Development Effort Estimate" >> $GITHUB_STEP_SUMMARY
+          tail -10 sloccount_report.txt >> $GITHUB_STEP_SUMMARY
+      
+      - name: Upload metrics reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: code-metrics
+          path: |
+            cloc_report.md
+            lizard_report.txt
+            sloccount_report.txt
+
+  security-scan:
+    name: Security Analysis
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install security tools
+        run: |
+          pip3 install flawfinder
+          sudo apt-get update
+          sudo apt-get install -y cppcheck
+      
+      - name: Run Flawfinder
+        run: |
+          flawfinder --quiet --dataonly src/ include/ > flawfinder_report.txt
+          echo "### Security Issues Found" >> $GITHUB_STEP_SUMMARY
+          echo "Total issues: $(wc -l < flawfinder_report.txt)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "High-risk issues (level 4-5):" >> $GITHUB_STEP_SUMMARY
+          grep -E "\[4\]|\[5\]" flawfinder_report.txt | head -10 >> $GITHUB_STEP_SUMMARY || echo "None found" >> $GITHUB_STEP_SUMMARY
+      
+      - name: Run Cppcheck
+        run: |
+          cppcheck --enable=warning,style,performance,portability \
+            --quiet --template='{file}:{line}: {severity}: {message}' \
+            src/kernel/*.cpp src/mm/*.cpp > cppcheck_report.txt 2>&1 || true
+          echo "### Cppcheck Findings" >> $GITHUB_STEP_SUMMARY
+          head -20 cppcheck_report.txt >> $GITHUB_STEP_SUMMARY
+      
+      - name: Check for critical security issues
+        run: |
+          HIGH_RISK=$(grep -cE "\[4\]|\[5\]" flawfinder_report.txt || echo "0")
+          echo "High-risk security issues: $HIGH_RISK"
+          if [ "$HIGH_RISK" -gt 10 ]; then
+            echo "::warning::Found $HIGH_RISK high-risk security issues"
+          fi
+      
+      - name: Upload security reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: security-reports
+          path: |
+            flawfinder_report.txt
+            cppcheck_report.txt
+
+  static-analysis:
+    name: Static Analysis (Clang-Tidy)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Clang tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang-18 clang-tidy-18 clang-format-18
+      
+      - name: Check code formatting
+        run: |
+          # Check if code is formatted correctly
+          find src/ include/ -name "*.cpp" -o -name "*.hpp" | \
+            xargs clang-format-18 --dry-run --Werror || \
+            echo "::warning::Code formatting issues found. Run clang-format to fix."
+      
+      - name: Run clang-tidy (sample)
+        run: |
+          # Run on kernel files as example
+          for file in src/kernel/kernel.cpp src/kernel/system.cpp; do
+            if [ -f "$file" ]; then
+              echo "Analyzing $file..."
+              clang-tidy-18 "$file" -- -std=c++23 -Iinclude/ -Iinclude/xinim/ 2>&1 | tee -a clang_tidy_report.txt || true
+            fi
+          done
+      
+      - name: Upload analysis reports
+        uses: actions/upload-artifact@v3
+        with:
+          name: static-analysis
+          path: clang_tidy_report.txt
+        if: always()
+
+  complexity-gate:
+    name: Complexity Quality Gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Lizard
+        run: pip3 install lizard
+      
+      - name: Check complexity thresholds
+        run: |
+          # Count functions with CCN > 40 (critical)
+          CRITICAL=$(lizard src/ -l cpp -C 40 -w 2>/dev/null | grep -c "warning:" || echo "0")
+          echo "Critical complexity functions (CCN > 40): $CRITICAL"
+          
+          # Count functions with CCN > 15 (high)
+          HIGH=$(lizard src/ -l cpp -C 15 -w 2>/dev/null | grep -c "warning:" || echo "0")
+          echo "High complexity functions (CCN > 15): $HIGH"
+          
+          if [ "$CRITICAL" -gt 0 ]; then
+            echo "::error::Found $CRITICAL functions with critical complexity (CCN > 40)"
+            echo "::error::Please refactor these functions before merging"
+            exit 1
+          fi
+          
+          if [ "$HIGH" -gt 100 ]; then
+            echo "::warning::Found $HIGH functions with high complexity (CCN > 15)"
+            echo "::warning::Consider refactoring to improve maintainability"
+          fi
+
+  documentation:
+    name: Documentation Generation
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Install Doxygen
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y doxygen graphviz
+      
+      - name: Generate documentation
+        run: |
+          if [ -f Doxyfile ]; then
+            doxygen Doxyfile
+            echo "Documentation generated successfully"
+          else
+            echo "::warning::Doxyfile not found, skipping documentation generation"
+          fi
+      
+      - name: Upload documentation
+        uses: actions/upload-artifact@v3
+        with:
+          name: doxygen-docs
+          path: docs/html/
+        if: success()
+
+  comprehensive-report:
+    name: Generate Comprehensive Report
+    runs-on: ubuntu-latest
+    needs: [code-metrics, security-scan, static-analysis]
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Download all artifacts
+        uses: actions/download-artifact@v3
+      
+      - name: Generate summary report
+        run: |
+          cat > comprehensive_report.md << 'EOF'
+          # XINIM Comprehensive Analysis Report
+          
+          **Generated:** $(date)
+          **Branch:** ${{ github.ref_name }}
+          **Commit:** ${{ github.sha }}
+          
+          ## Summary
+          
+          This report aggregates all analysis results from the CI pipeline.
+          
+          ### Code Metrics
+          
+          See code-metrics/ directory for detailed reports.
+          
+          ### Security Analysis
+          
+          See security-reports/ directory for detailed findings.
+          
+          ### Static Analysis
+          
+          See static-analysis/ directory for clang-tidy results.
+          
+          ## Recommendations
+          
+          1. Review high-complexity functions (CCN > 15)
+          2. Address critical security issues (risk level 4-5)
+          3. Fix clang-tidy warnings
+          4. Ensure code is formatted with clang-format
+          
+          ## Next Steps
+          
+          - Run local analysis: `./tools/run_analysis.sh`
+          - Fix issues and re-run CI
+          - Update technical debt report as needed
+          EOF
+          
+          cat comprehensive_report.md
+      
+      - name: Upload comprehensive report
+        uses: actions/upload-artifact@v3
+        with:
+          name: comprehensive-report
+          path: comprehensive_report.md
