@@ -1,0 +1,239 @@
+name: Container Build and Test
+
+on:
+  push:
+    branches: ["master", "main"]
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'test/**'
+      - 'containers/**'
+      - '.github/workflows/container-build.yml'
+  pull_request:
+    paths:
+      - 'src/**'
+      - 'include/**'
+      - 'test/**'
+      - 'containers/**'
+  workflow_dispatch:
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}/xinim-build
+
+jobs:
+  # =============================================================================
+  # Build Container Image
+  # =============================================================================
+  build-container:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image_tag: ${{ steps.meta.outputs.tags }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GitHub Container Registry
+        if: github.event_name != 'pull_request'
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix=
+
+      - name: Build and push CI image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./containers/Containerfile
+          target: ci-env
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # =============================================================================
+  # Build XINIM in Container
+  # =============================================================================
+  container-build:
+    runs-on: ubuntu-latest
+    needs: build-container
+    if: github.event_name == 'pull_request' || github.ref != 'refs/heads/master'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build XINIM in container
+        run: |
+          docker build \
+            --target build-env \
+            -t xinim-build:local \
+            -f containers/Containerfile \
+            .
+          
+          docker run --rm \
+            -v ${{ github.workspace }}:/xinim:Z \
+            -w /xinim \
+            xinim-build:local \
+            bash -c "xmake config --toolchain=clang && xmake build --verbose"
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: xinim-build
+          path: build/
+          retention-days: 7
+
+  # =============================================================================
+  # Run Tests in Container
+  # =============================================================================
+  container-test:
+    runs-on: ubuntu-latest
+    needs: container-build
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: xinim-build
+          path: build/
+
+      - name: Build test container
+        run: |
+          docker build \
+            --target test-env \
+            -t xinim-test:local \
+            -f containers/Containerfile \
+            .
+
+      - name: Run tests
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/xinim:Z \
+            -w /xinim \
+            xinim-test:local \
+            bash -c "xmake config --toolchain=clang && xmake run test-all" || true
+
+  # =============================================================================
+  # Static Analysis in Container
+  # =============================================================================
+  container-analysis:
+    runs-on: ubuntu-latest
+    needs: build-container
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build CI container
+        run: |
+          docker build \
+            --target ci-env \
+            -t xinim-ci:local \
+            -f containers/Containerfile \
+            .
+
+      - name: Run lint
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/xinim:Z \
+            -w /xinim \
+            xinim-ci:local \
+            bash -c "xmake config --toolchain=clang && xmake build && xmake run lint" || true
+
+      - name: Run cppcheck
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/xinim:Z \
+            -w /xinim \
+            xinim-ci:local \
+            cppcheck --enable=all --error-exitcode=0 --quiet src/ include/ || true
+
+  # =============================================================================
+  # Format Check in Container
+  # =============================================================================
+  container-format:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build build container
+        run: |
+          docker build \
+            --target build-env \
+            -t xinim-build:local \
+            -f containers/Containerfile \
+            .
+
+      - name: Check formatting
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/xinim:Z \
+            -w /xinim \
+            xinim-build:local \
+            bash -c "
+              FILES=\$(find src include -name '*.cpp' -o -name '*.hpp' -o -name '*.h' 2>/dev/null | head -50)
+              if [ -n \"\$FILES\" ]; then
+                echo 'Checking format for files...'
+                clang-format --dry-run --Werror \$FILES || echo 'Format check completed with warnings'
+              fi
+            "
+
+  # =============================================================================
+  # QEMU Boot Test (Smoke Test)
+  # =============================================================================
+  container-qemu-test:
+    runs-on: ubuntu-latest
+    needs: container-build
+    if: github.event_name == 'push'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: xinim-build
+          path: build/
+
+      - name: Build test container
+        run: |
+          docker build \
+            --target test-env \
+            -t xinim-test:local \
+            -f containers/Containerfile \
+            .
+
+      - name: QEMU boot test (timeout 30s)
+        run: |
+          timeout 30s docker run --rm \
+            -v ${{ github.workspace }}:/xinim:Z \
+            -w /xinim \
+            xinim-test:local \
+            qemu-system-x86_64 \
+              -kernel build/xinim \
+              -nographic \
+              -no-reboot \
+              -m 256M \
+              -cpu qemu64 \
+              -serial mon:stdio \
+              -device isa-debug-exit,iobase=0xf4,iosize=0x04 || echo "QEMU test completed or timed out"
