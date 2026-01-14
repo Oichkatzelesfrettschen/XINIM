@@ -1,0 +1,190 @@
+# XINIM: Lightweight Container for Building, Testing, and Debugging
+# Compatible with Docker and Podman
+# Multi-stage build for minimal footprint
+
+# =============================================================================
+# Stage 1: Base Image with Essential Build Tools
+# =============================================================================
+FROM docker.io/library/ubuntu:24.04 AS base
+
+# Prevent apt from prompting for user input
+ENV DEBIAN_FRONTEND=noninteractive
+
+# Install minimal base dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    ca-certificates \
+    curl \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Add LLVM apt repository for clang-18+
+RUN curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" > /etc/apt/sources.list.d/llvm.list
+
+# =============================================================================
+# Stage 2: Build Environment (Lightweight)
+# =============================================================================
+FROM base AS build-env
+
+# Install C++23 toolchain and essential build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Core build tools
+    build-essential \
+    ninja-build \
+    cmake \
+    pkg-config \
+    # LLVM/Clang toolchain
+    clang-18 \
+    lld-18 \
+    lldb-18 \
+    clang-tools-18 \
+    clang-tidy-18 \
+    clang-format-18 \
+    libc++-18-dev \
+    libc++abi-18-dev \
+    # Assembly
+    nasm \
+    # Libraries
+    libsodium-dev \
+    # Useful utilities
+    git \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Create symbolic links for clang tools
+RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang-18 100 \
+    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-18 100 \
+    && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100 \
+    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100 \
+    && update-alternatives --install /usr/bin/ld ld /usr/bin/lld-18 100 \
+    && update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-18 100 \
+    && update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-18 100
+
+# Install xmake
+RUN curl -fsSL https://xmake.io/shget.text | bash \
+    && ln -s /root/.local/bin/xmake /usr/local/bin/xmake
+
+# Set environment for xmake
+ENV PATH="/root/.local/bin:${PATH}"
+
+# Create working directory
+WORKDIR /xinim
+
+# Default build command
+CMD ["xmake", "build", "--verbose"]
+
+# =============================================================================
+# Stage 3: Test Environment (includes QEMU for kernel testing)
+# =============================================================================
+FROM build-env AS test-env
+
+# Install testing dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # QEMU for kernel testing
+    qemu-system-x86 \
+    qemu-utils \
+    # Debugging tools
+    gdb \
+    valgrind \
+    # Coverage tools
+    lcov \
+    # Static analysis
+    cppcheck \
+    # Python for test scripts
+    python3 \
+    python3-pip \
+    python3-venv \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Install Python testing tools in a virtual environment
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir \
+        pytest \
+        lizard
+
+# Add virtual environment to PATH
+ENV PATH="/opt/venv/bin:${PATH}"
+
+# Default test command
+CMD ["xmake", "run", "test-all"]
+
+# =============================================================================
+# Stage 4: Debug Environment (full debugging support)
+# =============================================================================
+FROM test-env AS debug-env
+
+# Install additional debugging dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Advanced debugging
+    strace \
+    ltrace \
+    # Performance profiling
+    linux-tools-generic \
+    # Memory debugging
+    libasan8 \
+    libtsan2 \
+    libubsan1 \
+    # Editor for in-container editing
+    vim \
+    less \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Configure GDB for kernel debugging
+RUN echo 'set architecture i386:x86-64' > /root/.gdbinit \
+    && echo 'set disassembly-flavor intel' >> /root/.gdbinit \
+    && echo 'set pagination off' >> /root/.gdbinit
+
+# Enable kernel debugging via QEMU
+ENV XINIM_DEBUG=1
+
+# Default debug command (starts GDB server)
+CMD ["/bin/bash"]
+
+# =============================================================================
+# Stage 5: CI Environment (optimized for GitHub Actions)
+# =============================================================================
+FROM test-env AS ci-env
+
+# Install CI-specific tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # For GitHub Actions caching
+    zip \
+    unzip \
+    # Documentation generation
+    doxygen \
+    graphviz \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+# Set up CI-friendly environment
+ENV CI=true
+ENV XINIM_CI=1
+
+# Default CI command
+CMD ["bash", "-c", "xmake config --toolchain=clang && xmake build --verbose && xmake run test-all"]
+
+# =============================================================================
+# Stage 6: Minimal Runtime (for deployment/distribution)
+# =============================================================================
+FROM docker.io/library/ubuntu:24.04 AS runtime
+
+# Minimal runtime dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    qemu-system-x86 \
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
+
+WORKDIR /xinim
+
+# Copy only the built kernel.
+# NOTE: This stage requires a pre-built 'xinim' kernel binary to be present
+# in the build context at image build time. Build the kernel first, then
+# copy it to the repo root before building this stage:
+#   ./containers/container.sh build
+#   cp build/xinim ./xinim
+#   docker build --target runtime -t xinim-runtime -f containers/Containerfile .
+COPY xinim /xinim/xinim
+
+CMD ["qemu-system-x86_64", "-kernel", "/xinim/xinim", "-nographic", "-no-reboot"]

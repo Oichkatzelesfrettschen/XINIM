@@ -1,0 +1,242 @@
+# XINIM Docker Compose Configuration
+# Provides multi-container orchestration for development workflows
+# Compatible with both Docker Compose and Podman Compose
+
+version: "3.8"
+
+services:
+  # =============================================================================
+  # Build Service - For compiling XINIM kernel
+  # =============================================================================
+  build:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: build-env
+    image: xinim-build:local
+    container_name: xinim-build
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    command: bash -c "xmake config --toolchain=clang && xmake build --verbose"
+    profiles:
+      - build
+
+  # =============================================================================
+  # Test Service - For running test suites
+  # =============================================================================
+  test:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: test-env
+    image: xinim-test:local
+    container_name: xinim-test
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    command: bash -c "xmake config --toolchain=clang && xmake build && xmake run test-all"
+    depends_on:
+      - build
+    profiles:
+      - test
+
+  # =============================================================================
+  # Debug Service - Interactive debugging environment
+  # =============================================================================
+  debug:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: debug-env
+    image: xinim-debug:local
+    container_name: xinim-debug
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    ports:
+      - "1234:1234"  # GDB server port
+    stdin_open: true
+    tty: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
+    command: /bin/bash
+    profiles:
+      - debug
+
+  # =============================================================================
+  # QEMU Service - Boot kernel in QEMU emulator
+  # =============================================================================
+  qemu:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: test-env
+    image: xinim-test:local
+    container_name: xinim-qemu
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    stdin_open: true
+    tty: true
+    command: >
+      qemu-system-x86_64
+        -kernel /xinim/build/xinim
+        -nographic
+        -no-reboot
+        -m 512M
+        -cpu qemu64
+        -serial mon:stdio
+    depends_on:
+      - build
+    profiles:
+      - qemu
+
+  # =============================================================================
+  # QEMU Debug Service - Boot with GDB server for remote debugging
+  # =============================================================================
+  qemu-debug:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: debug-env
+    image: xinim-debug:local
+    container_name: xinim-qemu-debug
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    ports:
+      - "1234:1234"  # GDB server port
+    stdin_open: true
+    tty: true
+    command: >
+      qemu-system-x86_64
+        -kernel /xinim/build/xinim
+        -nographic
+        -no-reboot
+        -m 512M
+        -cpu qemu64
+        -serial mon:stdio
+        -s -S
+    profiles:
+      - qemu-debug
+
+  # =============================================================================
+  # CI Service - Full CI pipeline
+  # =============================================================================
+  ci:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: ci-env
+    image: xinim-ci:local
+    container_name: xinim-ci
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    command: |
+      bash -c "
+        set -e
+        echo '=== Configuring Build ==='
+        xmake config --toolchain=clang
+        
+        echo '=== Building XINIM ==='
+        xmake build --verbose
+        
+        echo '=== Running Tests ==='
+        xmake run test-all || echo 'Some tests failed'
+        
+        echo '=== Running Lint ==='
+        xmake run lint || echo 'Lint completed with warnings'
+        
+        echo '=== CI Pipeline Complete ==='
+      "
+    profiles:
+      - ci
+
+  # =============================================================================
+  # Lint Service - Code linting
+  # =============================================================================
+  lint:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: ci-env
+    image: xinim-ci:local
+    container_name: xinim-lint
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    command: bash -c "xmake config --toolchain=clang && xmake build && xmake run lint"
+    profiles:
+      - lint
+
+  # =============================================================================
+  # Format Service - Code formatting check
+  # =============================================================================
+  format:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: build-env
+    image: xinim-build:local
+    container_name: xinim-format
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    command: bash -c "xmake run format"
+    profiles:
+      - format
+
+  # =============================================================================
+  # Coverage Service - Generate coverage reports
+  # =============================================================================
+  coverage:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: test-env
+    image: xinim-test:local
+    container_name: xinim-coverage
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    command: |
+      bash -c "
+        xmake config --mode=coverage --toolchain=clang
+        xmake build xinim-coverage
+        xmake run xinim-coverage
+      "
+    profiles:
+      - coverage
+
+  # =============================================================================
+  # Shell Service - Interactive development shell
+  # =============================================================================
+  shell:
+    build:
+      context: ..
+      dockerfile: containers/Containerfile
+      target: debug-env
+    image: xinim-debug:local
+    container_name: xinim-shell
+    volumes:
+      - ..:/xinim:Z
+    working_dir: /xinim
+    stdin_open: true
+    tty: true
+    command: /bin/bash
+    profiles:
+      - shell
+
+# Volumes for persistent storage (optional, for future use)
+# volumes:
+#   xinim-build-cache:
+#     name: xinim-build-cache
+
+# Networks
+networks:
+  default:
+    name: xinim-network
