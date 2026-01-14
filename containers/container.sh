@@ -132,11 +132,12 @@ ensure_image() {
     local image="$1"
     local target="$2"
     
-    if [[ "$REBUILD" == "true" ]] || ! $CONTAINER_RT image exists "$image" 2>/dev/null; then
-        if ! $CONTAINER_RT images -q "$image" | grep -q .; then
-            echo -e "${YELLOW}[WARN]${NC} Image $image not found. Building..."
-            build_image "$target"
-        fi
+    if [[ "$REBUILD" == "true" ]]; then
+        echo -e "${YELLOW}[WARN]${NC} Rebuild requested, building image..."
+        build_image "$target"
+    elif ! $CONTAINER_RT images -q "$image" 2>/dev/null | grep -q .; then
+        echo -e "${YELLOW}[WARN]${NC} Image $image not found. Building..."
+        build_image "$target"
     fi
 }
 
@@ -198,10 +199,14 @@ run_ci() {
             xmake build --verbose
             
             echo '=== Running Tests ==='
-            xmake run test-all || true
+            if ! xmake run test-all; then
+                echo '[WARN] Some tests failed'
+            fi
             
             echo '=== Running Lint ==='
-            xmake run lint || true
+            if ! xmake run lint; then
+                echo '[WARN] Lint completed with warnings'
+            fi
             
             echo '=== CI Pipeline Complete ==='
         "

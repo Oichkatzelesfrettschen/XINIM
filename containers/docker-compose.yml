@@ -228,10 +228,10 @@ services:
     profiles:
       - shell
 
-# Volumes for persistent storage (optional)
-volumes:
-  xinim-build-cache:
-    name: xinim-build-cache
+# Volumes for persistent storage (optional, for future use)
+# volumes:
+#   xinim-build-cache:
+#     name: xinim-build-cache
 
 # Networks
 networks:

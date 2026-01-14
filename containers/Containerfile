@@ -97,10 +97,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install Python testing tools
-RUN pip3 install --break-system-packages --no-cache-dir \
-    pytest \
-    lizard
+# Install Python testing tools in a virtual environment
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir \
+        pytest \
+        lizard
+
+# Add virtual environment to PATH
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Default test command
 CMD ["xmake", "run", "test-all"]

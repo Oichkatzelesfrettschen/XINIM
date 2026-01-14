@@ -41,10 +41,14 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
 RUN curl -fsSL https://xmake.io/shget.text | bash \
     && ln -s /root/.local/bin/xmake /usr/local/bin/xmake
 
-# Install Python tools
-RUN pip3 install --break-system-packages --no-cache-dir \
-    lizard \
-    pytest
+# Install Python tools in a virtual environment
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir \
+        lizard \
+        pytest
+
+# Add virtual environment to PATH for all users
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Configure GDB for kernel debugging
 RUN echo 'set architecture i386:x86-64' >> /home/vscode/.gdbinit \

@@ -54,10 +54,7 @@
 		}
 	},
 
-	// Mount /dev/kvm for KVM acceleration if available
-	"mounts": [
-		"source=/dev/kvm,target=/dev/kvm,type=bind"
-	],
+	// Mount KVM device for acceleration if available
 	"runArgs": ["--device=/dev/kvm"],
 
 	// Use non-root user for security
