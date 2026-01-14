@@ -286,7 +286,7 @@ run_lint() {
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$CI_IMAGE" \
-        bash -c "xmake run lint"
+        bash -c "xmake config --toolchain=clang && xmake build && xmake run lint"
 }
 
 # Run formatter

@@ -58,7 +58,10 @@ services:
       - "1234:1234"  # GDB server port
     stdin_open: true
     tty: true
-    privileged: true
+    cap_add:
+      - SYS_PTRACE
+    security_opt:
+      - seccomp=unconfined
     command: /bin/bash
     profiles:
       - debug

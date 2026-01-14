@@ -178,7 +178,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /xinim
 
-# Copy only the built kernel
-COPY --from=build-env /xinim/build/xinim /xinim/xinim
+# Copy only the built kernel.
+# NOTE: This stage requires a pre-built 'xinim' kernel binary to be present
+# in the build context at image build time. Build the kernel first, then
+# copy it to the repo root before building this stage:
+#   ./containers/container.sh build
+#   cp build/xinim ./xinim
+#   docker build --target runtime -t xinim-runtime -f containers/Containerfile .
+COPY xinim /xinim/xinim
 
 CMD ["qemu-system-x86_64", "-kernel", "/xinim/xinim", "-nographic", "-no-reboot"]

@@ -37,9 +37,9 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
         python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Install xmake (primary build system)
+# Install xmake (primary build system) - install globally for all users
 RUN curl -fsSL https://xmake.io/shget.text | bash \
-    && ln -s /root/.local/bin/xmake /usr/local/bin/xmake
+    && mv /root/.local/bin/xmake /usr/local/bin/xmake
 
 # Install Python tools in a virtual environment
 RUN python3 -m venv /opt/venv \

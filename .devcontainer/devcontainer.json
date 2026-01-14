@@ -30,7 +30,7 @@
 	"forwardPorts": [1234],
 
 	// Run xmake config after container creation
-	"postCreateCommand": "xmake config --toolchain=clang 2>/dev/null || true",
+	"postCreateCommand": "sh -lc 'if [ -f xmake.lua ]; then xmake config --toolchain=clang; else echo \"xmake.lua not found, skipping xmake config\"; fi'",
 
 	// VSCode customizations for C++23 development
 	"customizations": {
@@ -54,8 +54,10 @@
 		}
 	},
 
-	// Mount KVM device for acceleration if available
-	"runArgs": ["--device=/dev/kvm"],
+	// Optional: Mount KVM device for acceleration on supported hosts.
+	// To enable on Linux with KVM, set: export DEVCONTAINER_KVM_DEVICE="--device=/dev/kvm"
+	// On hosts without KVM (macOS, Windows), leave unset or empty.
+	"runArgs": ["${localEnv:DEVCONTAINER_KVM_DEVICE}"],
 
 	// Use non-root user for security
 	"remoteUser": "vscode"

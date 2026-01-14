@@ -101,10 +101,17 @@ Includes everything in `test-env` plus:
 
 ### 5. `runtime` (Minimal)
 
-**Size**: ~200 MB  
+**Size**: Varies based on built kernel (verify with `docker images` or `podman images`)  
 **Purpose**: Running pre-built XINIM kernel
 
 Minimal image containing only QEMU and the built kernel.
+
+**Note**: This stage requires a pre-built kernel binary in the build context:
+```bash
+./containers/container.sh build
+cp build/xinim ./xinim
+docker build --target runtime -t xinim-runtime -f containers/Containerfile .
+```
 
 ## Command Reference
 
