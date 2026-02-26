@@ -1,0 +1,864 @@
+                     
+                     
+┌───────────────────┐
+│ 125 Code Findings │
+└───────────────────┘
+                                                                    
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/contrib/elftrunc.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          145┆ strncpy(fn,argv[1],sizeof(fn)-10);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          146┆ strcat(fn,".trunc");
+                                                        
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/diet.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           96┆ strcpy(safeguard2, diethome);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+           97┆ strcat(safeguard2, "/include/dietref.h");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          100┆ strcpy(platform,diethome);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          102┆ strcat(platform,"/lib-");
+            ⋮┆----------------------------------------
+          105┆ strcat(platform,"/bin-");
+            ⋮┆----------------------------------------
+          107┆ strcat(platform,"/pic-");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          110┆ strcpy(dashL,"-L");
+            ⋮┆----------------------------------------
+          158┆ strcpy(shortplatform, "parisc");
+            ⋮┆----------------------------------------
+          160┆ strcpy(shortplatform, "mips64");
+            ⋮┆----------------------------------------
+          162┆ strcpy(shortplatform, "x32");
+            ⋮┆----------------------------------------
+          224┆ strcpy(tmp4,shortplatform);
+            ⋮┆----------------------------------------
+          233┆ strcpy(shortplatform,"mipsel");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          239┆ strcat(dashL,platform);
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          258┆ strcpy(g,platform);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          259┆ strcat(g,"/stackgap-g.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          292┆ strcpy(a,diethome); strcat(a,"/include");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          292┆ strcpy(a,diethome); strcat(a,"/include");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          294┆ strcpy(b,platform);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          296┆ strcat(b,"/pstart.o");
+            ⋮┆----------------------------------------
+          298┆ strcat(b,pie ? "/start-pie.o" : "/start.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          300┆ strcpy(c,platform); strcat(c,"/libc.a");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          300┆ strcpy(c,platform); strcat(c,"/libc.a");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          302┆ strcpy(c,platform); strcat(c,"/dietlibc.a");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          302┆ strcpy(c,platform); strcat(c,"/dietlibc.a");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          305┆ strcpy(b,platform); strcat(b,"/dstart.o");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          305┆ strcpy(b,platform); strcat(b,"/dstart.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          306┆ strcpy(c,"-lc");
+            ⋮┆----------------------------------------
+          313┆ strcpy(d,platform);
+            ⋮┆----------------------------------------
+          314┆ strcpy(e,platform);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          316┆ strcat(d,"/dyn_so_start.o");
+            ⋮┆----------------------------------------
+          320┆ strcat(e,"/dyn_dstop.o");
+            ⋮┆----------------------------------------
+          324┆ strcat(e,"/dyn_stop.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          327┆ strcpy(d,platform); strcat(d,"/dyn_start.o");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          327┆ strcpy(d,platform); strcat(d,"/dyn_start.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          328┆ strcpy(e,platform); strcat(e,"/dyn_stop.o");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          328┆ strcpy(e,platform); strcat(e,"/dyn_stop.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          333┆ strcpy(e,platform);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          334┆ strcat(e,"/crtend.o");
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          414┆ strcpy(manglebuf,tmp);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          415┆ strcat(manglebuf,"/.diet/");
+            ⋮┆----------------------------------------
+          418┆ strcat(manglebuf,tmp);
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          466┆ strcpy(f,"-Wl,-dynamic-linker=");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          467┆ strcat(f,platform);
+            ⋮┆----------------------------------------
+          469┆ strcat(f,"/libdl.so");
+                                                                   
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/lib/assert_fail.c
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+           18┆ if (file) strcat(strcat(buf,file),":");
+            ⋮┆----------------------------------------
+           18┆ if (file) strcat(strcat(buf,file),":");
+            ⋮┆----------------------------------------
+           21┆ strcat(buf,": ");
+            ⋮┆----------------------------------------
+           22┆ if (function) strcat(strcat(buf,function),": ");
+            ⋮┆----------------------------------------
+           22┆ if (function) strcat(strcat(buf,function),": ");
+            ⋮┆----------------------------------------
+           23┆ strcat(buf,"Assertion `");
+            ⋮┆----------------------------------------
+           24┆ strcat(buf,assertion);
+            ⋮┆----------------------------------------
+           25┆ strcat(buf,"' failed.\n");
+                                                                 
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/lib/hsearch_r.c
+    ❯❱ c.lang.security.use-after-free.use-after-free
+          Variable 'htab->table' was used after being freed. This can lead to undefined behavior.
+          Details: https://sg.run/gL6e                                                           
+                                                                                                 
+           55┆ b=&htab->table[hv%htab->size];
+                                                              
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/lib/putenv.c
+    ❯❱ c.lang.security.use-after-free.use-after-free
+          Variable 'environ' was used after being freed. This can lead to undefined behavior.
+          Details: https://sg.run/gL6e                                                       
+                                                                                             
+           67┆ assert(!strcmp(environ[0],"FOO=1") && environ[1]==0);
+            ⋮┆----------------------------------------
+           67┆ assert(!strcmp(environ[0],"FOO=1") && environ[1]==0);
+                                                                       
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/lib/stackgap-common.h
+    ❯❱ c.lang.security.random-fd-exhaustion.random-fd-exhaustion
+          Call to 'read()' without error checking is susceptible to file descriptor exhaustion. Consider using
+          the 'getrandom()' function.                                                                         
+          Details: https://sg.run/8yNj                                                                        
+                                                                                                              
+          538┆ int fd=open("/dev/urandom",O_RDONLY);      // If this fails, there is not much we can do.
+               Limp on.                                                                                 
+          539┆ read(fd,tmp,10);
+                                                               
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/lib/ttyname.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           16┆ strcpy(ibuf,"/proc/self/fd/");
+            ⋮┆----------------------------------------
+           28┆ strcpy(buf,"/dev/tty");
+                                                                     
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcompat/ctermid.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+            8┆ return strcpy(s,"/dev/tty");
+                                                                    
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/confstr.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           13┆ if (buf) strncpy(buf,DEF_PATH,len);
+                                                                            
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/gethostbyaddr_r.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           55┆ tmp+=i2a(tmp,(unsigned char)addr[0]); strcpy(tmp,".in-addr.arpa");
+            ⋮┆----------------------------------------
+           66┆ strcpy(tmp,".ip6.arpa");
+                                                                             
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/gethostbyname2_r.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           66┆ strcpy(buf,name);
+                                                                            
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/gethostbyname_r.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           26┆ strcpy(buf,name);
+                                                                      
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/inet_ntop.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           74┆ strcpy(BUF,buf);
+                                                                    
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/mkdtemp.c
+    ❯❱ c.lang.security.random-fd-exhaustion.random-fd-exhaustion
+          Call to 'read()' without error checking is susceptible to file descriptor exhaustion. Consider using
+          the 'getrandom()' function.                                                                         
+          Details: https://sg.run/8yNj                                                                        
+                                                                                                              
+           14┆ randfd=open("/dev/urandom",O_RDONLY);
+           15┆ for (;;) {
+           16┆   read(randfd,&random,sizeof(random));
+           17┆   for (i=0; i<6; ++i) {
+           18┆     int hexdigit=(random>>(i*5))&0x1f;
+           19┆     tmp[i]=hexdigit>9?hexdigit+'a'-10:hexdigit+'0';
+           20┆   }
+           21┆   if (mkdir(template,0700)==0) break;
+           22┆   if (errno==EEXIST) continue;
+           23┆   close(randfd);
+             [hid 2 additional lines, adjust with --max-lines-per-finding] 
+                                                                    
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/mkstemp.c
+    ❯❱ c.lang.security.random-fd-exhaustion.random-fd-exhaustion
+          Call to 'read()' without error checking is susceptible to file descriptor exhaustion. Consider using
+          the 'getrandom()' function.                                                                         
+          Details: https://sg.run/8yNj                                                                        
+                                                                                                              
+           20┆ randfd=open("/dev/urandom",O_RDONLY);
+           21┆ for (;;) {
+           22┆   read(randfd,&random,sizeof(random));
+           23┆   for (i=0; i<6; ++i) {
+           24┆     int hexdigit=(random>>(i*5))&0x1f;
+           25┆     tmp[i]=hexdigit>9?hexdigit+'a'-10:hexdigit+'0';
+           26┆   }
+           27┆   res=open(template,O_CREAT|O_RDWR|O_EXCL|O_NOFOLLOW,0600);
+           28┆   if (res>=0 || errno!=EEXIST) break;
+           29┆ }
+                                                                       
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/strerror_r.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+            8┆ strncpy(buf,strerror(errnum),n);
+                                                                    
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/tempnam.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           21┆ strncpy(buf,"/tmp/",len);
+                                                                   
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcruft/tmpnam.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           18┆ strcpy(tmp,"/tmp/temp_");
+                                                                     
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libcrypt/md5crypt.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          110┆ strcpy(passwd,(const char *)magic);
+                                                               
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libregex/rx.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          649┆ strncpy(errbuf,"invalid regular expression (sorry)",errbuf_size);
+                                                                      
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/librpc/clnt_perror.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           86┆ (void) strcpy(str, clnt_sperrno(e.re_status));
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          241┆ (void) strcat(str, clnt_sperrno(rpc_createerr.cf_stat));
+            ⋮┆----------------------------------------
+          244┆ (void) strcat(str, " - ");
+            ⋮┆----------------------------------------
+          245┆ (void) strcat(str, clnt_sperrno(rpc_createerr.cf_error.re_status));
+            ⋮┆----------------------------------------
+          249┆ (void) strcat(str, " - ");
+            ⋮┆----------------------------------------
+          252┆ (void) strcat(str,
+          253┆                      sys_errlist[rpc_createerr.cf_error.re_errno]);
+            ⋮┆----------------------------------------
+          259┆ (void) strcat(str, "\n");
+                                                                      
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/librpc/clnt_simple.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          109┆ (void) strcpy(crp->oldhost, host);
+                                                                 
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libshell/glob.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           76┆ strcpy(dest,directory);
+            ⋮┆----------------------------------------
+           80┆ strcpy(dest,filename);
+            ⋮┆----------------------------------------
+          167┆ strcpy(pattern_, pattern);
+            ⋮┆----------------------------------------
+          179┆ strcpy(ptr2, pattern_ + 1);
+            ⋮┆----------------------------------------
+          189┆ strncpy(ptr, home_dir, i);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          193┆ strncat(ptr, ptr2, i);
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          331┆ strcpy(&ptr[len - 2], "/");
+                                                                       
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libugly/getnameinfo.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           30┆ strncpy(host,h.h_name,hostlen-1);
+            ⋮┆----------------------------------------
+           42┆ strncpy(serv,s->s_name,servlen-1);
+                                                                   
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libugly/logging.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           66┆ strncpy(SyslogAddr.sa_data, _PATH_LOG, sizeof(SyslogAddr.sa_data));
+            ⋮┆----------------------------------------
+           97┆ strncpy(LogTag,ident,MAX_LOGTAG);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          149┆ strcat(buffer+headerlen, "syslog without openlog w/ ident, please check code!");
+                                                                   
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libugly/openpty.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           39┆ strcpy(buf,"/dev/pts/");
+            ⋮┆----------------------------------------
+           45┆ if (name) strcpy(name,buf);
+                                                                   
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libugly/ptsname.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           13┆ strcpy(buffer,"/dev/pts/");
+                                                                  
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libugly/setenv.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           14┆ strcpy(c,name);
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+           15┆ strcat(c,"=");
+            ⋮┆----------------------------------------
+           16┆ strcat(c,value);
+                                                                   
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/libugly/strndup.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           16┆ strncpy(tmp,s,n);
+                                                     
+    /home/eirikr/Github/Xinim/libc/dietlibc-xinim/t.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           65┆ strcpy(sock.sun_path,"/dev/log");
+            ⋮┆----------------------------------------
+          200┆ strcpy(buf+i,"/bin:/bin");
+            ⋮┆----------------------------------------
+          279┆ strcpy(buf,"Fnordhausen");
+            ⋮┆----------------------------------------
+          282┆ strcpy(buf,"Fnordhausen");
+            ⋮┆----------------------------------------
+          517┆ strcpy(buf,"/tmp/fnord/foo.XXXXXXX");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          556┆ strncat(buf,"foobarbaz23",10);
+            ⋮┆----------------------------------------
+          603┆ puts(strcat(strcpy(buf,"HOME="),t));
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          603┆ puts(strcat(strcpy(buf,"HOME="),t));
+            ⋮┆----------------------------------------
+          703┆ strcpy(foo,"foo");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          704┆ strncat(foo,"barbaz",3);
+   
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+          790┆ strcpy(buf,"/tmp/blub/foo.XXXXXXX");
+   
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+          797┆ strncat(buf,"barbaz",3);
+                                                                                                       
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/mq_open/27-1.c
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+           35┆ strcat(qname, "0");
+                                                                                                       
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/mq_open/27-2.c
+    ❯❱ c.lang.security.insecure-use-strcat-fn.insecure-use-strcat-fn
+          Finding triggers whenever there is a strcat or strncat used. This is an issue because strcat or
+          strncat can lead to buffer overflow vulns. Fix this by using strcat_s instead.                 
+          Details: https://sg.run/EkRP                                                                   
+                                                                                                         
+           38┆ strcat(qname, "0");
+                                                                                                             
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/sched_setparam/2-1.c
+    ❯❱ c.lang.security.insecure-use-scanf-fn.insecure-use-scanf-fn
+          Avoid using 'scanf()'. This function, when used improperly, does not consider buffer boundaries and
+          can lead to buffer overflows. Use 'fgets()' instead for reading input.                             
+          Details: https://sg.run/nd1g                                                                       
+                                                                                                             
+          188┆ while(scanf("*%i*",&child_count) == 0)
+                                                                                                             
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/sched_setparam/2-2.c
+    ❯❱ c.lang.security.insecure-use-scanf-fn.insecure-use-scanf-fn
+          Avoid using 'scanf()'. This function, when used improperly, does not consider buffer boundaries and
+          can lead to buffer overflows. Use 'fgets()' instead for reading input.                             
+          Details: https://sg.run/nd1g                                                                       
+                                                                                                             
+          188┆ while(scanf("*%i*",&child_count) == 0)
+                                                                                                       
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/shm_open/1-1.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           62┆ strcpy(buf, str);
+                                                                                                        
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/shm_open/14-2.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           60┆ strcpy(buf, str);
+                                                                                                        
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/shm_open/28-1.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           63┆ strcpy(buf, str);
+                                                                                                        
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/shm_open/28-2.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           63┆ strcpy(buf, str);
+                                                                                                        
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/shm_open/28-3.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           64┆ strcpy(buf, str);
+                                                                                                       
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/conformance/interfaces/shm_open/5-1.c
+    ❯❱ c.lang.security.insecure-use-string-copy-fn.insecure-use-string-copy-fn
+          Finding triggers whenever there is a strcpy or strncpy used. This is an issue because strcpy does   
+          not affirm the size of the destination array and strncpy will not automatically NULL-terminate      
+          strings. This can lead to buffer overflows, which can cause program crashes and potentially let an  
+          attacker inject code in the program. Fix this by using strcpy_s instead (although note that strcpy_s
+          is an optional part of the C11 standard, and so may not be available).                              
+          Details: https://sg.run/7oNk                                                                        
+                                                                                                              
+           71┆ strcpy(buf, str);
+                                                                                         
+    /home/eirikr/Github/Xinim/third_party/gpl/posixtestsuite-main/stress/threads/helper.c
+    ❯❱ c.lang.security.insecure-use-printf-fn.insecure-use-printf-fn
+          Avoid using user-controlled format strings passed into 'sprintf', 'printf' and 'vsprintf'. These
+          functions put you at risk of buffer overflow vulnerabilities through the use of format string   
+          exploits. Instead, use 'snprintf' and 'vsnprintf'.                                              
+          Details: https://sg.run/ZvJx                                                                    
+                                                                                                          
+          195┆ printf("Test %s PASSED\n", argv[2]);
+            ⋮┆----------------------------------------
+          199┆ printf("Test %s: returned %d\n", argv[2], WEXITSTATUS(status));
+

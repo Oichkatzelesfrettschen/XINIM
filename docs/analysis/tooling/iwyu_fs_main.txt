@@ -1,0 +1,75 @@
+/home/eirikr/Github/Xinim/src/fs/main.cpp:182:9: error: use of undeclared identifier 'rip'
+  182 |         rip = get_inode(ROOT_DEV, ROOT_INODE);
+      |         ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:183:26: error: use of undeclared identifier 'rip'
+  183 |         fp->fp_rootdir = rip;
+      |                          ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:184:19: error: use of undeclared identifier 'rip'
+  184 |         dup_inode(rip);
+      |                   ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:185:26: error: use of undeclared identifier 'rip'
+  185 |         fp->fp_workdir = rip;
+      |                          ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:229:25: error: use of undeclared identifier 'NO_BLOCK'
+  229 |         bp->b_blocknr = NO_BLOCK;
+      |                         ^~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:241:14: error: use of undeclared identifier 'NO_BLOCK'
+  241 |     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
+      |              ^~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:241:51: error: expected ']'
+  241 |     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
+      |                                                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:241:13: note: to match this '['
+  241 |     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:269:20: error: too many arguments to function call, expected 0, have 3
+  269 |     bp = get_block(BOOT_DEV, SUPER_BLOCK, NORMAL); /* get RAM super block */
+      |          ~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: note: 'get_block' declared here
+  261 |     extern struct buf *get_block();
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:270:5: error: no matching function for call to 'copy'
+  270 |     copy(super_block, bp->b_data, sizeof(struct super_block));
+      |     ^~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:85:13: note: candidate function not viable: no known conversion from 'struct super_block[5]' to 'char *' for 1st argument
+   85 | extern void copy(char *dest, const char *src, std::size_t length);
+      |             ^    ~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:280:5: error: use of undeclared identifier 'put_block'
+  280 |     put_block(bp, BlockType::FullData);
+      |     ^~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:293:9: error: use of undeclared identifier 'sendrec'
+  293 |     if (sendrec(MM_PROC_NR, &m1) != OK)
+      |         ^~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:302:10: error: called object type 'uint32_t' (aka 'unsigned int') is not a function or function pointer
+  302 |     count(m1) = static_cast<int>(count);        // count(m1) is int, count is uint32_t. Narrowing.
+      |     ~~~~~^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:303:9: error: use of undeclared identifier 'sendrec'
+  303 |     if (sendrec(MEM, &m1) != OK)
+      |         ^~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:307:5: error: use of undeclared identifier 'printf'
+  307 |     printf("Loading RAM disk from root diskette.      Loaded:   0K ");
+      |     ^~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:309:24: error: too many arguments to function call, expected 0, have 3
+  309 |         bp = get_block(BOOT_DEV, static_cast<uint16_t>(i),
+      |              ~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  310 |                        NORMAL); // get_block takes block_nr (uint16_t)
+      |                        ~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: note: 'get_block' declared here
+  261 |     extern struct buf *get_block();
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:311:25: error: too many arguments to function call, expected 0, have 3
+  311 |         bp1 = get_block(ROOT_DEV, i, NO_READ);
+      |               ~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: note: 'get_block' declared here
+  261 |     extern struct buf *get_block();
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:314:9: error: use of undeclared identifier 'put_block'
+  314 |         put_block(bp, BlockType::IMap);
+      |         ^~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:315:9: error: use of undeclared identifier 'put_block'
+  315 |         put_block(bp1, BlockType::IMap);
+      |         ^~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:319:13: error: use of undeclared identifier 'printf'
+  319 |             printf("\b\b\b\b\b%3" PRId64 "K %c", k_loaded, 0);
+      |             ^~~~~~
+fatal error: too many errors emitted, stopping now [-ferror-limit=]

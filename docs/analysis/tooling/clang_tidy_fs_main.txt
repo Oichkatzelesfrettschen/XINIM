@@ -1,0 +1,562 @@
+/home/eirikr/Github/Xinim/.clang-format:3:11: error: unknown enumerated scalar
+Standard: c++23
+          ^~~~~
+3630 warnings and 20 errors generated.
+Error while processing /home/eirikr/Github/Xinim/src/fs/main.cpp.
+error: too many errors emitted, stopping now [clang-diagnostic-error]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:17:1: error: included header file.hpp is not used directly [misc-include-cleaner,-warnings-as-errors]
+   17 | #include "file.hpp"
+      | ^~~~~~~~~~~~~~~~~~~
+   18 | #include "fproc.hpp"
+/home/eirikr/Github/Xinim/src/fs/main.cpp:27:10: error: inclusion of deprecated C++ header 'inttypes.h'; consider using 'cinttypes' instead [modernize-deprecated-headers,-warnings-as-errors]
+   27 | #include <inttypes.h> // For PRId64
+      |          ^~~~~~~~~~~~
+      |          <cinttypes>
+/home/eirikr/Github/Xinim/src/fs/main.cpp:29:1: error: replace macro with enum [cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,-warnings-as-errors]
+   29 | #define M64K 0xFFFF0000L /* 16 bit mask for DMA check */
+      | ^~~~~~~
+      |              =          ,
+   30 | #define INFO 2           /* where in data_org is info from build */
+      | ~~~~~~~
+      |              =,
+   31 | #define MAX_RAM 512      /* maxium RAM disk size in blocks */
+      | ~~~~~~~
+      |                 =
+   32 | 
+/home/eirikr/Github/Xinim/src/fs/main.cpp:29:9: error: macro 'M64K' defines an integral constant; prefer an enum instead [cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,-warnings-as-errors]
+   29 | #define M64K 0xFFFF0000L /* 16 bit mask for DMA check */
+      |         ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:29:9: error: macro 'M64K' used to declare a constant; consider using a 'constexpr' constant [cppcoreguidelines-macro-usage,-warnings-as-errors]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:30:9: error: macro 'INFO' defines an integral constant; prefer an enum instead [cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,-warnings-as-errors]
+   30 | #define INFO 2           /* where in data_org is info from build */
+      |         ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:30:9: error: macro 'INFO' used to declare a constant; consider using a 'constexpr' constant [cppcoreguidelines-macro-usage,-warnings-as-errors]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:31:9: error: macro 'MAX_RAM' defines an integral constant; prefer an enum instead [cppcoreguidelines-macro-to-enum,modernize-macro-to-enum,-warnings-as-errors]
+   31 | #define MAX_RAM 512      /* maxium RAM disk size in blocks */
+      |         ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:31:9: error: macro 'MAX_RAM' used to declare a constant; consider using a 'constexpr' constant [cppcoreguidelines-macro-usage,-warnings-as-errors]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:36:13: error: function 'fs_init' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+   36 | static void fs_init();
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:36:13: error: invalid case style for function 'fs_init' [readability-identifier-naming,-warnings-as-errors]
+   36 | static void fs_init();
+      |             ^~~~~~~
+      |             fsInit
+/home/eirikr/Github/Xinim/src/fs/main.cpp:40:13: error: function 'get_work' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+   40 | static void get_work();
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:40:13: error: invalid case style for function 'get_work' [readability-identifier-naming,-warnings-as-errors]
+   40 | static void get_work();
+      |             ^~~~~~~~
+      |             getWork
+/home/eirikr/Github/Xinim/src/fs/main.cpp:44:6: error: function 'reply' can be made static or moved into an anonymous namespace to enforce internal linkage [misc-use-internal-linkage,-warnings-as-errors]
+   44 | void reply(int whom, int result);
+      |      ^
+      | static 
+/home/eirikr/Github/Xinim/src/fs/main.cpp:48:13: error: invalid case style for function 'read_ahead' [readability-identifier-naming,-warnings-as-errors]
+   48 | extern void read_ahead();
+      |             ^~~~~~~~~~
+      |             readAhead
+/home/eirikr/Github/Xinim/src/fs/main.cpp:52:13: error: function 'buf_pool' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+   52 | static void buf_pool();
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:52:13: error: invalid case style for function 'buf_pool' [readability-identifier-naming,-warnings-as-errors]
+   52 | static void buf_pool();
+      |             ^~~~~~~~
+      |             bufPool
+/home/eirikr/Github/Xinim/src/fs/main.cpp:56:13: error: function 'load_ram' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+   56 | static void load_ram();
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:56:13: error: invalid case style for function 'load_ram' [readability-identifier-naming,-warnings-as-errors]
+   56 | static void load_ram();
+      |             ^~~~~~~~
+      |             loadRam
+/home/eirikr/Github/Xinim/src/fs/main.cpp:60:13: error: function 'load_super' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+   60 | static void load_super();
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:60:13: error: invalid case style for function 'load_super' [readability-identifier-naming,-warnings-as-errors]
+   60 | static void load_super();
+      |             ^~~~~~~~~~
+      |             loadSuper
+/home/eirikr/Github/Xinim/src/fs/main.cpp:65:22: error: invalid case style for function 'get_inode' [readability-identifier-naming,-warnings-as-errors]
+   65 | extern struct inode *get_inode(dev_nr dev, inode_nr numb);
+      |                      ^~~~~~~~~
+      |                      getInode
+/home/eirikr/Github/Xinim/src/fs/main.cpp:69:13: error: invalid case style for function 'dup_inode' [readability-identifier-naming,-warnings-as-errors]
+   69 | extern void dup_inode(struct inode *ip);
+      |             ^~~~~~~~~
+      |             dupInode
+/home/eirikr/Github/Xinim/src/fs/main.cpp:69:37: error: parameter name 'ip' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+   69 | extern void dup_inode(struct inode *ip);
+      |                                     ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:73:31: error: parameter name 's' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+   73 | extern void panic(const char *s, int n);
+      |                               ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:98:9: error: variable 'error' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+   98 |     int error;
+      |         ^    
+      |               = 0
+/home/eirikr/Github/Xinim/src/fs/main.cpp:99:12: error: do not declare C-style arrays, use 'std::array' instead [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays,-warnings-as-errors]
+   99 |     extern int (*call_vector[NCALLS])();
+      |            ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:99:18: error: variable 'call_vector' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors]
+   99 |     extern int (*call_vector[NCALLS])();
+      |                  ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:99:18: error: invalid case style for variable 'call_vector' [readability-identifier-naming,-warnings-as-errors]
+   99 |     extern int (*call_vector[NCALLS])();
+      |                  ^~~~~~~~~~~
+      |                  callVector
+/home/eirikr/Github/Xinim/src/fs/main.cpp:107:15: error: do not use array subscript when the index is not an integer constant expression [cppcoreguidelines-pro-bounds-constant-array-index,-warnings-as-errors]
+  107 |         fp = &fproc[who];                                      /* pointer to proc table struct */
+      |               ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:108:22: error: implicit conversion 'bool' -> 'int' [readability-implicit-bool-conversion,-warnings-as-errors]
+  108 |         super_user = (fp->fp_effuid == SU_UID ? TRUE : FALSE); /* su? */
+      |                      ^
+      |                      static_cast<int>
+/home/eirikr/Github/Xinim/src/fs/main.cpp:109:22: error: implicit conversion 'bool' -> 'int' [readability-implicit-bool-conversion,-warnings-as-errors]
+  109 |         dont_reply = FALSE; /* in other words, do reply is default */
+      |                      ^    
+      |                      static_cast<int>( )
+/home/eirikr/Github/Xinim/src/fs/main.cpp:112:46: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  112 |         if (fs_call < 0 || fs_call >= NCALLS)
+      |                                              ^
+      |                                               {
+  113 |             error = static_cast<int>(ErrorCode::E_BAD_CALL);
+  114 |         else
+      |         } 
+/home/eirikr/Github/Xinim/src/fs/main.cpp:114:13: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  114 |         else
+      |             ^
+      |              {
+  115 |             error = (*call_vector[fs_call])();
+      |                                               
+/home/eirikr/Github/Xinim/src/fs/main.cpp:115:23: error: do not use array subscript when the index is not an integer constant expression [cppcoreguidelines-pro-bounds-constant-array-index,-warnings-as-errors]
+  115 |             error = (*call_vector[fs_call])();
+      |                       ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:118:13: error: implicit conversion 'int' -> 'bool' [readability-implicit-bool-conversion,-warnings-as-errors]
+  118 |         if (dont_reply)
+      |             ^         
+      |                        != 0
+/home/eirikr/Github/Xinim/src/fs/main.cpp:118:24: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  118 |         if (dont_reply)
+      |                        ^
+      |                         {
+  119 |             continue;
+      |                      
+/home/eirikr/Github/Xinim/src/fs/main.cpp:121:39: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  121 |         if (rdahed_inode != NIL_INODE)
+      |                                       ^
+      |                                        {
+  122 |             read_ahead(); /* do block read ahead */
+      |                                                    
+/home/eirikr/Github/Xinim/src/fs/main.cpp:130:13: error: function 'get_work' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+  130 | static void get_work() {
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:131:19: error: variable name 'rp' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+  131 |     struct fproc *rp = nullptr;
+      |                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:135:58: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  135 |         for (rp = &fproc[0]; rp < &fproc[NR_PROCS]; rp++)
+      |                                                          ^
+      |                                                           {
+  136 |             if (rp->fp_revived == REVIVING) {
+  137 |                 who = static_cast<int>(rp - fproc);
+  138 |                 fs_call = rp->fp_fd & BYTE;
+  139 |                 fd = (rp->fp_fd >> 8) & BYTE;
+  140 |                 buffer = rp->fp_buffer;
+  141 |                 nbytes = rp->fp_nbytes;
+  142 |                 rp->fp_suspended = NOT_SUSPENDED; /* no longer hanging*/
+  143 |                 rp->fp_revived = NOT_REVIVING;
+  144 |                 reviving--;
+  145 |                 return;
+  146 |             }
+      |              
+/home/eirikr/Github/Xinim/src/fs/main.cpp:137:45: error: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay,-warnings-as-errors]
+  137 |                 who = static_cast<int>(rp - fproc);
+      |                                             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:139:36: error: 8 is a magic number; consider replacing it with a named constant [cppcoreguidelines-avoid-magic-numbers,-warnings-as-errors]
+  139 |                 fd = (rp->fp_fd >> 8) & BYTE;
+      |                                    ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:151:32: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  151 |     if (receive(ANY, &m) != OK)
+      |                                ^
+      |                                 {
+  152 |         panic("fs receive error", NO_NUM);
+      |                                           
+/home/eirikr/Github/Xinim/src/fs/main.cpp:163:12: error: 2 adjacent parameters of 'reply' of similar type ('int') are easily swapped by mistake [bugprone-easily-swappable-parameters,-warnings-as-errors]
+  163 | void reply(int whom, int result) {
+      |            ^~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:163:16: note: the first parameter in the range is 'whom'
+  163 | void reply(int whom, int result) {
+      |                ^~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:163:26: note: the last parameter in the range is 'result'
+  163 | void reply(int whom, int result) {
+      |                          ^~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:172:13: error: function 'fs_init' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+  172 | static void fs_init() {
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:181:15: error: do not use array subscript when the index is not an integer constant expression [cppcoreguidelines-pro-bounds-constant-array-index,-warnings-as-errors]
+  181 |         fp = &fproc[i];
+      |               ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:182:9: error: use of undeclared identifier 'rip' [clang-diagnostic-error]
+  182 |         rip = get_inode(ROOT_DEV, ROOT_INODE);
+      |         ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:183:26: error: use of undeclared identifier 'rip' [clang-diagnostic-error]
+  183 |         fp->fp_rootdir = rip;
+      |                          ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:184:19: error: use of undeclared identifier 'rip' [clang-diagnostic-error]
+  184 |         dup_inode(rip);
+      |                   ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:185:26: error: use of undeclared identifier 'rip' [clang-diagnostic-error]
+  185 |         fp->fp_workdir = rip;
+      |                          ^~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:194:28: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  194 |     if (ZONE_NUM_SIZE != 2)
+      |                            ^
+      |                             {
+  195 |         panic("ZONE_NUM_SIZE != 2", NO_NUM);
+      |                                             
+/home/eirikr/Github/Xinim/src/fs/main.cpp:196:33: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  196 |     if (kSuperSize > BLOCK_SIZE)
+      |                                 ^
+      |                                  {
+  197 |         panic("SUPER_SIZE > BLOCK_SIZE", NO_NUM);
+      |                                                  
+/home/eirikr/Github/Xinim/src/fs/main.cpp:198:38: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  198 |     if (BLOCK_SIZE % INODE_SIZE != 0)
+      |                                      ^
+      |                                       {
+  199 |         panic("BLOCK_SIZE % INODE_SIZE != 0", NO_NUM);
+      |                                                       
+/home/eirikr/Github/Xinim/src/fs/main.cpp:200:18: error: 127 is a magic number; consider replacing it with a named constant [cppcoreguidelines-avoid-magic-numbers,-warnings-as-errors]
+  200 |     if (NR_FDS > 127)
+      |                  ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:200:22: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  200 |     if (NR_FDS > 127)
+      |                      ^
+      |                       {
+  201 |         panic("NR_FDS > 127", NO_NUM);
+      |                                       
+/home/eirikr/Github/Xinim/src/fs/main.cpp:202:19: error: 6 is a magic number; consider replacing it with a named constant [cppcoreguidelines-avoid-magic-numbers,-warnings-as-errors]
+  202 |     if (NR_BUFS < 6)
+      |                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:202:21: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  202 |     if (NR_BUFS < 6)
+      |                     ^
+      |                      {
+  203 |         panic("NR_BUFS < 6", NO_NUM);
+      |                                      
+/home/eirikr/Github/Xinim/src/fs/main.cpp:204:28: error: 32 is a magic number; consider replacing it with a named constant [cppcoreguidelines-avoid-magic-numbers,-warnings-as-errors]
+  204 |     if (sizeof(d_inode) != 32)
+      |                            ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:204:31: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  204 |     if (sizeof(d_inode) != 32)
+      |                               ^
+      |                                {
+  205 |         panic("inode size != 32", NO_NUM);
+      |                                           
+/home/eirikr/Github/Xinim/src/fs/main.cpp:212:13: error: function 'buf_pool' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+  212 | static void buf_pool() {
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:219:17: error: variable name 'bp' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+  219 |     struct buf *bp = nullptr;
+      |                 ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:220:5: error: multiple declarations in a single statement reduces readability [readability-isolate-declaration,-warnings-as-errors]
+  220 |     std::size_t low_off, high_off; // vir_bytes -> std::size_t
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:220:17: error: variable 'low_off' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  220 |     std::size_t low_off, high_off; // vir_bytes -> std::size_t
+      |                 ^
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:220:17: error: invalid case style for variable 'low_off' [readability-identifier-naming,-warnings-as-errors]
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:220:26: error: variable 'high_off' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  220 |     std::size_t low_off, high_off; // vir_bytes -> std::size_t
+      |                          ^
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:220:26: error: invalid case style for variable 'high_off' [readability-identifier-naming,-warnings-as-errors]
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:221:14: error: variable 'org' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  221 |     uint64_t org;                  // phys_bytes -> uint64_t
+      |              ^  
+      |                  = 0
+/home/eirikr/Github/Xinim/src/fs/main.cpp:222:21: error: invalid case style for function 'get_base' [readability-identifier-naming,-warnings-as-errors]
+  222 |     extern uint64_t get_base();    // Assuming get_base() returns phys_clicks -> uint64_t
+      |                     ^~~~~~~~
+      |                     getBase
+/home/eirikr/Github/Xinim/src/fs/main.cpp:229:25: error: use of undeclared identifier 'NO_BLOCK' [clang-diagnostic-error]
+  229 |         bp->b_blocknr = NO_BLOCK;
+      |                         ^~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:239:49: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  239 |     for (bp = &buf[0]; bp < &buf[NR_BUFS]; bp++)
+      |                                                 ^
+      |                                                  {
+  240 |         bp->b_hash = bp->b_next;
+      |                                 
+/home/eirikr/Github/Xinim/src/fs/main.cpp:241:14: error: use of undeclared identifier 'NO_BLOCK' [clang-diagnostic-error]
+  241 |     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
+      |              ^~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:241:51: error: expected ']' [clang-diagnostic-error]
+  241 |     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
+      |                                                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:241:13: note: to match this '['
+  241 |     buf_hash[NO_BLOCK & (NR_BUF_HASH - 1)] = front;
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:248:13: error: function 'load_ram' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+  248 | static void load_ram() {
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:253:17: error: variable name 'bp' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+  253 |     struct buf *bp = nullptr;
+      |                 ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:255:14: error: variable 'count' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  255 |     uint32_t count;   // Was int, count of blocks
+      |              ^    
+      |                    = 0
+/home/eirikr/Github/Xinim/src/fs/main.cpp:256:13: error: variable 'k_loaded' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  256 |     int64_t k_loaded; // Was long, for printf
+      |             ^       
+      |                      = 0
+/home/eirikr/Github/Xinim/src/fs/main.cpp:256:13: error: invalid case style for variable 'k_loaded' [readability-identifier-naming,-warnings-as-errors]
+  256 |     int64_t k_loaded; // Was long, for printf
+      |             ^~~~~~~~
+      |             kLoaded
+/home/eirikr/Github/Xinim/src/fs/main.cpp:257:25: error: variable 'sp' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  257 |     struct super_block *sp;
+      |                         ^ 
+      |                            = nullptr
+/home/eirikr/Github/Xinim/src/fs/main.cpp:257:25: error: variable name 'sp' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:258:14: error: variable 'i' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  258 |     uint16_t i;                                                        // block_nr -> uint16_t
+      |              ^
+      |                = 0
+/home/eirikr/Github/Xinim/src/fs/main.cpp:258:14: error: variable name 'i' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:5: error: multiple declarations in a single statement reduces readability [readability-isolate-declaration,-warnings-as-errors]
+  259 |     uint64_t ram_clicks, init_org, init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
+      |     ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:14: error: variable 'ram_clicks' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  259 |     uint64_t ram_clicks, init_org, init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
+      |              ^
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:14: error: invalid case style for variable 'ram_clicks' [readability-identifier-naming,-warnings-as-errors]
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:26: error: variable 'init_org' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  259 |     uint64_t ram_clicks, init_org, init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
+      |                          ^
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:26: error: invalid case style for variable 'init_org' [readability-identifier-naming,-warnings-as-errors]
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:36: error: variable 'init_text_clicks' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  259 |     uint64_t ram_clicks, init_org, init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
+      |                                    ^
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:36: error: invalid case style for variable 'init_text_clicks' [readability-identifier-naming,-warnings-as-errors]
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:54: error: variable 'init_data_clicks' is not initialized [cppcoreguidelines-init-variables,-warnings-as-errors]
+  259 |     uint64_t ram_clicks, init_org, init_text_clicks, init_data_clicks; // phys_clicks -> uint64_t
+      |                                                      ^
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:259:54: error: invalid case style for variable 'init_data_clicks' [readability-identifier-naming,-warnings-as-errors]
+note: this fix will not be applied because it overlaps with another fix
+/home/eirikr/Github/Xinim/src/fs/main.cpp:260:12: error: do not declare C-style arrays, use 'std::array' instead [cppcoreguidelines-avoid-c-arrays,modernize-avoid-c-arrays,-warnings-as-errors]
+  260 |     extern uint64_t data_org[INFO + 2]; // phys_clicks[] -> uint64_t[]
+      |            ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:260:21: error: variable 'data_org' is non-const and globally accessible, consider making it const [cppcoreguidelines-avoid-non-const-global-variables,-warnings-as-errors]
+  260 |     extern uint64_t data_org[INFO + 2]; // phys_clicks[] -> uint64_t[]
+      |                     ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:260:21: error: invalid case style for variable 'data_org' [readability-identifier-naming,-warnings-as-errors]
+  260 |     extern uint64_t data_org[INFO + 2]; // phys_clicks[] -> uint64_t[]
+      |                     ^~~~~~~~
+      |                     dataOrg
+  261 |     extern struct buf *get_block();
+  262 | 
+  263 |     /* Get size of INIT by reading block on diskette where 'build' put it. */
+  264 |     init_org = data_org[INFO];
+      |                ~~~~~~~~
+      |                dataOrg
+  265 |     init_text_clicks = data_org[INFO + 1];
+      |                        ~~~~~~~~
+      |                        dataOrg
+  266 |     init_data_clicks = data_org[INFO + 2];
+      |                        ~~~~~~~~
+      |                        dataOrg
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: error: invalid case style for function 'get_block' [readability-identifier-naming,-warnings-as-errors]
+  261 |     extern struct buf *get_block();
+      |                        ^~~~~~~~~
+      |                        getBlock
+  262 | 
+  263 |     /* Get size of INIT by reading block on diskette where 'build' put it. */
+  264 |     init_org = data_org[INFO];
+  265 |     init_text_clicks = data_org[INFO + 1];
+  266 |     init_data_clicks = data_org[INFO + 2];
+  267 | 
+  268 |     /* Get size of RAM disk by reading root file system's super block */
+  269 |     bp = get_block(BOOT_DEV, SUPER_BLOCK, NORMAL); /* get RAM super block */
+      |          ~~~~~~~~~
+      |          getBlock
+/home/eirikr/Github/Xinim/src/fs/main.cpp:269:20: error: too many arguments to function call, expected 0, have 3 [clang-diagnostic-error]
+  269 |     bp = get_block(BOOT_DEV, SUPER_BLOCK, NORMAL); /* get RAM super block */
+      |          ~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: note: 'get_block' declared here
+  261 |     extern struct buf *get_block();
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:270:5: error: no matching function for call to 'copy' [clang-diagnostic-error]
+  270 |     copy(super_block, bp->b_data, sizeof(struct super_block));
+      |     ^~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:85:13: note: candidate function not viable: no known conversion from 'struct super_block[5]' to 'char *' for 1st argument
+   85 | extern void copy(char *dest, const char *src, std::size_t length);
+      |             ^    ~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:270:27: error: do not access members of unions; consider using (boost::)variant instead [cppcoreguidelines-pro-type-union-access,-warnings-as-errors]
+  270 |     copy(super_block, bp->b_data, sizeof(struct super_block));
+      |                           ^
+/home/eirikr/Github/Xinim/src/fs/buf.hpp:58:19: note: expanded from macro 'b_data'
+   58 | #define b_data  b.b__data
+      |                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:272:36: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  272 |     if (sp->s_magic != SUPER_MAGIC)
+      |                                    ^
+      |                                     {
+  273 |         panic("Diskette in drive 0 is not root file system", NO_NUM);
+      |                                                                      
+/home/eirikr/Github/Xinim/src/fs/main.cpp:276:25: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  276 |     if (count > MAX_RAM)                                                // MAX_RAM is int
+      |                         ^
+      |                          {
+  277 |         panic("RAM disk is too big. # blocks = ", static_cast<int>(count)); // panic takes int
+      |                                                                                               
+/home/eirikr/Github/Xinim/src/fs/main.cpp:280:5: error: use of undeclared identifier 'put_block' [clang-diagnostic-error]
+  280 |     put_block(bp, BlockType::FullData);
+      |     ^~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:292:18: error: do not use reinterpret_cast [cppcoreguidelines-pro-type-reinterpret-cast,-warnings-as-errors]
+  292 |     m1.m1_p1() = reinterpret_cast<char *>(static_cast<uintptr_t>(init_org));
+      |                  ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:292:18: error: integer to pointer cast pessimizes optimization opportunities [performance-no-int-to-ptr,-warnings-as-errors]
+/home/eirikr/Github/Xinim/src/fs/main.cpp:293:9: error: use of undeclared identifier 'sendrec' [clang-diagnostic-error]
+  293 |     if (sendrec(MM_PROC_NR, &m1) != OK)
+      |         ^~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:293:40: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  293 |     if (sendrec(MM_PROC_NR, &m1) != OK)
+      |                                        ^
+      |                                         {
+  294 |         panic("FS Can't report to MM", NO_NUM);
+      |                                                
+/home/eirikr/Github/Xinim/src/fs/main.cpp:302:10: error: called object type 'uint32_t' (aka 'unsigned int') is not a function or function pointer [clang-diagnostic-error]
+  302 |     count(m1) = static_cast<int>(count);        // count(m1) is int, count is uint32_t. Narrowing.
+      |     ~~~~~^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:303:9: error: use of undeclared identifier 'sendrec' [clang-diagnostic-error]
+  303 |     if (sendrec(MEM, &m1) != OK)
+      |         ^~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:303:33: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  303 |     if (sendrec(MEM, &m1) != OK)
+      |                                 ^
+      |                                  {
+  304 |         panic("Can't report size to MEM", NO_NUM);
+      |                                                   
+/home/eirikr/Github/Xinim/src/fs/main.cpp:307:5: error: use of undeclared identifier 'printf' [clang-diagnostic-error]
+  307 |     printf("Loading RAM disk from root diskette.      Loaded:   0K ");
+      |     ^~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:308:17: error: loop variable has narrower type 'uint16_t' than iteration's upper bound 'uint32_t' [bugprone-too-small-loop-variable,-warnings-as-errors]
+  308 |     for (i = 0; i < count; i++) { // i is uint16_t, count is uint32_t
+      |                 ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:309:24: error: too many arguments to function call, expected 0, have 3 [clang-diagnostic-error]
+  309 |         bp = get_block(BOOT_DEV, static_cast<uint16_t>(i),
+      |              ~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  310 |                        NORMAL); // get_block takes block_nr (uint16_t)
+      |                        ~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: note: 'get_block' declared here
+  261 |     extern struct buf *get_block();
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:309:34: error: redundant explicit casting to the same type 'uint16_t' (aka 'unsigned short') as the sub-expression, remove this casting [readability-redundant-casting,-warnings-as-errors]
+  309 |         bp = get_block(BOOT_DEV, static_cast<uint16_t>(i),
+      |                                  ^~~~~~~~~~~~~~~~~~~~~~ ~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:258:14: note: source type originates from referencing this variable
+  258 |     uint16_t i;                                                        // block_nr -> uint16_t
+      |     ~~~~~~~~ ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:311:25: error: too many arguments to function call, expected 0, have 3 [clang-diagnostic-error]
+  311 |         bp1 = get_block(ROOT_DEV, i, NO_READ);
+      |               ~~~~~~~~~ ^~~~~~~~~~~~~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:261:24: note: 'get_block' declared here
+  261 |     extern struct buf *get_block();
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:312:14: error: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay,-warnings-as-errors]
+  312 |         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
+      |              ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:312:19: error: do not access members of unions; consider using (boost::)variant instead [cppcoreguidelines-pro-type-union-access,-warnings-as-errors]
+  312 |         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
+      |                   ^
+/home/eirikr/Github/Xinim/src/fs/buf.hpp:58:19: note: expanded from macro 'b_data'
+   58 | #define b_data  b.b__data
+      |                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:312:27: error: do not implicitly decay an array into a pointer; consider using gsl::array_view or an explicit cast instead [cppcoreguidelines-pro-bounds-array-to-pointer-decay,-warnings-as-errors]
+  312 |         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
+      |                           ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:312:31: error: do not access members of unions; consider using (boost::)variant instead [cppcoreguidelines-pro-type-union-access,-warnings-as-errors]
+  312 |         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
+      |                               ^
+/home/eirikr/Github/Xinim/src/fs/buf.hpp:58:19: note: expanded from macro 'b_data'
+   58 | #define b_data  b.b__data
+      |                   ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:314:9: error: use of undeclared identifier 'put_block' [clang-diagnostic-error]
+  314 |         put_block(bp, BlockType::IMap);
+      |         ^~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:315:9: error: use of undeclared identifier 'put_block' [clang-diagnostic-error]
+  315 |         put_block(bp1, BlockType::IMap);
+      |         ^~~~~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:317:61: error: 1024L is a magic number; consider replacing it with a named constant [cppcoreguidelines-avoid-magic-numbers,-warnings-as-errors]
+  317 |         k_loaded = (static_cast<int64_t>(i) * BLOCK_SIZE) / 1024L; /* K loaded so far */
+      |                                                             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:318:24: error: 5 is a magic number; consider replacing it with a named constant [cppcoreguidelines-avoid-magic-numbers,-warnings-as-errors]
+  318 |         if (k_loaded % 5 == 0)
+      |                        ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:318:31: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  318 |         if (k_loaded % 5 == 0)
+      |                               ^
+      |                                {
+  319 |             printf("\b\b\b\b\b%3" PRId64 "K %c", k_loaded, 0);
+      |                                                               
+/home/eirikr/Github/Xinim/src/fs/main.cpp:319:13: error: use of undeclared identifier 'printf' [clang-diagnostic-error]
+  319 |             printf("\b\b\b\b\b%3" PRId64 "K %c", k_loaded, 0);
+      |             ^~~~~~
+/home/eirikr/Github/Xinim/src/fs/main.cpp:329:13: error: function 'load_super' declared 'static', move to anonymous namespace instead [misc-use-anonymous-namespace,-warnings-as-errors]
+  329 | static void load_super() {
+      |             ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:330:25: error: variable name 'sp' is too short, expected at least 3 characters [readability-identifier-length,-warnings-as-errors]
+  330 |     struct super_block *sp = nullptr;
+      |                         ^
+/home/eirikr/Github/Xinim/src/fs/main.cpp:332:26: error: invalid case style for function 'get_inode' [readability-identifier-naming,-warnings-as-errors]
+  332 |     extern struct inode *get_inode();
+      |                          ^~~~~~~~~
+      |                          getInode
+  333 | 
+  334 |     /* Initialize the super_block table. */
+  335 | 
+  336 |     for (sp = &super_block[0]; sp < &super_block[NR_SUPERS]; sp++)
+  337 |         sp->s_dev = kNoDev;
+  338 | 
+  339 |     /* Read in super_block for the root file system. */
+  340 |     sp = &super_block[0];
+  341 |     sp->s_dev = ROOT_DEV;
+  342 |     rw_super(sp, READING);
+  343 |     rip = get_inode(ROOT_DEV, ROOT_INODE); /* inode for root dir */
+      |           ~~~~~~~~~
+      |           getInode
+/home/eirikr/Github/Xinim/src/fs/main.cpp:336:67: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  336 |     for (sp = &super_block[0]; sp < &super_block[NR_SUPERS]; sp++)
+      |                                                                   ^
+      |                                                                    {
+  337 |         sp->s_dev = kNoDev;
+      |                            
+/home/eirikr/Github/Xinim/src/fs/main.cpp:346:98: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  346 |     if ((rip->i_mode & I_TYPE) != I_DIRECTORY || rip->i_nlinks < 3 || sp->s_magic != SUPER_MAGIC)
+      |                                                                                                  ^
+      |                                                                                                   {
+  347 |         panic("Root file system corrupted.  Possibly wrong diskette.", NO_NUM);
+      |                                                                                
+/home/eirikr/Github/Xinim/src/fs/main.cpp:353:39: error: statement should be inside braces [readability-braces-around-statements,-warnings-as-errors]
+  353 |     if (load_bit_maps(ROOT_DEV) != OK)
+      |                                       ^
+      |                                        {
+  354 |         panic("init: can't load root bit maps", NO_NUM);
+      |                                                         
+Suppressed 3514 warnings (3513 in non-user code, 1 with check filters).
+Use -header-filter=.* to display errors from all non-system headers. Use -system-headers to display errors from system headers as well.
+110 warnings treated as errors

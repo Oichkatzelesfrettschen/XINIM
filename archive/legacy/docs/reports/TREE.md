@@ -1,0 +1,406 @@
+# Tree
+
+```text
+/workspace/minix1
+├── BUILDING.md
+├── CMakeLists.txt
+├── LICENSE
+├── Makefile
+├── README.md
+├── commands
+│   ├── CMakeLists.txt
+│   ├── ar.cpp
+│   ├── basename.cpp
+│   ├── c86
+│   │   └── make.bat
+│   ├── cal.cpp
+│   ├── cat.cpp
+│   ├── cc.cpp
+│   ├── chmem.cpp
+│   ├── chmod.cpp
+│   ├── chown.cpp
+│   ├── clr.cpp
+│   ├── cmp.cpp
+│   ├── comm.cpp
+│   ├── cp.cpp
+│   ├── date.cpp
+│   ├── dd.cpp
+│   ├── df.cpp
+│   ├── dosread.cpp
+│   ├── echo.cpp
+│   ├── getlf.cpp
+│   ├── grep.cpp
+│   ├── gres.cpp
+│   ├── head.cpp
+│   ├── kill.cpp
+│   ├── libpack.cpp
+│   ├── libupack.cpp
+│   ├── ln.cpp
+│   ├── login.cpp
+│   ├── lpr.cpp
+│   ├── ls.cpp
+│   ├── make.cpp
+│   ├── Makefile
+│   ├── mined.h
+│   ├── mined1.cpp
+│   ├── mined2.cpp
+│   ├── mkdir.cpp
+│   ├── mkfs.cpp
+│   ├── mknod.cpp
+│   ├── mount.cpp
+│   ├── mv.cpp
+│   ├── od.cpp
+│   ├── passwd.cpp
+│   ├── pr.cpp
+│   ├── pwd.cpp
+│   ├── rev.cpp
+│   ├── rm.cpp
+│   ├── rmdir.cpp
+│   ├── roff.cpp
+│   ├── sh1.cpp
+│   ├── sh2.cpp
+│   ├── sh3.cpp
+│   ├── sh4.cpp
+│   ├── sh5.cpp
+│   ├── shar.cpp
+│   ├── size.cpp
+│   ├── sleep.cpp
+│   ├── sort.cpp
+│   ├── split.cpp
+│   ├── stty.cpp
+│   ├── su.cpp
+│   ├── sum.cpp
+│   ├── sync.cpp
+│   ├── tail.cpp
+│   ├── tar.cpp
+│   ├── tee.cpp
+│   ├── time.cpp
+│   ├── touch.cpp
+│   ├── tr.cpp
+│   ├── umount.cpp
+│   ├── uniq.cpp
+│   ├── update.cpp
+│   ├── wc.cpp
+│   └── x.cpp
+├── fs
+│   ├── CMakeLists.txt
+│   ├── buf.h
+│   ├── c86
+│   │   ├── _link.bat
+│   │   ├── linklist
+│   │   └── make.bat
+│   ├── cache.cpp
+│   ├── compat.cpp
+│   ├── compat.h
+│   ├── const.hpp
+│   ├── dev.h
+│   ├── device.cpp
+│   ├── extent.h
+│   ├── file.h
+│   ├── filedes.cpp
+│   ├── fproc.h
+│   ├── glo.h
+│   ├── inode.cpp
+│   ├── inode.h
+│   ├── link.cpp
+│   ├── main.cpp
+│   ├── minix
+│   │   ├── Makefile
+│   │   └── Makefile.at
+│   ├── misc.cpp
+│   ├── mount.cpp
+│   ├── open.cpp
+│   ├── param.h
+│   ├── path.cpp
+│   ├── pipe.cpp
+│   ├── protect.cpp
+│   ├── putc.cpp
+│   ├── read.cpp
+│   ├── stadir.cpp
+│   ├── super.cpp
+│   ├── super.h
+│   ├── table.cpp
+│   ├── time.cpp
+│   ├── type.hpp
+│   ├── utility.cpp
+│   └── write.cpp
+├── h
+│   ├── callnr.hpp
+│   ├── com.hpp
+│   ├── const.hpp
+│   ├── error.hpp
+│   ├── sgtty.hpp
+│   ├── signal.h
+│   ├── stat.h
+│   └── type.hpp
+├── include
+│   ├── blocksiz.h
+│   ├── ctype.h
+│   ├── errno.h
+│   ├── grp.h
+│   ├── lib.hpp
+│   ├── mined.h
+│   ├── paging.h
+│   ├── pwd.h
+│   ├── regexp.h
+│   ├── setjmp.h
+│   ├── sgtty.hpp
+│   ├── sh.h
+│   ├── signal.h
+│   ├── stat.h
+│   ├── stdio.h
+│   └── vm.h
+├── kernel
+│   ├── CMakeLists.txt
+│   ├── _link.bat
+│   ├── at_wini.cpp
+│   ├── clock.cpp
+│   ├── const.hpp
+│   ├── dmp.cpp
+│   ├── floppy.cpp
+│   ├── glo.h
+│   ├── idt64.cpp
+│   ├── klib64.cpp
+│   ├── klib88.cpp
+│   ├── linklist
+│   ├── main.cpp
+│   ├── make.bat
+│   ├── Makefile
+│   ├── memory.cpp
+│   ├── minix
+│   │   ├── Makefile
+│   │   └── Makefile.at
+│   ├── mpx64.cpp
+│   ├── mpx88.cpp
+│   ├── paging.cpp
+│   ├── printer.cpp
+│   ├── proc.cpp
+│   ├── proc.h
+│   ├── syscall.cpp
+│   ├── system.cpp
+│   ├── table.cpp
+│   ├── tty.cpp
+│   ├── type.hpp
+│   ├── wini.cpp
+│   └── xt_wini.cpp
+├── lib
+│   ├── CMakeLists.txt
+│   ├── abort.cpp
+│   ├── abs.cpp
+│   ├── access.cpp
+│   ├── alarm.cpp
+│   ├── atoi.cpp
+│   ├── atol.cpp
+│   ├── bcopy.cpp
+│   ├── brk.cpp
+│   ├── brk2.cpp
+│   ├── brksize.cpp
+│   ├── c86
+│   │   ├── make.bat
+│   │   └── prologue.h
+│   ├── call.cpp
+│   ├── catchsig.cpp
+│   ├── chdir.cpp
+│   ├── chmod.cpp
+│   ├── chown.cpp
+│   ├── chroot.cpp
+│   ├── cleanup.cpp
+│   ├── close.cpp
+│   ├── creat.cpp
+│   ├── crt0.cpp
+│   ├── crtso.cpp
+│   ├── crypt.cpp
+│   ├── csv.cpp
+│   ├── ctype.cpp
+│   ├── doprintf.cpp
+│   ├── doscanf.cpp
+│   ├── dup.cpp
+│   ├── dup2.cpp
+│   ├── end.cpp
+│   ├── exec.cpp
+│   ├── exit.cpp
+│   ├── fclose.cpp
+│   ├── fflush.cpp
+│   ├── fgets.cpp
+│   ├── fopen.cpp
+│   ├── fork.cpp
+│   ├── fprintf.cpp
+│   ├── fputs.cpp
+│   ├── fread.cpp
+│   ├── freopen.cpp
+│   ├── fseek.cpp
+│   ├── fstat.cpp
+│   ├── ftell.cpp
+│   ├── fwrite.cpp
+│   ├── getc.cpp
+│   ├── getegid.cpp
+│   ├── getenv.cpp
+│   ├── geteuid.cpp
+│   ├── getgid.cpp
+│   ├── getgrent.cpp
+│   ├── getpass.cpp
+│   ├── getpid.cpp
+│   ├── getpwent.cpp
+│   ├── gets.cpp
+│   ├── getuid.cpp
+│   ├── getutil.cpp
+│   ├── head.cpp
+│   ├── index.cpp
+│   ├── ioctl.cpp
+│   ├── isatty.cpp
+│   ├── itoa.cpp
+│   ├── kill.cpp
+│   ├── link.cpp
+│   ├── lseek.cpp
+│   ├── Makefile
+│   ├── malloc.cpp
+│   ├── message.cpp
+│   ├── minix
+│   │   ├── crtso.cpp
+│   │   ├── end.cpp
+│   │   ├── head.cpp
+│   │   └── setjmp.cpp
+│   ├── mknod.cpp
+│   ├── mktemp.cpp
+│   ├── mount.cpp
+│   ├── open.cpp
+│   ├── pause.cpp
+│   ├── perror.cpp
+│   ├── pipe.cpp
+│   ├── printdat.cpp
+│   ├── printk.cpp
+│   ├── prints.cpp
+│   ├── putc.cpp
+│   ├── rand.cpp
+│   ├── read.cpp
+│   ├── regexp.cpp
+│   ├── regsub.cpp
+│   ├── rindex.cpp
+│   ├── run
+│   ├── scanf.cpp
+│   ├── sendrec.cpp
+│   ├── setbuf.cpp
+│   ├── setgid.cpp
+│   ├── setjmp.cpp
+│   ├── setuid.cpp
+│   ├── signal.cpp
+│   ├── sleep.cpp
+│   ├── sprintf.cpp
+│   ├── stat.cpp
+│   ├── stb.cpp
+│   ├── stderr.cpp
+│   ├── stime.cpp
+│   ├── strcat.cpp
+│   ├── strcmp.cpp
+│   ├── strcpy.cpp
+│   ├── strlen.cpp
+│   ├── strncat.cpp
+│   ├── strncmp.cpp
+│   ├── strncpy.cpp
+│   ├── sync.cpp
+│   ├── syscall_x86_64.cpp
+│   ├── syslib.cpp
+│   ├── time.cpp
+│   ├── times.cpp
+│   ├── umask.cpp
+│   ├── umount.cpp
+│   ├── ungetc.cpp
+│   ├── unlink.cpp
+│   ├── utime.cpp
+│   ├── wait.cpp
+│   └── write.cpp
+├── mm
+│   ├── CMakeLists.txt
+│   ├── alloc.cpp
+│   ├── break.cpp
+│   ├── c86
+│   │   ├── _link.bat
+│   │   ├── linklist
+│   │   └── make.bat
+│   ├── const.hpp
+│   ├── exec.cpp
+│   ├── forkexit.cpp
+│   ├── getset.cpp
+│   ├── glo.h
+│   ├── main.cpp
+│   ├── Makefile
+│   ├── minix
+│   │   ├── Makefile
+│   │   └── Makefile.at
+│   ├── mproc.h
+│   ├── paging.cpp
+│   ├── param.h
+│   ├── putc.cpp
+│   ├── signal.cpp
+│   ├── table.cpp
+│   ├── type.hpp
+│   ├── utility.cpp
+│   └── vm.cpp
+├── test
+│   ├── c86
+│   │   └── nullfile
+│   ├── Makefile
+│   ├── minix
+│   │   └── Makefile
+│   ├── run
+│   ├── t10a.cpppp
+│   ├── t11a.cpppp
+│   ├── t11b.cpppp
+│   ├── t15a.cpppp
+│   ├── t16a.cpppp
+│   ├── t16b.cpppp
+│   ├── test0.cpp
+│   ├── test1.cpp
+│   ├── test10.cpp
+│   ├── test11.cpp
+│   ├── test12.cpp
+│   ├── test2.cpp
+│   ├── test3.cpp
+│   ├── test4.cpp
+│   ├── test5.cpp
+│   ├── test6.cpp
+│   ├── test7.cpp
+│   ├── test8.cpp
+│   └── test9.cpp
+└── tools
+    ├── CMakeLists.txt
+    ├── ascii_tree.py
+    ├── bootblok.cpp
+    ├── build.cpp
+    ├── c86
+    │   ├── _bootblo.bat
+    │   ├── _build.bat
+    │   ├── _dos2out.bat
+    │   ├── _fsck.bat
+    │   ├── _image.bat
+    │   ├── _init.bat
+    │   ├── _mkfs.bat
+    │   ├── bootblok
+    │   ├── dos2out.cpp
+    │   └── make.bat
+    ├── changeme
+    ├── diskio.cpp
+    ├── fsck.cpp
+    ├── fsck1.cpp
+    ├── getcore.cpp
+    ├── init.cpp
+    ├── Makefile
+    ├── minix
+    │   ├── Makefile
+    │   └── Makefile.at
+    ├── mkfs.cpp
+    ├── passwd
+    ├── proto.dis
+    ├── proto.ram
+    ├── proto.use
+    ├── proto.usr
+    ├── r.cpp
+    ├── rc.at
+    ├── run
+    ├── setup1
+    ├── setup2
+    ├── setup3
+    ├── ttys
+    └── versions
+
+```

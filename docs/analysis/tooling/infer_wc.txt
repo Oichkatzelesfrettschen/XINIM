@@ -1,0 +1,46 @@
+Capturing in make/cc mode...
+error: invalid value 'c++23' in '-std=c++23'
+note: use 'c++98' or 'c++03' for 'ISO C++ 1998 with amendments' standard
+note: use 'gnu++98' or 'gnu++03' for 'ISO C++ 1998 with amendments and GNU extensions' standard
+note: use 'c++11' for 'ISO C++ 2011 with amendments' standard
+note: use 'gnu++11' for 'ISO C++ 2011 with amendments and GNU extensions' standard
+note: use 'c++14' for 'ISO C++ 2014 with amendments' standard
+note: use 'gnu++14' for 'ISO C++ 2014 with amendments and GNU extensions' standard
+note: use 'c++17' for 'ISO C++ 2017 with amendments' standard
+note: use 'gnu++17' for 'ISO C++ 2017 with amendments and GNU extensions' standard
+note: use 'c++20' for 'ISO C++ 2020 DIS' standard
+note: use 'gnu++20' for 'ISO C++ 2020 DIS with GNU extensions' standard
+Uncaught Internal Error: (Bi_inbuf.End_of_input)
+Error backtrace:
+Raised at Bi_inbuf.read_char in file "src/bi_inbuf.ml", line 49, characters 6-24
+Called from Bi_io.read_tag in file "src/bi_io.ml" (inlined), line 508, characters 12-35
+Called from ATDGenerated__Clang_ast_b.read_decl in file "src/atd/clang_ast_b.ml", line 40289, characters 7-24
+Called from Atdgen_runtime__Util.Biniou.from_channel in file "atdgen-runtime/src/util.ml" (inlined), line 30, characters 4-11
+Called from ClangFrontend__Capture.validate_decl_from_channel in file "src/clang/Capture.ml", line 27, characters 2-113
+Re-raised at IStdlib__IExn.reraise_if in file "src/istd/IExn.ml" (inlined), line 18, characters 15-63
+Called from ClangFrontend__Capture.run_and_validate_clang_frontend in file "src/clang/Capture.ml", line 112, characters 4-60
+Called from IBase__Utils.with_process_in.f in file "src/base/Utils.ml" (inlined), line 271, characters 13-22
+Called from IBase__Utils.do_finally_swallow_timeout in file "src/base/Utils.ml" (inlined), line 215, characters 8-12
+Called from IBase__Utils.with_process_in in file "src/base/Utils.ml", line 276, characters 2-40
+Re-raised at IStdlib__IExn.reraise_after in file "src/istd/IExn.ml" (inlined), line 13, characters 2-50
+Called from IBase__Utils.do_finally_swallow_timeout in file "src/base/Utils.ml" (inlined), line 217, characters 6-141
+Called from IBase__Utils.with_process_in in file "src/base/Utils.ml", line 276, characters 2-40
+Called from ClangFrontend__Capture.run_clang in file "src/clang/Capture.ml" (inlined), line 123, characters 8-78
+Called from ClangFrontend__Capture.run_plugin_and_frontend in file "src/clang/Capture.ml", line 158, characters 2-37
+Called from ClangFrontend__ClangWrapper.exe in file "src/clang/ClangWrapper.ml" (inlined), line 179, characters 15-45
+Called from Stdlib__list.iter in file "list.ml" (inlined), line 110, characters 12-15
+Called from Stdlib__list.iter in file "list.ml" (inlined), line 108, characters 13-64
+Called from Base__List0.iter in file "src/list0.ml" (inlined), line 25, characters 16-35
+Called from ClangFrontend__ClangWrapper.exe in file "src/clang/ClangWrapper.ml", line 179, characters 2-54
+Called from Integration__Driver.capture in file "src/integration/Driver.ml", line 127, characters 6-40
+Called from IBase__Utils.timeit in file "src/base/Utils.ml", line 429, characters 16-20
+Called from IBase__ScubaLogging.execute_with_time_logging in file "src/base/ScubaLogging.ml" (inlined), line 79, characters 29-44
+Called from Integration__Driver.capture.(fun) in file "src/integration/Driver.ml", line 159, characters 2-233
+Called from Backend__GCStats.log_f in file "src/backend/GCStats.ml" (inlined), line 90, characters 10-14
+Called from Integration__Driver.capture in file "src/integration/Driver.ml", line 157, characters 2-288
+Called from Dune__exe__Infer.run in file "src/infer.ml" (inlined), line 20, characters 2-36
+Called from IBase__Utils.timeit in file "src/base/Utils.ml" (inlined), line 429, characters 16-20
+Called from IBase__ScubaLogging.execute_with_time_logging in file "src/base/ScubaLogging.ml" (inlined), line 79, characters 29-44
+Called from Dune__exe__Infer.run in file "src/infer.ml", line 25, characters 22-94
+
+Run the command again with `--keep-going` to try and ignore this error.

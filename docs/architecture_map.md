@@ -12,7 +12,7 @@ XINIM/                              🏗️  Modern C++23 MINIX Implementation
 ├── 🔍 .clang-tidy                  🛡️  Static Analysis (bugprone+portability)
 ├── 🚀 boot.S                       ⚡  Multiboot2 x86_64 Assembly Bootloader
 ├── 🔗 linker.ld                    📍  1MB Physical Load/Virtual Mapping
-├── ⚙️  grub.cfg                    🥾  GRUB2 "OctoPOS" Boot Configuration
+├── ⚙️  grub.cfg                    🥾  GRUB2 "XINIM" Boot Configuration
 ├── 🖥️  console.cpp/.h              💻  VGA Text Mode Display Driver (→.hpp)
 ├── 🧠 kernel.cpp                   🎯  Main Kernel Entry Point & Multiboot Parser
 ├── 💾 pmm.cpp/.h                   🗂️  Physical Memory Manager (→.hpp)

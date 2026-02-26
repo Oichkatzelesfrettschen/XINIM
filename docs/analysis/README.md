@@ -26,6 +26,7 @@ docs/analysis/
 | Report | Tool | Purpose | Date |
 |--------|------|---------|------|
 | `analysis_cloc_fresh_detailed.md` | cloc | Lines of code by language/file | Latest |
+| `cloc_2026-01-05.md` | cloc | Lines of code by language/file | 2026-01-05 |
 | `analysis_lizard_fresh_detailed.md` | lizard | Cyclomatic complexity analysis | Latest |
 | `analysis_pmccabe_fresh.md` | pmccabe | McCabe complexity metrics | Latest |
 | `analysis_sloccount_fresh.md` | sloccount | Source lines of code count | Latest |
@@ -49,6 +50,7 @@ docs/analysis/
 | `analysis_tree_fresh.md` | tree | Directory structure visualization | Latest |
 | `analysis_cscope_fresh.md` | cscope | Code navigation database | Latest |
 | `analysis_ctags_fresh.md` | ctags | Symbol index | Latest |
+| `tool_versions_2026-01-05.txt` | command -v | Local tool availability | 2026-01-05 |
 
 **Usage:** Code navigation, structure documentation, editor integration
 
@@ -198,6 +200,9 @@ find docs/analysis/archive/ -name "*.md" -mtime +90 -delete
 ## Related Documentation
 
 - `docs/CONTRIBUTING.md` - Pre-commit hooks and code style
+- `docs/analysis/AUDIT_SUMMARY.md` - Repository audit snapshot
+- `docs/analysis/ROADMAP_CONSOLIDATED.md` - Authoritative roadmap
+- `docs/analysis/TODO_TRACKER.md` - Consolidated TODO tracking
 - `.clang-format` - Code formatting configuration
 - `.clang-tidy` - Static analysis configuration
 - `tools/` - Analysis wrapper scripts

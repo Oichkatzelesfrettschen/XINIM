@@ -1,8 +1,8 @@
 # Xinim Requirements
 
-Version: 1.1
-Date: 2025-12-31
-Status: Active
+Version: 1.2
+Date: 2026-02-26
+Status: Active (updated during Phase 10 validation)
 
 ## Overview
 Xinim is a C++23 microkernel OS targeting x86_64. The project standardizes on
@@ -25,11 +25,10 @@ Supported platforms:
 
 ## Development Requirements
 Core tools (required):
-- CMake 3.28+
-- Conan 2.0+
-- Clang 18+ (primary compiler)
-- LLVM 18+ (lld, lldb)
-- GCC 13+ (alternate compiler)
+- CMake 4.2+ (4.2.1 verified)
+- Conan 2.24+ (2.24.0 verified)
+- Clang 21+ (21.1.6 verified, primary compiler)
+- LLVM 21+ (lld, lldb)
 - Git 2.20+
 - Python 3.10+
 
@@ -39,6 +38,41 @@ Optional tools (recommended):
 - Graphviz
 - QEMU system emulators
 - clang-format, clang-tidy, cppcheck
+
+## Module and Package Requirements
+
+### Build and Core Tooling (all modules)
+- CMake 3.28+ (configure, build, and CTest integration)
+- Conan 2.0+ (dependency resolution and toolchain generation)
+- Clang 18+ and LLVM tools (compiler, lld, lldb)
+- Ninja (preferred generator)
+- Python 3.10+ (scripts, tooling, docs)
+- Git 2.20+ (source control)
+
+### Kernel, HAL, Boot, and Drivers
+- In-tree FIPS 202 (SHA3/SHAKE) and NTT implementations (no external crypto dep)
+- libsodium (via Conan) for source extraction only; vendored functions for freestanding
+- limine headers (vendored under third_party/limine)
+- QEMU 10.1+ system emulators for boot validation
+- No NASM required; all assembly is GAS syntax (.S files)
+
+### Userland, Servers, and Tests
+- CTest (via CMake) for 22 registered tests (20 host-side unit, 2 QEMU integration)
+- xinim_add_host_test() CMake macro for C++23 host-compiled test binaries
+- QEMU for boot smoke test and kshell validation
+- Python 3 for kshell_test.py programmatic test
+
+### Documentation (API and Guides)
+- Doxygen
+- Sphinx
+- Breathe
+- Sphinx RTD theme
+- Graphviz
+
+### Analysis and Quality Gates
+- clang-format, clang-tidy, cppcheck
+- lizard, cloc, sloccount, pmccabe
+- flawfinder (security scan)
 ## Installation (Arch / CachyOS)
 ```bash
 sudo pacman -Syu --needed \
