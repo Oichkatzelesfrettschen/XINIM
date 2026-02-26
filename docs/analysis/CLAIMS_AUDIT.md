@@ -25,19 +25,26 @@ some files include C headers and use C idioms. No automated enforcement.
 Action: audit kernel target sources; add CTest check.
 
 ### 2. "POSIX-2024 compliance"
-**Status: FALSE (aspirational)**
+**Status: FALSE (aspirational -- Phase 7 progress logged)**
 Hypothesis: POSIX compliance suite tests pass for the current build.
 Evidence: 51 syscall numbers are declared in `include/xinim/sys/syscalls.h`.
-Of these, 12 are dispatched in `src/kernel/sys/dispatch.cpp`:
-- Kernel-handled (functional): debug_write, getpid, getppid, exit (halt loop)
-- Routed to VFS (returns ENOSYS): write, read, open, close
-- Routed to PM (returns ENOSYS): fork, execve, wait4, kill
-- Remaining 39 syscalls: not dispatched (return -1)
+Phase 7 (2026-02-26) expanded dispatch.cpp to 25 dispatched syscalls:
+- Kernel-handled (functional):
+    debug_write, getpid, getppid, exit (halt loop),
+    getuid, geteuid, getgid, getegid (return 0),
+    brk (bump-allocator stub), mmap (ENOSYS), munmap (no-op)
+- Routed to VFS (stub ENOSYS): write, read, open, close,
+    lseek, dup, dup2, pipe, stat, fstat
+- Routed to PM (stub ENOSYS): fork, execve, wait4, kill
+- Remaining 26 syscalls: not dispatched (return -1)
 
-No userland process has been executed end-to-end. POSIX compliance is
-currently 0% by any meaningful test methodology (no passing test).
-The infrastructure exists for future implementation via server message loops.
-Action: Claim downgraded from UNVERIFIED to FALSE (aspirational).
+VFS server message loop handles SYS_write to serial (bare_metal_stubs.cpp).
+ELF header validation and flags-to-prot conversion tested (test_elf_parser, PASS).
+virtio-net driver skeleton created (src/drivers/net/virtio_net.cpp).
+No userland process executed end-to-end. POSIX compliance remains 0% by
+any passing-test methodology.
+Action: Claim remains FALSE. Accurate count: 25 dispatched, 4 truly functional.
+Phase 8 target: functional read/write/open/close on ramfs = first POSIX progress.
 
 ### 3. "Post-quantum crypto integrated (ML-KEM/Kyber)"
 **Status: VERIFIED (foundation only)**

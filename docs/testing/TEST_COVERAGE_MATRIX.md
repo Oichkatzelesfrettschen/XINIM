@@ -1,21 +1,21 @@
 # Xinim Test Coverage Matrix
 
-Phase 6 update: 2026-02-26.
+Phase 7 update: 2026-02-26.
 
 ## Summary
 
 | Label      | Count | Pass | Notes |
 |------------|-------|------|-------|
-| unit       | 24    | 24   | All host-side unit tests |
+| unit       | 25    | 25   | All host-side unit tests |
 | crypto     | 5     | 5    | FIPS 202, NTT, Montgomery, constants, Kyber512 compile |
 | scheduler  | 4     | 4    | Scheduler, edge cases, deadlock, service contract |
 | sync       | 5     | 5    | Ticket spinlock, MCS, PhaseRWLock, capability mutex, lock manager |
 | math       | 3     | 3    | Octonion, Fano multiplication, core types |
-| kernel     | 7     | 7    | Wait graph x2, service manager x2, net driver stub, syscall dispatch, IPC channel |
+| kernel     | 8     | 8    | Wait graph x2, service manager x2, net driver stub, syscall dispatch, IPC channel, ELF parser |
 | ipc        | 1     | 1    | Lattice IPC Channel push/pop/overflow/wrap |
 | integration| 2     | N/A  | QEMU boot smoke test, kshell test (require built kernel) |
 
-Total registered: 26 (24 unit + 2 integration).
+Total registered: 27 (25 unit + 2 integration).
 
 ## Host-Side Unit Tests (23)
 
@@ -45,6 +45,7 @@ Total registered: 26 (24 unit + 2 integration).
 | test_net_driver_stub | unit;kernel | test/test_net_driver_stub.cpp | PASS | NetDriver stub returns failure values |
 | test_syscall_dispatch | unit;kernel | test/test_syscall_dispatch.cpp | PASS | Syscall table constants and ranges |
 | test_ipc_channel | unit;ipc;kernel | test/test_ipc_channel.cpp | PASS | Lattice IPC Channel FIFO, overflow, wrap-around |
+| test_elf_parser | unit;kernel | test/test_elf_parser.cpp | PASS | ELF64 header validation, flags-to-prot conversion |
 
 ## Integration Tests (2, QEMU-required)
 
@@ -59,7 +60,8 @@ Total registered: 26 (24 unit + 2 integration).
 |-----------|--------|-------|
 | Kyber512 keygen/encap/decap full round-trip | Missing kem.cpp, poly.cpp, indcpa.cpp | Phase 7 |
 | VFS server SYS_write full path | Minimal loop in bare_metal_stubs; full ramfs in Phase 7 | Phase 7 |
-| ELF loader | Requires kernel context | Phase 7 |
+| ELF loader header validation | DONE (test_elf_parser) | Phase 7 complete |
+| ELF loader full binary loading | Requires VFS + paging | Phase 8 |
 | Signal handling | Requires process context | Phase 7 |
 | virtio-net driver | Not yet implemented | Phase 7 |
 | Syscall dispatch runtime | Requires ring-0 context | Phase 7 |
@@ -96,3 +98,4 @@ ctest --test-dir build/Debug
 | 2026-02-26 | 22 | 20 | 2 | After Phase 2 build hardening |
 | 2026-02-26 | 25 | 23 | 2 | After Phase 4: +kyber_e2e, +service_manager_api, +net_driver_stub, +syscall_dispatch |
 | 2026-02-26 | 26 | 24 | 2 | After Phase 6: +test_ipc_channel (lattice Channel push/pop) |
+| 2026-02-26 | 27 | 25 | 2 | After Phase 7: +test_elf_parser (ELF64 header validation) |
