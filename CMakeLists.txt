@@ -309,6 +309,13 @@ xinim_add_host_test(test_syscall_dispatch
 target_include_directories(test_syscall_dispatch PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
 set_tests_properties(test_syscall_dispatch PROPERTIES LABELS "unit;kernel")
 
+# --- IPC Channel Tests (lattice Channel inline methods, header-only) ---
+xinim_add_host_test(test_ipc_channel
+    test/test_ipc_channel.cpp
+)
+target_include_directories(test_ipc_channel PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
+set_tests_properties(test_ipc_channel PROPERTIES LABELS "unit;ipc;kernel")
+
 # --- Boot / Integration Tests (QEMU-based, require kernel image) ---
 # These are registered but only meaningful when the kernel is built.
 
