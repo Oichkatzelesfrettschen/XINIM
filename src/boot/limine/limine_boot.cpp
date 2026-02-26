@@ -1,6 +1,6 @@
 #include <cstdint>
 #include <xinim/boot/bootinfo.hpp>
-#include "limine_protocol.h"
+#include <limine.h>
 
 namespace xinim::boot {
 

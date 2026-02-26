@@ -30,7 +30,7 @@
  * @note Requires C++23 compliant compiler
  */
 
-#include "../h/signal.hpp"
+#include "sys/signal.hpp"
 #include <cstdio>
 #include <cstdlib>
 #include <cctype>

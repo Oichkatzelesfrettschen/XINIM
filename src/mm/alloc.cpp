@@ -20,9 +20,6 @@
 #include <list>          // For std::list
 #include <ranges>        // For std::ranges::find_if, std::views
 
-/** Maximum number of entries initially reserved. */
-constexpr int NR_HOLES = 128;
-
 /**
  * @brief Descriptor for a free region of physical memory.
  *

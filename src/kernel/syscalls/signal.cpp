@@ -14,7 +14,7 @@
 #include "../uaccess.hpp"
 #include "../pcb.hpp"
 #include "../scheduler.hpp"
-#include "../../early/serial_16550.hpp"
+#include "../early/serial_16550.hpp"
 #include <cerrno>
 #include <cstdio>
 

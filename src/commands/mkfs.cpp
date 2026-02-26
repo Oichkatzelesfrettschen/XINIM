@@ -72,9 +72,7 @@
 
 // Advanced C++23 features for cutting-edge filesystem design
 #include <expected>
-#include <generator>
 #include <print>
-#include <stacktrace>
 
 // Cryptographic support for encryption features
 #include <random>

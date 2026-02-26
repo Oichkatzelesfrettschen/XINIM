@@ -11,7 +11,7 @@
  */
 
 #include "vfs_interface.hpp"
-#include "../early/serial_16550.hpp"
+#include "early/serial_16550.hpp"
 #include <cstring>
 #include <cerrno>
 
@@ -87,7 +87,8 @@ void* vfs_lookup(const char* pathname) {
  * @param offset File offset (ignored for devices)
  * @return Number of bytes read, or negative error
  */
-ssize_t vfs_read(void* inode, void* buffer, size_t count, uint64_t offset) {
+ssize_t vfs_read(void* inode, void* buffer, [[maybe_unused]] size_t count,
+                 [[maybe_unused]] uint64_t offset) {
     if (!inode || !buffer) {
         return -EINVAL;
     }
@@ -126,7 +127,8 @@ ssize_t vfs_read(void* inode, void* buffer, size_t count, uint64_t offset) {
  * @param offset File offset (ignored for devices)
  * @return Number of bytes written, or negative error
  */
-ssize_t vfs_write(void* inode, const void* buffer, size_t count, uint64_t offset) {
+ssize_t vfs_write(void* inode, const void* buffer, size_t count,
+                  [[maybe_unused]] uint64_t offset) {
     if (!inode || !buffer) {
         return -EINVAL;
     }
@@ -201,7 +203,7 @@ bool vfs_is_device(void* inode) {
  * @param inode Inode to check
  * @return false (no directories yet)
  */
-bool vfs_is_directory(void* inode) {
+bool vfs_is_directory([[maybe_unused]] void* inode) {
     // Week 9 Phase 1: No directory support
     return false;
 }
@@ -217,7 +219,7 @@ bool vfs_is_directory(void* inode) {
  *
  * @return nullptr (not supported)
  */
-void* vfs_create(const char* pathname, uint32_t mode) {
+void* vfs_create([[maybe_unused]] const char* pathname, [[maybe_unused]] uint32_t mode) {
     // Week 9 Phase 1: File creation not supported
     return nullptr;
 }
@@ -229,7 +231,7 @@ void* vfs_create(const char* pathname, uint32_t mode) {
  *
  * @return -ENOSYS (not supported)
  */
-int vfs_truncate(void* inode, uint64_t size) {
+int vfs_truncate([[maybe_unused]] void* inode, [[maybe_unused]] uint64_t size) {
     // Week 9 Phase 1: Truncation not supported
     return -ENOSYS;
 }
@@ -241,7 +243,7 @@ int vfs_truncate(void* inode, uint64_t size) {
  *
  * @return -ENOSYS (not supported)
  */
-int vfs_unlink(const char* pathname) {
+int vfs_unlink([[maybe_unused]] const char* pathname) {
     // Week 9 Phase 1: Deletion not supported
     return -ENOSYS;
 }

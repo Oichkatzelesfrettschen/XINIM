@@ -11,6 +11,7 @@
 
 #include "syscall_table.hpp"
 #include "early/serial_16550.hpp"
+#include <array>
 #include <cstdio>
 
 extern xinim::early::Serial16550 early_serial;
@@ -63,8 +64,13 @@ int64_t sys_getpgrp(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_setsid(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 int64_t sys_getsid(uint64_t pid, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
 
+/**
+ * @brief Default handler for unimplemented syscalls.
+ *
+ * @return -ENOSYS to signal an unimplemented syscall.
+ */
 // Placeholder for unimplemented syscalls
-static int64_t sys_unimplemented(uint64_t, uint64_t, uint64_t,
+[[maybe_unused]] static int64_t sys_unimplemented(uint64_t, uint64_t, uint64_t,
                                   uint64_t, uint64_t, uint64_t) {
     early_serial.write("[SYSCALL] Unimplemented syscall called\n");
     return -ENOSYS;
@@ -80,43 +86,53 @@ static int64_t sys_unimplemented(uint64_t, uint64_t, uint64_t,
  * Maps syscall numbers to handler functions.
  * Initialized at compile time using designated initializers.
  */
-static SyscallHandler g_syscall_table[MAX_SYSCALLS] = {
+/**
+ * @brief Build the syscall dispatch table with explicit assignments.
+ *
+ * @return Populated syscall handler table.
+ */
+static std::array<SyscallHandler, MAX_SYSCALLS> build_syscall_table() {
+    std::array<SyscallHandler, MAX_SYSCALLS> table{};
+    table.fill(nullptr);
+
     // File I/O (Week 9 Phase 1: VFS-integrated)
-    [0]  = sys_read,           // read
-    [1]  = sys_write,          // write (updated for VFS)
-    [2]  = sys_open,           // open
-    [3]  = sys_close,          // close
-    [8]  = sys_lseek,          // lseek
+    table[0] = sys_read;   // read
+    table[1] = sys_write;  // write (updated for VFS)
+    table[2] = sys_open;   // open
+    table[3] = sys_close;  // close
+    table[8] = sys_lseek;  // lseek
 
     // Advanced FD operations (Week 9 Phase 3)
-    [22] = sys_pipe,           // pipe
-    [32] = sys_dup,            // dup
-    [33] = sys_dup2,           // dup2
-    [72] = sys_fcntl,          // fcntl
+    table[22] = sys_pipe;   // pipe
+    table[32] = sys_dup;    // dup
+    table[33] = sys_dup2;   // dup2
+    table[72] = sys_fcntl;  // fcntl
 
     // Signal handling (Week 10 Phase 2)
-    [13] = sys_sigaction,      // rt_sigaction
-    [14] = sys_sigprocmask,    // rt_sigprocmask
-    [15] = sys_sigreturn,      // rt_sigreturn
-    [37] = sys_kill,           // kill
+    table[13] = sys_sigaction;   // rt_sigaction
+    table[14] = sys_sigprocmask; // rt_sigprocmask
+    table[15] = sys_sigreturn;   // rt_sigreturn
+    table[37] = sys_kill;        // kill
 
     // Process management (Week 9 Phase 2, Week 10 Phase 1)
-    [39] = sys_getpid,         // getpid
-    [57] = sys_fork,           // fork
-    [59] = sys_execve,         // execve (Week 10 Phase 1)
-    [60] = sys_exit,           // exit
-    [61] = sys_wait4,          // wait4
-    [110] = sys_getppid,       // getppid
+    table[39] = sys_getpid;   // getpid
+    table[57] = sys_fork;     // fork
+    table[59] = sys_execve;   // execve (Week 10 Phase 1)
+    table[60] = sys_exit;     // exit
+    table[61] = sys_wait4;    // wait4
+    table[110] = sys_getppid; // getppid
 
     // Process groups and sessions (Week 10 Phase 3)
-    [109] = sys_setpgid,       // setpgid
-    [111] = sys_getpgrp,       // getpgrp
-    [112] = sys_setsid,        // setsid
-    [121] = sys_getpgid,       // getpgid
-    [124] = sys_getsid,        // getsid
+    table[109] = sys_setpgid; // setpgid
+    table[111] = sys_getpgrp; // getpgrp
+    table[112] = sys_setsid;  // setsid
+    table[121] = sys_getpgid; // getpgid
+    table[124] = sys_getsid;  // getsid
 
-    // All other entries are nullptr by default
-};
+    return table;
+}
+
+static std::array<SyscallHandler, MAX_SYSCALLS> g_syscall_table = build_syscall_table();
 
 // ============================================================================
 // Syscall Statistics (for debugging)

@@ -15,6 +15,13 @@
 #include <deque>
 #include <optional>
 
+// Helper to check scheduler availability
+namespace sched {
+    inline bool scheduler_initialized() {
+        return true; // Assume scheduler is always available in kernel
+    }
+}
+
 namespace xinim::sync {
 
 /**
@@ -76,7 +83,7 @@ struct CapabilityToken {
  */
 class CapabilityMutex {
   public:
-    constexpr CapabilityMutex() noexcept = default;
+    CapabilityMutex() noexcept = default;
 
     /**
      * @brief Acquire the mutex with capability verification.
@@ -369,9 +376,3 @@ class CapabilityLockGuard {
 
 } // namespace xinim::sync
 
-// Helper to check scheduler availability
-namespace sched {
-    inline bool scheduler_initialized() {
-        return true; // Assume scheduler is always available in kernel
-    }
-}

@@ -14,7 +14,7 @@
 #include "elf_loader.hpp"
 #include "vfs_interface.hpp"
 #include "fd_table.hpp"
-#include "../early/serial_16550.hpp"
+#include "early/serial_16550.hpp"
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
@@ -156,7 +156,7 @@ int load_segment(void* inode, const Elf64_Phdr* phdr) {
 
     // Allocate kernel buffer for segment (temporary Week 10 approach)
     // In Week 11, this will be replaced with proper user page allocation
-    size_t alloc_size = (phdr->p_memsz + 0xFFF) & ~0xFFF;  // Page-aligned
+    size_t alloc_size = (static_cast<size_t>(phdr->p_memsz) + 0xFFFu) & ~static_cast<size_t>(0xFFFu);  // Page-aligned
     char* segment_buf = new char[alloc_size];
     if (!segment_buf) {
         early_serial.write("[ELF] Failed to allocate segment buffer\n");
@@ -339,7 +339,8 @@ int load_elf_binary(const char* pathname, ElfLoadInfo* load_info) {
     // Set up load info
     load_info->entry_point = ehdr.e_entry;
     load_info->stack_top = USER_STACK_TOP;
-    load_info->brk_start = (highest_addr + 0xFFF) & ~0xFFF;  // Page-aligned
+    constexpr uint64_t kPageMask = 0xFFF;
+    load_info->brk_start = (highest_addr + kPageMask) & ~kPageMask;  // Page-aligned
     load_info->has_interpreter = has_interpreter;
 
     std::snprintf(log_buf, sizeof(log_buf),

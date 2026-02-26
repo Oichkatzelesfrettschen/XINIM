@@ -22,11 +22,49 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <minix/fs/const.hpp>
-
-using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #include <cstddef> // For std::size_t, nullptr
 #include <cstdint> // For uint16_t, int32_t, uint32_t, int64_t
+
+/**
+ * @brief Perform buffered read/write processing.
+ */
+extern int read_write(int rw_flag);
+/**
+ * @brief Return zone scaling factor for an inode.
+ */
+extern int scale_factor(struct inode *ip);
+/**
+ * @brief Allocate a free zone on a device.
+ */
+extern zone_nr alloc_zone(dev_nr dev, zone_nr zone);
+/**
+ * @brief Release a previously allocated zone.
+ */
+extern void free_zone(dev_nr dev, zone_nr zone);
+/**
+ * @brief Acquire a block buffer from the cache.
+ */
+extern struct buf *get_block(dev_nr dev, block_nr block, int how);
+/**
+ * @brief Release a block buffer to the cache.
+ */
+extern void put_block(struct buf *bp, BlockType how);
+/**
+ * @brief Return the super block for a device.
+ */
+extern struct super_block *get_super(dev_nr dev);
+/**
+ * @brief Fetch current time from the clock task.
+ */
+extern real_time clock_time();
+/**
+ * @brief Map a file position to a disk block.
+ */
+extern uint16_t read_map(struct inode *rip, int32_t position);
+/**
+ * @brief Zero a block buffer.
+ */
+PUBLIC void zero_block(struct buf *bp);
 
 /*===========================================================================*
  *				do_write				     *
@@ -53,10 +91,6 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
     int index;
     struct buf *bp;
     int new_ind, new_dbl;
-
-    extern zone_nr alloc_zone();
-    extern struct buf *get_block();
-    extern real_time clock_time();
 
     rip->i_dirt = DIRTY;                     /* inode will be changed */
     bp = NIL_BUF;                            // NIL_BUF is (struct buf*)nullptr
@@ -97,11 +131,11 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
         index = static_cast<int>(excess / static_cast<int32_t>(NR_INDIRECTS)); // index is int
         excess = excess % static_cast<int32_t>(NR_INDIRECTS);
         if (index >= static_cast<int>(NR_INDIRECTS))
-            return (ErrorCode::EFBIG);
+            return (static_cast<int>(ErrorCode::EFBIG));
         // z is uint16_t, b is uint16_t. scale is int.
         b = static_cast<uint16_t>(static_cast<uint32_t>(z) << scale);
         // rip->i_dev is dev_nr (uint16_t), b is block_nr (uint16_t).
-        bp = get_block(rip->i_dev, b, (new_dbl ? IoMode::NoRead : IoMode::Normal));
+        bp = get_block(rip->i_dev, b, (new_dbl ? NO_READ : NORMAL));
         if (new_dbl)
             zero_block(bp);
         zp = &bp->b_ind[index]; // bp->b_ind is zone_nr[] (uint16_t[])
@@ -124,7 +158,7 @@ static int write_map(struct inode *rip, int32_t position, uint16_t new_zone) {
     /* 'zp' now points to indirect block's zone number. */
     // *zp is uint16_t, b is uint16_t, scale is int
     b = static_cast<uint16_t>(static_cast<uint32_t>(*zp) << scale);
-    bp = get_block(rip->i_dev, b, (new_ind ? IoMode::NoRead : IoMode::Normal));
+    bp = get_block(rip->i_dev, b, (new_ind ? NO_READ : NORMAL));
     if (new_ind)
         zero_block(bp);
     // bp->b_ind is uint16_t[]. excess is int32_t (small index). new_zone is uint16_t.
@@ -149,14 +183,11 @@ PUBLIC void clear_zone(struct inode *rip, int32_t pos, int flag) {
      * read_write and new_block().
      */
 
-    register struct buf *bp;
+    struct buf *bp = nullptr;
     uint16_t b, blo, bhi; // block_nr -> uint16_t
     int32_t next;         // file_pos -> int32_t
     int scale;            // scale_factor returns int
     uint32_t zone_size;   // zone_type -> uint32_t
-    extern struct buf *get_block();
-    extern uint16_t read_map(struct inode * rip, int32_t position); // Modernized read_map
-
     /* If the block size and zone size are the same, clear_zone() not needed. */
     if ((scale = scale_factor(rip)) == 0)
         return;
@@ -180,7 +211,7 @@ PUBLIC void clear_zone(struct inode *rip, int32_t pos, int flag) {
     /* Clear all the blocks between 'blo' and 'bhi'. */
     for (b = blo; b <= bhi; b++) { // b, blo, bhi are uint16_t
         // rip->i_dev is dev_nr (uint16_t)
-        bp = get_block(rip->i_dev, b, IoMode::NoRead);
+        bp = get_block(rip->i_dev, b, NO_READ);
         zero_block(bp);
         put_block(bp, BlockType::FullData);
     }
@@ -198,17 +229,12 @@ PUBLIC struct buf *new_block(struct inode *rip, int32_t position) {
      * On the other hand, the current zone may still have some unused blocks.
      */
 
-    register struct buf *bp;
+    struct buf *bp = nullptr;
     uint16_t b, base_block; // block_nr -> uint16_t
     uint16_t z;             // zone_nr -> uint16_t
     uint32_t zone_size;     // zone_type -> uint32_t
     int scale, r;
     struct super_block *sp;
-    extern struct buf *get_block();
-    extern struct super_block *get_super();
-    extern uint16_t read_map(struct inode * rip, int32_t position); // Modernized read_map
-    extern uint16_t alloc_zone(uint16_t dev, uint16_t z);           // Modernized alloc_zone
-
     /* Is another block available in the current zone? */
     if ((b = read_map(rip, position)) == kNoBlock) { // kNoBlock is block_nr (uint16_t)
         /* Choose first zone if need be. */
@@ -241,7 +267,7 @@ PUBLIC struct buf *new_block(struct inode *rip, int32_t position) {
             static_cast<uint16_t>((static_cast<uint32_t>(position) % zone_size) / BLOCK_SIZE);
     }
 
-    bp = get_block(rip->i_dev, b, IoMode::NoRead); // rip->i_dev is dev_nr, b is block_nr
+    bp = get_block(rip->i_dev, b, NO_READ); // rip->i_dev is dev_nr, b is block_nr
     zero_block(bp);
     return (bp);
 }
@@ -253,11 +279,8 @@ PUBLIC struct buf *new_block(struct inode *rip, int32_t position) {
 PUBLIC void zero_block(struct buf *bp) { // Assuming void return
     /* Zero a block. */
 
-    register int n;
-    register int *zip; // Assuming b_int is int[] or similar
-
-    n = INTS_PER_BLOCK; /* number of integers in a block (int const) */
-    zip = bp->b_int;    /* where to start clearing */
+    int n = INTS_PER_BLOCK;
+    int *zip = bp->b_int; // Assuming b_int is int[] or similar
 
     do {
         *zip++ = 0;

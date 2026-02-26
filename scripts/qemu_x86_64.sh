@@ -135,14 +135,15 @@ done
 # Check if kernel image exists
 if [[ ! -f "$KERNEL_IMAGE" ]]; then
     print_error "Kernel image not found: $KERNEL_IMAGE"
-    print_info "Please build the kernel first with: xmake build"
+    print_info "Please build the kernel first with: cmake --build --preset debug"
     exit 1
 fi
 
 # Check for QEMU
 if ! command -v qemu-system-x86_64 &> /dev/null; then
     print_error "qemu-system-x86_64 not found"
-    print_info "Install with: sudo apt-get install qemu-system-x86"
+    print_info "Install with: sudo pacman -S qemu-system-x86 (Arch)"
+    print_info "Or: sudo apt-get install qemu-system-x86 (Debian/Ubuntu)"
     exit 1
 fi
 

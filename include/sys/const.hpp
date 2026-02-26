@@ -54,6 +54,7 @@ inline constexpr int MM_PROC_NR = 0;   // memory manager process number
 inline constexpr int FS_PROC_NR = 1;   // file system process number
 inline constexpr int INIT_PROC_NR = 2; // init process number
 inline constexpr int LOW_USER = 2;     // first user not part of OS
+inline constexpr uid SUPER_USER = 0;   // superuser (root) uid
 
 // Miscellaneous constants
 inline constexpr int BYTE_MASK = 0377; // mask for 8 bits (Original name: BYTE)

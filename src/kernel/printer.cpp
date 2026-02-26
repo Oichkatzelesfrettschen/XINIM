@@ -139,7 +139,8 @@ PUBLIC void printer_task() noexcept {
  * @param m_ptr Message describing the write request.
  */
 [[maybe_unused]] static void do_write(message *m_ptr) noexcept {
-    int i, j, r, value;
+    int i, j, r;
+    int value = 0;
     struct proc *rp;
     uint64_t phys;
 

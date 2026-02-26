@@ -68,41 +68,55 @@ check_dependencies() {
     log_info "Checking system dependencies..."
 
     local missing_deps=()
-    local required_deps=(
-        "make"
-        "gcc"
-        "g++"
-        "wget"
-        "tar"
-        "xz"
-        "gzip"
-        "bison"
-        "flex"
-        "texinfo"
-        "help2man"
-        "gawk"
-        "libc6-dev"
-    )
+    local required_deps=()
+    local pkg_mgr=""
 
-    for dep in "${required_deps[@]}"; do
-        if ! command -v "$dep" &> /dev/null && ! dpkg -l | grep -q "^ii.*$dep"; then
-            missing_deps+=("$dep")
-        fi
-    done
+    if command -v pacman &> /dev/null; then
+        pkg_mgr="pacman"
+        required_deps=(base-devel wget tar xz gzip bison flex texinfo help2man gawk clang clang-tools-extra cppcheck)
+        for dep in "${required_deps[@]}"; do
+            if ! pacman -Qi "$dep" &> /dev/null; then
+                missing_deps+=("$dep")
+            fi
+        done
+    elif command -v apt-get &> /dev/null; then
+        pkg_mgr="apt"
+        required_deps=(make gcc g++ wget tar xz-utils gzip bison flex texinfo help2man gawk libc6-dev clang-tidy clang-format cppcheck)
+        for dep in "${required_deps[@]}"; do
+            if ! dpkg -l | grep -q "^ii.*$dep"; then
+                missing_deps+=("$dep")
+            fi
+        done
+    elif command -v dnf &> /dev/null; then
+        pkg_mgr="dnf"
+        required_deps=(make gcc gcc-c++ wget tar xz gzip bison flex texinfo help2man gawk glibc-devel clang-tools-extra cppcheck)
+        for dep in "${required_deps[@]}"; do
+            if ! rpm -q "$dep" &> /dev/null; then
+                missing_deps+=("$dep")
+            fi
+        done
+    else
+        log_error "No supported package manager found (pacman/apt/dnf)."
+        exit 1
+    fi
 
     if [[ ${#missing_deps[@]} -gt 0 ]]; then
         log_error "Missing dependencies: ${missing_deps[*]}"
-        log_info "Install with: sudo apt-get install ${missing_deps[*]}"
-
-        read -p "Would you like to install missing dependencies now? [y/N] " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            sudo apt-get update
-            sudo apt-get install -y "${missing_deps[@]}"
-        else
-            log_error "Cannot continue without dependencies"
-            exit 1
-        fi
+        case "$pkg_mgr" in
+            pacman)
+                log_info "Install with: sudo pacman -S --needed ${missing_deps[*]}"
+                sudo pacman -S --needed "${missing_deps[@]}"
+                ;;
+            apt)
+                log_info "Install with: sudo apt-get install ${missing_deps[*]}"
+                sudo apt-get update
+                sudo apt-get install -y "${missing_deps[@]}"
+                ;;
+            dnf)
+                log_info "Install with: sudo dnf install ${missing_deps[*]}"
+                sudo dnf install -y "${missing_deps[@]}"
+                ;;
+        esac
     else
         log_success "All dependencies satisfied"
     fi

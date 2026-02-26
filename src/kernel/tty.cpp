@@ -48,26 +48,161 @@
 #include "sys/const.hpp"
 #include "sys/error.hpp"
 #include "sys/signal.hpp"
+#include "shared/signal_constants.hpp"
 #include "sys/type.hpp"
 #include "../include/sgtty.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include "lib.hpp"
 #include <algorithm> // For std::min (used in rd_chars)
 #include <cstddef>   // For std::size_t, nullptr
 #include <cstdint>   // For uint64_t, uint16_t etc.
-#include <deque>
+#include <array>
 #include <span>
 // #include <inttypes.h> // For printf format specifiers if needed later
 
 // Forward declarations for TTY functions
+/**
+ * @brief Initialize TTY line discipline and console state.
+ */
 static void tty_init() noexcept;
+/**
+ * @brief Handle queued input from the keyboard interrupt.
+ */
 static void do_charint(message *m_ptr) noexcept;
+/**
+ * @brief Process a single input character for a TTY line.
+ */
+[[maybe_unused]] static void in_char(int line, char ch) noexcept;
+/**
+ * @brief Handle a read request for a TTY line.
+ */
 static void do_read(struct tty_struct *tp, message *m_ptr) noexcept;
+/**
+ * @brief Handle a write request for a TTY line.
+ */
 static void do_write(struct tty_struct *tp, message *m_ptr) noexcept;
+/**
+ * @brief Handle an ioctl request for a TTY line.
+ */
 static void do_ioctl(struct tty_struct *tp, message *m_ptr) noexcept;
+/**
+ * @brief Cancel a pending TTY operation.
+ */
 static void do_cancel(struct tty_struct *tp, message *m_ptr) noexcept;
+/**
+ * @brief Copy available queued input to the user buffer.
+ */
+static int rd_chars(struct tty_struct *tp) noexcept;
+/**
+ * @brief Send a reply message to the TTY requester.
+ */
+static void tty_reply(int code, int replyee, int proc_nr, int status, int64_t extra,
+                      int64_t other) noexcept;
+/**
+ * @brief Remove one character from the input queue.
+ */
+static int chuck(struct tty_struct *tp) noexcept;
+/**
+ * @brief Echo a character according to line discipline settings.
+ */
+static void echo(struct tty_struct *tp, char c) noexcept;
+/**
+ * @brief Handle console function key shortcuts.
+ */
+static void func_key(char ch) noexcept;
+/**
+ * @brief Translate make/break scan codes into ASCII.
+ */
+static char make_break(char ch) noexcept;
+/**
+ * @brief Complete a TTY request and send a reply.
+ */
+static void finish(struct tty_struct *tp, int code) noexcept;
+/**
+ * @brief Output a character to the console device.
+ */
+static void out_char(struct tty_struct *tp, char c) noexcept;
+/**
+ * @brief Flush the console output queue to video memory.
+ */
+static void flush(struct tty_struct *tp) noexcept;
+/**
+ * @brief Scroll the console display by one line.
+ */
+static void scroll_screen(struct tty_struct *tp, int dir) noexcept;
+/**
+ * @brief Move the console cursor to a new position.
+ */
+static void move_to(struct tty_struct *tp, int x, int y) noexcept;
+/**
+ * @brief Handle escape sequences for console output.
+ */
+static void escape(struct tty_struct *tp, char x, char y) noexcept;
+/**
+ * @brief Program the 6845 CRT controller register pair.
+ */
+static void set_6845(int reg, int val) noexcept;
+/**
+ * @brief Emit a short speaker beep.
+ */
+static void beep(int f) noexcept;
+/**
+ * @brief Start console device output.
+ */
+static void console(struct tty_struct *tp) noexcept;
+
+/**
+ * @brief Map a user virtual address to a physical address.
+ */
+[[nodiscard]] extern uint64_t umap(struct proc *rp, int seg,
+                                   std::size_t vir_addr, std::size_t bytes) noexcept;
+/**
+ * @brief Copy between physical memory regions.
+ */
+extern void phys_copy(void *dst, const void *src, std::size_t num_bytes) noexcept;
+/**
+ * @brief Read a byte from a segment:offset address.
+ */
+extern unsigned char get_byte(unsigned int seg, unsigned int off) noexcept;
+/**
+ * @brief Read an 8-bit value from an I/O port.
+ */
+extern void port_in(unsigned port, unsigned *val) noexcept;
+/**
+ * @brief Write an 8-bit value to an I/O port.
+ */
+extern void port_out(unsigned port, unsigned val) noexcept;
+/**
+ * @brief Cause a signal to be delivered to a process.
+ */
+extern void cause_sig(int proc_nr, int sig_nr) noexcept;
+/**
+ * @brief Release interrupt lock and restore previous state.
+ */
+extern void unlock() noexcept;
+/**
+ * @brief Trigger a system reboot.
+ */
+extern void reboot() noexcept;
+/**
+ * @brief Send an interrupt message to a task.
+ */
+extern void interrupt(int task, message *m_ptr) noexcept;
+/**
+ * @brief Dump process table to the console (debug helper).
+ */
+extern void p_dmp() noexcept;
+/**
+ * @brief Dump memory map to the console (debug helper).
+ */
+extern void map_dmp() noexcept;
+/**
+ * @brief Copy a block to/from video memory.
+ */
+extern void vid_copy(const void *src, unsigned dst, unsigned offset, int words) noexcept;
 
 #define NR_TTYS 1         /* how many terminals can system handle */
 #define TTY_IN_BYTES 200  /* input queue size */
@@ -76,6 +211,13 @@ static void do_cancel(struct tty_struct *tp, message *m_ptr) noexcept;
 #define TAB_SIZE 8        /* distance between tabs */
 #define TAB_MASK 07       /* mask for tty_column when tabbing */
 #define MAX_OVERRUN 16    /* size of overrun input buffer */
+
+constexpr int RAW = static_cast<int>(SgFlags::RAW);
+constexpr int COOKED = static_cast<int>(SgFlags::COOKED);
+constexpr int CBREAK = static_cast<int>(SgFlags::CBREAK);
+constexpr int CRMOD = static_cast<int>(SgFlags::CRMOD);
+constexpr int ECHO = static_cast<int>(SgFlags::ECHO);
+constexpr int XTABS = static_cast<int>(SgFlags::XTABS);
 
 #define ERASE_CHAR '\b'      /* default erase character */
 #define KILL_CHAR '@'        /* default kill character */
@@ -115,7 +257,7 @@ PRIVATE struct tty_struct {
     char tty_esc_state;              /* 0=normal, 1 = ESC seen, 2 = ESC + x seen */
     char tty_echar;                  /* first character following an ESC */
     int tty_attribute;               /* current attribute byte << 8 */
-    int (*tty_devstart)();           /* routine to start actual device output */
+    void (*tty_devstart)(struct tty_struct *tp) noexcept; /* routine to start device output */
 
     /* Terminal parameters and status. */
     int tty_mode;       /* terminal mode set by IOCTL */
@@ -164,7 +306,7 @@ PRIVATE struct tty_struct {
 #define NOT_WAITING 0 /* no output process is hanging */
 #define WAITING 1     /* an output process is waiting for a reply */
 
-PRIVATE std::deque<char> tty_driver_buf(2 * MAX_OVERRUN + 2); /* driver collects chars here */
+PRIVATE std::array<char, 2 * MAX_OVERRUN + 2> tty_driver_buf{}; /* driver collects chars here */
 PRIVATE char tty_copy_buf[2 * MAX_OVERRUN];                   /* copy buf used to avoid races */
 PRIVATE char tty_buf[TTY_BUF_SIZE];            /* scratch buffer to/from user space */
 PRIVATE int shift1, shift2, capslock, numlock; /* keep track of shift keys */
@@ -246,7 +388,7 @@ PUBLIC void tty_task() noexcept { // Added void return, noexcept
             break;
         case TTY_O_DONE: /* reserved for future use (RS-232 terminals)*/
         default:
-            tty_reply(TASK_REPLY, tty_mess.m_source, proc_nr(tty_mess), ErrorCode::EINVAL, 0L, 0L);
+            tty_reply(TASK_REPLY, tty_mess.m_source, proc_nr(tty_mess), static_cast<int>(ErrorCode::EINVAL), 0L, 0L);
         }
     }
 }
@@ -254,6 +396,11 @@ PUBLIC void tty_task() noexcept { // Added void return, noexcept
 /*===========================================================================*
  *				do_charint				     *
  *===========================================================================*/
+/**
+ * @brief Process a TTY_CHAR_INT message carrying buffered input.
+ *
+ * @param m_ptr Message containing the accumulated input queue.
+ */
 static void
 do_charint(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A character has been typed.  If a character is typed and the tty task is
@@ -277,7 +424,7 @@ do_charint(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature
         *copy_ptr++ = *ptr++; /* copy the array to safety */
     ptr = reinterpret_cast<char *>(address(*m_ptr));
     *ptr = 0; /* accumulation count set to 0 */
-    unlock(); /* re-enable interrupts - unlock() is noexcept */
+    lock(); /* re-enable interrupts - unlock() is noexcept */
 
     /* Loop on the accumulated characters, processing each in turn. */
     copy_ptr = tty_copy_buf;
@@ -305,13 +452,17 @@ do_charint(message *m_ptr) noexcept { // PRIVATE -> static, modernized signature
 /*===========================================================================*
  *				in_char					     *
  *===========================================================================*/
-static void in_char(int line,
-                    char ch) noexcept { // PRIVATE -> static, modernized signature, noexcept
+/**
+ * @brief Process a single input character for the given line.
+ *
+ * @param line TTY line index.
+ * @param ch Raw character value (possibly a scan code).
+ */
+[[maybe_unused]] static void in_char(int line, char ch) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A character has just been typed in.  Process, save, and echo it. */
 
-    register struct tty_struct *tp;
+    struct tty_struct *tp;
     int mode, sig;
-    char make_break();
     tp = &tty_struct[line]; /* set 'tp' to point to proper struct */
     /* Function keys are temporarily being used for debug dumps. */
     if (ch >= F1 && ch <= F10) { /* Check for function keys F1, F2, ... F10 */
@@ -384,9 +535,9 @@ static void in_char(int line,
 
         /* Check for interrupt and quit characters. */
         if (ch == tp->tty_intr || ch == tp->tty_quit) {
-            sig = (ch == tp->tty_intr ? SIGINT : SIGQUIT);
+            sig = (ch == tp->tty_intr ? xinim::signals::SIGINT : xinim::signals::SIGQUIT);
             tp->tty_inhibited = RUNNING;      /* do implied CRTL-Q */
-            finish(tp, ErrorCode::EINTR);     /* send reply */
+            finish(tp, static_cast<int>(ErrorCode::EINTR));     /* send reply */
             tp->tty_inhead = tp->tty_inqueue; /* discard input */
             tp->tty_intail = tp->tty_inqueue;
             tp->tty_incount = 0;
@@ -422,6 +573,14 @@ static void in_char(int line,
 /*===========================================================================*
  *				make_break				     *
  *===========================================================================*/
+/**
+ * @brief Translate a raw scan code into ASCII or state updates.
+ *
+ * Handles make/break logic and updates modifier state.
+ *
+ * @param ch Raw scan code byte.
+ * @return Translated ASCII code or 0 if no character.
+ */
 static char make_break(char ch) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* This routine can handle keyboards that interrupt only on key depression,
      * as well as keyboards that interrupt on key depression and key release.
@@ -458,7 +617,7 @@ static char make_break(char ch) noexcept { // PRIVATE -> static, modernized sign
             code = AT_SIGN; /* @ is 0100, so CTRL-@ = 0 */
         if (make == 0)
             code = 0; /* key release */
-        return (code);
+        return static_cast<char>(code);
     }
 
     /* Table entries 0200 - 0206 denote special actions. */
@@ -484,12 +643,18 @@ static char make_break(char ch) noexcept { // PRIVATE -> static, modernized sign
             numlock = 1 - numlock;
         break; /* num lock */
     }
-    return (0);
+    return static_cast<char>(0);
 }
 
 /*===========================================================================*
  *				echo					     *
  *===========================================================================*/
+/**
+ * @brief Echo a character according to terminal mode.
+ *
+ * @param tp TTY instance.
+ * @param c Character to echo.
+ */
 static void echo(struct tty_struct *tp,
                  char c) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Echo a character on the terminal. */
@@ -504,6 +669,14 @@ static void echo(struct tty_struct *tp,
 /*===========================================================================*
  *				chuck					     *
  *===========================================================================*/
+/**
+ * @brief Remove one character from the input queue.
+ *
+ * Used for erase and kill processing.
+ *
+ * @param tp TTY instance.
+ * @return OK if a character was removed, else an error code.
+ */
 static int
 chuck(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Delete one character from the input queue.  Used for erase and kill. */
@@ -528,8 +701,11 @@ chuck(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signatu
  *				do_read					     *
  *===========================================================================*/
 /**
-   * @brief Service a read request for a terminal.
-   */
+ * @brief Service a read request for a terminal.
+ *
+ * @param tp TTY instance servicing the request.
+ * @param m_ptr Message describing the read request.
+ */
 static void do_read(struct tty_struct *tp,
                     message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to read from a terminal. */
@@ -537,7 +713,7 @@ static void do_read(struct tty_struct *tp,
     int code, caller;
 
     if (tp->tty_inleft > 0) { /* if someone else is hanging, give up */
-        tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), ErrorCode::E_TRY_AGAIN, 0L, 0L);
+        tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), static_cast<int>(ErrorCode::E_TRY_AGAIN), 0L, 0L);
         return;
     }
 
@@ -561,6 +737,9 @@ static void do_read(struct tty_struct *tp,
  *===========================================================================*/
 /**
  * @brief Copy available characters to the user buffer.
+ *
+ * @param tp TTY instance servicing the read.
+ * @return Number of bytes copied or a negative error code.
  */
 static int
 rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
@@ -586,7 +765,7 @@ rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized sign
     left = tp->tty_inleft; // tty_inleft is std::size_t
     // umap takes (proc*, int, std::size_t, std::size_t) returns uint64_t
     if ((user_phys = umap(rp, D, in_vir, left)) == 0)
-        return (ErrorCode::E_BAD_ADDR);
+        return static_cast<int>(ErrorCode::E_BAD_ADDR);
     // tty_buf is char[]. TTY_BUF_SIZE is int.
     tty_phys = umap(proc_addr(TTY), D, reinterpret_cast<std::size_t>(tty_buf),
                     static_cast<std::size_t>(TTY_BUF_SIZE));
@@ -626,8 +805,10 @@ rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized sign
          * the driver's tables and must be counted there.
          */
         user_ct = (eot_seen ? ct - 1 : ct); /* bytes to copy to user (int) */
-        // phys_copy takes (uint64_t, uint64_t, uint64_t)
-        phys_copy(tty_phys, user_phys, static_cast<uint64_t>(user_ct));
+        // phys_copy takes (void* dst, const void* src, size_t bytes)
+        phys_copy(reinterpret_cast<void *>(static_cast<uintptr_t>(user_phys)),
+                  reinterpret_cast<const void *>(static_cast<uintptr_t>(tty_phys)),
+                  static_cast<std::size_t>(user_ct));
         user_phys += static_cast<uint64_t>(user_ct);
         cum += static_cast<std::size_t>(user_ct);
         tp->tty_inleft -= static_cast<std::size_t>(ct); // tty_inleft is std::size_t
@@ -643,6 +824,12 @@ rd_chars(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized sign
 /*===========================================================================*
  *				finish					     *
  *===========================================================================*/
+/**
+ * @brief Complete an output request and reply to the caller.
+ *
+ * @param tp TTY instance.
+ * @param code Status code to return to the requester.
+ */
 static void finish(struct tty_struct *tp,
                    int code) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A command has terminated (possibly due to DEL).  Tell caller. */
@@ -661,14 +848,15 @@ static void finish(struct tty_struct *tp,
 
 /*===========================================================================*
  *				do_write				     *
+ *===========================================================================*/
 /**
  * @brief Handle a write request for a terminal.
+ *
+ * @param tp TTY instance servicing the request.
+ * @param m_ptr Message describing the write request.
  */
-*= == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == == ==
-   == == == == ==
-   */ static void do_write(
-          struct tty_struct * tp,
-          message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
+static void do_write(struct tty_struct *tp,
+                     message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* A process wants to write on a terminal. */
 
     std::size_t out_vir, out_left; // vir_bytes -> std::size_t
@@ -706,6 +894,12 @@ static void finish(struct tty_struct *tp,
 /*===========================================================================*
  *				do_ioctl				     *
  *===========================================================================*/
+/**
+ * @brief Handle an ioctl request for a TTY line.
+ *
+ * @param tp TTY instance servicing the request.
+ * @param m_ptr Message describing the ioctl request.
+ */
 static void do_ioctl(struct tty_struct *tp,
                      message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Perform IOCTL on this terminal. */
@@ -753,7 +947,7 @@ static void do_ioctl(struct tty_struct *tp,
         break;
 
     default:
-        r = ErrorCode::EINVAL;
+        r = static_cast<int>(ErrorCode::EINVAL);
     }
 
     /* Send the reply. */
@@ -765,6 +959,12 @@ static void do_ioctl(struct tty_struct *tp,
 /*===========================================================================*
  *				do_cancel				     *
  *===========================================================================*/
+/**
+ * @brief Cancel a pending TTY read/write request.
+ *
+ * @param tp TTY instance servicing the cancel.
+ * @param m_ptr Message describing the cancel request.
+ */
 static void
 do_cancel(struct tty_struct *tp,
           message *m_ptr) noexcept { // PRIVATE -> static, modernized signature, noexcept
@@ -787,12 +987,22 @@ do_cancel(struct tty_struct *tp,
     tp->tty_outleft = 0;           // std::size_t
     tp->tty_waiting = NOT_WAITING; /* don't send reply */
     tp->tty_inhibited = RUNNING;
-    tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), ErrorCode::EINTR, 0LL, 0LL);
+    tty_reply(TASK_REPLY, m_ptr->m_source, proc_nr(*m_ptr), static_cast<int>(ErrorCode::EINTR), 0LL, 0LL);
 }
 
 /*===========================================================================*
  *				tty_reply				     *
  *===========================================================================*/
+/**
+ * @brief Send a reply message to a TTY requester.
+ *
+ * @param code Reply type (TASK_REPLY or REVIVE).
+ * @param replyee Destination process/task.
+ * @param proc_nr Target process number.
+ * @param status Status code or byte count.
+ * @param extra Extra payload field.
+ * @param other Secondary payload field.
+ */
 // Modernized signature, PRIVATE -> static
 static void tty_reply(int code, int replyee, int proc_nr, int status, int64_t extra,
                       int64_t other) noexcept {
@@ -862,7 +1072,7 @@ static void tty_reply(int code, int replyee, int proc_nr, int status, int64_t ex
 
 /* Global variables used by the console driver. */
 PUBLIC message keybd_mess; /* message used for console input chars */
-PRIVATE vid_retrace;       /* how many characters to display per burst */
+PRIVATE int vid_retrace;   /* how many characters to display per burst */
 PRIVATE unsigned vid_base; /* base of video ram (0xB000 or 0xB800) */
 PUBLIC int vid_mask;       /* 037777 for color (16K) or 07777 for mono */
 PRIVATE int vid_port;      /* I/O port for accessing 6845 */
@@ -875,23 +1085,27 @@ PRIVATE int vid_port;      /* I/O port for accessing 6845 */
  * @pre Executing on keyboard IRQ with interrupts disabled.
  * @post Raw scancode is acknowledged and queued for tty_task().
  */
-PUBLIC keyboard() {
+PUBLIC void keyboard() noexcept {
     /* A keyboard interrupt has occurred.  Process it. */
 
-    int val, code, k, raw_bit;
+    unsigned int val = 0;
+    unsigned int code = 0;
+    int k = 0;
+    int raw_bit = 0;
     char stopc;
 
     /* Fetch the character from the keyboard hardware and acknowledge it. */
     port_in(KEYBD, &code);        /* get the scan code for the key struck */
     port_in(PORT_B, &val);        /* strobe the keyboard to ack the char */
-    port_out(PORT_B, val | KBIT); /* strobe the bit high */
-    port_out(PORT_B, val);        /* now strobe it low */
+    const auto port_b = static_cast<unsigned>(PORT_B);
+    port_out(port_b, static_cast<unsigned>(val | KBIT)); /* strobe the bit high */
+    port_out(port_b, val);        /* now strobe it low */
 
     /* The IBM keyboard interrupts twice per key, once when depressed, once when
      * released.  Filter out the latter, ignoring all but the shift-type keys.
      * The shift-type keys, 29, 42, 54, 56, and 69 must be processed normally.
      */
-    k = code - 0200; /* codes > 0200 mean key release */
+    k = static_cast<int>(code) - 0200; /* codes > 0200 mean key release */
     if (k > 0) {
         /* A key has been released. */
         if (k != 29 && k != 42 && k != 54 && k != 56 && k != 69) {
@@ -919,16 +1133,18 @@ PUBLIC keyboard() {
         reboot(); /* CTRL-ALT-DEL */
 
     /* Store the character in memory so the task can get at it later. */
-    if ((k = tty_driver_buf[0]) < tty_driver_buf[1]) {
+    const auto pending = static_cast<unsigned char>(tty_driver_buf[0]);
+    const auto limit = static_cast<unsigned char>(tty_driver_buf[1]);
+    if (pending < limit) {
         /* There is room to store this character; do it. */
-        k = k + k;                       /* each entry contains two bytes */
-        tty_driver_buf[k + 2] = code;    /* store the scan code */
-        tty_driver_buf[k + 3] = CONSOLE; /* tell which line it came from */
-        tty_driver_buf[0]++;             /* increment counter */
+        const std::size_t offset = static_cast<std::size_t>(pending) * 2U; /* two bytes per entry */
+        tty_driver_buf[offset + 2] = static_cast<char>(code);    /* store the scan code */
+        tty_driver_buf[offset + 3] = static_cast<char>(CONSOLE); /* tell which line it came from */
+        tty_driver_buf[0] = static_cast<char>(pending + 1);      /* increment counter */
 
         /* Build and send the interrupt message. */
         keybd_mess.m_type = TTY_CHAR_INT;
-        keybd_mess.ADDRESS = tty_driver_buf.data();
+        address(keybd_mess) = tty_driver_buf.data();
         interrupt(TTY, &keybd_mess); /* send a message to the tty task */
     } else {
         /* Too many characters have been buffered.  Discard excess. */
@@ -939,6 +1155,11 @@ PUBLIC keyboard() {
 /*===========================================================================*
  *				console					     *
  *===========================================================================*/
+/**
+ * @brief Start console output by draining the user buffer.
+ *
+ * @param tp TTY instance driving the console.
+ */
 static void
 console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Copy as much data as possible to the output queue, then start I/O.  On
@@ -948,7 +1169,7 @@ console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signa
 
     std::size_t count_processed_bytes; // was int, for characters printed
     char c;
-    unsigned int segment, offset, offset1; // These are for 16-bit segment/offset logic
+    unsigned int segment, offset; // These are for 16-bit segment/offset logic
 
     /* Loop over the user bytes one at a time, outputting each one. */
     // tp->tty_phys is uint64_t. Assuming it's used as a 16-bit segment:offset style address here.
@@ -956,11 +1177,10 @@ console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signa
     // WORD_MASK is 0xFFFF, OFF_MASK is 0x000F.
     segment = static_cast<unsigned int>((tp->tty_phys >> 4) & WORD_MASK);
     offset = static_cast<unsigned int>(tp->tty_phys & OFF_MASK);
-    offset1 = offset;
     count_processed_bytes = 0;
 
     while (tp->tty_outleft > 0 && tp->tty_inhibited == RUNNING) { // tty_outleft is std::size_t
-        c = get_byte(segment, offset);                            /* fetch 1 byte from user space */
+        c = static_cast<char>(get_byte(segment, offset));         /* fetch 1 byte from user space */
         out_char(tp, c);                                          /* write 1 byte to terminal */
         offset++;          /* advance one character in user buffer */
         tp->tty_outleft--; /* decrement count */
@@ -969,8 +1189,7 @@ console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signa
     flush(tp); /* clear out the pending characters */
 
     /* Update terminal data structure. */
-    // count_processed_bytes = offset - offset1; /* # characters printed */ // This line is
-    // redundant due to loop counter
+    // count_processed_bytes is tracked via the loop counter above.
     tp->tty_phys += count_processed_bytes; /* advance physical data pointer (uint64_t) */
     tp->tty_cum += count_processed_bytes;  /* number of characters printed (std::size_t) */
 
@@ -982,6 +1201,12 @@ console(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signa
 /*===========================================================================*
  *				out_char				     *
  *===========================================================================*/
+/**
+ * @brief Output a character to the console, handling control sequences.
+ *
+ * @param tp TTY instance.
+ * @param c Character to output.
+ */
 static void out_char(struct tty_struct *tp,
                      char c) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Output a character on the console. Check for escape sequences, including
@@ -1069,6 +1294,12 @@ static void out_char(struct tty_struct *tp,
 /*===========================================================================*
  *				scroll_screen				     *
  *===========================================================================*/
+/**
+ * @brief Scroll the console view by one line.
+ *
+ * @param tp TTY instance.
+ * @param dir Scroll direction (GO_FORWARD or GO_BACKWARD).
+ */
 static void scroll_screen(struct tty_struct *tp,
                           int dir) noexcept { // PRIVATE -> static, modernized signature, noexcept
     int amount, offset;
@@ -1081,20 +1312,25 @@ static void scroll_screen(struct tty_struct *tp,
         offset = tp->tty_org;
 
     /* Blank the new line at top or bottom. */
-    vid_copy(NIL_PTR, vid_base, offset, LINE_WIDTH);
+    vid_copy(NIL_PTR, vid_base, static_cast<unsigned>(offset), LINE_WIDTH);
     set_6845(VID_ORG, tp->tty_org >> 1); /* 6845 thinks in words */
 }
 
 /*===========================================================================*
  *				flush					     *
  *===========================================================================*/
+/**
+ * @brief Flush queued console characters to video memory.
+ *
+ * @param tp TTY instance.
+ */
 static void
 flush(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Have the characters in 'ramqueue' transferred to the screen. */
 
     if (tp->tty_rwords == 0)
         return;
-    vid_copy(tp->tty_ramqueue, vid_base, tp->tty_vid, tp->tty_rwords);
+    vid_copy(tp->tty_ramqueue, vid_base, static_cast<unsigned>(tp->tty_vid), tp->tty_rwords);
 
     /* Update the video parameters and cursor. */
     tp->tty_vid = (tp->tty_vid + 2 * tp->tty_rwords);
@@ -1105,6 +1341,13 @@ flush(struct tty_struct *tp) noexcept { // PRIVATE -> static, modernized signatu
 /*===========================================================================*
  *				move_to					     *
  *===========================================================================*/
+/**
+ * @brief Move the console cursor to a new position.
+ *
+ * @param tp TTY instance.
+ * @param x Target column.
+ * @param y Target row.
+ */
 static void move_to(struct tty_struct *tp, int x,
                     int y) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Move the cursor to (x, y). */
@@ -1121,6 +1364,13 @@ static void move_to(struct tty_struct *tp, int x,
 /*===========================================================================*
  *				escape					     *
  *===========================================================================*/
+/**
+ * @brief Process a console escape sequence.
+ *
+ * @param tp TTY instance.
+ * @param x First escape parameter.
+ * @param y Second escape parameter.
+ */
 static void escape(struct tty_struct *tp, char x,
                    char y) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Handle an escape sequence. */
@@ -1141,7 +1391,7 @@ static void escape(struct tty_struct *tp, char x,
             vx = tp->tty_vid;
             while (n > 0) {
                 ct = min(n, vid_retrace);
-                vid_copy(NIL_PTR, vid_base, vx, ct / 2);
+                vid_copy(NIL_PTR, vid_base, static_cast<unsigned>(vx), ct / 2);
                 vx += ct;
                 n -= ct;
             }
@@ -1159,6 +1409,12 @@ static void escape(struct tty_struct *tp, char x,
 /*===========================================================================*
  *				set_6845				     *
  *===========================================================================*/
+/**
+ * @brief Program a pair of 6845 CRT controller registers.
+ *
+ * @param reg Register index.
+ * @param val Value to write.
+ */
 static void set_6845(int reg,
                      int val) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Set a register pair inside the 6845.
@@ -1171,15 +1427,20 @@ static void set_6845(int reg,
      * is different from the way the 8088 addresses the video ram, where 0x0002
      * is the address of the next character.
      */
-    port_out(vid_port + INDEX, reg);              /* set the index register */
-    port_out(vid_port + DATA, (val >> 8) & BYTE); /* output high byte */
-    port_out(vid_port + INDEX, reg + 1);          /* again */
-    port_out(vid_port + DATA, val & BYTE);        /* output low byte */
+    port_out(static_cast<unsigned>(vid_port + INDEX), static_cast<unsigned>(reg));              /* set the index register */
+    port_out(static_cast<unsigned>(vid_port + DATA), static_cast<unsigned>((val >> 8) & BYTE)); /* output high byte */
+    port_out(static_cast<unsigned>(vid_port + INDEX), static_cast<unsigned>(reg + 1));          /* again */
+    port_out(static_cast<unsigned>(vid_port + DATA), static_cast<unsigned>(val & BYTE));        /* output low byte */
 }
 
 /*===========================================================================*
  *				beep					     *
  *===========================================================================*/
+/**
+ * @brief Emit a short PC speaker beep.
+ *
+ * @param f Timer divisor for beep frequency.
+ */
 static void beep(int f) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Making a beeping sound on the speaker (output for CRTL-G).  The beep is
      * kept short, because interrupts must be disabled during beeping, and it
@@ -1187,17 +1448,18 @@ static void beep(int f) noexcept { // PRIVATE -> static, modernized signature, n
      * on the bits in port B of the 8255 chip that drive the speaker.
      */
 
-    int x, k;
+    unsigned int x = 0;
+    int k = 0;
 
     lock();                            /* disable interrupts */
     port_out(TIMER3, 0xB6);            /* set up timer channel 2 mode */
     port_out(TIMER2, f & BYTE);        /* load low-order bits of frequency in timer */
     port_out(TIMER2, (f >> 8) & BYTE); /* now high-order bits of frequency in timer */
     port_in(PORT_B, &x);               /* acquire status of port B */
-    port_out(PORT_B, x | 3);           /* turn bits 0 and 1 on to beep */
+    port_out(static_cast<unsigned>(PORT_B), static_cast<unsigned>(x | 3)); /* turn bits 0 and 1 on to beep */
     for (k = 0; k < B_TIME; k++)
         ;                /* delay loop while beeper sounding */
-    port_out(PORT_B, x); /* restore port B the way it was */
+    port_out(static_cast<unsigned>(PORT_B), x); /* restore port B the way it was */
     unlock();            /* re-enable interrupts */
 }
 
@@ -1213,11 +1475,9 @@ static void beep(int f) noexcept { // PRIVATE -> static, modernized signature, n
 static void tty_init() noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* Initialize the tty tables. */
 
-    register struct tty_struct *tp;
-    int i;
     // phys_bytes phy1, phy2, vram; // These seem unused in the provided code block
 
-    for (tp = &tty_struct[0]; tp < &tty_struct[NR_TTYS]; tp++) {
+    for (auto *tp = &tty_struct[0]; tp < &tty_struct[NR_TTYS]; ++tp) {
         tp->tty_inhead = tp->tty_inqueue;
         tp->tty_intail = tp->tty_inqueue;
         tp->tty_mode = CRMOD | XTABS | ECHO;
@@ -1244,7 +1504,7 @@ static void tty_init() noexcept { // PRIVATE -> static, modernized signature, no
         vid_retrace = M_RETRACE;
     }
     tty_struct[0].tty_attribute = BLANK;
-    tty_driver_buf[1] = MAX_OVERRUN; /* set up limit on keyboard buffering */
+    tty_driver_buf[1] = static_cast<char>(MAX_OVERRUN); /* set up limit on keyboard buffering */
     set_6845(CUR_SIZE, 31);          /* set cursor shape */
     set_6845(VID_ORG, 0);            /* use page 0 of video ram */
     move_to(&tty_struct[0], 0, 0);   /* move cursor to lower left corner */
@@ -1260,9 +1520,12 @@ static void tty_init() noexcept { // PRIVATE -> static, modernized signature, no
 /*===========================================================================*
  *				putc					     *
  *===========================================================================*/
-PUBLIC putc(c)
-char c; /* character to print */
-{
+/**
+ * @brief Print a single character via the kernel console.
+ *
+ * @param c Character to output.
+ */
+PUBLIC void putc(char c) noexcept {
     /* This procedure is used by the version of printf() that is linked with
      * the kernel itself.  The one in the library sends a message to FS, which is
      * not what is needed for printing within the kernel.  This version just queues
@@ -1275,6 +1538,11 @@ char c; /* character to print */
 /*===========================================================================*
  *				func_key				     *
  *===========================================================================*/
+/**
+ * @brief Handle function keys used for kernel debug dumps.
+ *
+ * @param ch Scan code for the function key.
+ */
 static void func_key(char ch) noexcept { // PRIVATE -> static, modernized signature, noexcept
     /* This procedure traps function keys for debugging purposes.  When MINIX is
      * fully debugged, it should be removed.
@@ -1285,4 +1553,3 @@ static void func_key(char ch) noexcept { // PRIVATE -> static, modernized signat
     if (ch == F2)
         map_dmp(); /* print memory map */
 }
-#endif

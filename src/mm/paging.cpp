@@ -1,5 +1,6 @@
 #include "../include/paging.h"
 #include "const.hpp"
+#include <vm.hpp>
 
 /**
  * @file paging.cpp

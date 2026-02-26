@@ -17,22 +17,22 @@
  * - ::unpause()    -- resume a process blocked on a signal
  */
 
-#include "../h/signal.hpp"
+#include "signal.hpp"
 #include "sys/callnr.hpp"
 #include "sys/com.hpp"
 #include "sys/const.hpp"
 #include "sys/error.hpp"
-#include "../h/stat.h"
+#include <sys/stat.hpp>
 #include "sys/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
+#include "syscall.hpp"
 #include "param.hpp"
 #include "token.hpp"
 #include <algorithm> // For std::min
 #include <array>     // For std::array
 #include <bitset>    // For std::bitset
-#include <csignal>   // For standard signal definitions
 #include <cstddef>   // For std::size_t, nullptr
 #include <cstdint>   // For uint16_t, int64_t etc.
 #include <ranges>    // For std::ranges::contains
@@ -48,25 +48,41 @@ constexpr int DUMPED{0200};
 /**
  * @brief Signals that trigger creation of a core dump.
  */
-constexpr std::array<int, 9> CORE_DUMP_SIGNALS{SIGQUIT, SIGILL, SIGTRAP, SIGIOT, SIGEMT,
-                                               SIGFPE,  SIGBUS, SIGSEGV, SIGSYS};
+constexpr std::array<int, 9> CORE_DUMP_SIGNALS{
+    xinim::signals::SIGQUIT, xinim::signals::SIGILL, xinim::signals::SIGTRAP,
+    xinim::signals::SIGIOT,  xinim::signals::SIGEMT, xinim::signals::SIGFPE,
+    xinim::signals::SIGBUS,  xinim::signals::SIGSEGV, xinim::signals::SIGSYS};
 
 /**
- * @brief Check whether @p sig should generate a core file.
- * @param sig Signal number to
+ * @brief Check whether @p sig_nr should generate a core file.
+ * @param sig_nr Signal number to
  * query.
  * @return `true` if the signal produces a core dump.
  */
-constexpr bool is_core_dump_signal(int sig) noexcept {
-    return std::ranges::contains(CORE_DUMP_SIGNALS, sig);
+constexpr bool is_core_dump_signal(int sig_nr) noexcept {
+    return std::ranges::contains(CORE_DUMP_SIGNALS, sig_nr);
 }
 } // namespace
 
 static message m_sig; // PRIVATE -> static
 
 // Forward declarations for static functions if needed
+extern "C" int close(int fd) noexcept;
+extern "C" int creat(const char *path, int mode) noexcept;
+extern "C" int write(int fd, const void *buf, std::size_t count) noexcept;
+[[noreturn]] PUBLIC void panic(const char *format, int num) noexcept;
+PUBLIC void reply(int proc_nr, int result, int res2, char *respt) noexcept;
+[[nodiscard]] PUBLIC int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept;
+[[nodiscard]] int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, int dst_seg,
+                           uintptr_t dst_vir, std::size_t bytes) noexcept;
+PUBLIC void mm_exit(struct mproc *rmp, int exit_status);
+PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept;
+PUBLIC void unpause(int pro) noexcept;
+[[nodiscard]] PUBLIC int set_alarm(int target_proc, unsigned int sec) noexcept;
 [[nodiscard]] static int check_sig(int proc_id, int sig_nr, uint16_t send_uid) noexcept;
 static void dump_core(struct mproc *rmp) noexcept;
+[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, std::size_t data_clicks, std::size_t sp);
+PUBLIC void stack_fault(int proc_nr) noexcept;
 
 /**
  * @brief Install a handler or disposition for a signal.
@@ -85,17 +101,21 @@ static void dump_core(struct mproc *rmp) noexcept;
     uint16_t mask; // Was int, for mp_ignore/mp_catch (unshort -> uint16_t)
 
     // sig from message (m6_i1) is int. func from message (m6_f1) is int(*)().
-    if (sig < 1 || sig > NR_SIGS)
-        return (ErrorCode::EINVAL);
-    if (sig == SIGKILL)
-        return (OK);                              /* SIGKILL may not ignored/caught */
-    mask = static_cast<uint16_t>(1 << (sig - 1)); /* singleton set with 'sig' bit on */
+    const int sig_nr = sig;
+    if (sig_nr < 1 || sig_nr > xinim::signals::NR_SIGS)
+        return static_cast<int>(ErrorCode::EINVAL);
+    if (sig_nr == xinim::signals::SIGKILL)
+        return (OK);                                 /* SIGKILL may not ignored/caught */
+    mask = static_cast<uint16_t>(1 << (sig_nr - 1)); /* singleton set with 'sig' bit on */
 
     /* All this func does is set the bit maps for subsequent sig processing. */
-    if (func == SIG_IGN) { // SIG_IGN is (int(*)())1
+    const auto func_bits = reinterpret_cast<std::uintptr_t>(func);
+    const auto sig_ign_bits = reinterpret_cast<std::uintptr_t>(xinim::signals::SIG_IGN);
+    const auto sig_dfl_bits = reinterpret_cast<std::uintptr_t>(xinim::signals::SIG_DFL);
+    if (func_bits == sig_ign_bits) { // SIG_IGN is (int(*)())1
         mp->mp_ignore |= mask;
         mp->mp_catch &= ~mask;
-    } else if (func == SIG_DFL) { // SIG_DFL is (int(*)())0
+    } else if (func_bits == sig_dfl_bits) { // SIG_DFL is (int(*)())0
         mp->mp_ignore &= ~mask;
         mp->mp_catch &= ~mask;
     } else {
@@ -141,25 +161,25 @@ static void dump_core(struct mproc *rmp) noexcept;
      * also uses this mechanism to signal writing on broken pipes (SIGPIPE).
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     int proc_id, proc_nr, id;
-    std::bitset<NR_SIGS> sig_map_bits; /**< Pending signals. */
+    std::bitset<xinim::signals::NR_SIGS> sig_map_bits; /**< Pending signals. */
 
     /* Only kernel and FS may make this call. */
     if (who != HARDWARE && who != FS_PROC_NR) // who is int global
-        return (ErrorCode::EPERM);
+        return static_cast<int>(ErrorCode::EPERM);
 
     proc_nr = proc1(mm_in); // proc1 macro gets m1_i1 (int)
-    rmp = &mproc[proc_nr];
+    rmp = &mproc[static_cast<std::size_t>(proc_nr)];
     if ((rmp->mp_flags & IN_USE) == 0 || (rmp->mp_flags & HANGING))
         return (OK);
     proc_id = rmp->mp_pid; // mp_pid is int
-    sig_map_bits = std::bitset<NR_SIGS>{
+    sig_map_bits = std::bitset<xinim::signals::NR_SIGS>{
         static_cast<uint16_t>(sig_map(mm_in))}; // sig_map macro gets m1_i2 (int)
     mp = &mproc[0];                             /* pretend kernel signals are from MM */
 
     /* Stack faults are passed from kernel to MM as pseudo-signal 16. */
-    if (sig_map_bits.test(STACK_FAULT - 1)) { // STACK_FAULT is int
+    if (sig_map_bits.test(xinim::signals::STACK_FAULT - 1)) { // STACK_FAULT is int
         stack_fault(proc_nr);                 // stack_fault is in mm/break.cpp
         return (OK);
     }
@@ -168,8 +188,9 @@ static void dump_core(struct mproc *rmp) noexcept;
     for (std::size_t i = 0; i < sig_map_bits.size(); ++i) {
         if (!sig_map_bits.test(i))
             continue;
-        id = (i + 1 == SIGINT || i + 1 == SIGQUIT ? 0 : proc_id);
-        check_sig(id, static_cast<int>(i + 1), static_cast<uint16_t>(SUPER_USER));
+        id = (i + 1 == xinim::signals::SIGINT || i + 1 == xinim::signals::SIGQUIT ? 0 : proc_id);
+        const auto ignored = check_sig(id, static_cast<int>(i + 1), static_cast<uint16_t>(SUPER_USER));
+        (void)ignored;
     }
 
     dont_reply = TRUE; /* don't reply to the kernel */
@@ -195,12 +216,12 @@ static void dump_core(struct mproc *rmp) noexcept;
      * call, and also when the kernel catches a DEL or other signal. SIGALRM too.
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     int count, send_sig;
     uint16_t mask; // Was unshort
 
-    if (sig_nr < 1 || sig_nr > NR_SIGS)
-        return (ErrorCode::EINVAL);
+    if (sig_nr < 1 || sig_nr > xinim::signals::NR_SIGS)
+        return static_cast<int>(ErrorCode::EINVAL);
     count = 0;                                       /* count # of signals sent */
     mask = static_cast<uint16_t>(1 << (sig_nr - 1)); // mp_ignore/catch are uint16_t
 
@@ -230,7 +251,7 @@ static void dump_core(struct mproc *rmp) noexcept;
          * can arrive just as the timer is being turned off.  Also, turn off
          * ALARM_ON bit when timer goes off to keep it accurate.
          */
-        if (sig_nr == SIGALRM) { // ALARM_ON is unsigned int flag
+        if (sig_nr == xinim::signals::SIGALRM) { // ALARM_ON is unsigned int flag
             if ((rmp->mp_flags & ALARM_ON) == 0)
                 continue;
             rmp->mp_flags &= ~ALARM_ON;
@@ -252,7 +273,7 @@ static void dump_core(struct mproc *rmp) noexcept;
     /* If the calling process has killed itself, don't reply. */
     if ((mp->mp_flags & IN_USE) == 0 || (mp->mp_flags & HANGING))
         dont_reply = TRUE;
-    return (count > 0 ? OK : ErrorCode::ESRCH);
+    return (count > 0 ? OK : static_cast<int>(ErrorCode::ESRCH));
 }
 
 /**
@@ -284,13 +305,14 @@ PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept {
     if (rmp->mp_catch & mask) {
         /* Signal should be caught. */
         rmp->mp_catch &= ~mask; /* disable further signals */
-        sys_getsp(static_cast<int>(rmp - mproc.data()),
-                  &new_sp);       // sys_getsp (kernel) expects std::size_t* for new_sp
+        (void)sys_getsp(static_cast<int>(rmp - mproc.data()),
+                        &new_sp); // sys_getsp (kernel) expects std::size_t* for new_sp
         new_sp -= SIG_PUSH_BYTES; // SIG_PUSH_BYTES is int. new_sp is std::size_t.
         // rmp->mp_seg[D].mem_len is vir_clicks (std::size_t). adjust takes std::size_t for clicks &
         // sp.
         if (adjust(rmp, rmp->mp_seg[D].mem_len, new_sp) == OK) {
-            sys_sig(static_cast<int>(rmp - mproc.data()), sig_nr, rmp->mp_func, rmp->mp_token);
+            (void)sys_sig(static_cast<int>(rmp - mproc.data()), sig_nr, rmp->mp_func,
+                          rmp->mp_token);
             return; /* successful signal */
         }
     }
@@ -331,7 +353,7 @@ PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept {
  * @return Remaining
  * seconds on a previous timer.
  */
-[[nodiscard]] PUBLIC int set_alarm(int proc_nr, unsigned int sec) noexcept {
+[[nodiscard]] PUBLIC int set_alarm(int target_proc, unsigned int sec) noexcept {
     /* This routine is used by do_alarm() to set the alarm timer.  It is also
      * to turn the timer off when a process exits with the timer still on.
      */
@@ -339,13 +361,13 @@ PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept {
     int remaining;
 
     m_sig.m_type = SET_ALARM;
-    proc_nr(m_sig) = proc_nr; // proc_nr macro (m6_i1) is int
+    proc_nr(m_sig) = target_proc; // proc_nr accessor uses m2_i2 (int)
     // delta_ticks macro (m6_l1) is int64_t. HZ is int. sec is unsigned int.
     delta_ticks(m_sig) = static_cast<int64_t>(HZ) * static_cast<int64_t>(sec);
     if (sec != 0)
-        mproc[proc_nr].mp_flags |= ALARM_ON; /* turn ALARM_ON bit on */
+        mproc[static_cast<std::size_t>(target_proc)].mp_flags |= ALARM_ON; /* turn ALARM_ON bit on */
     else
-        mproc[proc_nr].mp_flags &= ~ALARM_ON; /* turn ALARM_ON bit off */
+        mproc[static_cast<std::size_t>(target_proc)].mp_flags &= ~ALARM_ON; /* turn ALARM_ON bit off */
 
     /* Tell the clock task to provide a signal message when the time comes. */
     if (sendrec(CLOCK, &m_sig) != OK)
@@ -390,26 +412,26 @@ PUBLIC void unpause(int pro) noexcept {
      * so it can check for READs and WRITEs from pipes, ttys and the like.
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
 
-    rmp = &mproc[pro];
+    rmp = &mproc[static_cast<std::size_t>(pro)];
 
     /* Check to see if process is hanging on PAUSE call. */
     if ((rmp->mp_flags & PAUSED) && (rmp->mp_flags & HANGING) == 0) {
         rmp->mp_flags &= ~PAUSED;                 /* turn off PAUSED bit */
-        reply(pro, ErrorCode::EINTR, 0, NIL_PTR); // NIL_PTR is char* (nullptr)
+        reply(pro, static_cast<int>(ErrorCode::EINTR), 0, NIL_PTR); // NIL_PTR is char* (nullptr)
         return;
     }
 
     /* Check to see if process is hanging on a WAIT call. */
     if ((rmp->mp_flags & WAITING) && (rmp->mp_flags & HANGING) == 0) {
         rmp->mp_flags &= ~WAITING; /* turn off WAITING bit */
-        reply(pro, ErrorCode::EINTR, 0, NIL_PTR);
+        reply(pro, static_cast<int>(ErrorCode::EINTR), 0, NIL_PTR);
         return;
     }
 
     /* Process is not hanging on an MM call.  Ask FS to take a look. */
-    tell_fs(UNPAUSE, pro, 0, 0);
+    (void)tell_fs(UNPAUSE, pro, 0, 0);
     // return; // Implicit void return
 }
 
@@ -439,7 +461,7 @@ static void dump_core(struct mproc *rmp) noexcept {
 
     /* Change to working directory of dumpee. */
     slot = static_cast<int>(rmp - mproc.data()); // int
-    tell_fs(CHDIR, slot, 0, 0);
+    (void)tell_fs(CHDIR, slot, 0, 0);
 
     /* Can core file be written? */
     if (rmp->mp_realuid != rmp->mp_effuid) // uid -> uint16_t
@@ -456,10 +478,10 @@ static void dump_core(struct mproc *rmp) noexcept {
     if (rmp->mp_effuid == SUPER_USER) // SUPER_USER is uid (uint16_t)
         r = 0;                        /* su can always dump core */
 
-    if (s >= 0 && (r >= 0 || r == ErrorCode::ENOENT)) {
+    if (s >= 0 && (r >= 0 || r == static_cast<int>(ErrorCode::ENOENT))) {
         /* Either file is writable or it doesn't exist & dir is writable */
         r = creat(core_name, CORE_MODE); // CORE_MODE is int
-        tell_fs(CHDIR, 0, 1, 0);         /* go back to MM's own dir */
+        (void)tell_fs(CHDIR, 0, 1, 0);         /* go back to MM's own dir */
         if (r < 0)
             return;
         rmp->mp_sigstatus |= DUMPED; // mp_sigstatus is char, DUMPED is int
@@ -500,7 +522,7 @@ static void dump_core(struct mproc *rmp) noexcept {
             }
         }
     } else {
-        tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */
+        (void)tell_fs(CHDIR, 0, 1, 0); /* go back to MM's own dir */
         close(r);                // r might be error code here
         return;
     }

@@ -26,22 +26,22 @@ class ScopedProcessSlot {
      * @brief Attempt to acquire a free process table slot.
      * @param table View of the global process table.
      */
-    explicit ScopedProcessSlot(std::span<mproc> table) noexcept;
+    explicit ScopedProcessSlot(std::span<struct mproc> table) noexcept;
 
     /// Releases the slot if still owned.
     ~ScopedProcessSlot();
 
     /// @return Pointer to the acquired slot or `nullptr` if none available.
-    [[nodiscard]] mproc *get() const noexcept { return slot_; }
+    [[nodiscard]] struct mproc *get() const noexcept { return slot_; }
 
     /// @return Index of the slot within the table, or `-1` if invalid.
     [[nodiscard]] int index() const noexcept { return index_; }
 
     /// Dereference operator providing access to the underlying slot.
-    mproc &operator*() const noexcept { return *slot_; }
+    struct mproc &operator*() const noexcept { return *slot_; }
 
     /// Member access operator for the underlying slot.
-    mproc *operator->() const noexcept { return slot_; }
+    struct mproc *operator->() const noexcept { return slot_; }
 
     /**
      * @brief Release ownership so the destructor does not free the slot.
@@ -52,8 +52,8 @@ class ScopedProcessSlot {
     [[nodiscard]] bool valid() const noexcept { return slot_ != nullptr; }
 
   private:
-    std::span<mproc> table_; ///< View of the process table.
-    mproc *slot_;            ///< Pointer to the reserved slot.
+    std::span<struct mproc> table_; ///< View of the process table.
+    struct mproc *slot_;            ///< Pointer to the reserved slot.
     int index_;              ///< Index of the slot in the table.
 };
 

@@ -101,7 +101,7 @@ namespace {
 /**
  * @brief Allocate a new PID
  */
-static xinim::pid_t allocate_pid() {
+[[maybe_unused]] static xinim::pid_t allocate_pid() {
     return static_cast<xinim::pid_t>(g_next_pid++);
 }
 
@@ -120,7 +120,8 @@ static ProcessControlBlock* create_pcb_with_pid(xinim::pid_t pid) {
     }
 
     pcb->pid = pid;
-    pcb->name = nullptr;
+    pcb->name = pcb->name_storage.data();
+    pcb->name_storage[0] = '\0';
     pcb->state = ProcessState::CREATED;
     pcb->priority = 10;  // Default priority
     pcb->stack_base = nullptr;
@@ -281,7 +282,13 @@ int spawn_server(const ServerDescriptor& desc) {
         return -1;
     }
 
-    pcb->name = desc.name;
+    pcb->name = pcb->name_storage.data();
+    if (desc.name) {
+        std::strncpy(pcb->name_storage.data(), desc.name, pcb->name_storage.size() - 1);
+        pcb->name_storage.back() = '\0';
+    } else {
+        pcb->name_storage[0] = '\0';
+    }
     pcb->state = ProcessState::READY;
     pcb->priority = desc.priority;
 

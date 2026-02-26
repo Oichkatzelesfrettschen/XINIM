@@ -18,7 +18,7 @@
 #include "../fd_table.hpp"
 #include "../signal.hpp"
 #include "../scheduler.hpp"
-#include "../../early/serial_16550.hpp"
+#include "../early/serial_16550.hpp"
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
@@ -65,9 +65,9 @@ static int copy_string_array(char* kernel_array[],
     while (count < max_count) {
         // Read pointer from user space
         uint64_t user_str_ptr;
-        int ret = copy_from_user(&user_str_ptr,
-                                 user_array_addr + count * sizeof(char*),
-                                 sizeof(char*));
+        const uint64_t entry_addr =
+            user_array_addr + static_cast<uint64_t>(count) * sizeof(char*);
+        int ret = copy_from_user(&user_str_ptr, entry_addr, sizeof(char*));
         if (ret < 0) {
             // Free previously allocated strings
             for (int i = 0; i < count; i++) {
@@ -135,11 +135,11 @@ static void free_string_array(char* array[]) {
  * Called during execve to close FDs marked as close-on-exec.
  */
 static void close_cloexec_fds(FileDescriptorTable* fd_table) {
-    for (int fd = 0; fd < MAX_FDS_PER_PROCESS; fd++) {
-        FileDescriptor* fd_entry = fd_table->get_fd(fd);
+    for (std::size_t fd = 0; fd < MAX_FDS_PER_PROCESS; ++fd) {
+        FileDescriptor* fd_entry = fd_table->get_fd(static_cast<int>(fd));
         if (fd_entry && fd_entry->is_open) {
             if (fd_entry->flags & (uint32_t)FdFlags::CLOEXEC) {
-                fd_table->close_fd(fd);
+                fd_table->close_fd(static_cast<int>(fd));
             }
         }
     }
@@ -319,8 +319,14 @@ extern "C" [[noreturn]] int64_t sys_execve(uint64_t pathname_addr,
     // ========================================================================
 
     // Update process name
-    std::strncpy(current->name, pathname, sizeof(current->name) - 1);
-    current->name[sizeof(current->name) - 1] = '\0';
+    current->name = current->name_storage.data();
+    if (std::strlen(pathname) > 0) {
+        std::strncpy(current->name_storage.data(), pathname,
+                     current->name_storage.size() - 1);
+        current->name_storage.back() = '\0';
+    } else {
+        current->name_storage[0] = '\0';
+    }
 
     // Update heap break
     current->brk = load_info.brk_start;

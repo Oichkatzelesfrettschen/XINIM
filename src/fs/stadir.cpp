@@ -10,7 +10,7 @@
 
 #include "sys/const.hpp"
 #include "sys/error.hpp"
-#include "../h/stat.h"
+#include <sys/stat.hpp>
 #include "sys/type.hpp"
 #include "compat.hpp"
 #include "const.hpp"

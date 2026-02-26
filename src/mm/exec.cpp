@@ -14,19 +14,35 @@
 
 #include "sys/callnr.hpp"
 #include "sys/const.hpp"
-#include "sys/error.hpp"
-#include "../h/stat.h"
+#include <sys/stat.hpp>
 #include "sys/type.hpp" // Defines target types like phys_bytes, vir_bytes, vir_clicks
 #include "alloc.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
-#include "param.hpp"
 #include "token.hpp"
 #include <algorithm>  // For std::min (if min is not a macro)
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uint64_t, int64_t
 #include <filesystem> // For std::filesystem::path
+#include "syscall.hpp"
+#include "param.hpp"
+#include "sys/error.hpp"
+
+extern "C" int close(int fd) noexcept;
+extern "C" int read(int fd, void *buf, std::size_t count) noexcept;
+[[noreturn]] PUBLIC void panic(const char *format, int num) noexcept;
+[[nodiscard]] int allowed(const char *name_buf, struct stat *s_buf, int mask) noexcept;
+[[nodiscard]] int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, int dst_seg,
+                           uintptr_t dst_vir, std::size_t bytes) noexcept;
+[[nodiscard]] int size_ok(int file_type, std::size_t tc, std::size_t dc, std::size_t sc,
+                          std::size_t dvir, std::size_t s_vir) noexcept;
+PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t bss_bytes,
+                    std::size_t stk_bytes, uint64_t tot_bytes, char bf[ZEROBUF_SIZE], int zs);
+PRIVATE void patch_ptr(char stack[MAX_ISTACK_BYTES], std::size_t base);
+PRIVATE void load_seg(int fd, int seg, std::size_t seg_bytes);
+PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *data_bytes,
+                        std::size_t *bss_bytes, uint64_t *tot_bytes, std::size_t sc);
 
 namespace {
 /**
@@ -43,12 +59,12 @@ class DirectoryGuard {
      * @param user The
      * process identifier whose directory is activated.
      */
-    explicit DirectoryGuard(int user) { tell_fs(CHDIR, user, 0, 0); }
+    explicit DirectoryGuard(int user) { (void)tell_fs(CHDIR, user, 0, 0); }
 
     /**
      * @brief Destructor restores the memory manager's directory.
      */
-    ~DirectoryGuard() { tell_fs(CHDIR, 0, 1, 0); }
+    ~DirectoryGuard() { (void)tell_fs(CHDIR, 0, 1, 0); }
 
     DirectoryGuard(const DirectoryGuard &) = delete;
     DirectoryGuard &operator=(const DirectoryGuard &) = delete;
@@ -124,11 +140,11 @@ PUBLIC int do_exec() {
      * is copied to a buffer inside MM, and then to the new core image.
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     int m, r, ft;
     char mbuf[MAX_ISTACK_BYTES]; /* buffer for stack and zeroes */
     union u {
-        char name_buf[MAX_PATH]; /* the name of the file to exec */
+        char name_buf[MAX_PATH_LEN]; /* the name of the file to exec */
         char zb[ZEROBUF_SIZE];   /* used to zero bss */
     } u;
     char *new_sp;
@@ -142,9 +158,9 @@ PUBLIC int do_exec() {
     rmp = mp;
     stk_bytes = static_cast<std::size_t>(stack_bytes); // stack_bytes is int from param.hpp
     if (stk_bytes > MAX_ISTACK_BYTES)
-        return (ErrorCode::ENOMEM);           /* stack too big */
-    if (exec_len <= 0 || exec_len > MAX_PATH) // exec_len is int from param.hpp
-        return (ErrorCode::EINVAL);
+        return static_cast<int>(ErrorCode::ENOMEM);           /* stack too big */
+    if (exec_len <= 0 || exec_len > MAX_PATH_LEN) // exec_len is int from param.hpp
+        return static_cast<int>(ErrorCode::EINVAL);
 
     /* Get the exec file name and see if the file is executable. */
     src = reinterpret_cast<std::size_t>(exec_name);  // exec_name is char*
@@ -165,7 +181,7 @@ PUBLIC int do_exec() {
     sc = (stk_bytes + static_cast<std::size_t>(CLICK_SIZE) - 1) >> CLICK_SHIFT;
     m = read_header(image.fd(), &ft, &text_bytes, &data_bytes, &bss_bytes, &tot_bytes, sc);
     if (m < 0)
-        return (ErrorCode::ENOEXEC);
+        return static_cast<int>(ErrorCode::ENOEXEC);
 
     /* Fetch the stack from the user before destroying the old core image. */
     src = reinterpret_cast<std::size_t>(stack_ptr); // stack_ptr is char* from param.hpp
@@ -174,7 +190,7 @@ PUBLIC int do_exec() {
     r = mem_copy(who, D, static_cast<uintptr_t>(src), MM_PROC_NR, D, static_cast<uintptr_t>(dst),
                  stk_bytes);
     if (r != OK)
-        return (ErrorCode::EACCES);
+        return static_cast<int>(ErrorCode::EACCES);
 
     /* Allocate new memory and release old memory.  Fix map and tell kernel. */
     r = new_mem(text_bytes, data_bytes, bss_bytes, stk_bytes, tot_bytes, u.zb, ZEROBUF_SIZE);
@@ -198,21 +214,21 @@ PUBLIC int do_exec() {
 
     /* Take care of setuid/setgid bits. */
     if (s_buf.st_mode & I_SET_UID_BIT) {
-        rmp->mp_effuid = s_buf.st_uid;
-        tell_fs(SETUID, who, (int)rmp->mp_realuid, (int)rmp->mp_effuid);
+        rmp->mp_effuid = static_cast<uid>(s_buf.st_uid);
+        (void)tell_fs(SETUID, who, (int)rmp->mp_realuid, (int)rmp->mp_effuid);
     }
     if (s_buf.st_mode & I_SET_GID_BIT) {
-        rmp->mp_effgid = s_buf.st_gid;
-        tell_fs(SETGID, who, (int)rmp->mp_realgid, (int)rmp->mp_effgid);
+        rmp->mp_effgid = static_cast<gid>(s_buf.st_gid);
+        (void)tell_fs(SETGID, who, (int)rmp->mp_realgid, (int)rmp->mp_effgid);
     }
 
     /* Fix up some 'mproc' fields and tell kernel that exec is done. */
     rmp->mp_catch = 0;          /* reset all caught signals */
     rmp->mp_flags &= ~SEPARATE; /* turn off SEPARATE bit */
-    rmp->mp_flags |= ft;        /* turn it on for separate I & D files */
+    rmp->mp_flags |= static_cast<decltype(rmp->mp_flags)>(ft); /* turn it on for separate I & D files */
     rmp->mp_token = generate_token();
     new_sp = (char *)vsp;
-    sys_exec(who, new_sp, rmp->mp_token);
+    (void)sys_exec(who, static_cast<std::size_t>(reinterpret_cast<uintptr_t>(new_sp)), rmp->mp_token);
     return (OK);
 }
 
@@ -264,9 +280,9 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
      */
 
     if (read(fd, buf, HDR_SIZE) != HDR_SIZE)
-        return (ErrorCode::ENOEXEC);
+        return static_cast<int>(ErrorCode::ENOEXEC);
     if ((buf[0] & 0xFF0FFFFFL) != MAGIC)
-        return (ErrorCode::ENOEXEC);
+        return static_cast<int>(ErrorCode::ENOEXEC);
     *ft = (buf[0] & SEP ? SEPARATE : 0); /* separate I & D or not */
 
     /* Get text and data sizes. */
@@ -282,7 +298,7 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
     *bss_bytes = static_cast<std::size_t>(buf[BSSB]); /* bss size in bytes */
     *tot_bytes = static_cast<uint64_t>(buf[TOTB]);    /* total bytes to allocate for program */
     if (*tot_bytes == 0)
-        return (ErrorCode::ENOEXEC);
+        return static_cast<int>(ErrorCode::ENOEXEC);
 
     /* Check to see if segment sizes are feasible. */
     tc = (*text_bytes + static_cast<std::size_t>(CLICK_SHIFT) - 1) >> CLICK_SHIFT;
@@ -292,7 +308,7 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
     if (dc >= totc) // dc is size_t, totc is uint64_t. This comparison may need a cast for safety if
                     // totc can be very large. Assuming dc (virtual clicks) will not exceed totc
                     // (physical clicks scaled) in a valid scenario.
-        return (ErrorCode::ENOEXEC);   /* stack must be at least 1 click */
+        return static_cast<int>(ErrorCode::ENOEXEC);   /* stack must be at least 1 click */
     dvir = (*ft == SEPARATE ? 0 : tc); // tc is size_t, dvir is size_t
     // s_vir (size_t) = dvir (size_t) + (totc (uint64_t) - sc (size_t))
     // This calculation needs care. If totc is much larger than sc and their difference doesn't fit
@@ -301,8 +317,8 @@ PRIVATE int read_header(int fd, int *ft, std::size_t *text_bytes, std::size_t *d
     s_vir = dvir + static_cast<std::size_t>(totc - sc);
     m = size_ok(*ft, tc, dc, sc, dvir, s_vir);
     ct = static_cast<int>(buf[1] & BYTE); /* header length */
-    if (ct > HDR_SIZE)
-        read(fd, buf, ct - HDR_SIZE); /* skip unused hdr */
+    if (static_cast<std::size_t>(ct) > HDR_SIZE)
+        read(fd, buf, static_cast<std::size_t>(ct) - HDR_SIZE); /* skip unused hdr */
     return (m);
 }
 
@@ -333,7 +349,7 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
      * the new map to the kernel.  Zero the new core image's bss, gap and stack.
      */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     char *rzp;
     std::size_t vzb;                                    // vir_bytes -> std::size_t
     std::size_t text_clicks, data_clicks, stack_clicks; // vir_clicks -> std::size_t
@@ -360,7 +376,8 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
     gap_clicks = static_cast<int64_t>(tot_clicks) - static_cast<int64_t>(data_clicks) -
                  static_cast<int64_t>(stack_clicks);
     if (gap_clicks < 0)
-        return (ErrorCode::ENOMEM);
+        return static_cast<int>(ErrorCode::ENOMEM);
+    const auto gap_clicks_unsigned = static_cast<std::size_t>(gap_clicks);
 
     /* Check to see if there is a hole big enough.  If so, we can risk first
      * releasing the old core image before allocating the new one, since we
@@ -369,7 +386,7 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
     // text_clicks (size_t) + tot_clicks (uint64_t) -> result is uint64_t
     // max_hole() returns uint64_t (phys_clicks)
     if (static_cast<uint64_t>(text_clicks) + tot_clicks > max_hole())
-        return (ErrorCode::EAGAIN);
+        return static_cast<int>(ErrorCode::EAGAIN);
 
     /* There is enough memory for the new core image.  Release the old one. */
     rmp = mp;
@@ -393,12 +410,12 @@ PRIVATE int new_mem(std::size_t text_bytes, std::size_t data_bytes, std::size_t 
     rmp->mp_seg[D].mem_vir = 0;
     rmp->mp_seg[D].mem_len = data_clicks;
     rmp->mp_seg[D].mem_phys = new_base + text_clicks;
-    rmp->mp_seg[S].mem_vir = rmp->mp_seg[D].mem_vir + data_clicks + gap_clicks;
+    rmp->mp_seg[S].mem_vir = rmp->mp_seg[D].mem_vir + data_clicks + gap_clicks_unsigned;
     rmp->mp_seg[S].mem_len = stack_clicks;
     // All these are size_t or uint64_t, ensure consistent types for arithmetic before assignment
     rmp->mp_seg[S].mem_phys = rmp->mp_seg[D].mem_phys + static_cast<uint64_t>(data_clicks) +
                               static_cast<uint64_t>(gap_clicks);
-    sys_newmap(who, rmp->mp_seg); /* report new map to the kernel */
+    (void)sys_newmap(who, rmp->mp_seg); /* report new map to the kernel */
 
     /* Zero the bss, gap, and stack segment. Start just above text.  */
     for (rzp = &bf[0]; rzp < &bf[zs]; rzp++)

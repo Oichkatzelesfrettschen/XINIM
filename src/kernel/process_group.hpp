@@ -14,7 +14,7 @@
 #define XINIM_KERNEL_PROCESS_GROUP_HPP
 
 #include <cstdint>
-#include "../../include/xinim/types.h"
+#include <xinim/core_types.hpp>
 
 namespace xinim::kernel {
 

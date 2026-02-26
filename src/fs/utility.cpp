@@ -41,12 +41,16 @@
 #include "super.hpp"
 #include "type.hpp"
 #include <algorithm>
+#include <atomic>
 #include <format>
+#include <iostream>
 #include <mutex>
 #include <span>
+#include <stdexcept>
+#include <string>
 #include <string_view>
 
-namespace xfs_util {
+namespace {
 
 /**
  * @brief Thread-safe flag to prevent recursive panics during sync.
@@ -58,6 +62,7 @@ inline std::atomic<bool> panicking{false};
  */
 inline message clock_mess{};
 inline std::mutex clock_mess_mutex;
+} // namespace
 
 /**
  * @brief Retrieves the current real time from the clock task.
@@ -109,19 +114,36 @@ void copy(std::span<char> dest, std::span<const char> src) {
 }
 
 /**
+ * @brief Copies a byte sequence with raw pointers.
+ * @param dest Destination buffer pointer.
+ * @param src Source buffer pointer.
+ * @param length Number of bytes to copy.
+ * @throws std::out_of_range if buffers are null.
+ */
+void copy(char *dest, const char *src, std::size_t length) {
+    if (length == 0) {
+        return;
+    }
+    if (dest == nullptr || src == nullptr) {
+        throw std::out_of_range("Copy source/destination buffer is null");
+    }
+    copy(std::span<char>{dest, length}, std::span<const char>{src, length});
+}
+
+/**
  * @brief Fetches a path name from user space.
  * @param path User-space pointer to the path.
  * @param len Length of the path including the null terminator.
  * @param flag When set to M3, the path may reside in the incoming message.
  * @return OK on success, or an error code from ErrorCode.
- * @throws std::out_of_range if path length exceeds MAX_PATH.
+ * @throws std::out_of_range if path length exceeds MAX_PATH_LEN.
  */
 [[nodiscard]] int fetch_name(std::string_view path, size_t len, int flag) {
     if (flag == M3 && len <= M3_STRING) {
         std::ranges::copy_n(pathname, len, user_path);
         return OK;
     }
-    if (len > MAX_PATH) {
+    if (len > MAX_PATH_LEN) {
         err_code = ErrorCode::E_LONG_STRING;
         return ERROR;
     }
@@ -144,24 +166,14 @@ void copy(std::span<char> dest, std::span<const char> src) {
  * @param num Optional numeric argument to include in the message.
  * @throws std::runtime_error to initiate system shutdown.
  */
-[[noreturn]] void panic(std::string_view format, int num = NO_NUM) {
+[[noreturn]] void panic(const char *format, int num = NO_NUM) {
     if (panicking.exchange(true)) {
         return; // Prevent recursive panics
     }
-    std::string message = num == NO_NUM ? std::format("File system panic: {}", format)
-                                       : std::format("File system panic: {} {}", format, num);
+    const std::string_view format_view{format};
+    std::string message = num == NO_NUM ? std::format("File system panic: {}", format_view)
+                                       : std::format("File system panic: {} {}", format_view, num);
     std::cerr << message << "\n";
     do_sync();
     throw std::runtime_error("System panic: halting");
-}
-
-} // namespace xfs_util
-
-/**
- * @brief Main entry point for testing utility functions (optional).
- * @note This is a placeholder for standalone testing and not part of the file system server.
- */
-int main() {
-    // Optional: Add test code for standalone compilation
-    return 0;
 }

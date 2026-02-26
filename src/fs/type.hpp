@@ -1,18 +1,30 @@
-/* Type definitions local to the File System. */
+/**
+ * @file type.hpp
+ * @brief File system-local type definitions.
+ */
 
-struct dir_struct {         /* directory entry */
-    inode_nr d_inum;        /* inode number */
-    char d_name[NAME_SIZE]; /* character string */
+#pragma once
+
+/**
+ * @struct dir_struct
+ * @brief Directory entry stored on disk.
+ */
+struct dir_struct {
+    inode_nr d_inum;        ///< Inode number.
+    char d_name[NAME_SIZE]; ///< Character string name.
 };
 
-/* Declaration of the disk inode used in rw_inode(). */
-struct d_inode {                  /* disk inode.  Memory inode is in "inotab.h" */
-    mask_bits i_mode;             /* file type, protection, etc. */
-    uid i_uid;                    /* user id of the file's owner */
-    file_pos i_size;              /* current file size in bytes */
-    file_pos64 i_size64;          /* 64-bit file size */
-    real_time i_modtime;          /* when was file data last changed */
-    gid i_gid;                    /* group number */
-    links i_nlinks;               /* how many links to this file */
-    zone_nr i_zone[NR_ZONE_NUMS]; /* block nums for direct, ind, and dbl ind */
+/**
+ * @struct d_inode
+ * @brief On-disk inode structure used by ::rw_inode().
+ */
+struct d_inode {
+    mask_bits i_mode;             ///< File type, protection, etc.
+    uid i_uid;                    ///< User ID of the file's owner.
+    file_pos i_size;              ///< Current file size in bytes.
+    file_pos64 i_size64;          ///< 64-bit file size.
+    real_time i_modtime;          ///< Timestamp of last data modification.
+    gid i_gid;                    ///< Group number.
+    links i_nlinks;               ///< Link count.
+    zone_nr i_zone[NR_ZONE_NUMS]; ///< Block numbers for direct/indirect zones.
 };

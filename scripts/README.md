@@ -218,8 +218,8 @@ source /opt/xinim-toolchain/xinim-env.sh
 
 **Usage:**
 ```bash
-# Build XINIM kernel first
-xmake build xinim
+# Build XINIM kernel first (CMake + Conan)
+./build.sh --debug
 
 # Launch in QEMU
 ./qemu_x86_64.sh
@@ -236,16 +236,21 @@ xmake build xinim
 - Debug: GDB server on port 1234
 
 **Prerequisites:**
-- QEMU installed: `sudo apt-get install qemu-system-x86`
+- QEMU installed: `sudo pacman -S qemu-system-x86`
 - XINIM kernel built: `build/xinim`
 
 ---
 
-### 7. `build.sh` (legacy)
+### 7. `build.sh`
 
-**Purpose:** Original XINIM build script
+**Purpose:** CMake + Conan build wrapper
 
-**Note:** Use xmake or CMake instead for modern builds.
+**Usage:**
+```bash
+./build.sh --debug
+./build.sh --release --test
+./build.sh --debug --docs
+```
 
 ---
 

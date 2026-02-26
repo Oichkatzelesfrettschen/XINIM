@@ -19,7 +19,7 @@
 #include <xinim/mm/memory.hpp>
 #include <xinim/net/network.hpp>
 
-int main(int argc, char* argv[]) {
+int main(int, char**) {
     std::cout << "XINIM: Modern C++23 Post-Quantum Microkernel Operating System\n";
     std::cout << "Version 1.0.0 - Pure C++23 Implementation\n\n";
 

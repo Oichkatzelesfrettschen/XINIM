@@ -103,7 +103,7 @@ int builtin_exit(Command* cmd) {
     }
 
     // Clean up jobs
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         if (g_shell.jobs[i].pgid != 0 &&
             g_shell.jobs[i].state == JobState::RUNNING) {
             fprintf(stderr, "xinim-sh: There are running jobs\n");

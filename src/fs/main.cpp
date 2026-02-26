@@ -21,9 +21,7 @@
 #include "param.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <minix/fs/const.hpp>
 
-using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uint16_t, uint32_t, uint64_t, int64_t, int32_t, uint8_t
 #include <inttypes.h> // For PRId64
@@ -31,6 +29,60 @@ using IoMode = minix::fs::DefaultFsConstants::IoMode;
 #define M64K 0xFFFF0000L /* 16 bit mask for DMA check */
 #define INFO 2           /* where in data_org is info from build */
 #define MAX_RAM 512      /* maxium RAM disk size in blocks */
+
+/**
+ * @brief Initialize file system state and verify invariants.
+ */
+static void fs_init();
+/**
+ * @brief Retrieve a pending FS request or revive a suspended process.
+ */
+static void get_work();
+/**
+ * @brief Send a reply to the caller.
+ */
+void reply(int whom, int result);
+/**
+ * @brief Perform read-ahead for sequential access patterns.
+ */
+extern void read_ahead();
+/**
+ * @brief Initialize the FS buffer pool.
+ */
+static void buf_pool();
+/**
+ * @brief Load the RAM disk image.
+ */
+static void load_ram();
+/**
+ * @brief Load the root super block.
+ */
+static void load_super();
+
+/**
+ * @brief Retrieve a fresh inode.
+ */
+extern struct inode *get_inode(dev_nr dev, inode_nr numb);
+/**
+ * @brief Increment inode reference count.
+ */
+extern void dup_inode(struct inode *ip);
+/**
+ * @brief Report a fatal error and halt.
+ */
+extern void panic(const char *s, int n);
+/**
+ * @brief Receive a message from any source.
+ */
+extern int receive(int src, message *m_ptr);
+/**
+ * @brief Send a message to a destination task.
+ */
+extern int send(int dest, message *m_ptr);
+/**
+ * @brief Copy a byte sequence between buffers.
+ */
+extern void copy(char *dest, const char *src, std::size_t length);
 
 /**
  * @brief Entry point for the file system process.
@@ -58,7 +110,7 @@ int main() {
 
         /* Call the internal function that does the work. */
         if (fs_call < 0 || fs_call >= NCALLS)
-            error = ErrorCode::E_BAD_CALL;
+            error = static_cast<int>(ErrorCode::E_BAD_CALL);
         else
             error = (*call_vector[fs_call])();
 
@@ -76,13 +128,13 @@ int main() {
  * @brief Retrieve work from the message queue or resume a suspended process.
  */
 static void get_work() {
-    register struct fproc *rp;
+    struct fproc *rp = nullptr;
 
     if (reviving != 0) {
         /* Revive a suspended process. */
         for (rp = &fproc[0]; rp < &fproc[NR_PROCS]; rp++)
             if (rp->fp_revived == REVIVING) {
-                who = rp - fproc;
+                who = static_cast<int>(rp - fproc);
                 fs_call = rp->fp_fd & BYTE;
                 fd = (rp->fp_fd >> 8) & BYTE;
                 buffer = rp->fp_buffer;
@@ -118,13 +170,14 @@ void reply(int whom, int result) {
  * @brief Initialize buffers, super block and process table.
  */
 static void fs_init() {
+    constexpr std::size_t kSuperSize = sizeof(super_block);
 
     buf_pool();   /* initialize buffer pool */
     load_ram();   /* Load RAM disk from root diskette. */
     load_super(); /* Load super block for root device */
 
     /* Initialize the 'fproc' fields for process 0 and process 2. */
-    for (i = 0; i < 3; i += 2) {
+    for (int i = 0; i < 3; i += 2) {
         fp = &fproc[i];
         rip = get_inode(ROOT_DEV, ROOT_INODE);
         fp->fp_rootdir = rip;
@@ -140,7 +193,7 @@ static void fs_init() {
     /* Certain relations must hold for the file system to work at all. */
     if (ZONE_NUM_SIZE != 2)
         panic("ZONE_NUM_SIZE != 2", NO_NUM);
-    if (SUPER_SIZE > BLOCK_SIZE)
+    if (kSuperSize > BLOCK_SIZE)
         panic("SUPER_SIZE > BLOCK_SIZE", NO_NUM);
     if (BLOCK_SIZE % INODE_SIZE != 0)
         panic("BLOCK_SIZE % INODE_SIZE != 0", NO_NUM);
@@ -163,7 +216,7 @@ static void buf_pool() {
      * the alternative solutions are as bad, if not worse.  The fault lies with
      * the PC hardware.
      */
-    register struct buf *bp;
+    struct buf *bp = nullptr;
     std::size_t low_off, high_off; // vir_bytes -> std::size_t
     uint64_t org;                  // phys_bytes -> uint64_t
     extern uint64_t get_base();    // Assuming get_base() returns phys_clicks -> uint64_t
@@ -197,7 +250,8 @@ static void load_ram() {
      * starting at 0.  Go get it and copy it to the RAM disk.
      */
 
-    register struct buf *bp, *bp1;
+    struct buf *bp = nullptr;
+    struct buf *bp1 = nullptr;
     uint32_t count;   // Was int, count of blocks
     int64_t k_loaded; // Was long, for printf
     struct super_block *sp;
@@ -212,7 +266,7 @@ static void load_ram() {
     init_data_clicks = data_org[INFO + 2];
 
     /* Get size of RAM disk by reading root file system's super block */
-    bp = get_block(BOOT_DEV, SUPER_BLOCK, IoMode::Normal); /* get RAM super block */
+    bp = get_block(BOOT_DEV, SUPER_BLOCK, NORMAL); /* get RAM super block */
     copy(super_block, bp->b_data, sizeof(struct super_block));
     sp = &super_block[0];
     if (sp->s_magic != SUPER_MAGIC)
@@ -253,8 +307,8 @@ static void load_ram() {
     printf("Loading RAM disk from root diskette.      Loaded:   0K ");
     for (i = 0; i < count; i++) { // i is uint16_t, count is uint32_t
         bp = get_block(BOOT_DEV, static_cast<uint16_t>(i),
-                       IoMode::Normal); // get_block takes block_nr (uint16_t)
-        bp1 = get_block(ROOT_DEV, i, IoMode::NoRead);
+                       NORMAL); // get_block takes block_nr (uint16_t)
+        bp1 = get_block(ROOT_DEV, i, NO_READ);
         copy(bp1->b_data, bp->b_data, BLOCK_SIZE);
         bp1->b_dirt = DIRTY;
         put_block(bp, BlockType::IMap);
@@ -273,8 +327,8 @@ static void load_ram() {
  */
 // Load the super block for the root device.
 static void load_super() {
-    register struct super_block *sp;
-    register struct inode *rip;
+    struct super_block *sp = nullptr;
+    struct inode *rip = nullptr;
     extern struct inode *get_inode();
 
     /* Initialize the super_block table. */

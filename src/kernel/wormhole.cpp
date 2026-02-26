@@ -126,12 +126,13 @@ inline void copy_mrs(State &state, FastpathStats *stats,
                      const MessageRegion *cache = nullptr) noexcept {
     auto &queue = cpu_queues[state.sender.core];
     const auto len = std::min(state.msg_len, state.sender.mrs.size());
+    const auto count = static_cast<std::ptrdiff_t>(len);
     if (!queue.full()) {
         auto &slot = queue.slots[queue.used];
-        std::ranges::copy_n(state.sender.mrs.begin(), len, slot.begin());
+        std::ranges::copy_n(state.sender.mrs.begin(), count, slot.begin());
         queue.lengths[queue.used] = len;
         ++queue.used;
-        std::ranges::copy_n(slot.begin(), len, state.receiver.mrs.begin());
+        std::ranges::copy_n(slot.begin(), count, state.receiver.mrs.begin());
         if (stats != nullptr) {
             stats->hit_count.fetch_add(1, std::memory_order_relaxed);
         }
@@ -145,10 +146,10 @@ inline void copy_mrs(State &state, FastpathStats *stats,
 
         if (region != nullptr) {
             auto *buffer = static_cast<uint64_t *>(region->zero_copy_map());
-            std::ranges::copy_n(state.sender.mrs.begin(), len, buffer);
-            std::ranges::copy_n(buffer, len, state.receiver.mrs.begin());
+            std::ranges::copy_n(state.sender.mrs.begin(), count, buffer);
+            std::ranges::copy_n(buffer, count, state.receiver.mrs.begin());
         } else {
-            std::ranges::copy_n(state.sender.mrs.begin(), len, state.receiver.mrs.begin());
+            std::ranges::copy_n(state.sender.mrs.begin(), count, state.receiver.mrs.begin());
         }
         if (stats != nullptr) {
             stats->fallback_count.fetch_add(1, std::memory_order_relaxed);
@@ -177,8 +178,8 @@ inline void update_thread_state(State &state) noexcept {
  * @param state Fastpath state being updated.
  */
 inline void context_switch(State &state) noexcept {
-    sched::scheduler.yield_to(state.receiver.tid);
-    state.current_tid = sched::scheduler.current();
+    sched::scheduler.yield_to(static_cast<xinim::pid_t>(state.receiver.tid));
+    state.current_tid = static_cast<uint32_t>(sched::scheduler.current());
 }
 
 } // namespace detail

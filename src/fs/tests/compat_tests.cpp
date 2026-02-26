@@ -1,4 +1,4 @@
-#include "../"sys/const.hpp"
+#include <sys/const.hpp>
 inline constexpr int NR_ZONE_NUMS = 9;
 inline constexpr int NR_INODES = 32;
 #include "compat.hpp"

@@ -12,11 +12,12 @@
 #include "sys/com.hpp"
 #include "sys/const.hpp"
 #include "sys/error.hpp"
-#include "../include/vm.h"
+#include "vm.hpp"
 #include "alloc.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
+#include "syscall.hpp"
 #include "param.hpp"
 #include <cstddef> // For std::size_t, uintptr_t
 #include <cstdint> // For uint64_t, int64_t
@@ -30,6 +31,11 @@ constexpr long CLICK_TO_K{1024L / CLICK_SIZE};
 
 static uint64_t tot_mem;    // PRIVATE phys_clicks -> static uint64_t
 extern int (*call_vec[])(); // Assuming call_vec functions still return int
+
+[[noreturn]] PUBLIC void panic(const char *format, int num) noexcept;
+static void mm_init() noexcept;
+static void get_work() noexcept;
+PUBLIC void reply(int proc_nr, int result, int res2, char *respt) noexcept;
 
 /*===========================================================================*
  *				main					     *
@@ -51,7 +57,7 @@ int main() noexcept { // Added noexcept (was already int main())
     while (TRUE) {
         /* Wait for message. */
         get_work(); /* wait for an MM system call */
-        mp = &mproc[who];
+        mp = &mproc[static_cast<std::size_t>(who)];
 
         /* Set some flags. */
         error = OK;
@@ -60,7 +66,7 @@ int main() noexcept { // Added noexcept (was already int main())
 
         /* If the call number is valid, perform the call. */
         if (mm_call < 0 || mm_call >= NCALLS)
-            error = ErrorCode::E_BAD_CALL;
+            error = static_cast<int>(ErrorCode::E_BAD_CALL);
         else
             error = (*call_vec[mm_call])();
 
@@ -108,10 +114,10 @@ static void get_work() noexcept { // PRIVATE -> static, void return, noexcept
 PUBLIC void reply(int proc_nr, int result, int res2, char *respt) noexcept {
     /* Send a reply to a user process. */
 
-    register struct mproc *proc_ptr;
+    struct mproc *proc_ptr;
 
     /* To make MM robust, check to see if destination is still alive. */
-    proc_ptr = &mproc[proc_nr];
+    proc_ptr = &mproc[static_cast<std::size_t>(proc_nr)];
     if ((proc_ptr->mp_flags & IN_USE) == 0 || (proc_ptr->mp_flags & HANGING))
         return;
     reply_type = result;
@@ -176,12 +182,12 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
      */
 
     int mem1, mem2, mem3; // For printf output in K
-    register struct mproc *rmp;
+    struct mproc *rmp;
     uint64_t init_org, init_clicks, ram_base, ram_clicks, tot_clicks; // phys_clicks -> uint64_t
     uint64_t init_text_clicks, init_data_clicks;                      // phys_clicks -> uint64_t
 
     if (who != FS_PROC_NR)
-        return (ErrorCode::EPERM); /* only FS make do BRK2 */
+        return static_cast<int>(ErrorCode::EPERM); /* only FS make do BRK2 */
 
     /* Remove the memory used by MINIX and RAM disk from the memory map. */
     // Message fields are int or char*. Internal types are uint64_t.
@@ -193,7 +199,10 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
     init_clicks = init_text_clicks + init_data_clicks;
     ram_base = init_org + init_clicks;  /* start of RAM disk */
     ram_clicks = tot_clicks - ram_base; /* size of RAM disk */
-    alloc_mem(tot_clicks);              /* remove RAM disk from map (alloc_mem takes uint64_t) */
+    const auto removed = alloc_mem(tot_clicks); /* remove RAM disk from map (alloc_mem takes uint64_t) */
+    if (removed == NO_MEM) {
+        panic("do_brk2 alloc_mem failed", NO_NUM);
+    }
 
     /* Print memory information. */
     // tot_mem, ram_base, ram_clicks are uint64_t. CLICK_TO_K is long.
@@ -207,12 +216,12 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
     printf("RAM disk = %dK     ", mem3);
     printf("Available = %dK\n\n", mem1 - mem2 - mem3);
     if (mem1 - mem2 - mem3 < 32) {
-        printf("\nNot enough memory to run MINIX\n\n", NO_NUM);
-        sys_abort();
+        printf("\nNot enough memory to run MINIX\n\n");
+        (void)sys_abort();
     }
 
     /* Initialize INIT's table entry. */
-    rmp = &mproc[INIT_PROC_NR];
+    rmp = &mproc[static_cast<std::size_t>(INIT_PROC_NR)];
     // mem_phys is uint64_t. init_org, init_text_clicks, init_data_clicks are uint64_t.
     rmp->mp_seg[T].mem_phys = init_org;
     // mem_len is std::size_t (vir_clicks). init_text_clicks is uint64_t (phys_clicks).
@@ -240,14 +249,14 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
  * @param base    Starting physical click.
  * @param clicks  Number of clicks to allocate.
  */
-static void set_map(int proc_nr, uint64_t base, uint64_t clicks) noexcept {
+[[maybe_unused]] static void set_map(int proc_nr, uint64_t base, uint64_t clicks) noexcept {
     // proc_nr is int. base, clicks are phys_clicks (uint64_t).
     /* Set up the memory map as part of the system initialization. */
 
-    register struct mproc *rmp;
+    struct mproc *rmp;
     std::size_t vclicks; // vir_clicks -> std::size_t
 
-    rmp = &mproc[proc_nr];
+    rmp = &mproc[static_cast<std::size_t>(proc_nr)];
     vclicks = static_cast<std::size_t>(
         clicks); // Convert phys_clicks (uint64_t) to vir_clicks (std::size_t)
 
@@ -262,5 +271,5 @@ static void set_map(int proc_nr, uint64_t base, uint64_t clicks) noexcept {
     rmp->mp_seg[S].mem_len = 0; // Stack length initially 0, grows down
     rmp->mp_seg[S].mem_phys =
         base + vclicks; // base is uint64_t, vclicks is std::size_t (promotes to uint64_t)
-    sys_newmap(proc_nr, rmp->mp_seg);
+    (void)sys_newmap(proc_nr, rmp->mp_seg);
 }

@@ -64,13 +64,12 @@
 #include "glo.hpp"
 #include "proc.hpp" // Includes NIL_PROC definition
 #include "type.hpp"
+#include "lib.hpp"
+#include "panic.hpp" // For kpanic
 #include <algorithm>
 #include <array>
 #include <cstddef> // For std::size_t, nullptr
 #include <cstdint>
-#include <cstdint> // For uint64_t, uintptr_t
-#include <ranges>
-#include <utility>
 
 #define COPY_UNIT 65534L /* max bytes to copy at once */
 
@@ -86,6 +85,10 @@ static int do_times(message *m_ptr) noexcept;
 static int do_abort(message *m_ptr) noexcept;
 static int do_sig(message *m_ptr) noexcept;
 static int do_copy(message *m_ptr) noexcept;
+extern void phys_copy(void *dst, const void *src, size_t n) noexcept;
+extern void build_sig(struct sig_info *dst, struct proc *rp, int sig) noexcept;
+PUBLIC uint64_t umap(struct proc *rp, int seg, std::size_t vir_addr, std::size_t bytes) noexcept;
+extern void set_name(int proc_nr, char *ptr) noexcept;
 
 /**
  * @brief Enumerates supported system call identifiers.
@@ -142,7 +145,7 @@ PUBLIC void sys_task() noexcept { // Added void return, noexcept
     int r{};
 
     while (true) {
-        receive(ANY, &m);
+        mini_rec(SYSTASK, ANY, &m);
 
         const auto type = static_cast<SysCall>(m.m_type);
         if (const auto it =
@@ -150,7 +153,7 @@ PUBLIC void sys_task() noexcept { // Added void return, noexcept
             it != kSysDispatch.end()) {
             r = it->second(&m);
         } else {
-            r = ErrorCode::E_BAD_FCN;
+            r = static_cast<int>(ErrorCode::E_BAD_FCN);
         }
 
         m.m_type = r;         /* 'r' reports status of call */
@@ -175,8 +178,8 @@ PUBLIC void sys_task() noexcept { // Added void return, noexcept
 static int do_fork(message *m_ptr) noexcept {
     /* Handle sys_fork().  'k1' has forked.  The child is 'k2'. */
 
-    register struct proc *rpc;
-    register char *sptr, *dptr; /* pointers for copying proc struct */
+    struct proc *rpc;
+    char *sptr, *dptr; /* pointers for copying proc struct */
     int k1;                     /* number of parent process */
     int k2;                     /* number of child process */
     int pid;                    /* process id of child */
@@ -189,7 +192,7 @@ static int do_fork(message *m_ptr) noexcept {
     tok = token(*m_ptr); /* capability token */
 
     if (k1 < 0 || k1 >= NR_PROCS || k2 < 0 || k2 >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rpc = proc_addr(k2);
 
     /* Copy parent 'proc' struct to child. */
@@ -223,11 +226,11 @@ static int do_fork(message *m_ptr) noexcept {
  * @param m_ptr Message from the memory manager containing the new map.
  * @return ::OK on success or an error code on failure.
  */
-PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
+PRIVATE int do_newmap(message *m_ptr) noexcept /* pointer to request message */
 {
     /* Handle sys_newmap().  Fetch the memory map from MM. */
 
-    register struct proc *rp, *rsrc;
+    struct proc *rp, *rsrc;
     uint64_t src_phys, dst_phys, pn; // phys_bytes -> uint64_t
     std::size_t vmm, vsys, vn;       // vir_bytes -> std::size_t
     int caller;                      /* whose space has the new map (usually MM) */
@@ -240,7 +243,7 @@ PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
     k = proc1(*m_ptr);
     map_ptr = reinterpret_cast<struct mem_map *>(mem_ptr(*m_ptr));
     if (k < -NR_TASKS || k >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);                     /* ptr to entry of user getting new map */
     rsrc = proc_addr(caller);              /* ptr to MM's proc entry */
     vn = NR_SEGS * sizeof(struct mem_map); // sizeof returns size_t, vn is size_t
@@ -249,11 +252,12 @@ PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
     vsys = reinterpret_cast<std::size_t>(rp->p_map); // rp->p_map is mem_map[]
     // umap now takes (..., std::size_t, std::size_t) and returns uint64_t
     if ((src_phys = umap(rsrc, D, vmm, vn)) == 0)
-        panic("bad call to sys_newmap (src)", NO_NUM);
+        kpanic("bad call to sys_newmap (src)");
     if ((dst_phys = umap(proc_addr(SYSTASK), D, vsys, vn)) == 0)
-        panic("bad call to sys_newmap (dst)", NO_NUM);
-    // phys_copy now takes (uint64_t, uint64_t, uint64_t)
-    phys_copy(src_phys, dst_phys, pn);
+        kpanic("bad call to sys_newmap (dst)");
+    phys_copy(reinterpret_cast<void *>(static_cast<uintptr_t>(dst_phys)),
+              reinterpret_cast<const void *>(static_cast<uintptr_t>(src_phys)),
+              static_cast<std::size_t>(pn));
 
     old_flags = rp->p_flags; /* save the previous value of the flags */
     rp->p_flags &= ~NO_MAP;
@@ -278,7 +282,7 @@ PRIVATE int do_newmap(message *m_ptr) /* pointer to request message */
 static int do_exec(message *m_ptr) noexcept {
     /* Handle sys_exec().  A process has done a successful EXEC. Patch it up. */
 
-    register struct proc *rp;
+    struct proc *rp;
     int k;            /* which process */
     uintptr_t sp_val; /* new sp value from message (was char*, treat as address value) */
     std::uint64_t tok;
@@ -287,16 +291,16 @@ static int do_exec(message *m_ptr) noexcept {
     sp_val = reinterpret_cast<uintptr_t>(stack_ptr(*m_ptr));
     tok = token(*m_ptr);
     if (k < 0 || k >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
     rp->p_sp = static_cast<uint64_t>(sp_val); /* set the stack pointer (p_sp is uint64_t) */
-    rp->p_pcpsw.pc = nullptr;                 /* reset pc (function pointer to nullptr) */
+    rp->p_pcpsw.pc = 0;                       /* reset pc */
     rp->p_alarm = 0;           /* reset alarm timer (p_alarm is real_time -> int64_t) */
-    rp->p_flags &= ~RECEIVING; /* MM does not reply to EXEC call */
+    rp->p_flags &= ~static_cast<int>(RECEIVING); /* MM does not reply to EXEC call */
     if (rp->p_flags == 0)
         ready(rp);
     rp->p_token = tok; /* update capability token */
-    set_name(k, sp);   /* save command string for F1 display */
+    set_name(k, stack_ptr(*m_ptr));   /* save command string for F1 display */
     return (OK);
 }
 
@@ -316,7 +320,7 @@ static int do_exec(message *m_ptr) noexcept {
 static int do_xit(message *m_ptr) noexcept {
     /* Handle sys_xit().  A process has exited. */
 
-    register struct proc *rp, *rc;
+    struct proc *rp, *rc;
     struct proc *np, *xp;
     int parent;  /* number of exiting proc's parent */
     int proc_nr; /* number of process doing the exit */
@@ -324,20 +328,20 @@ static int do_xit(message *m_ptr) noexcept {
     parent = proc1(*m_ptr);  /* slot number of parent process */
     proc_nr = proc2(*m_ptr); /* slot number of exiting process */
     if (parent < 0 || parent >= NR_PROCS || proc_nr < 0 || proc_nr >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rp = proc_addr(parent);
     rc = proc_addr(proc_nr);
     rp->child_utime += rc->user_time + rc->child_utime; /* accum child times */
     rp->child_stime += rc->sys_time + rc->child_stime;
     unready(rc);
     rc->p_alarm = 0;              /* turn off alarm timer */
-    set_name(proc_nr, (char *)0); /* disable command printing for F1 */
+    set_name(proc_nr, (char *)nullptr); /* disable command printing for F1 */
 
     /* If the process being terminated happens to be queued trying to send a
      * message (i.e., the process was killed by a signal, rather than it doing an
      * EXIT), then it must be removed from the message queues.
      */
-    if (rc->p_flags & SENDING) {
+    if (rc->p_flags & static_cast<int>(SENDING)) {
         /* Check all proc slots to see if the exiting process is queued. */
         for (rp = &proc[0]; rp < &proc[NR_TASKS + NR_PROCS]; rp++) {
             if (rp->p_callerq == nullptr) // NIL_PROC -> nullptr
@@ -359,7 +363,7 @@ static int do_xit(message *m_ptr) noexcept {
             }
         }
     }
-    rc->p_flags = P_SLOT_FREE;
+    rc->p_flags = static_cast<int>(P_SLOT_FREE);
     return (OK);
 }
 
@@ -376,12 +380,12 @@ static int do_xit(message *m_ptr) noexcept {
 static int do_getsp(message *m_ptr) noexcept {
     /* Handle sys_getsp().  MM wants to know what sp is. */
 
-    register struct proc *rp;
+    struct proc *rp;
     int k; /* whose stack pointer is wanted? */
 
     k = proc1(*m_ptr);
     if (k < 0 || k >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
     // m is the global message buffer.
     stack_ptr(m) = reinterpret_cast<char *>(static_cast<uintptr_t>(rp->p_sp));
@@ -404,12 +408,12 @@ static int do_getsp(message *m_ptr) noexcept {
 static int do_times(message *m_ptr) noexcept {
     /* Handle sys_times().  Retrieve the accounting information. */
 
-    register struct proc *rp;
+    struct proc *rp;
     int k;
 
     k = proc1(*m_ptr); /* k tells whose times are wanted */
     if (k < 0 || k >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rp = proc_addr(k);
 
     /* Insert the four times needed by the TIMES system call in the message. */
@@ -437,7 +441,7 @@ static int do_times(message *m_ptr) noexcept {
 static int do_abort(message *m_ptr) noexcept {
     /* Handle sys_abort.  MINIX is unable to continue.  Terminate operation. */
     (void)m_ptr;       // m_ptr is unused
-    panic("", NO_NUM); // panic is noexcept
+    kpanic("System Abort"); // panic is noexcept
     return OK;         // Should not be reached if panic aborts, but to satisfy return type
 }
 
@@ -457,7 +461,7 @@ static int do_abort(message *m_ptr) noexcept {
 static int do_sig(message *m_ptr) noexcept {
     /* Handle sys_sig(). Signal a process.  The stack is known to be big enough. */
 
-    register struct proc *rp;
+    struct proc *rp;
     uint64_t src_phys, dst_phys;            // phys_bytes -> uint64_t
     std::size_t vir_addr, sig_size, new_sp; // vir_bytes -> std::size_t
     int proc_nr;                            /* process number */
@@ -471,15 +475,15 @@ static int do_sig(message *m_ptr) noexcept {
     sig_handler = func(*m_ptr); /* run time system addr for catching sigs */
     tok = token(*m_ptr);
     if (proc_nr < LOW_USER || proc_nr >= NR_PROCS)
-        return (ErrorCode::E_BAD_PROC);
+        return static_cast<int>(ErrorCode::E_BAD_PROC);
     rp = proc_addr(proc_nr);
     if (tok != rp->p_token)
-        return (ErrorCode::EACCES);
+        return static_cast<int>(ErrorCode::EACCES);
     vir_addr = reinterpret_cast<std::size_t>(sig_stuff); // sig_stuff is char[]
     new_sp = static_cast<std::size_t>(rp->p_sp); // rp->p_sp is uint64_t, new_sp is std::size_t
 
     /* Actually build the block of words to push onto the stack. */
-    build_sig(sig_stuff, rp, sig); /* build up the info to be pushed */
+    build_sig(reinterpret_cast<sig_info *>(sig_stuff), rp, sig); /* build up the info to be pushed */
 
     /* Prepare to do the push, and do it. */
     sig_size = SIG_PUSH_BYTES; // SIG_PUSH_BYTES is int const, sig_size is std::size_t
@@ -488,18 +492,16 @@ static int do_sig(message *m_ptr) noexcept {
     src_phys = umap(proc_addr(SYSTASK), D, vir_addr, sig_size);
     dst_phys = umap(rp, S, new_sp, sig_size);
     if (dst_phys == 0)
-        panic("do_sig can't signal; SP bad", NO_NUM); // panic is noexcept
+        kpanic("do_sig can't signal; SP bad"); // panic is noexcept
     // phys_copy takes (uint64_t, uint64_t, uint64_t)
-    phys_copy(src_phys, dst_phys, static_cast<uint64_t>(sig_size)); /* push pc, psw */
+    phys_copy(reinterpret_cast<void *>(static_cast<uintptr_t>(dst_phys)),
+              reinterpret_cast<const void *>(static_cast<uintptr_t>(src_phys)),
+              sig_size); /* push pc, psw */
 
     /* Change process' sp and pc to reflect the interrupt. */
     rp->p_sp = static_cast<uint64_t>(new_sp); // new_sp is std::size_t, p_sp is uint64_t
     rp->p_pcpsw.pc =
-        sig_handler; // sig_handler is int(*)(), p_pcpsw.pc is u64_t (func ptr)
-                     // This assignment needs reinterpret_cast if types differ.
-                     // Assuming p_pcpsw.pc being u64_t means it stores function address as integer.
-    rp->p_pcpsw.pc =
-        reinterpret_cast<decltype(rp->p_pcpsw.pc)>(reinterpret_cast<uintptr_t>(sig_handler));
+        static_cast<xinim::virt_addr_t>(reinterpret_cast<uintptr_t>(sig_handler));
     return (OK);
 }
 
@@ -519,37 +521,40 @@ static int do_sig(message *m_ptr) noexcept {
 static int do_copy(message *m_ptr) noexcept {
     /* Handle sys_copy().  Copy data for MM or FS. */
 
-    int src_proc, dst_proc, src_space, dst_space;
+    int src_proc, dst_proc;
+    int src_seg, dst_seg;
     std::size_t src_vir, dst_vir;       // vir_bytes -> std::size_t
     uint64_t src_phys, dst_phys, bytes; // phys_bytes -> uint64_t
 
     /* Dismember the command message. */
     src_proc = src_proc_nr(*m_ptr);
     dst_proc = dst_proc_nr(*m_ptr);
-    src_space = src_space(*m_ptr);
-    dst_space = dst_space(*m_ptr);
-    src_vir = reinterpret_cast<std::size_t>(src_buffer(*m_ptr));
-    dst_vir = reinterpret_cast<std::size_t>(dst_buffer(*m_ptr));
+    src_seg = static_cast<int>(src_space(*m_ptr));
+    dst_seg = static_cast<int>(dst_space(*m_ptr));
+    src_vir = static_cast<std::size_t>(src_buffer(*m_ptr));
+    dst_vir = static_cast<std::size_t>(dst_buffer(*m_ptr));
     bytes = static_cast<uint64_t>(copy_bytes(*m_ptr));
 
     /* Compute the source and destination addresses and do the copy. */
     if (src_proc == ABS)
-        src_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(src_buffer(*m_ptr)));
+        src_phys = static_cast<uint64_t>(static_cast<std::uintptr_t>(src_buffer(*m_ptr)));
     else
         // umap takes (..., std::size_t, std::size_t) returns uint64_t
         // bytes (uint64_t) needs to be cast to std::size_t for umap's last param. This is a
         // potential narrowing.
-        src_phys = umap(proc_addr(src_proc), src_space, src_vir, static_cast<std::size_t>(bytes));
+        src_phys = umap(proc_addr(src_proc), src_seg, src_vir, static_cast<std::size_t>(bytes));
 
     if (dst_proc == ABS)
-        dst_phys = static_cast<uint64_t>(reinterpret_cast<uintptr_t>(dst_buffer(*m_ptr)));
+        dst_phys = static_cast<uint64_t>(static_cast<std::uintptr_t>(dst_buffer(*m_ptr)));
     else
-        dst_phys = umap(proc_addr(dst_proc), dst_space, dst_vir, static_cast<std::size_t>(bytes));
+        dst_phys = umap(proc_addr(dst_proc), dst_seg, dst_vir, static_cast<std::size_t>(bytes));
 
     if (src_phys == 0 || dst_phys == 0)
-        return (ErrorCode::EFAULT);
+        return static_cast<int>(ErrorCode::EFAULT);
     // phys_copy takes (uint64_t, uint64_t, uint64_t)
-    phys_copy(src_phys, dst_phys, bytes);
+    phys_copy(reinterpret_cast<void *>(static_cast<uintptr_t>(dst_phys)),
+              reinterpret_cast<const void *>(static_cast<uintptr_t>(src_phys)),
+              static_cast<std::size_t>(bytes));
     return (OK);
 }
 
@@ -578,7 +583,7 @@ PUBLIC void cause_sig(int proc_nr, int sig_nr) noexcept {
      * cause_sig() immediately.
      */
 
-    register struct proc *rp;
+    struct proc *rp;
 
     rp = proc_addr(proc_nr);
     if (rp->p_pending == 0)
@@ -607,22 +612,23 @@ PUBLIC void inform(int proc_nr) noexcept {
      * made to see if 'sig_procs' is nonzero; if so, inform() is called.
      */
 
-    register struct proc *rp, *mmp;
+    struct proc *rp;
+    struct proc *mmp;
 
     /* If MM is not waiting for new input, forget it. */
     mmp = proc_addr(proc_nr);
-    if (((mmp->p_flags & RECEIVING) == 0) || mmp->p_getfrom != ANY)
+    if (((mmp->p_flags & static_cast<int>(RECEIVING)) == 0) || mmp->p_getfrom != ANY)
         return;
 
     /* MM is waiting for new input.  Find a process with pending signals. */
     for (rp = proc_addr(0); rp < proc_addr(NR_PROCS); rp++)
         if (rp->p_pending != 0) {
             m.m_type = KSIG; // m is global message buffer
-            m.PROC1 = rp - proc - NR_TASKS;
+            m.m1_i1() = static_cast<int>(rp - proc - NR_TASKS);
             sig_map(m) = rp->p_pending;
             sig_procs--;
             if (mini_send(HARDWARE, proc_nr, &m) != OK)
-                panic("can't inform MM", NO_NUM); // panic is noexcept
+                kpanic("can't inform MM"); // panic is noexcept
             rp->p_pending = 0;                    /* the ball is now in MM's court */
             return;
         }

@@ -9,8 +9,8 @@
  * @brief Generic 4-level paging structures and kernel interfaces.
  */
 
-#ifndef PAGING_H
-#define PAGING_H
+#ifndef PAGING_HPP
+#define PAGING_HPP
 
 #include <sys/const.hpp>
 #include <sys/type.hpp>
@@ -96,6 +96,6 @@ void *alloc_virtual(u64_t bytes, int flags);
  * @param flags Mapping attributes.
  * @return ::OK on success or an error code.
  */
-int map_page(virt_addr64 va, phys_addr64 pa, int flags);
+int map_page(virt_addr64 va, phys_addr64 pa, int flags) noexcept;
 
-#endif /* PAGING_H */
+#endif /* PAGING_HPP */

@@ -58,7 +58,7 @@ void p_dmp() noexcept { // K&R -> modern C++, added noexcept
                static_cast<std::size_t>(NSIZE));
 
     for (rp = &proc[0]; rp < &proc[NR_PROCS + NR_TASKS]; rp++) {
-        if (rp->p_flags & P_SLOT_FREE)
+        if (rp->p_flags & static_cast<int>(P_SLOT_FREE))
             continue;
         first = rp->p_map[T].mem_phys; // mem_phys is phys_clicks (uint64_t)
         last = rp->p_map[S].mem_phys +
@@ -75,7 +75,7 @@ void p_dmp() noexcept { // K&R -> modern C++, added noexcept
         limit = (rp->p_map[S].mem_phys + rp->p_map[S].mem_len) * CLICK_SIZE /
                 1024; // This is just an example, original logic for base/limit was complex
 
-        prname(rp - proc);
+        prname(static_cast<int>(rp - proc));
         // rp->p_pid (int), rp->p_pcpsw.pc (u64_t), rp->p_sp (u64_t), rp->p_flags (int)
         // rp->user_time, rp->sys_time (real_time -> int64_t)
         // base, limit (std::size_t)
@@ -94,7 +94,7 @@ void p_dmp() noexcept { // K&R -> modern C++, added noexcept
             prname(NR_TASKS + rp->p_getfrom);
 
         /* Fetch the command string from the user process. */
-        index = rp - proc - NR_TASKS;
+        index = static_cast<int>(rp - proc - NR_TASKS);
         if (index >= 0 && index < NR_PROCS && aout[index] != 0) { // Check index for aout
             // phys_copy takes (uint64_t, uint64_t, uint64_t)
             phys_copy(aout[index], dst, static_cast<uint64_t>(NSIZE));
@@ -122,7 +122,7 @@ void map_dmp() noexcept { // K&R -> modern C++, added noexcept
     printf("\nPROC   -----TEXT-----  -----DATA-----  ----STACK-----  BASE SIZE\n");
     // Iterate only over user processes, tasks might not have same map structure interpretation
     for (rp = proc_addr(0); rp < proc_addr(NR_PROCS); rp++) {
-        if (rp->p_flags & P_SLOT_FREE)
+        if (rp->p_flags & static_cast<int>(P_SLOT_FREE))
             continue;
 
         // Calculate base and total size in K for the process
@@ -134,7 +134,7 @@ void map_dmp() noexcept { // K&R -> modern C++, added noexcept
         // CLICK_SIZE) / 1024; The above calculation for size_k is a bit off. Let's just print
         // segment details.
 
-        prname(rp - proc); // This will print task names too if loop is from proc[0]
+        prname(static_cast<int>(rp - proc)); // This will print task names too if loop is from proc[0]
                            // If only user procs: for (rp = proc_addr(0); rp < proc_addr(NR_PROCS);
                            // rp++) and prname(rp - proc - NR_TASKS);
 
@@ -165,7 +165,7 @@ static void prname(int i) noexcept { // Added noexcept
 /**
  * @brief Store command name for dumping.
  */
-[[maybe_unused]] static void set_name(int proc_nr, char *ptr) noexcept { // Added noexcept
+void set_name(int proc_nr, char *ptr) noexcept { // Added noexcept
     /* When an EXEC call is done, the kernel is told about the stack pointer.
      * It uses the stack pointer to find the command line, for dumping
      * purposes.

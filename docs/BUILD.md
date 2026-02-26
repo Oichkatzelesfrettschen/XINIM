@@ -1,55 +1,32 @@
 # Build Instructions
 
-> **⚠️ DEPRECATED:** This document is outdated and contains incorrect information.
->
-> **XINIM does NOT use CMake.** The actual build system is **xmake**.
->
-> **Please refer to:**
-> - `docs/REQUIREMENTS.md` - Complete requirements and build instructions (CURRENT)
-> - `README.md` - Quick start guide
-> - `xmake.lua` - Actual build configuration
->
-> This file will be removed or updated in a future release.
+This document describes the current CMake + Conan build flow.
 
----
+## Prerequisites
+- CMake 3.28+
+- Conan 2.0+
+- Clang 18+ (preferred)
+- Ninja (recommended generator)
 
-## Prerequisites (OUTDATED - DO NOT FOLLOW)
-- CMake 3.5 or newer
-- Clang 18 toolchain and LLVM utilities (`lld`, `lldb`)
-- Doxygen for API documentation
-- pre-commit for Git hook management (`pip install pre-commit`)
+See `docs/REQUIREMENTS.md` for full tooling details.
 
-## Pre-commit Hooks
-Install the project's hooks after cloning to automatically run formatting and
-static analysis helpers located under `tools/`:
-
+## Configure and Build
 ```bash
-pre-commit install
+# Install dependencies and generate toolchain
+scripts/conan_install.sh build Debug
+
+# Configure and build
+cmake --preset debug
+cmake --build --preset debug
 ```
 
-Run the entire suite manually before pushing changes:
-
+## Tests
 ```bash
-pre-commit run --all-files
+ctest --output-on-failure --test-dir build
 ```
 
-These hooks chain `clang-format`, `clang-tidy`, and `cppcheck` through local
-scripts to enforce style and detect issues early.
-
-## Configure
+## Documentation
 ```bash
-cmake -S . -B build
+doxygen docs/Doxyfile
+sphinx-build -b html docs/sphinx docs/sphinx/html
 ```
-
-## Compile
-```bash
-cmake --build build
-```
-
-## Generate Documentation
-```bash
-cmake --build build --target doc
-```
-
-The documentation target emits HTML and XML into `docs/doxygen`,
-ready for consumption by Sphinx via the Breathe extension.

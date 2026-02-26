@@ -15,7 +15,7 @@
 #include "../uaccess.hpp"
 #include "../fd_table.hpp"
 #include "../pipe.hpp"
-#include "../../early/serial_16550.hpp"
+#include "../early/serial_16550.hpp"
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
@@ -217,7 +217,8 @@ extern "C" int64_t sys_pipe(uint64_t pipefd_addr, uint64_t, uint64_t,
 /**
  * @brief File control operations
  *
- * POSIX: int fcntl(int fd, int cmd, ... /* arg */)
+ * POSIX: int fcntl(int fd, int cmd, ...);
+ * The variadic argument supplies the command-specific arg value.
  *
  * Week 9 Phase 3: Support basic commands
  * - F_DUPFD (0): Duplicate FD to >= arg

@@ -119,6 +119,24 @@ void phys_copy16(void *dst, const void *src, size_t words) noexcept {
 #endif
 }
 
+/**
+ * @brief Build a signal frame snapshot for delivery to a process.
+ *
+ * Copies the current PC/PSW from the target process into the signal frame.
+ *
+ * @param dst Destination signal frame buffer.
+ * @param rp Target process descriptor.
+ * @param sig Signal number to record.
+ */
+void build_sig(struct sig_info *dst, struct proc *rp, int sig) noexcept {
+    if (!dst || !rp) {
+        return;
+    }
+    dst->signo = sig;
+    dst->sigpcpsw.pc = rp->p_pcpsw.pc;
+    dst->sigpcpsw.psw = rp->p_pcpsw.psw;
+}
+
 /*===========================================================================*
  *                              cp_mess                                      *
  *===========================================================================*/
@@ -265,9 +283,9 @@ void reboot() noexcept {
     // Triple fault to force reboot
     asm volatile(
         "cli\n\t"
-        "movq $0, %rsp\n\t"
-        "movq $0, %rax\n\t"
-        "idtq (%rax)\n\t"
+        "movq $0, %%rsp\n\t"
+        "movq $0, %%rax\n\t"
+        "lidtq (%%rax)\n\t"
         "int $3"
         ::: "memory"
     );
@@ -304,7 +322,8 @@ void halt() noexcept {
  *                          Memory Operations                                *
  *===========================================================================*/
 
-void* phys_map(phys_addr_t paddr, size_t size) noexcept {
+void* phys_map(xinim::phys_addr_t paddr, size_t size) noexcept {
+    (void)size;
     // Map physical address to virtual
     // This is highly platform-specific
 #ifdef XINIM_ARCH_X86_64

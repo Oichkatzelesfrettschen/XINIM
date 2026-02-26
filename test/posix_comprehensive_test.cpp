@@ -101,7 +101,8 @@ private:
             );
 
             auto write_result = xinim::posix::file::write(fd_result->get(), data_span);
-            test_result(write_result.has_value() && *write_result == test_data.size(),
+            test_result(write_result.has_value() &&
+                            static_cast<std::size_t>(*write_result) == test_data.size(),
                        "File writing with write()");
 
             auto close_result = xinim::posix::file::close(fd_result->get());
@@ -120,7 +121,8 @@ private:
             );
 
             auto read_result = xinim::posix::file::read(read_fd_result->get(), read_span);
-            test_result(read_result.has_value() && *read_result == test_data.size() &&
+            test_result(read_result.has_value() &&
+                            static_cast<std::size_t>(*read_result) == test_data.size() &&
                        read_buffer == test_data, "File reading with read()");
 
             xinim::posix::file::close(read_fd_result->get());
@@ -242,7 +244,11 @@ private:
         std::cout << "\n9. Message Queue Tests\n";
 
         const char* queue_name = "/xinim_test_queue";
-        struct mq_attr attr = {0, 10, 256, 0};
+        struct mq_attr attr{};
+        attr.mq_flags = 0;
+        attr.mq_maxmsg = 10;
+        attr.mq_msgsize = 256;
+        attr.mq_curmsgs = 0;
 
         auto mq_result = xinim::posix::mq::mq_open(queue_name, O_CREAT | O_RDWR, 0644, &attr);
         test_result(mq_result.has_value(), "Message queue creation with mq_open()");

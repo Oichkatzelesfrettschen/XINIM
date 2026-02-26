@@ -25,6 +25,9 @@
 #include <cstddef> // For std::size_t, nullptr
 #include <cstdint> // For uint64_t
 
+// Forward declaration for internal helper
+int mini_rec(int caller, int src, message *m_ptr);
+
 /*===========================================================================*
  *				interrupt				     *
  *===========================================================================*/
@@ -40,10 +43,12 @@
 PUBLIC void interrupt(int task, message *m_ptr) {
     /* An interrupt has occurred.  Schedule the task that handles it. */
 
-    int i, n, old_map, this_bit;
+    int i, n;
+    unsigned int old_map = 0U;
+    unsigned int this_bit = 0U;
 
     /* Try to send the interrupt message to the indicated task. */
-    this_bit = 1 << (-task);
+    this_bit = 1U << static_cast<unsigned int>(-task);
     if (mini_send(HARDWARE, task, m_ptr) != OK) {
         /* The message could not be sent to the task; it was not waiting. */
         old_map = busy_map; /* save original map of busy tasks */
@@ -67,7 +72,7 @@ PUBLIC void interrupt(int task, message *m_ptr) {
                 /* Task 'i' has a pending interrupt. */
                 n = mini_send(HARDWARE, -i, task_mess[i]);
                 if (n == OK)
-                    busy_map &= ~(1 << i);
+                    busy_map &= ~(1U << static_cast<unsigned int>(i));
             }
         }
     }
@@ -124,14 +129,14 @@ PUBLIC void sys_call(int function, int caller, int src_dest, message *m_ptr) {
     if (function & SEND) {
         n = mini_send(caller, src_dest, m_ptr); /* func = SEND or BOTH */
         if (function == SEND || n != OK)
-            rp->p_reg[RET_REG] = n;
+            rp->p_reg[RET_REG] = static_cast<std::uint64_t>(n);
         if (n != OK)
             return; /* SEND failed */
     }
 
     if (function & RECEIVE) {
         n = mini_rec(caller, src_dest, m_ptr); /* func = RECEIVE or BOTH */
-        rp->p_reg[RET_REG] = n;
+        rp->p_reg[RET_REG] = static_cast<std::uint64_t>(n);
     }
 }
 
@@ -156,18 +161,18 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
      * waiting at all, or is waiting for another source, queue 'caller'.
      */
 
-    register struct proc *caller_ptr, *dest_ptr, *next_ptr;
+    struct proc *caller_ptr, *dest_ptr, *next_ptr;
     std::size_t vb;       // vir_bytes -> std::size_t
     std::size_t vlo, vhi; // vir_clicks -> std::size_t
     std::size_t len;      // vir_clicks -> std::size_t
 
     /* User processes are only allowed to send to FS and MM.  Check for this. */
     if (caller >= LOW_USER && (dest != FS_PROC_NR && dest != MM_PROC_NR))
-        return (ErrorCode::E_BAD_DEST);
+        return static_cast<int>(ErrorCode::E_BAD_DEST);
     caller_ptr = proc_addr(caller); /* pointer to source's proc entry */
     dest_ptr = proc_addr(dest);     /* pointer to destination's proc entry */
-    if (dest_ptr->p_flags & P_SLOT_FREE)
-        return (ErrorCode::E_BAD_DEST); /* dead dest */
+    if (dest_ptr->p_flags & static_cast<int>(P_SLOT_FREE))
+        return static_cast<int>(ErrorCode::E_BAD_DEST); /* dead dest */
 
     /* Check for messages wrapping around top of memory or outside data seg. */
     len = caller_ptr->p_map[D].mem_len;        // mem_len is vir_clicks (std::size_t)
@@ -177,23 +182,23 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
           CLICK_SHIFT; /* vir click for top of message. MESS_SIZE is sizeof(message) */
     // p_map[D].mem_vir is vir_clicks (std::size_t)
     if (vhi < vlo || vhi - caller_ptr->p_map[D].mem_vir >= len)
-        return (ErrorCode::E_BAD_ADDR);
+        return static_cast<int>(ErrorCode::E_BAD_ADDR);
 
     /* Check to see if 'dest' is blocked waiting for this message. */
-    if ((dest_ptr->p_flags & RECEIVING) &&
+    if ((dest_ptr->p_flags & static_cast<int>(RECEIVING)) &&
         (dest_ptr->p_getfrom == ANY || dest_ptr->p_getfrom == caller)) {
         /* Destination is indeed waiting for this message. */
         cp_mess(caller, caller_ptr->p_map[D].mem_phys, m_ptr, dest_ptr->p_map[D].mem_phys,
                 dest_ptr->p_messbuf);
-        dest_ptr->p_flags &= ~RECEIVING; /* deblock destination */
+        dest_ptr->p_flags &= ~static_cast<int>(RECEIVING); /* deblock destination */
         if (dest_ptr->p_flags == 0)
             ready(dest_ptr);
     } else {
         /* Destination is not waiting.  Block and queue caller. */
         if (caller == HARDWARE)
-            return (ErrorCode::E_OVERRUN);
+            return static_cast<int>(ErrorCode::E_OVERRUN);
         caller_ptr->p_messbuf = m_ptr;
-        caller_ptr->p_flags |= SENDING;
+        caller_ptr->p_flags |= static_cast<int>(SENDING);
         unready(caller_ptr);
 
         /* Process is now blocked.  Put in on the destination's queue. */
@@ -224,7 +229,7 @@ PUBLIC int mini_send(int caller, int dest, message *m_ptr) {
  * @param m_ptr  Buffer to place the message.
  * @return OK when successful.
  */
-static int mini_rec(int caller, int src, message *m_ptr) {
+int mini_rec(int caller, int src, message *m_ptr) {
     /* A process or task wants to get a message.  If one is already queued,
      * acquire it and deblock the sender.  If no message from the desired source
      * is available, block the caller.  No need to check parameters for validity.
@@ -232,7 +237,7 @@ static int mini_rec(int caller, int src, message *m_ptr) {
      * Calls from the tasks, MM, and FS are trusted.
      */
 
-    register struct proc *caller_ptr, *sender_ptr, *prev_ptr;
+    struct proc *caller_ptr, *sender_ptr, *prev_ptr;
     int sender;
 
     caller_ptr = proc_addr(caller); /* pointer to caller's proc structure */
@@ -240,13 +245,13 @@ static int mini_rec(int caller, int src, message *m_ptr) {
     /* Check to see if a message from desired source is already available. */
     sender_ptr = caller_ptr->p_callerq;
     while (sender_ptr != nullptr) { // NIL_PROC -> nullptr
-        sender = sender_ptr - proc - NR_TASKS;
+        sender = static_cast<int>(sender_ptr - proc - NR_TASKS);
         if (src == ANY || src == sender) {
             /* An acceptable message has been found. */
             // p_map[D].mem_phys is phys_clicks (uint64_t). cp_mess expects uint64_t.
             cp_mess(sender, sender_ptr->p_map[D].mem_phys, sender_ptr->p_messbuf,
                     caller_ptr->p_map[D].mem_phys, m_ptr);
-            sender_ptr->p_flags &= ~SENDING; /* deblock sender */
+            sender_ptr->p_flags &= ~static_cast<int>(SENDING); /* deblock sender */
             if (sender_ptr->p_flags == 0)
                 ready(sender_ptr);
             if (sender_ptr == caller_ptr->p_callerq)
@@ -262,7 +267,7 @@ static int mini_rec(int caller, int src, message *m_ptr) {
     /* No suitable message is available.  Block the process trying to receive. */
     caller_ptr->p_getfrom = src;
     caller_ptr->p_messbuf = m_ptr;
-    caller_ptr->p_flags |= RECEIVING;
+    caller_ptr->p_flags |= static_cast<int>(RECEIVING);
     unready(caller_ptr);
 
     /* If MM has just blocked and there are kernel signals pending, now is the
@@ -281,10 +286,10 @@ static int mini_rec(int caller, int src, message *m_ptr) {
  *
  * Updates global scheduling pointers and picks from the ready queues.
  */
-PUBLIC pick_proc() {
+PUBLIC void pick_proc() {
     /* Decide who to run now. */
 
-    register int q; /* which queue to use */
+    int q; /* which queue to use */
 #if SCHED_ROUND_ROBIN
     if (rdy_head[current_cpu][TASK_Q] != nullptr) // NIL_PROC -> nullptr
         q = TASK_Q;
@@ -311,7 +316,7 @@ PUBLIC pick_proc() {
     prev_proc = cur_proc;
     if (rdy_head[current_cpu][q] != nullptr) { // NIL_PROC -> nullptr
         /* Someone is runnable. */
-        cur_proc = rdy_head[current_cpu][q] - proc - NR_TASKS;
+        cur_proc = static_cast<int>(rdy_head[current_cpu][q] - proc - NR_TASKS);
         proc_ptr = rdy_head[current_cpu][q];
         if (cur_proc >= LOW_USER)
             bill_ptr = proc_ptr;
@@ -342,8 +347,7 @@ PUBLIC void ready(struct proc *rp) {
      *   USER_Q   - (lowest priority) for user processes
      */
 
-    register int q; /* queue index */
-    int r;
+    int q; /* queue index */
     int cpu = rp->p_cpu;
 
     lock(); /* disable interrupts */
@@ -360,7 +364,7 @@ PUBLIC void ready(struct proc *rp) {
 
     /* See if the relevant queue is empty. */
     if (rdy_head[cpu][q] == nullptr) // NIL_PROC -> nullptr
-        r_rdy_head[cpu][q] = rp;     /* add to empty queue */
+        rdy_head[cpu][q] = rp;     /* add to empty queue */
     else
         rdy_tail[cpu][q]->p_nextready = rp; /* add to tail of nonempty queue */
     rdy_tail[cpu][q] = rp;                  /* new entry has no successor */
@@ -382,8 +386,8 @@ PUBLIC void ready(struct proc *rp) {
 PUBLIC void unready(struct proc *rp) {
     /* A process has blocked. */
 
-    register struct proc *xp;
-    int r, q;
+    struct proc *xp;
+    int q;
     int cpu = rp->p_cpu;
 
     lock(); /* disable interrupts */

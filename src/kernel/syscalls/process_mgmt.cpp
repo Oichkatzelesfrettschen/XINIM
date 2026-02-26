@@ -13,7 +13,7 @@
 #include "../pcb.hpp"
 #include "../scheduler.hpp"
 #include "../uaccess.hpp"
-#include "../../early/serial_16550.hpp"
+#include "../early/serial_16550.hpp"
 #include <cerrno>
 #include <cstring>
 #include <cstdio>
@@ -86,7 +86,13 @@ extern "C" int64_t sys_fork(uint64_t, uint64_t, uint64_t,
     }
 
     // 2. Copy basic process state
-    child->name = parent->name;  // Share name string (read-only)
+    child->name = child->name_storage.data();
+    if (parent->name) {
+        std::strncpy(child->name_storage.data(), parent->name, child->name_storage.size() - 1);
+        child->name_storage.back() = '\0';
+    } else {
+        child->name_storage[0] = '\0';
+    }
     child->state = ProcessState::READY;
     child->priority = parent->priority;
 
