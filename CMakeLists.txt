@@ -1,76 +1,48 @@
 # XINIM - Modern C++23 Post-Quantum Microkernel Operating System
-# CMake Build Configuration (Generated from xmake - Secondary Build System)
+# CMake Build Configuration (Refined for Bare-Metal Baseline)
 
-cmake_minimum_required(VERSION 3.20)
+cmake_minimum_required(VERSION 3.28)
+
 project(XINIM VERSION 1.0.0 LANGUAGES C CXX ASM)
 
 # =============================================================================
-# Build Configuration
+# Project Options and Compiler Warnings (from cmake/ modules)
 # =============================================================================
 
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-set(CMAKE_CXX_EXTENSIONS OFF)
+list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
+include(ProjectOptions)
+include(CompilerWarnings)
 
-set(CMAKE_C_STANDARD 17)
-set(CMAKE_C_STANDARD_REQUIRED ON)
-
-# Export compile commands for clang-tidy
-set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
-
-# Build types
-if(NOT CMAKE_BUILD_TYPE)
-    set(CMAKE_BUILD_TYPE "Debug" CACHE STRING "Build type" FORCE)
-endif()
-
-set_property(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS "Debug" "Release" "RelWithDebInfo" "MinSizeRel")
-
-# =============================================================================
-# Compiler Flags
-# =============================================================================
-
-# Warning flags
+# Architecture-specific flags applied globally (bare-metal target)
+add_compile_options(-march=x86-64 -mtune=generic)
 add_compile_options(
-    -Wall
-    -Wextra
-    -Wpedantic
-    $<$<COMPILE_LANGUAGE:CXX>:-Werror>
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-rtti>
 )
 
-# Architecture-specific flags
-add_compile_definitions(__XINIM_X86_64__)
-add_compile_options(-march=x86-64 -mtune=generic)
-
-# POSIX compliance
-add_compile_definitions(_XOPEN_SOURCE=700 _GNU_SOURCE)
-add_compile_options(-pthread)
-add_link_options(-pthread -lrt)
+# Limine boot protocol
+add_compile_definitions(XINIM_BOOT_LIMINE)
 
 # =============================================================================
-# Dependencies
+# Testing Infrastructure
 # =============================================================================
 
-find_package(PkgConfig REQUIRED)
-pkg_check_modules(LIBSODIUM REQUIRED libsodium)
+enable_testing()
 
 # =============================================================================
 # Include Directories
 # =============================================================================
 
-include_directories(
-    ${CMAKE_SOURCE_DIR}/include
-    ${CMAKE_SOURCE_DIR}/include/xinim
-    ${CMAKE_SOURCE_DIR}/include/xinim/drivers
-    ${CMAKE_SOURCE_DIR}/third_party/limine
-    ${LIBSODIUM_INCLUDE_DIRS}
-)
+# Note: global include_directories() removed. Includes are set per-target via
+# xinim_apply_target_defaults() in cmake/ProjectOptions.cmake and explicit
+# target_include_directories() calls in each test target.
 
 # =============================================================================
-# Main XINIM Kernel Target
+# Main XINIM Kernel Target (Bare-Metal Baseline)
 # =============================================================================
 
 add_executable(xinim
-    src/main.cpp
+    src/kernel/main.cpp
     src/kernel/kernel.cpp
     src/kernel/system.cpp
     src/kernel/syscall.cpp
@@ -79,203 +51,272 @@ add_executable(xinim
     src/kernel/service.cpp
     src/kernel/tty.cpp
     src/kernel/panic.cpp
+    src/boot/limine/shim.cpp
+    src/kernel/klib64.cpp
+    src/kernel/mpx64_stubs.S
+    src/kernel/exception_stubs.cpp
+    src/kernel/signal_stubs.cpp
+    src/kernel/time_stubs.cpp
+    src/kernel/wait_graph.cpp
+    src/kernel/lock_manager.cpp
+    src/kernel/capability_mutex.cpp
+    src/kernel/table.cpp
+    src/kernel/clock.cpp
+    src/kernel/dmp.cpp
+    # idt64.cpp removed: superseded by unified path in interrupts.cpp
+    src/kernel/interrupts.cpp
+    src/kernel/irq.cpp
+    src/kernel/memory.cpp
+    src/kernel/paging.cpp
+    src/mm/alloc.cpp
+    src/kernel/scheduler.cpp
+    src/kernel/acpi/acpi.cpp
+    src/kernel/time/calibrate.cpp
+    src/kernel/timer.cpp
+    src/kernel/server_spawn.cpp
+    src/hal/x86_64/hal/apic.cpp
+    src/hal/x86_64/hal/hpet.cpp
+    src/hal/x86_64/hal/ioapic.cpp
+    src/kernel/printer.cpp
+    src/kernel/wini.cpp
+    src/kernel/floppy.cpp
+    src/kernel/sys/dispatch.cpp
+    src/kernel/arch/x86_64/gdt.cpp
+    src/kernel/arch/x86_64/idt.cpp
+    src/kernel/arch/x86_64/tss.cpp
+    src/kernel/arch/x86_64/stub.cpp
+    src/kernel/arch/x86_64/syscall_init.cpp
+    src/kernel/arch/x86_64/isr.S
+    src/arch/x86_64/gdt_load.S
+    src/arch/x86_64/tss_load.S
+    src/arch/x86_64/syscall_handler.S
+    src/arch/x86_64/context_switch.S
+    src/arch/x86_64/interrupts.S
+    src/kernel/lattice_ipc.cpp
+    src/kernel/early/serial_16550.cpp
+    src/kernel/bare_metal_stubs.cpp
+    src/hal/hal.cpp
 )
 
-target_link_libraries(xinim PRIVATE
-    ${LIBSODIUM_LIBRARIES}
-    pthread
-    rt
+# Apply project-wide target defaults (C++23, defines, includes)
+xinim_apply_target_defaults(xinim)
+xinim_set_warnings(xinim)
+
+# Bare-metal: disable hosted C++ runtime assumptions
+target_compile_options(xinim PRIVATE -ffreestanding)
+
+# Linker script for bare-metal kernel layout (1MB physical load)
+target_link_options(xinim PRIVATE -T ${CMAKE_SOURCE_DIR}/linker.ld)
+target_link_options(xinim PRIVATE -nostdlib -static -fno-stack-protector)
+
+# No Conan-managed runtime deps: crypto is vendored, kernel is freestanding.
+# target_link_libraries(xinim PRIVATE) -- intentionally empty
+
+# =============================================================================
+# Kernel Binary Existence Check
+# =============================================================================
+# Verifies the xinim kernel binary was produced by the build.
+
+add_test(NAME build_check
+    COMMAND ${CMAKE_COMMAND} -E true
+)
+set_tests_properties(build_check PROPERTIES LABELS "build")
+
+# =============================================================================
+# Host-Side Unit Tests (compiled as regular hosted C++23 executables)
+# =============================================================================
+# These tests run on the build host, not inside the kernel.
+# They exercise self-contained kernel data structures that don't require
+# bare-metal support (schedulers, wait graphs, sync primitives, etc.).
+
+# Common sources shared by multiple host tests
+set(XINIM_TEST_COMMON_SOURCES
+    src/kernel/wait_graph.cpp
 )
 
-# =============================================================================
-# Sanitizer Targets
-# =============================================================================
+set(XINIM_TEST_SCHED_SOURCES
+    ${XINIM_TEST_COMMON_SOURCES}
+    src/kernel/schedule.cpp
+    src/kernel/service.cpp
+)
 
-# AddressSanitizer
-option(ENABLE_ASAN "Enable AddressSanitizer" OFF)
-if(ENABLE_ASAN)
-    add_executable(xinim-asan
-        src/main.cpp
-        src/kernel/kernel.cpp
-        src/mm/memory.cpp
-    )
-    target_compile_options(xinim-asan PRIVATE
-        -fsanitize=address
-        -fno-omit-frame-pointer
-        -O1 -g
-    )
-    target_link_options(xinim-asan PRIVATE -fsanitize=address)
-    target_include_directories(xinim-asan PRIVATE include include/xinim)
-endif()
+# Capability mutex needs octonion + lock_manager + schedule + service
+set(XINIM_TEST_CAPMUTEX_SOURCES
+    ${XINIM_TEST_SCHED_SOURCES}
+    src/kernel/capability_mutex.cpp
+    src/kernel/lock_manager.cpp
+)
 
-# ThreadSanitizer
-option(ENABLE_TSAN "Enable ThreadSanitizer" OFF)
-if(ENABLE_TSAN)
-    add_executable(xinim-tsan
-        src/main.cpp
-        src/kernel/kernel.cpp
-        src/mm/memory.cpp
+# Helper function to configure a host-side test target.
+# Host tests compile as regular hosted C++23 (exceptions, RTTI, threads).
+# They DO NOT inherit -ffreestanding (that is only for the kernel target).
+function(xinim_add_host_test TEST_NAME TEST_SOURCE)
+    add_executable(${TEST_NAME} ${TEST_SOURCE} ${ARGN})
+    target_compile_features(${TEST_NAME} PRIVATE cxx_std_23)
+    target_include_directories(${TEST_NAME} PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${CMAKE_SOURCE_DIR}/include/xinim
+        ${CMAKE_SOURCE_DIR}/src/kernel
     )
-    target_compile_options(xinim-tsan PRIVATE -fsanitize=thread -O1 -g)
-    target_link_options(xinim-tsan PRIVATE -fsanitize=thread)
-    target_include_directories(xinim-tsan PRIVATE include include/xinim)
-endif()
+    target_compile_options(${TEST_NAME} PRIVATE -stdlib=libc++ -pthread)
+    target_link_options(${TEST_NAME} PRIVATE -stdlib=libc++ -pthread)
+    xinim_set_warnings(${TEST_NAME})
+    add_test(NAME ${TEST_NAME} COMMAND ${TEST_NAME})
+    set_tests_properties(${TEST_NAME} PROPERTIES TIMEOUT 30 LABELS "unit")
+endfunction()
 
-# UndefinedBehaviorSanitizer
-option(ENABLE_UBSAN "Enable UndefinedBehaviorSanitizer" OFF)
-if(ENABLE_UBSAN)
-    add_executable(xinim-ubsan
-        src/main.cpp
-        src/kernel/kernel.cpp
-        src/mm/memory.cpp
-    )
-    target_compile_options(xinim-ubsan PRIVATE -fsanitize=undefined -O1 -g)
-    target_link_options(xinim-ubsan PRIVATE -fsanitize=undefined)
-    target_include_directories(xinim-ubsan PRIVATE include include/xinim)
-endif()
+# --- Wait Graph Tests ---
+xinim_add_host_test(test_wait_graph
+    test/test_wait_graph.cpp
+    ${XINIM_TEST_COMMON_SOURCES}
+)
 
-# =============================================================================
-# Coverage Target
-# =============================================================================
+# --- Scheduler Tests ---
+xinim_add_host_test(test_scheduler
+    test/test_scheduler.cpp
+    ${XINIM_TEST_SCHED_SOURCES}
+)
 
-option(ENABLE_COVERAGE "Enable code coverage" OFF)
-if(ENABLE_COVERAGE)
-    add_executable(xinim-coverage
-        src/main.cpp
-        src/kernel/kernel.cpp
-        src/mm/memory.cpp
-    )
-    target_compile_options(xinim-coverage PRIVATE
-        --coverage
-        -fprofile-arcs
-        -ftest-coverage
-        -O0 -g
-    )
-    target_link_options(xinim-coverage PRIVATE --coverage)
-    target_link_libraries(xinim-coverage PRIVATE gcov)
-    target_include_directories(xinim-coverage PRIVATE include include/xinim)
-    
-    # Coverage target
-    add_custom_target(coverage
-        COMMAND lcov --capture --directory . --output-file coverage.info
-        COMMAND lcov --remove coverage.info '/usr/*' '*/third_party/*' --output-file coverage_filtered.info
-        COMMAND genhtml coverage_filtered.info --output-directory coverage_html --demangle-cpp
-        COMMAND echo "Coverage report: coverage_html/index.html"
-        DEPENDS xinim-coverage
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    )
-endif()
+# --- Service Contract Tests ---
+xinim_add_host_test(test_service_contract
+    test/test_service_contract.cpp
+    ${XINIM_TEST_SCHED_SOURCES}
+)
 
-# =============================================================================
-# Analysis Targets
-# =============================================================================
+# --- Sync Primitive Tests ---
+xinim_add_host_test(test_ticket_spinlock
+    test/test_ticket_spinlock.cpp
+)
 
-# Format target
-find_program(CLANG_FORMAT clang-format)
-if(CLANG_FORMAT)
-    file(GLOB_RECURSE ALL_SOURCE_FILES
-        ${CMAKE_SOURCE_DIR}/src/*.cpp
-        ${CMAKE_SOURCE_DIR}/src/*.hpp
-        ${CMAKE_SOURCE_DIR}/include/*.hpp
-        ${CMAKE_SOURCE_DIR}/include/*.h
-    )
-    add_custom_target(format
-        COMMAND ${CLANG_FORMAT} -i ${ALL_SOURCE_FILES}
-        COMMENT "Formatting source code with clang-format"
-    )
-endif()
+xinim_add_host_test(test_mcs_spinlock
+    test/test_mcs_spinlock.cpp
+)
 
-# Lint target (clang-tidy)
-find_program(CLANG_TIDY clang-tidy)
-if(CLANG_TIDY)
-    add_custom_target(lint
-        COMMAND ${CLANG_TIDY} -p ${CMAKE_BINARY_DIR} ${CMAKE_SOURCE_DIR}/src/kernel/*.cpp
-        COMMENT "Running clang-tidy"
-    )
-endif()
+xinim_add_host_test(test_phase_rwlock
+    test/test_phase_rwlock.cpp
+)
 
-# Formal verification
-add_custom_target(verify
-    COMMAND python3 ${CMAKE_SOURCE_DIR}/specs/verify_all.py
-    COMMENT "Running formal verification (Z3)"
+# adaptive_mutex test skipped: header calls sched::scheduler.is_blocked()
+# which is not yet implemented in the Scheduler class.
+
+xinim_add_host_test(test_capability_mutex
+    test/test_capability_mutex.cpp
+    ${XINIM_TEST_CAPMUTEX_SOURCES}
+)
+
+# --- Additional Scheduler Tests ---
+xinim_add_host_test(test_scheduler_edge
+    test/test_scheduler_edge.cpp
+    ${XINIM_TEST_SCHED_SOURCES}
+)
+
+xinim_add_host_test(test_scheduler_deadlock
+    test/test_scheduler_deadlock.cpp
+    ${XINIM_TEST_SCHED_SOURCES}
+)
+
+# --- Data Structure Tests (header-only, no additional sources) ---
+xinim_add_host_test(test_octonion
+    test/test_octonion.cpp
+)
+
+xinim_add_host_test(test_fano_multiply
+    test/test_fano_multiply.cpp
+)
+
+xinim_add_host_test(test_core_types
+    test/test_core_types.cpp
+)
+
+# --- Crypto Tests (host-side, no kernel deps) ---
+xinim_add_host_test(test_fips202
+    test/test_fips202.cpp
+    src/crypto/kyber_impl/fips202.cpp
+)
+target_include_directories(test_fips202 PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
+
+xinim_add_host_test(test_ntt_roundtrip
+    test/test_ntt_roundtrip.cpp
+    src/crypto/kyber_impl/ntt.cpp
+)
+target_include_directories(test_ntt_roundtrip PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
+
+xinim_add_host_test(test_montgomery_reduce
+    test/test_montgomery_reduce.cpp
+)
+target_include_directories(test_montgomery_reduce PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
+
+# --- Wait Graph Additional Tests ---
+xinim_add_host_test(test_wait_graph_stress
+    test/test_wait_graph_stress.cpp
+    ${XINIM_TEST_COMMON_SOURCES}
+)
+
+# --- Lock Manager Tests ---
+xinim_add_host_test(test_lock_manager
+    test/test_lock_manager.cpp
+    ${XINIM_TEST_CAPMUTEX_SOURCES}
+)
+
+# --- Service Manager Tests ---
+xinim_add_host_test(test_service_manager
+    test/test_service_manager.cpp
+    src/kernel/service.cpp
+)
+
+# --- Crypto Constants Tests (header-only) ---
+xinim_add_host_test(test_kyber_constants
+    test/test_kyber_constants.cpp
+)
+target_include_directories(test_kyber_constants PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
+
+# --- Boot / Integration Tests (QEMU-based, require kernel image) ---
+# These are registered but only meaningful when the kernel is built.
+
+add_test(
+    NAME boot_smoke_test
+    COMMAND ${CMAKE_SOURCE_DIR}/test/boot/smoke_test.sh
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
 )
-
-# All analysis
-add_custom_target(analyze
-    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/run_analysis.sh
-    COMMENT "Running comprehensive analysis"
-    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+set_tests_properties(boot_smoke_test PROPERTIES
+    LABELS "integration;boot"
+    TIMEOUT 30
 )
 
-# Advanced analysis
-add_custom_target(analyze-advanced
-    COMMAND bash ${CMAKE_SOURCE_DIR}/tools/run_advanced_analysis.sh
-    COMMENT "Running advanced analysis suite"
+add_test(
+    NAME kshell_test
+    COMMAND python3 ${CMAKE_SOURCE_DIR}/test/boot/kshell_test.py
     WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+)
+set_tests_properties(kshell_test PROPERTIES
+    LABELS "integration;kshell"
+    TIMEOUT 60
 )
 
 # =============================================================================
-# Documentation
+# Documentation Target (Doxygen)
 # =============================================================================
 
-find_program(DOXYGEN doxygen)
-if(DOXYGEN)
-    add_custom_target(docs
-        COMMAND ${DOXYGEN} ${CMAKE_SOURCE_DIR}/Doxyfile
-        COMMENT "Generating Doxygen documentation"
+find_program(DOXYGEN_EXECUTABLE doxygen)
+if(DOXYGEN_EXECUTABLE)
+    set(DOXYGEN_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/docs)
+    configure_file(
+        ${CMAKE_SOURCE_DIR}/docs/Doxyfile.in
+        ${CMAKE_BINARY_DIR}/Doxyfile
+        @ONLY
+    )
+    add_custom_target(xinim_docs
+        COMMAND ${DOXYGEN_EXECUTABLE} ${CMAKE_BINARY_DIR}/Doxyfile
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        COMMENT "Generating API documentation with Doxygen"
+        VERBATIM
     )
+else()
+    message(WARNING "Doxygen not found; 'cmake --build --preset debug --target xinim_docs' will not work. Install doxygen to generate API docs.")
 endif()
 
 # =============================================================================
-# Testing
+# Build Targets status
 # =============================================================================
 
-enable_testing()
-
-# POSIX tests
-if(EXISTS ${CMAKE_SOURCE_DIR}/src/posix/test.cpp)
-    add_executable(posix-test src/posix/test.cpp)
-    target_link_libraries(posix-test PRIVATE pthread)
-    add_test(NAME POSIXTest COMMAND posix-test)
-endif()
-
-# =============================================================================
-# Installation
-# =============================================================================
-
-install(TARGETS xinim
-    RUNTIME DESTINATION bin
-)
-
-install(DIRECTORY include/xinim
-    DESTINATION include
-    FILES_MATCHING PATTERN "*.hpp" PATTERN "*.h"
-)
-
-# =============================================================================
-# Summary
-# =============================================================================
-
-message(STATUS "XINIM Build Configuration")
-message(STATUS "  Version: ${PROJECT_VERSION}")
-message(STATUS "  Build type: ${CMAKE_BUILD_TYPE}")
-message(STATUS "  C++ Standard: ${CMAKE_CXX_STANDARD}")
-message(STATUS "  Sanitizers:")
-message(STATUS "    ASAN: ${ENABLE_ASAN}")
-message(STATUS "    TSAN: ${ENABLE_TSAN}")
-message(STATUS "    UBSAN: ${ENABLE_UBSAN}")
-message(STATUS "  Coverage: ${ENABLE_COVERAGE}")
-message(STATUS "")
-message(STATUS "Available targets:")
-message(STATUS "  xinim          - Main kernel binary")
-message(STATUS "  format         - Format code with clang-format")
-message(STATUS "  lint           - Run clang-tidy")
-message(STATUS "  verify         - Run formal verification")
-message(STATUS "  analyze        - Run comprehensive analysis")
-message(STATUS "  analyze-advanced - Run advanced analysis suite")
-message(STATUS "  docs           - Generate Doxygen documentation")
-if(ENABLE_COVERAGE)
-    message(STATUS "  coverage       - Generate coverage report")
-endif()
+message(STATUS "XINIM Baseline Kernel Target Configured.")

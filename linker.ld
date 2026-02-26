@@ -1,11 +1,24 @@
+/* Xinim Kernel Linker Script - Limine boot protocol (x86-64, 1MB physical load) */
+/* WHY: Merged Limine protocol sections from src/kernel/linker.ld so that both
+        the Limine .requests section and legacy multiboot header are covered.
+        src/kernel/linker.ld is now superseded by this file. */
+
+OUTPUT_FORMAT(elf64-x86-64)
+OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start)
 
 _kernel_physical_start = 1M;
-_kernel_virtual_start = 1M; /* Kernel expects to run from this virtual address */
+_kernel_virtual_start = 1M;
 
 SECTIONS {
-    . = 1M; /* Set current location counter to 1MB (physical load address) */
+    . = 1M;
 
+    /* Limine boot protocol request section (must appear before .text) */
+    .limine_requests ALIGN(4K) : {
+        KEEP(*(.limine.requests))
+    }
+
+    /* Legacy multiboot header (kept for compatibility) */
     .multiboot_header ALIGN(4K) : {
         *(.multiboot_header)
     }
@@ -26,16 +39,12 @@ SECTIONS {
     }
 
     /* Kernel uninitialized data */
-    /* ALIGN(4K) ensures _kernel_physical_end starts on a page boundary if BSS is empty, */
-    /* or that BSS itself starts on a page boundary. */
     .bss ALIGN(4K) : {
         *(.bss .bss.* .gnu.linkonce.b.*)
         *(COMMON)
     }
 
-    /* Symbol marking the end of the kernel's physical memory usage */
-    /* For identity mapping, this is also the end of its virtual space from its perspective. */
-    _kernel_physical_end = ALIGN(4K, .); /* Align end to next page boundary for safety */
+    /* Symbols marking the end of kernel physical/virtual memory usage */
+    _kernel_physical_end = ALIGN(4K, .);
     _kernel_virtual_end = _kernel_virtual_start + (_kernel_physical_end - _kernel_physical_start);
-
 }

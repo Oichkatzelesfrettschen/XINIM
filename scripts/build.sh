@@ -70,7 +70,7 @@ fi
 
 if [[ "$DOCS" == true ]]; then
     print_status "Generating documentation..."
-    cmake --build --preset "$MODE" --target docs
+    cmake --build --preset "$MODE" --target xinim_docs
 fi
 
 print_status "Build completed successfully."
