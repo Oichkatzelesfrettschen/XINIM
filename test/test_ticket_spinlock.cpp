@@ -3,11 +3,13 @@
  * @brief Unit tests for TicketSpinlock.
  */
 
-#include "../src/kernel/ticket_spinlock.hpp"
+#include "ticket_spinlock.hpp"
 #include <cassert>
+#include <atomic>
+#include <chrono>
+#include <mutex>
 #include <thread>
 #include <vector>
-#include <atomic>
 
 using namespace xinim::sync;
 
@@ -112,7 +114,6 @@ static void test_mutual_exclusion() {
  */
 static void test_fifo_fairness() {
     TicketSpinlock lock;
-    std::atomic<int> acquisition_order{0};
     std::vector<int> order;
     std::mutex order_mutex;
 

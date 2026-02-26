@@ -121,7 +121,7 @@ class PhaseRWLock {
         writer_waiting_.store(true, std::memory_order_release);
 
         // Increment phase (new readers wait for next phase)
-        uint32_t old_phase = phase_.fetch_add(1, std::memory_order_acquire);
+        phase_.fetch_add(1, std::memory_order_acquire);
 
         // Wait for all readers from previous phase to finish
         while (readers_.load(std::memory_order_acquire) > 0) {
