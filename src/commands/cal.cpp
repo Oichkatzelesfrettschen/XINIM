@@ -175,7 +175,7 @@ static void output(int nmonths) {
             for (i = 0; i < 20; i++)
                 tmpbuf[i] = *p++;
             tmpbuf[20] = 0;
-            sprintf(outp, "%s   ", tmpbuf);
+            snprintf(outp, (DAYS_PER_WEEK * ENTRY_SIZE) + MONTH_SPACE, "%s   ", tmpbuf);
             outp += (DAYS_PER_WEEK * ENTRY_SIZE) + MONTH_SPACE - 1;
         }
         while (outp > outline.data() && outp[-1] == ' ')

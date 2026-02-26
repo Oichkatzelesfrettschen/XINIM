@@ -102,7 +102,8 @@ struct ProcessControlBlock {
           uid(0), euid(0), gid(0), egid(0),
           sig_mask(0), sig_pending(0),
           user_time(0), sys_time(0) {
-        std::strcpy(cwd, "/");
+        std::strncpy(cwd, "/", sizeof(cwd) - 1);
+        cwd[sizeof(cwd) - 1] = '\0';
         sig_actions.fill(SignalAction::DEFAULT);
         sig_handlers.fill(0);
     }
@@ -154,7 +155,8 @@ public:
         if (ppid > 0) {
             auto* parent = get_process(ppid);
             if (parent) {
-                std::strcpy(pcb.cwd, parent->cwd);
+                std::strncpy(pcb.cwd, parent->cwd, sizeof(pcb.cwd) - 1);
+                pcb.cwd[sizeof(pcb.cwd) - 1] = '\0';
             }
         }
 
