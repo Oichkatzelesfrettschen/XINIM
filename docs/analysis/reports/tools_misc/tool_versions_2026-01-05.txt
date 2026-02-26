@@ -1,0 +1,21 @@
+Tool availability check
+Date: 2026-01-05
+
+cmake: ok
+conan: ok
+clang: ok
+clang++: ok
+lld: ok
+lldb: ok
+ninja: ok
+doxygen: ok
+sphinx-build: ok
+qemu-system-x86_64: ok
+clang-format: ok
+clang-tidy: ok
+cppcheck: ok
+cloc: ok
+lizard: ok
+flawfinder: ok
+sloccount: missing
+pmccabe: missing

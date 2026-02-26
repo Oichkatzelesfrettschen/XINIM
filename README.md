@@ -1,18 +1,18 @@
 # XINIM: Modern C++23 Post-Quantum Microkernel Operating System
 
 [![C++23](https://img.shields.io/badge/C%2B%2B-23-blue.svg)](https://en.cppreference.com/w/cpp/23)
-[![POSIX](https://img.shields.io/badge/POSIX-2024-green.svg)](https://pubs.opengroup.org/onlinepubs/9799919799/)
+[![POSIX](https://img.shields.io/badge/POSIX-in%20progress-yellow.svg)](https://pubs.opengroup.org/onlinepubs/9799919799/)
 [![License](https://img.shields.io/badge/License-BSD%203--Clause-blue.svg)](LICENSE)
 
 XINIM is an advanced C++23 reimplementation of MINIX that extends the classic microkernel architecture with post-quantum cryptography, hardware abstraction layers, and sophisticated mathematical foundations. This research operating system demonstrates modern systems programming while maintaining educational clarity.
 
 ## 🚀 Key Innovations
 
-### Pure C++23 Implementation
-- **C++23 Core**: Migration to pure C++23 is in progress (legacy C remains in libc/third_party)
-- **Modern Language Features**: Concepts, ranges, coroutines, modules
-- **Compile-time Optimization**: Extensive constexpr and template metaprogramming
-- **RAII Throughout**: Automatic resource management and exception safety
+### C++23 Implementation (Migration in Progress)
+- **C++23 Migration**: Core kernel targets C++23; migration from legacy C is ongoing
+- **Modern Language Features**: Concepts, ranges, constexpr, template metaprogramming
+- **Compile-time Optimization**: Extensive constexpr evaluation
+- **RAII Throughout**: Automatic resource management
 
 ### Hardware Abstraction Layer (HAL)
 - **x86_64 Architecture**: Focused on modern 64-bit Intel/AMD processors
@@ -33,36 +33,39 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **DAG Scheduling**: Dependency-aware scheduling with deadlock detection
 - **Service Resurrection**: Automatic fault recovery with dependency ordering
 
-## 📁 POSIX-Compliant Project Structure
+## Project Structure
 
 ```
 XINIM/
-├── bin/                    # Executables and scripts
-├── include/               # Public headers (.hpp only)
+├── include/               # Public headers (.hpp)
 │   ├── sys/              # System headers
-│   ├── c++/              # C++ standard library extensions
-│   ├── posix/            # POSIX API headers
-│   └── xinim/            # XINIM-specific headers
-├── lib/                   # Static/Shared libraries
+│   └── xinim/            # XINIM-specific headers (fs, net, kernel, ...)
 ├── src/                   # Source code
-│   ├── kernel/           # Microkernel core
-│   ├── hal/              # Hardware Abstraction Layer
-│   ├── crypto/           # Cryptography implementations
-│   ├── fs/               # Filesystem implementations
+│   ├── arch/x86_64/      # Architecture-specific assembly
+│   ├── boot/limine/      # Limine boot shim
+│   ├── crypto/           # Post-quantum crypto (Kyber, FIPS 202)
+│   ├── fs/               # MINIX-heritage filesystem
+│   ├── hal/x86_64/       # Hardware Abstraction Layer (APIC, HPET, PCI)
+│   ├── kernel/           # Microkernel core (scheduler, IPC, syscalls)
 │   ├── mm/               # Memory management
-│   ├── net/              # Networking stack
-│   └── tools/            # Build tools and utilities
-├── test/                  # Test suites
-│   ├── unit/             # Unit tests
-│   ├── integration/      # Integration tests
-│   └── posix/            # POSIX compliance tests
-├── docs/                  # Documentation
-│   ├── api/              # API documentation
-│   ├── guides/           # User guides
-│   └── specs/            # Specifications
-├── scripts/               # Build and development scripts
-├── third_party/           # External dependencies
-└── CMakeLists.txt        # Primary build system
+│   ├── net/              # Networking stub
+│   └── servers/          # Userland-style server stubs (Ring 0 for now)
+├── test/                  # Host-side unit tests + QEMU integration tests
+│   └── boot/             # Smoke test and kshell integration scripts
+├── userland/shell/       # Shell (mksh integration skeleton)
+├── docs/                  # Documentation (see docs/README.md)
+│   ├── adr/              # Architecture Decision Records
+│   ├── specs/            # Technical specifications
+│   ├── testing/          # Test strategy and coverage matrix
+│   └── analysis/         # Audit reports and claims analysis
+├── scripts/               # Build, QEMU, and development scripts
+├── conan/profiles/       # Conan compiler profiles
+├── cmake/                # CMake helper modules
+├── archive/legacy/       # Archived historical docs and code
+├── third_party/limine/   # Limine boot protocol headers
+├── CMakeLists.txt        # Primary build system
+├── CMakePresets.json     # Debug/Release presets
+└── conanfile.py          # Conan package descriptor
 ```
 
 ## 🏗️ Build System
@@ -70,10 +73,10 @@ XINIM/
 XINIM uses **CMake + Conan** as the primary build system, providing:
 
 - **C++23 Standardization**: Consistent feature detection and enforcement
-- **Cross-platform**: Linux, macOS, Windows, BSD
+- **Primary Platform**: Linux (CachyOS/Arch); other platforms not tested
 - **Multi-target**: Debug and Release presets via CMake
 - **Dependency Management**: Conan packages and generated toolchains
-- **Toolchain Flexibility**: GCC, Clang, MSVC support
+- **Compiler**: Clang 21+ (primary); GCC/MSVC not supported
 
 ### Quick Start
 

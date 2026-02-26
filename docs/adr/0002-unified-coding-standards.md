@@ -1,6 +1,6 @@
 # ADR-0002: Unified Coding Standards and Architectural Governance
 
-**Status:** Proposed  
+**Status:** Accepted
 **Date:** 2026-01-03  
 **Deciders:** XINIM Core Team  
 **Related:** ADR-0001 (C++23 Adoption)
@@ -14,7 +14,7 @@ The XINIM codebase exhibits "architectural schizophrenia" - inconsistencies from
 - **4 different error handling patterns** (C-style returns, exceptions, std::optional, raw pointers)
 - **3 different memory management styles** (raw pointers, smart pointers, RAII wrappers)
 - **Multiple naming conventions** (legacy xt_ prefix, modern namespaces, mixed case)
-- **Build system fragmentation** (xmake primary, CMake references, legacy Makefiles)
+- **Build system fragmentation** (legacy xmake references, CMake sole authority per ADR-0001)
 - **Inconsistent include organization** (flat headers, namespaced, POSIX compat)
 
 **Current Architectural Consistency Index (ACI): 42%** (Poor - below 60% threshold)
@@ -160,22 +160,26 @@ include/
 #include <sodium.h>
 ```
 
-### Standard 5: Build System - Dual with Primary
+### Standard 5: Build System - CMake + Conan (Sole Authority)
 
-**Rationale:** xmake for modern C++23, CMake for ecosystem compatibility.
+**Rationale:** CMake is the industry standard for C++ projects. Conan handles
+dependency management. xmake was previously used but is now archived per ADR-0001.
 
 **Decision:**
-- **Primary:** xmake (clean, C++23-native)
-- **Secondary:** CMake (generated from xmake, for IDEs)
+- **Primary and sole:** CMake + Conan (per ADR-0001)
+- **Archived:** xmake (historical, in archive/legacy/)
 - **Remove:** Legacy Makefiles in test/
 
 **Implementation:**
 ```bash
-# Generate CMake from xmake
-xmake project -k cmake
+# Configure and build
+cmake --preset debug
+cmake --build --preset debug
 
 # Single source of truth
-xmake.lua  # All targets, dependencies, configurations
+CMakeLists.txt      # All targets and build configuration
+conanfile.py        # Dependencies (libsodium for source extraction)
+CMakePresets.json   # Build presets (debug, release)
 ```
 
 ---

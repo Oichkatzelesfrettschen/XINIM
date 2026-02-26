@@ -1,0 +1,104 @@
+Capturing in make/cc mode...
+In file included from /home/eirikr/Github/Xinim/src/commands/wc.cpp:43:
+In file included from /usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/format:50:
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/optional:1683:7: error: lambda expression in an unevaluated operand
+      []<typename _Up>(const optional<_Up>&){ }(__t);
+      ^
+In file included from /home/eirikr/Github/Xinim/src/commands/wc.cpp:43:
+In file included from /usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/format:61:
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:860:10: error: expected unqualified-id
+          using enum _Gcb_property;
+                ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:862:16: error: use of undeclared identifier '_Gcb_Control'
+          if (__p1 == _Gcb_Control || __p1 == _Gcb_LF)
+                      ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:862:40: error: use of undeclared identifier '_Gcb_LF'
+          if (__p1 == _Gcb_Control || __p1 == _Gcb_LF)
+                                              ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:865:16: error: use of undeclared identifier '_Gcb_CR'
+          if (__p1 == _Gcb_CR)
+                      ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:866:21: error: use of undeclared identifier '_Gcb_LF'
+            return __p2 != _Gcb_LF; // Do not break between a CR and LF.
+                           ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:869:16: error: use of undeclared identifier '_Gcb_Control'
+          if (__p2 == _Gcb_Control || __p2 == _Gcb_CR || __p2 == _Gcb_LF)
+                      ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:869:40: error: use of undeclared identifier '_Gcb_CR'
+          if (__p2 == _Gcb_Control || __p2 == _Gcb_CR || __p2 == _Gcb_LF)
+                                              ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:869:59: error: use of undeclared identifier '_Gcb_LF'
+          if (__p2 == _Gcb_Control || __p2 == _Gcb_CR || __p2 == _Gcb_LF)
+                                                                 ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:873:16: error: use of undeclared identifier '_Gcb_L'
+          if (__p1 == _Gcb_L)
+                      ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:876:13: error: use of undeclared identifier '_Gcb_L'
+              case _Gcb_L:
+                   ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:877:13: error: use of undeclared identifier '_Gcb_V'
+              case _Gcb_V:
+                   ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:878:13: error: use of undeclared identifier '_Gcb_LV'
+              case _Gcb_LV:
+                   ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:879:13: error: use of undeclared identifier '_Gcb_LVT'
+              case _Gcb_LVT:
+                   ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:886:16: error: use of undeclared identifier '_Gcb_LV'
+          if (__p1 == _Gcb_LV || __p1 == _Gcb_V)
+                      ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:886:35: error: use of undeclared identifier '_Gcb_V'
+          if (__p1 == _Gcb_LV || __p1 == _Gcb_V)
+                                         ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:889:13: error: use of undeclared identifier '_Gcb_V'
+              case _Gcb_V:
+                   ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:890:13: error: use of undeclared identifier '_Gcb_T'
+              case _Gcb_T:
+                   ^
+/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/bits/unicode.h:897:16: error: use of undeclared identifier '_Gcb_LVT'
+          if (__p1 == _Gcb_LVT || __p1 == _Gcb_T)
+                      ^
+fatal error: too many errors emitted, stopping now [-ferror-limit=]
+20 errors generated.
+Aborting translation of method 'main' in file 'src/commands/wc.cpp'
+Known incorrect assumption in the frontend: Expected source expression for OpaqueValueExpr
+Error: the following clang command did not run successfully:
+    /opt/infer/lib/infer/facebook-clang-plugins/clang/install/bin/clang-11
+    @/home/eirikr/Github/Xinim/infer-out/tmp/clang_command_.tmp.809a8c.txt
+  ++Contents of '/home/eirikr/Github/Xinim/infer-out/tmp/clang_command_.tmp.809a8c.txt':
+    "-cc1" "-load"
+    "/opt/infer/lib/infer/infer/bin/../../facebook-clang-plugins/libtooling/build/FacebookClangPlugin.dylib"
+    "-add-plugin" "BiniouASTExporter" "-plugin-arg-BiniouASTExporter" "-"
+    "-plugin-arg-BiniouASTExporter" "PREPEND_CURRENT_DIR=1"
+    "-plugin-arg-BiniouASTExporter" "MAX_STRING_SIZE=65535" "-cc1" "-triple"
+    "x86_64-unknown-linux-gnu" "-fsyntax-only" "-disable-free"
+    "-disable-llvm-verifier" "-discard-value-names" "-main-file-name"
+    "wc.cpp" "-mrelocation-model" "static" "-mframe-pointer=all"
+    "-fmath-errno" "-fno-rounding-math" "-mconstructor-aliases"
+    "-munwind-tables" "-target-cpu" "x86-64" "-fno-split-dwarf-inlining"
+    "-debugger-tuning=gdb" "-resource-dir"
+    "/opt/infer/lib/infer/facebook-clang-plugins/clang/install/lib/clang/11.1.0"
+    "-include"
+    "/opt/infer/lib/infer/infer/bin/../lib/clang_wrappers/global_defines.h"
+    "-I" "/home/eirikr/Github/Xinim/include" "-I"
+    "/home/eirikr/Github/Xinim/src" "-internal-isystem"
+    "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1"
+    "-internal-isystem"
+    "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/x86_64-pc-linux-gnu"
+    "-internal-isystem"
+    "/usr/lib64/gcc/x86_64-pc-linux-gnu/15.2.1/../../../../include/c++/15.2.1/backward"
+    "-internal-isystem" "/usr/local/include" "-internal-isystem"
+    "/opt/infer/lib/infer/facebook-clang-plugins/clang/install/lib/clang/11.1.0/include"
+    "-internal-externc-isystem" "/include" "-internal-externc-isystem"
+    "/usr/include" "-Wno-ignored-optimization-argument" "-Wno-everything"
+    "-std=c++20" "-fdeprecated-macro" "-fdebug-compilation-dir"
+    "/home/eirikr/Github/Xinim" "-ferror-limit" "19" "-fgnuc-version=4.2.1"
+    "-fcxx-exceptions" "-fexceptions" "-x" "c++"
+    "/home/eirikr/Github/Xinim/src/commands/wc.cpp" "-O0" "-include"
+    "/opt/infer/lib/infer/infer/bin/../lib/clang_wrappers/global_defines.h"
+    "-Wno-everything"
+  
+
+

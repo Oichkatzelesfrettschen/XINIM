@@ -1,0 +1,27 @@
+Tool version audit
+Date: 2026-02-26
+
+clang++:             21.1.8
+cmake:               4.2.3
+conan:               2.25.2
+ninja:               1.13.2
+doxygen:             1.16.1
+qemu-system-x86_64:  10.2.0
+lld:                 21.1.8
+cppcheck:            2.19.1
+cloc:                2.08
+lizard:              1.20.0
+flawfinder:          2.0.19
+python3:             3.14.3
+sphinx-build:        8.2.3
+clang-format:        21.1.8
+clang-tidy:          21.1.8
+
+Missing (non-critical):
+sloccount:           not installed
+pmccabe:             not installed
+
+All required tools present at or above minimum versions:
+  Clang >= 21:  OK (21.1.8)
+  CMake >= 4.2: OK (4.2.3)
+  Conan >= 2.24: OK (2.25.2)

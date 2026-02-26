@@ -1,0 +1,2 @@
+warning: Can't find macro file: /usr/lib/coccinelle/standard.h
+warning: Can't find default iso file: /usr/lib/coccinelle/standard.iso

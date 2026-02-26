@@ -1,13 +1,18 @@
 # Long-Term Roadmap
 
+NOTE: The authoritative roadmap is `docs/analysis/ROADMAP_CONSOLIDATED.md`.
+This document provides the high-level direction. The 74-task Hypergranular
+Technical Debt Resolution was completed 2026-02-26 (see
+`docs/IMPLEMENTATION_ROADMAP_TRACKER.md` for summary).
+
 This document outlines the high level plan for progressing the project toward a modern C++ implementation that targets both QEMU and WebAssembly.
 
-## 1. Stable x86_64 Build
+## 1. Stable x86_64 Build (In Progress)
 
-1. Ensure the entire codebase builds cleanly on modern x86_64 toolchains.
-2. Provide Makefiles and CMake scripts that default to Clang++17.
-3. Validate the kernel and userland boot successfully in QEMU.
-4. Establish a repeatable CI pipeline for continuous testing.
+1. ~~Ensure the entire codebase builds cleanly on modern x86_64 toolchains.~~ DONE (Clang 21, zero warnings)
+2. ~~Provide CMake + Conan scripts that default to C++23.~~ DONE (CMakePresets.json, conan profile)
+3. Validate the kernel boots successfully in QEMU. (Infrastructure done; boot test registered)
+4. Establish a repeatable CI pipeline for continuous testing. (CTest with 22 tests; CI runner pending)
 
 ## 2. Modernization and POSIX Compliance
 
