@@ -340,7 +340,7 @@ int64_t sys_setpgid(uint64_t pid, uint64_t pgid,
 
     // pid == 0 means current process
     if (pid == 0) {
-        pid = current->pid;
+        pid = static_cast<uint64_t>(current->pid);
     }
 
     // pgid == 0 means use pid as pgid

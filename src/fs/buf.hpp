@@ -15,10 +15,10 @@
  * optionally providing usage hints to guide eviction policy.
  */
 
-#include "fs/const.hpp"
-#include "fs/type.hpp"
-#include "fs/inode.hpp"
-#include "fs/super.hpp"
+#include "const.hpp"
+#include "type.hpp"
+#include "inode.hpp"
+#include "super.hpp"
 
 /// Forward declaration of the buffer struct.
 struct buf;

@@ -20,9 +20,7 @@
 #include "inode.hpp"
 #include "super.hpp"
 #include "type.hpp"
-#include <minix/fs/const.hpp>
 
-using IoMode = minix::fs::DefaultFsConstants::IoMode;
 
 /*===========================================================================*
  *				eat_path				     *
@@ -118,21 +116,21 @@ static char *get_name(char *old_name, char string[NAME_SIZE]) {
         rnp++; /* skip leading slashes */
 
     /* Copy the unparsed path, 'old_name', to the array, 'string'. */
-    while (rnp < &user_path[MAX_PATH] && c != '/' && c != '\0') {
+    while (rnp < &user_path[MAX_PATH_LEN] && c != '/' && c != '\0') {
         if (np < &string[NAME_SIZE])
             *np++ = c;
         c = *++rnp; /* advance to next character */
     }
 
     /* To make /usr/ast/ equivalent to /usr/ast, skip trailing slashes. */
-    while (c == '/' && rnp < &user_path[MAX_PATH])
+    while (c == '/' && rnp < &user_path[MAX_PATH_LEN])
         c = *++rnp;
 
     /* Pad the component name out to NAME_SIZE chars, using 0 as filler. */
     while (np < &string[NAME_SIZE])
         *np++ = '\0';
 
-    if (rnp >= &user_path[MAX_PATH]) {
+    if (rnp >= &user_path[MAX_PATH_LEN]) {
         err_code = ErrorCode::E_LONG_STRING;
         return ((char *)0);
     }
@@ -245,7 +243,7 @@ int search_dir(struct inode *ldir_ptr, char string[NAME_SIZE], inode_nr *numb, i
         b = read_map(ldir_ptr, pos); /* get block number */
 
         /* Since directories don't have holes, 'b' cannot be NO_BLOCK. */
-        bp = get_block(ldir_ptr->i_dev, b, IoMode::Normal); /* get a dir block */
+        bp = get_block(ldir_ptr->i_dev, b, NORMAL); /* get a dir block */
 
         /* Search a directory block. */
         for (dp = &bp->b_dir[0]; dp < &bp->b_dir[NR_DIR_ENTRIES]; dp++) {

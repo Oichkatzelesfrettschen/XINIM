@@ -335,6 +335,7 @@ void initialize_scheduler() {
     }
 
     // Never returns
+    __builtin_unreachable();
 }
 
 // ============================================================================

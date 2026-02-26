@@ -1,5 +1,50 @@
+---
+Language: Cpp
+Standard: Latest
 BasedOnStyle: LLVM
+
+# Indentation
 IndentWidth: 4
-ColumnLimit: 100
 TabWidth: 4
 UseTab: Never
+AccessModifierOffset: -4
+NamespaceIndentation: All
+
+# Alignment
+AlignAfterOpenBracket: Align
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignEscapedNewlines: Left
+AlignOperands: Align
+AlignTrailingComments: true
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortBlocksOnASingleLine: Empty
+AllowShortFunctionsOnASingleLine: Inline
+
+# Spacing
+SpaceAfterCStyleCast: true
+SpaceAfterTemplateKeyword: true
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeCpp11BracedList: false
+SpaceBeforeCtorInitializerColon: true
+SpaceBeforeInheritanceColon: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInAngles: false
+SpacesInCStyleCastParentheses: false
+SpacesInContainerLiterals: true
+SpacesInParentheses: false
+SpacesInSquareBrackets: false
+
+# Modern C++ Features
+ColumnLimit: 100
+FixNamespaceComments: true
+IncludeBlocks: Regroup
+SortIncludes: true
+SortUsingDeclarations: true
+ReflowComments: true
+
+# C++23 specifics (where supported by clang-format version)
+# AttributeMacros: ['[[nodiscard]]', '[[maybe_unused]]']

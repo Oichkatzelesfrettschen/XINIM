@@ -56,7 +56,17 @@ static std::array<uint64_t, NR_RAMS> ram_limit{};
  */
 class MessageReply {
   public:
-    MessageReply(int caller, int proc) noexcept : caller_{caller}, proc_{proc} {}
+    /**
+     * @brief Construct a reply helper for the caller/process pair.
+     *
+     * @param caller Task that should receive the reply.
+     * @param proc_id Process number being serviced.
+     */
+    MessageReply(int caller, int proc_id) noexcept : caller_{caller}, proc_{proc_id} {}
+
+    /**
+     * @brief Send the reply message on scope exit.
+     */
     ~MessageReply() noexcept {
         mess->m_type = TASK_REPLY;
         rep_proc_nr(*mess) = proc_;
@@ -93,7 +103,7 @@ extern void phys_copy(void *dst, const void *src, std::size_t num_bytes) noexcep
  */
 PUBLIC void mem_task() noexcept {
 
-    int r, caller, proc;
+    int r, caller, proc_nr_local;
     extern unsigned int sizes[8]; // Explicitly unsigned int
     extern uint64_t
     get_base() noexcept; // Assuming get_base returns phys_clicks -> uint64_t and is noexcept
@@ -115,8 +125,8 @@ PUBLIC void mem_task() noexcept {
         if (mess->m_source < 0)
             panic("mem task got message from ", mess->m_source);
         caller = mess->m_source;
-        proc = proc_nr(*mess);
-        MessageReply reply{caller, proc};
+        proc_nr_local = proc_nr(*mess);
+        MessageReply reply{caller, proc_nr_local};
 
         /* Now carry out the work.  It depends on the opcode. */
         switch (mess->m_type) {
@@ -155,8 +165,9 @@ PUBLIC void mem_task() noexcept {
 
     /* Get minor device number and check for /dev/null. */
     minor = device(*m_ptr);
-    if (minor < 0 || minor >= NR_RAMS)
+    if (minor < 0 || static_cast<std::size_t>(minor) >= NR_RAMS)
         return static_cast<int>(ErrorCode::ENXIO); /* bad minor device */
+    const auto minor_index = static_cast<std::size_t>(minor);
     if (minor == NULL_DEV)                         // NULL_DEV is int
         return (m_ptr->m_type == DISK_READ ? EOF : static_cast<int>(count(*m_ptr)));
 
@@ -164,13 +175,13 @@ PUBLIC void mem_task() noexcept {
     // m_ptr->POSITION (m2_l1) is int64_t. ram_origin is uint64_t[].
     if (position(*m_ptr) < 0)
         return static_cast<int>(ErrorCode::ENXIO);
-    mem_phys = ram_origin[minor] + static_cast<uint64_t>(position(*m_ptr));
-    if (mem_phys >= ram_limit[minor]) // ram_limit is uint64_t[]
+    mem_phys = ram_origin[minor_index] + static_cast<uint64_t>(position(*m_ptr));
+    if (mem_phys >= ram_limit[minor_index]) // ram_limit is uint64_t[]
         return (EOF);
 
     byte_count = static_cast<std::size_t>(count(*m_ptr));
-    if (mem_phys + byte_count > ram_limit[minor]) { // count is std::size_t
-        byte_count = static_cast<std::size_t>(ram_limit[minor] - mem_phys);
+    if (mem_phys + byte_count > ram_limit[minor_index]) { // count is std::size_t
+        byte_count = static_cast<std::size_t>(ram_limit[minor_index] - mem_phys);
     }
 
     /* Determine address where data is to go or to come from. */
@@ -202,12 +213,13 @@ PUBLIC void mem_task() noexcept {
     int minor;
 
     minor = device(*m_ptr);
-    if (minor < 0 || minor >= NR_RAMS)
+    if (minor < 0 || static_cast<std::size_t>(minor) >= NR_RAMS)
         return static_cast<int>(ErrorCode::ENXIO); /* bad minor device */
+    const auto minor_index = static_cast<std::size_t>(minor);
     // ram_origin is uint64_t[]. POSITION (m2_l1) is int64_t.
-    ram_origin[minor] = static_cast<uint64_t>(position(*m_ptr));
+    ram_origin[minor_index] = static_cast<uint64_t>(position(*m_ptr));
     // ram_limit is uint64_t[]. COUNT (m2_i1) is int. BLOCK_SIZE is int.
-    ram_limit[minor] = static_cast<uint64_t>(position(*m_ptr)) +
+    ram_limit[minor_index] = static_cast<uint64_t>(position(*m_ptr)) +
                        static_cast<uint64_t>(static_cast<int64_t>(count(*m_ptr)) * BLOCK_SIZE);
     return (OK);
 }

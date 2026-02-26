@@ -22,20 +22,33 @@
 #include "glo.hpp"
 #include "inode.hpp"
 #include "param.hpp"
-#include "type.hpp"
 
 PRIVATE message dev_mess;
-PRIVATE major, minor, task;
-extern max_major;
+PRIVATE int major = 0;
+PRIVATE int minor = 0;
+PRIVATE int task = 0;
+extern int max_major;
+
+[[noreturn]] void panic(const char *format, int num = NO_NUM);
+void revive(int proc_nr, int status);
+void suspend(int task);
+int sendrec(int dest, message *m_ptr);
+int receive(int source, message *m_ptr);
+PRIVATE void find_dev(dev_nr dev) noexcept;
+struct filp *get_filp(int fild);
 
 /*===========================================================================*
  *				dev_open				     *
  *===========================================================================*/
-PUBLIC int dev_open(dev, mod)
-dev_nr dev; /* which device to open */
-int mod;    /* how to open it */
-{
+/**
+ * @brief Open a device and delegate to the driver.
+ * @param dev Device to open.
+ * @param mod Access mode flags.
+ * @return Driver status code.
+ */
+PUBLIC int dev_open(dev_nr dev, int mod) noexcept {
     /* Special files may need special processing upon open. */
+    (void)mod;
 
     find_dev(dev);
     (*dmap[major].dmap_open)(task, &dev_mess);
@@ -45,26 +58,33 @@ int mod;    /* how to open it */
 /*===========================================================================*
  *				dev_close				     *
  *===========================================================================*/
-PUBLIC dev_close(dev)
-dev_nr dev; /* which device to close */
-{
+/**
+ * @brief Close a device and delegate to the driver.
+ * @param dev Device to close.
+ * @return Driver status code.
+ */
+PUBLIC int dev_close(dev_nr dev) noexcept {
     /* This procedure can be used when a special file needs to be closed. */
 
     find_dev(dev);
     (*dmap[major].dmap_close)(task, &dev_mess);
+    return (rep_status(dev_mess));
 }
 
 /*===========================================================================*
  *				dev_io					     *
  *===========================================================================*/
-PUBLIC int dev_io(rw_flag, dev, pos, bytes, proc, buff)
-int rw_flag; /* READING or WRITING */
-dev_nr dev;  /* major-minor device number */
-long pos;    /* byte position */
-int bytes;   /* how many bytes to transfer */
-int proc;    /* in whose address space is buff? */
-char *buff;  /* virtual address of the buffer */
-{
+/**
+ * @brief Perform I/O on a block or character device.
+ * @param rw_flag READING or WRITING.
+ * @param dev     Major/minor device number.
+ * @param pos     Byte position.
+ * @param bytes   Byte count to transfer.
+ * @param proc    Process address space for the buffer.
+ * @param buff    Virtual address of the buffer.
+ * @return Driver status code.
+ */
+PUBLIC int dev_io(int rw_flag, dev_nr dev, long pos, int bytes, int proc, char *buff) noexcept {
     /* Read or write from a device.  The parameter 'dev' tells which one. */
 
     find_dev(dev);
@@ -90,18 +110,20 @@ char *buff;  /* virtual address of the buffer */
 /*===========================================================================*
  *				do_ioctl				     *
  *===========================================================================*/
-PUBLIC do_ioctl() {
+/**
+ * @brief Perform the ioctl system call for a character device.
+ * @return Status code from the driver or ::ErrorCode::ENOTTY.
+ */
+PUBLIC int do_ioctl() noexcept {
     /* Perform the ioctl(ls_fd, request, argx) system call (uses m2 fmt). */
 
     struct filp *f;
-    register struct inode *rip;
-    extern struct filp *get_filp();
-
+    struct inode *rip;
     if ((f = get_filp(ls_fd)) == NIL_FILP)
         return (err_code);
     rip = f->filp_ino; /* get inode pointer */
     if ((rip->i_mode & I_TYPE) != I_CHAR_SPECIAL)
-        return (ErrorCode::ENOTTY);
+        return static_cast<int>(ErrorCode::ENOTTY);
     find_dev(rip->i_zone[0]);
 
     dev_mess.m_type = TTY_IOCTL;
@@ -125,9 +147,11 @@ PUBLIC do_ioctl() {
 /*===========================================================================*
  *				find_dev				     *
  *===========================================================================*/
-PRIVATE find_dev(dev)
-dev_nr dev; /* device */
-{
+/**
+ * @brief Resolve a device number into major/minor/task fields.
+ * @param dev Device to resolve.
+ */
+PRIVATE void find_dev(dev_nr dev) noexcept {
     /* Extract the major and minor device number from the parameter. */
 
     major = (dev >> MAJOR) & BYTE; /* major device number */
@@ -141,36 +165,43 @@ dev_nr dev; /* device */
 /*===========================================================================*
  *				rw_dev					     *
  *===========================================================================*/
-PUBLIC rw_dev(task_nr, mess_ptr)
-int task_nr;       /* which task to call */
-message *mess_ptr; /* pointer to message for task */
-{
+/**
+ * @brief Send a request to a device task and wait for the matching reply.
+ * @param task_nr  Task to contact.
+ * @param mess_ptr Request/response message.
+ * @return ::OK when the transaction completes.
+ */
+PUBLIC int rw_dev(int task_nr, message *mess_ptr) noexcept {
     /* All file system I/O ultimately comes down to I/O on major/minor device
      * pairs.  These lead to calls on the following routines via the dmap table.
      */
 
-    int proc_nr;
+    int target_proc;
 
-    proc_nr = proc_nr(*mess_ptr);
+    target_proc = proc_nr(*mess_ptr);
 
     if (sendrec(task_nr, mess_ptr) != OK)
         panic("rw_dev: can't send", NO_NUM);
-    while (rep_proc_nr(*mess_ptr) != proc_nr) {
+    while (rep_proc_nr(*mess_ptr) != target_proc) {
         /* Instead of the reply to this request, we got a message for an
          * earlier request.  Handle it and go receive again.
          */
         revive(rep_proc_nr(*mess_ptr), rep_status(*mess_ptr));
         receive(task_nr, mess_ptr);
     }
+    return (OK);
 }
 
 /*===========================================================================*
  *				rw_dev2					     *
  *===========================================================================*/
-PUBLIC rw_dev2(dummy, mess_ptr)
-int dummy;         /* not used - for compatibility with rw_dev() */
-message *mess_ptr; /* pointer to message for task */
-{
+/**
+ * @brief Handle /dev/tty by redirecting to the controlling terminal task.
+ * @param dummy    Unused (compatibility with ::rw_dev()).
+ * @param mess_ptr Request/response message.
+ * @return ::OK when complete.
+ */
+PUBLIC int rw_dev2(int dummy, message *mess_ptr) noexcept {
     /* This routine is only called for one device, namely /dev/tty.  It's job
      * is to change the message to use the controlling terminal, instead of the
      * major/minor pair for /dev/tty itself.
@@ -181,17 +212,23 @@ message *mess_ptr; /* pointer to message for task */
     major_device = (fp->fs_tty >> MAJOR) & BYTE;
     task_nr = dmap[major_device].dmap_task; /* task for controlling tty */
     device(*mess_ptr) = (fp->fs_tty >> MINOR) & BYTE;
-    rw_dev(task_nr, mess_ptr);
+    (void)dummy;
+    return rw_dev(task_nr, mess_ptr);
 }
 
 /*===========================================================================*
  *				no_call					     *
  *===========================================================================*/
-PUBLIC int no_call(task_nr, m_ptr)
-int task_nr;    /* which task */
-message *m_ptr; /* message pointer */
-{
+/**
+ * @brief Dummy device handler that always succeeds.
+ * @param task_nr Unused task identifier.
+ * @param m_ptr   Message to update.
+ * @return ::OK always.
+ */
+PUBLIC int no_call(int task_nr, message *m_ptr) noexcept {
     /* Null operation always succeeds. */
 
     rep_status(*m_ptr) = OK;
+    (void)task_nr;
+    return (OK);
 }

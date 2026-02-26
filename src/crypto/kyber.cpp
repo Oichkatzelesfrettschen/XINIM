@@ -5,7 +5,7 @@
  * @brief Kyber512-based encryption implementation.
  */
 
-#include "../tests/sodium.hpp"
+#include <sodium.h>
 #include <openssl/core_names.h>
 #include <openssl/evp.h>
 

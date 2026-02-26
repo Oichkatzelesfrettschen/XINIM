@@ -28,17 +28,17 @@
 gdt_load:
     // Load GDT
     // rdi contains address of GdtPointer structure
-    lgdt (%rdi)
+    lgdt [rdi]
 
     // Reload code segment using far return
     // We can't directly mov to CS, must use far return or far jump
     // Push kernel code selector (0x08)
-    push $0x08
+    push 0x08
     // Push return address (next instruction)
     lea rax, [rip + .reload_segments]
     push rax
     // Far return (pops CS:RIP from stack)
-    lretq
+    retfq
 
 .reload_segments:
     // Now CS is reloaded, reload data segments

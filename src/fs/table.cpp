@@ -3,7 +3,7 @@
  */
 
 #include "sys/const.hpp"
-#include "../h/stat.h"
+#include <sys/stat.hpp>
 #include "sys/type.hpp"
 #include "const.hpp"
 #include "dev.hpp"

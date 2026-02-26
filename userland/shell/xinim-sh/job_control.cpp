@@ -12,6 +12,7 @@
 #include "shell.hpp"
 #include <cstring>
 #include <cstdio>
+#include <cerrno>
 #include <unistd.h>
 #include <sys/wait.h>
 #include <signal.h>
@@ -37,10 +38,10 @@ extern ShellState g_shell;
 int add_job(pid_t pid, pid_t pgid, const char* command, bool foreground) {
     // Find free slot
     int job_id = -1;
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         if (g_shell.jobs[i].state == JobState::DONE ||
             g_shell.jobs[i].pgid == 0) {
-            job_id = i + 1;  // Job IDs are 1-indexed
+            job_id = static_cast<int>(i + 1);  // Job IDs are 1-indexed
             break;
         }
     }
@@ -76,7 +77,7 @@ int add_job(pid_t pid, pid_t pgid, const char* command, bool foreground) {
  * @brief Find job by job ID
  */
 Job* find_job(int job_id) {
-    if (job_id < 1 || job_id > MAX_JOBS) {
+    if (job_id < 1 || job_id > static_cast<int>(MAX_JOBS)) {
         return nullptr;
     }
 
@@ -92,7 +93,7 @@ Job* find_job(int job_id) {
  * @brief Find job by process group ID
  */
 Job* find_job_by_pgid(pid_t pgid) {
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         if (g_shell.jobs[i].pgid == pgid &&
             g_shell.jobs[i].state != JobState::DONE) {
             return &g_shell.jobs[i];
@@ -105,7 +106,7 @@ Job* find_job_by_pgid(pid_t pgid) {
  * @brief Remove job from job table
  */
 void remove_job(int job_id) {
-    if (job_id < 1 || job_id > MAX_JOBS) {
+    if (job_id < 1 || job_id > static_cast<int>(MAX_JOBS)) {
         return;
     }
 
@@ -126,7 +127,7 @@ void remove_job(int job_id) {
  * Checks for terminated/stopped jobs using waitpid.
  */
 void update_job_status() {
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         Job* job = &g_shell.jobs[i];
 
         if (job->pgid == 0 || job->state == JobState::DONE) {
@@ -183,7 +184,7 @@ void update_job_status() {
 void list_jobs() {
     bool found = false;
 
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         Job* job = &g_shell.jobs[i];
 
         if (job->pgid == 0 || job->state == JobState::DONE) {

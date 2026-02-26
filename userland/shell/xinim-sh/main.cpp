@@ -121,7 +121,7 @@ void init_shell() {
     memset(&g_shell, 0, sizeof(g_shell));
 
     // Initialize job table
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         g_shell.jobs[i].pgid = 0;
         g_shell.jobs[i].state = JobState::DONE;
     }
@@ -162,7 +162,7 @@ void init_shell() {
  */
 void cleanup_shell() {
     // Kill all running jobs
-    for (int i = 0; i < MAX_JOBS; i++) {
+    for (size_t i = 0; i < MAX_JOBS; i++) {
         if (g_shell.jobs[i].pgid != 0 &&
             (g_shell.jobs[i].state == JobState::RUNNING ||
              g_shell.jobs[i].state == JobState::STOPPED)) {

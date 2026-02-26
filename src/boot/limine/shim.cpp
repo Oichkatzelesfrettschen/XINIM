@@ -1,4 +1,9 @@
-#include <third_party/limine-protocol/include/limine.h>
+/**
+ * @file shim.cpp
+ * @brief Limine bootloader request shim.
+ */
+
+#include <limine.h>
 #include <xinim/boot/bootinfo.hpp>
 
 extern "C" {
@@ -9,47 +14,66 @@ extern "C" {
 #endif
 
 // Base revision marker (API rev 0)
-LIMINE_BASE_REVISION(0)
+static volatile uint64_t limine_base_revision[] LIMINE_REQ_SECTION = LIMINE_BASE_REVISION(0);
 
 // Request declarations placed into .limine.requests (on ELF)
 static volatile struct limine_memmap_request limine_memmap_request LIMINE_REQ_SECTION = {
-    .id = LIMINE_MEMMAP_REQUEST,
-    .revision = 0
+    .id = LIMINE_MEMMAP_REQUEST_ID,
+    .revision = 0,
+    .response = nullptr
 };
 
 static volatile struct limine_module_request limine_module_request LIMINE_REQ_SECTION = {
-    .id = LIMINE_MODULE_REQUEST,
-    .revision = 0
+    .id = LIMINE_MODULE_REQUEST_ID,
+    .revision = 0,
+    .response = nullptr,
+    .internal_module_count = 0,
+    .internal_modules = nullptr
 };
 
 static volatile struct limine_bootloader_info_request limine_bootloader_info_request LIMINE_REQ_SECTION = {
-    .id = LIMINE_BOOTLOADER_INFO_REQUEST,
-    .revision = 0
+    .id = LIMINE_BOOTLOADER_INFO_REQUEST_ID,
+    .revision = 0,
+    .response = nullptr
 };
 
 static volatile struct limine_hhdm_request limine_hhdm_request LIMINE_REQ_SECTION = {
-    .id = LIMINE_HHDM_REQUEST,
-    .revision = 0
+    .id = LIMINE_HHDM_REQUEST_ID,
+    .revision = 0,
+    .response = nullptr
 };
 
 static volatile struct limine_rsdp_request limine_rsdp_request LIMINE_REQ_SECTION = {
-    .id = LIMINE_RSDP_REQUEST,
-    .revision = 0
+    .id = LIMINE_RSDP_REQUEST_ID,
+    .revision = 0,
+    .response = nullptr
 };
 
 static volatile struct limine_executable_cmdline_request limine_executable_cmdline_request LIMINE_REQ_SECTION = {
-    .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST,
-    .revision = 0
+    .id = LIMINE_EXECUTABLE_CMDLINE_REQUEST_ID,
+    .revision = 0,
+    .response = nullptr
 };
-}
+} 
 
 namespace xinim::boot {
 
+/**
+ * @brief Convert Limine memory map types to BootInfo types.
+ *
+ * @param t Limine memory map type.
+ * @return BootInfo-compatible memory type.
+ */
 [[maybe_unused]] static uint32_t translate_type(uint64_t t) {
     // Map Limine numeric types to our generic ones; for now pass through.
     return static_cast<uint32_t>(t);
 }
 
+/**
+ * @brief Build BootInfo from Limine responses.
+ *
+ * @return BootInfo populated from Limine requests.
+ */
 BootInfo from_limine() {
     BootInfo bi{};
 

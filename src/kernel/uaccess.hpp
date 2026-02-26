@@ -14,8 +14,9 @@
 #ifndef XINIM_KERNEL_UACCESS_HPP
 #define XINIM_KERNEL_UACCESS_HPP
 
-#include <cstdint>
 #include <cstddef>
+#include <cstdint>
+#include <sys/types.h>
 
 namespace xinim::kernel {
 

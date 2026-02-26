@@ -2,10 +2,12 @@
 # XINIM OS Build System Ignores
 # ==============================================================================
 
-# xmake build system
-.xmake/
+# CMake/Conan build system
 build/
-*.xmake
+build_debug/
+build-*/
+dist/
+CMakeUserPresets.json
 
 # Third-party source downloads
 third_party/dietlibc-src/
@@ -119,9 +121,9 @@ gmon.out
 *.log
 logs/
 
-# Doxygen output (will be regenerated)
-docs/doxygen/html/
-docs/doxygen/latex/
+# Doxygen/Sphinx output (will be regenerated)
+docs/doxygen/
+docs/sphinx/html/
 docs/api/
 
 # ==============================================================================

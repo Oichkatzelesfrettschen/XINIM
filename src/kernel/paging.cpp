@@ -1,5 +1,6 @@
 #include "../../include/paging.hpp" // Corrected path and extension
 #include "const.hpp"               // For PT_ENTRIES, CLICK_SIZE, CLICK_SHIFT, OK
+#include "mm/alloc.hpp"
 #include "sys/type.hpp"           // For phys_addr64, virt_addr64 (though paging.hpp also defines them)
 #include <cstdint>                  // For uint64_t
 #include <cstddef>                  // For std::size_t, nullptr
@@ -74,7 +75,7 @@ PUBLIC void *alloc_virtual(uint64_t bytes, int flags) {
 // va, pa are virt_addr64, phys_addr64 (both uint64_t)
 PUBLIC int map_page(uint64_t va, uint64_t pa, int flags) noexcept {
     /* Mapping is not actually implemented.  We only preserve bookkeeping. */
-    unsigned int idx4 = static_cast<unsigned int>((va >> 39) & 0x1FF); // Result of bitops fits unsigned int
+    auto idx4 = static_cast<unsigned int>((va >> 39) & 0x1FF); // Result of bitops fits unsigned int
     if (!kernel_pml4.ptrs[idx4]) {
         // alloc_mem returns phys_clicks (uint64_t). This physical address (in clicks) needs conversion to bytes
         // and then to a pointer type. This assumes direct mapping or kernel virtual address = physical address.
@@ -89,5 +90,5 @@ PUBLIC int map_page(uint64_t va, uint64_t pa, int flags) noexcept {
     /* Further levels would be allocated here in a complete system. */
     (void)pa;
     (void)flags;
-    return OK;
+    return xinim::OK;
 }

@@ -31,15 +31,15 @@ namespace xinim::kernel {
 constexpr uint32_t MSR_EFER   = 0xC0000080;  ///< Extended Feature Enable Register
 constexpr uint32_t MSR_STAR   = 0xC0000081;  ///< Syscall Target Address Register
 constexpr uint32_t MSR_LSTAR  = 0xC0000082;  ///< Long Mode Syscall Target Address
-constexpr uint32_t MSR_CSTAR  = 0xC0000083;  ///< Compatibility Mode Syscall Target
+[[maybe_unused]] constexpr uint32_t MSR_CSTAR  = 0xC0000083;  ///< Compatibility Mode Syscall Target
 constexpr uint32_t MSR_FMASK  = 0xC0000084;  ///< Syscall Flag Mask
 
 /**
  * @brief EFER register bits
  */
 constexpr uint64_t EFER_SCE   = (1ULL << 0);  ///< System Call Extensions enable
-constexpr uint64_t EFER_LME   = (1ULL << 8);  ///< Long Mode Enable
-constexpr uint64_t EFER_LMA   = (1ULL << 10); ///< Long Mode Active
+[[maybe_unused]] constexpr uint64_t EFER_LME   = (1ULL << 8);  ///< Long Mode Enable
+[[maybe_unused]] constexpr uint64_t EFER_LMA   = (1ULL << 10); ///< Long Mode Active
 
 /**
  * @brief RFLAGS bits to mask (disable during syscall)

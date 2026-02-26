@@ -133,8 +133,8 @@ void ServiceManager::unregister_service(xinim::pid_t pid) {
         return;
     }
 
-    for (auto &[other_pid, info] : services_) {
-        std::erase(info.deps, pid);
+    for (auto &[other_pid, service_info] : services_) {
+        std::erase(service_info.deps, pid);
     }
 }
 
@@ -151,13 +151,13 @@ void ServiceManager::restart_tree(xinim::pid_t pid, std::unordered_set<xinim::pi
         return;
     }
 
-    auto &info = it->second;
-    info.running = true;
-    ++info.contract.restarts;
+    auto &service_info = it->second;
+    service_info.running = true;
+    ++service_info.contract.restarts;
     sched::scheduler.enqueue(pid);
 
-    for (auto &[other_pid, info] : services_) {
-        if (std::ranges::contains(info.deps, pid)) {
+    for (auto &[other_pid, dependent_info] : services_) {
+        if (std::ranges::contains(dependent_info.deps, pid)) {
             restart_tree(other_pid, visited);
         }
     }
@@ -183,7 +183,7 @@ bool ServiceManager::handle_crash(xinim::pid_t pid) {
 
     // **NEW: Release all locks held by the crashed service**
     // This prevents deadlock and allows other services to acquire the locks
-    size_t locks_released = xinim::LockManager::instance().handle_crash(pid);
+    size_t locks_released = xinim::sync::lock_manager.handle_crash(pid);
 
     // Log warning if the crashed service was holding locks
     // TODO: Add proper logging infrastructure

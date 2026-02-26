@@ -36,7 +36,7 @@ bool parse_command(const char* input, Command* cmd) {
     // Initialize command
     cmd->argc = 0;
     cmd->background = false;
-    for (int i = 0; i < MAX_ARGS; i++) {
+    for (size_t i = 0; i < MAX_ARGS; i++) {
         cmd->args[i] = nullptr;
     }
 
@@ -71,7 +71,7 @@ bool parse_command(const char* input, Command* cmd) {
 
     // Tokenize by whitespace
     char* token = strtok(line, " \t\n\r");
-    while (token && cmd->argc < MAX_ARGS - 1) {
+    while (token && static_cast<size_t>(cmd->argc) < MAX_ARGS - 1) {
         cmd->args[cmd->argc] = strdup(token);
         if (!cmd->args[cmd->argc]) {
             free(line);

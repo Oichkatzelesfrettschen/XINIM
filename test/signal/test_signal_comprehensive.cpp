@@ -33,7 +33,7 @@ int g_tests_failed = 0;
 
 #define TEST(name) \
     static void test_##name(); \
-    static void run_test_##name() { \
+    [[maybe_unused]] static void run_test_##name() { \
         printf("[TEST] %s... ", #name); \
         fflush(stdout); \
         g_tests_run++; \
@@ -62,7 +62,7 @@ static volatile sig_atomic_t g_signal_count = 0;
 
 static void test_handler(int sig) {
     g_signal_received = sig;
-    g_signal_count++;
+    g_signal_count = g_signal_count + 1;
 }
 
 static void reset_signal_state() {

@@ -12,7 +12,7 @@
 #include "signal.hpp"
 #include "pcb.hpp"
 #include "scheduler.hpp"
-#include "../early/serial_16550.hpp"
+#include "early/serial_16550.hpp"
 #include <cstring>
 #include <cstdio>
 #include <cerrno>
@@ -255,7 +255,7 @@ void setup_signal_frame(ProcessControlBlock* pcb, int signum) {
 
     // Set up context to call signal handler
     // Signal handler signature: void handler(int signum)
-    pcb->context.rdi = signum;  // First argument
+    pcb->context.rdi = static_cast<uint64_t>(signum);  // First argument
 
     // Save return address on stack
     // Week 10 Phase 2: Simplified - we'll just update RIP
@@ -298,7 +298,7 @@ bool deliver_pending_signals(ProcessControlBlock* pcb) {
     }
 
     // Find first set bit (lowest signal number = highest priority)
-    int signum = __builtin_ffsll(deliverable);
+    int signum = __builtin_ffsll(static_cast<long long>(deliverable));
     if (signum == 0) return false;
 
     char log_buf[128];

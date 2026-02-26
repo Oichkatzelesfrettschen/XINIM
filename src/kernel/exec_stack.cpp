@@ -11,7 +11,7 @@
  */
 
 #include "exec_stack.hpp"
-#include "../early/serial_16550.hpp"
+#include "early/serial_16550.hpp"
 #include <cstring>
 #include <cstdio>
 
@@ -57,23 +57,26 @@ size_t calculate_string_size(char* const strings[]) {
 size_t calculate_stack_size(int argc, int envc,
                             size_t argv_str_size,
                             size_t envp_str_size) {
+    const size_t argc_count = static_cast<size_t>(argc);
+    const size_t envc_count = static_cast<size_t>(envc);
     size_t total_size = 0;
 
     // argc (8 bytes)
     total_size += sizeof(uint64_t);
 
     // argv pointers (including NULL terminator)
-    total_size += (argc + 1) * sizeof(char*);
+    total_size += (argc_count + 1) * sizeof(char*);
 
     // envp pointers (including NULL terminator)
-    total_size += (envc + 1) * sizeof(char*);
+    total_size += (envc_count + 1) * sizeof(char*);
 
     // String data
     total_size += argv_str_size;
     total_size += envp_str_size;
 
     // Align to 16 bytes (required by x86_64 ABI)
-    total_size = (total_size + 15) & ~15;
+    constexpr size_t kStackAlign = 16;
+    total_size = (total_size + (kStackAlign - 1)) & ~(kStackAlign - 1);
 
     return total_size;
 }
@@ -129,9 +132,11 @@ uint64_t setup_exec_stack(uint64_t stack_top,
     uint64_t current_pos = 0;
 
     // Calculate where string data starts
+    const size_t argc_count = static_cast<size_t>(argc);
+    const size_t envc_count = static_cast<size_t>(envc);
     uint64_t string_area_offset = sizeof(uint64_t) +
-                                  (argc + 1) * sizeof(char*) +
-                                  (envc + 1) * sizeof(char*);
+                                  (argc_count + 1) * sizeof(char*) +
+                                  (envc_count + 1) * sizeof(char*);
 
     uint64_t string_pos = string_area_offset;
 

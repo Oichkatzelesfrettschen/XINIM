@@ -207,7 +207,8 @@ static void do_set_time(message *m_ptr) noexcept { boot_time = new_time(*m_ptr) 
  */
 static void do_clocktick() noexcept {
 
-    int t{}, proc_nr{};
+    real_time t{};
+    int proc_nr{};
     extern int pr_busy, pcount, cum_count, prev_ct;
 
     /* To guard against race conditions, first copy 'lost_ticks' to a local
@@ -229,7 +230,7 @@ static void do_clocktick() noexcept {
                      * send it a signal.  If it is a task, call the
                      * function previously specified by the task.
                      */
-                    proc_nr = &entry - proc - NR_TASKS;
+                    proc_nr = static_cast<int>(&entry - proc - NR_TASKS);
                     if (proc_nr >= 0)
                         cause_sig(proc_nr, xinim::signals::SIGALRM);
                     else

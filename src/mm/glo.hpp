@@ -3,6 +3,9 @@
 /// \brief Global variables shared by the memory manager.
 // Modernized for C++23
 
+#include "const.hpp"
+#include "sys/type.hpp"
+
 /** \name Global process management state */
 ///@{
 extern struct mproc *mp; ///< Pointer to the current process entry.

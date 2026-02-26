@@ -29,7 +29,7 @@
  * @note Requires C++23 compliant compiler
  */
 
-#include "../h/signal.hpp"
+#include "sys/signal.hpp"
 #include <algorithm>
 #include <array>
 #include <cerrno>

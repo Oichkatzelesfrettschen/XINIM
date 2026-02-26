@@ -16,7 +16,7 @@ EXTERN message m;                /* the input message itself */
 EXTERN message m1;               /* the output message used for reply */
 EXTERN int who;                  /* caller's proc number */
 EXTERN int fs_call;              /* system call number */
-EXTERN char user_path[MAX_PATH]; /* storage for user path name */
+EXTERN char user_path[MAX_PATH_LEN]; /* storage for user path name */
 
 /* The following variables are used for returning results to the caller. */
 EXTERN int err_code; /* temporary storage for error number */

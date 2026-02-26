@@ -9,6 +9,7 @@
  * parallel tables indexed by process number.
  */
 
+#include "sys/const.hpp"
 #include "sys/type.hpp" // For uid, gid, unshort, mem_map
 #include <array>         // For std::array process table container
 #include <cstddef>       // For std::size_t if not via type.hpp

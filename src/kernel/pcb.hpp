@@ -14,6 +14,7 @@
 #ifndef XINIM_KERNEL_PCB_HPP
 #define XINIM_KERNEL_PCB_HPP
 
+#include <array>
 #include <cstdint>
 #include "../include/sys/type.hpp"  // For pid_t
 #include "context.hpp"               // For CpuContext
@@ -21,6 +22,11 @@
 
 // Forward declaration for signal state (Week 10 Phase 2)
 namespace xinim::kernel {
+
+/**
+ * @brief Maximum length stored for a process name (including terminator).
+ */
+inline constexpr std::size_t kProcessNameMax = 128;
     struct SignalState;
 }
 
@@ -36,6 +42,7 @@ enum class ProcessState {
     READY,      ///< Ready to be scheduled
     RUNNING,    ///< Currently executing
     BLOCKED,    ///< Waiting for IPC, I/O, or event
+    STOPPED,    ///< Stopped by signal (job control)
     ZOMBIE,     ///< Exited but not yet reaped
     DEAD        ///< Fully cleaned up
 };
@@ -85,7 +92,8 @@ struct ProcessControlBlock {
     // ========================================
 
     xinim::pid_t pid;               ///< Process ID
-    const char* name;               ///< Human-readable name (for debugging)
+    std::array<char, kProcessNameMax> name_storage{}; ///< Backing storage for name.
+    const char* name;               ///< Human-readable name (points into name_storage or static data)
 
     // ========================================
     // Execution State

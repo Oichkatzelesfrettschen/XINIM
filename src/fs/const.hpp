@@ -1,12 +1,11 @@
 #pragma once
 // Modernized for C++23
 
-#include "../"sys/type.hpp" // For uid, gid, bit_nr, block_nr, inode_nr, zone_nr
+#include <sys/type.hpp> // For uid, gid, bit_nr, block_nr, inode_nr, zone_nr
 #include <cstddef>          // For std::size_t
 // Forward declarations for structs used in sizeof expressions
 struct dir_struct;
 struct d_inode;
-struct super_block;
 
 /* Tables sizes */
 inline constexpr int NR_ZONE_NUMS = 9; /* # zone numbers in an inode */
@@ -14,6 +13,7 @@ inline constexpr int NR_BUFS = 20;     /* # blocks in the buffer cache */
 // #define NR_BUF_HASH 32                /* size of buf hash table; MUST BE POWER OF 2*/ // Replaced
 // by kNrBufHash
 inline constexpr int kNrBufHash = 32;              // C++23 constant
+inline constexpr int NR_BUF_HASH = kNrBufHash;     // legacy alias
 inline constexpr int NR_FDS = 20;                  /* max file descriptors per process */
 inline constexpr int NR_FILPS = 64;                /* # slots in filp table */
 inline constexpr int I_MAP_SLOTS = 4;              /* max # of blocks in the inode bit map */
@@ -47,11 +47,12 @@ inline constexpr block_nr BOOT_BLOCK = static_cast<block_nr>(0);  /* block numbe
 inline constexpr block_nr SUPER_BLOCK = static_cast<block_nr>(1); /* block number of super block */
 inline constexpr inode_nr ROOT_INODE =
     static_cast<inode_nr>(1); /* inode number for root directory */
+inline constexpr dev_nr NO_DEV = static_cast<dev_nr>(0); /* indicates no device */
+inline constexpr zone_nr NO_ZONE = static_cast<zone_nr>(0); /* empty zone marker */
 
 /* Derived sizes */
-#include "../"sys/const.hpp" // For BLOCK_SIZE
-#include "./super.hpp"       // For super_block (needed for sizeof)
-#include "./type.hpp"        // For dir_struct, d_inode (needed for sizeof)
+#include <sys/const.hpp> // For BLOCK_SIZE
+#include "type.hpp"        // For dir_struct, d_inode (needed for sizeof)
 
 inline constexpr std::size_t ZONE_NUM_SIZE = sizeof(zone_nr);              /* # bytes in zone nr*/
 inline constexpr int NR_DZONE_NUM = NR_ZONE_NUMS - 2;                      /* # zones in inode */
@@ -61,7 +62,6 @@ inline constexpr std::size_t INODES_PER_BLOCK = BLOCK_SIZE / INODE_SIZE;   /* # 
 inline constexpr std::size_t NR_DIR_ENTRIES = BLOCK_SIZE / DIR_ENTRY_SIZE; /* # dir entries/blk*/
 inline constexpr std::size_t NR_INDIRECTS = BLOCK_SIZE / ZONE_NUM_SIZE;    /* # zones/indir blk */
 inline constexpr std::size_t INTS_PER_BLOCK = BLOCK_SIZE / sizeof(int);    /* # integers/blk */
-inline constexpr std::size_t SUPER_SIZE = sizeof(super_block);             /* super_block size */
 inline constexpr std::size_t PIPE_SIZE =
     static_cast<std::size_t>(NR_DZONE_NUM) * BLOCK_SIZE; /* pipe size in bytes*/
 inline constexpr std::size_t MAX_ZONES = NR_DZONE_NUM + NR_INDIRECTS + NR_INDIRECTS * NR_INDIRECTS;

@@ -4,7 +4,7 @@
 #ifndef FS_COMPAT_H
 #define FS_COMPAT_H
 
-#include "extent.hpp"
+#include <xinim/fs/extent.hpp>
 #include "inode.hpp"
 
 /**

@@ -25,13 +25,11 @@
 
 #include "sys/callnr.hpp"
 #include "sys/const.hpp"
-#include "sys/error.hpp"
 #include "sys/type.hpp" // Defines phys_clicks, vir_clicks, CLICK_SHIFT etc.
 #include "alloc.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
-#include "param.hpp"
 #include "process_slot.hpp" // For xinim::ScopedProcessSlot
 #include "token.hpp"
 #include <algorithm> // For std::ranges::any_of
@@ -40,6 +38,9 @@
 #include <format>    // For std::format
 #include <ranges>    // For std::ranges
 #include <span>      // For std::span
+#include "syscall.hpp"
+#include "param.hpp"
+#include "sys/error.hpp"
 
 /** Last few slots reserved for superuser. */
 constexpr int LAST_FEW = 2;
@@ -50,6 +51,11 @@ PRIVATE int next_pid = INIT_PROC_NR + 1;
 // Forward declarations for internal helper functions.
 PRIVATE void cleanup(struct mproc *child);
 PUBLIC void mm_exit(struct mproc *rmp, int exit_status);
+[[noreturn]] PUBLIC void panic(const char *format, int num) noexcept;
+[[nodiscard]] int mem_copy(int src_proc, int src_seg, uintptr_t src_vir, int dst_proc, int dst_seg,
+                           uintptr_t dst_vir, std::size_t bytes) noexcept;
+PUBLIC void reply(int proc_nr, int result, int res2, char *respt) noexcept;
+[[nodiscard]] PUBLIC int set_alarm(int target_proc, unsigned int sec) noexcept;
 
 /*===========================================================================*
  * do_fork                                           *
@@ -66,12 +72,11 @@ PUBLIC void mm_exit(struct mproc *rmp, int exit_status);
  * @ingroup process_control
  */
 PUBLIC int do_fork() {
-    register struct mproc *rmp = mp; ///< Pointer to the parent process entry.
+    struct mproc *rmp = mp; ///< Pointer to the parent process entry.
     struct mproc *rmc = nullptr;     ///< Pointer to the child process entry.
     int child_nr;                    ///< Slot index of the child process.
     int t;                           ///< Temporary flag for PID assignment.
-    std::span<mproc> proc_table{
-        mproc, static_cast<std::size_t>(NR_PROCS)}; ///< Safe view of the process table.
+    std::span<struct mproc> proc_table{mproc.data(), mproc.size()}; ///< Safe view of the process table.
     uint64_t prog_bytes;                            ///< Size of the program image in bytes.
     uint64_t prog_clicks;                           ///< Size of the program image in clicks.
     uint64_t child_base;                            ///< Base physical address of the child's image.
@@ -101,7 +106,8 @@ PUBLIC int do_fork() {
     int i = mem_copy(ABS, 0, static_cast<uintptr_t>(parent_abs), ABS, 0,
                      static_cast<uintptr_t>(child_abs), static_cast<std::size_t>(prog_bytes));
     if (i < 0) {
-        panic(std::format("do_fork: can't copy memory (error code {})", i));
+        const auto message = std::format("do_fork: can't copy memory (error code {})", i);
+        panic(message.c_str(), NO_NUM);
     }
 
     // Find and reserve a free process slot using RAII.
@@ -133,8 +139,9 @@ PUBLIC int do_fork() {
     do {
         t = 0; // 't' = 0 means PID is still free.
         next_pid = (next_pid < 30000 ? next_pid + 1 : INIT_PROC_NR + 1);
+        const int candidate_pid = next_pid;
         if (std::ranges::any_of(proc_table,
-                                [next_pid](const mproc &p) { return p.mp_pid == next_pid; })) {
+                                [candidate_pid](const struct mproc &p) { return p.mp_pid == candidate_pid; })) {
             t = 1; // PID is already in use.
         }
         rmc->mp_pid = next_pid; // Assign PID to child.
@@ -144,11 +151,11 @@ PUBLIC int do_fork() {
     child_slot.release();
 
     // Inform kernel and file system about the successful FORK.
-    sys_fork(who, child_nr, rmc->mp_pid, rmc->mp_token);
-    tell_fs(FORK, who, child_nr, 0);
+    (void)sys_fork(who, child_nr, rmc->mp_pid, rmc->mp_token);
+    (void)tell_fs(FORK, who, child_nr, 0);
 
     // Report child's memory map to kernel.
-    sys_newmap(child_nr, rmc->mp_seg);
+    (void)sys_newmap(child_nr, rmc->mp_seg);
 
     // Reply to child to wake it up.
     reply(child_nr, 0, 0, NIL_PTR);
@@ -194,7 +201,7 @@ PUBLIC void mm_exit(struct mproc *rmp, int exit_status) {
     rmp->mp_exitstatus = static_cast<char>(exit_status);
 
     // Determine termination action based on parent's waiting status.
-    if (mproc[rmp->mp_parent].mp_flags & WAITING) {
+    if (mproc[static_cast<std::size_t>(rmp->mp_parent)].mp_flags & WAITING) {
         cleanup(rmp); // Parent is waiting, so clean up immediately.
     } else {
         rmp->mp_flags |= HANGING; // Parent not waiting, mark as hanging.
@@ -206,9 +213,9 @@ PUBLIC void mm_exit(struct mproc *rmp, int exit_status) {
     }
 
     // Tell the kernel and FS that the process is no longer runnable.
-    sys_xit(rmp->mp_parent, static_cast<int>(rmp - mproc.data()));
-    tell_fs(EXIT, static_cast<int>(rmp - mproc.data()), 0,
-            0); // File system can free the proc slot.
+    (void)sys_xit(rmp->mp_parent, static_cast<int>(rmp - mproc.data()));
+    (void)tell_fs(EXIT, static_cast<int>(rmp - mproc.data()), 0,
+                  0); // File system can free the proc slot.
 }
 
 /*===========================================================================*
@@ -229,8 +236,7 @@ PUBLIC void mm_exit(struct mproc *rmp, int exit_status) {
  */
 PUBLIC int do_wait() {
     int children = 0; ///< Number of child processes.
-    std::span<mproc> proc_table{
-        mproc, static_cast<std::size_t>(NR_PROCS)}; ///< Safe view of the process table.
+    std::span<struct mproc> proc_table{mproc.data(), mproc.size()}; ///< Safe view of the process table.
 
     // A process calling WAIT never gets a reply in the usual way via the
     // reply() in the main loop. If a child has already exited, the routine
@@ -273,8 +279,7 @@ PUBLIC int do_wait() {
  * @ingroup process_control
  */
 PRIVATE void cleanup(struct mproc *child) {
-    std::span<mproc> proc_table{
-        mproc, static_cast<std::size_t>(NR_PROCS)}; ///< Safe view of the process table.
+    std::span<struct mproc> proc_table{mproc.data(), mproc.size()}; ///< Safe view of the process table.
     struct mproc *parent;
     int init_waiting;
     int child_nr;
@@ -282,7 +287,7 @@ PRIVATE void cleanup(struct mproc *child) {
     uint64_t s;     // phys_clicks -> uint64_t
 
     child_nr = static_cast<int>(child - proc_table.data());
-    parent = &proc_table[child->mp_parent];
+    parent = &proc_table[static_cast<std::size_t>(child->mp_parent)];
 
     // Wakeup the parent and send it the child's status.
     r = child->mp_sigstatus & 0377;

@@ -18,11 +18,12 @@
 
 #include "sys/const.hpp"
 #include "sys/error.hpp"
-#include "../h/signal.hpp"
+#include "signal.hpp"
 #include "sys/type.hpp" // Defines vir_bytes, vir_clicks, CLICK_SIZE, CLICK_SHIFT
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
+#include "syscall.hpp"
 #include "param.hpp"
 #include <cstddef> // For std::size_t
 #include <cstdint> // For int64_t
@@ -32,6 +33,11 @@
 constexpr int DATA_CHANGED = 1;
 /** Flag value when stack size changed. */
 constexpr int STACK_CHANGED = 2;
+
+[[nodiscard]] PUBLIC int adjust(struct mproc *rmp, std::size_t data_clicks, std::size_t sp);
+[[nodiscard]] PUBLIC int size_ok(int file_type, std::size_t tc, std::size_t dc, std::size_t sc,
+                                 std::size_t dvir, std::size_t s_vir);
+PUBLIC void sig_proc(struct mproc *rmp, int sig_nr) noexcept;
 
 /*===========================================================================*
  *				do_brk  				     *
@@ -68,7 +74,7 @@ constexpr int STACK_CHANGED = 2;
     // a segment size.
     v = reinterpret_cast<std::size_t>(addr);          /* 'addr' is the new data segment size */
     new_clicks = (v + CLICK_SIZE - 1) >> CLICK_SHIFT; // Simplified calculation
-    sys_getsp(who, &new_sp); /* ask kernel for current sp value, new_sp is std::size_t* */
+    (void)sys_getsp(who, &new_sp); /* ask kernel for current sp value, new_sp is std::size_t* */
     r = adjust(rmp, new_clicks, new_sp);
     res_ptr = (r == OK ? addr : (char *)-1);
     return (r); /* return new size or -1 */
@@ -108,7 +114,7 @@ constexpr int STACK_CHANGED = 2;
     base_of_stack = static_cast<int64_t>(mem_sp.mem_vir) + static_cast<int64_t>(mem_sp.mem_len);
     sp_click = sp >> CLICK_SHIFT; /* click containing sp (sp is std::size_t) */
     if (sp_click >= static_cast<std::size_t>(base_of_stack)) // Compare compatible types
-        return (ErrorCode::ENOMEM);                          /* sp too high */
+        return static_cast<int>(ErrorCode::ENOMEM);          /* sp too high */
 
     /* Compute size of gap between stack and data segments. */
     delta = static_cast<int64_t>(mem_sp.mem_vir) - static_cast<int64_t>(sp_click);
@@ -116,7 +122,7 @@ constexpr int STACK_CHANGED = 2;
     lower = (delta > 0 ? sp_click : mem_sp.mem_vir);
     gap_base = mem_dp.mem_vir + data_clicks;
     if (lower < gap_base)
-        return (ErrorCode::ENOMEM); /* data and stack collided */
+        return static_cast<int>(ErrorCode::ENOMEM); /* data and stack collided */
 
     /* Update data length (but not data orgin) on behalf of brk() system call. */
     old_clicks = mem_dp.mem_len;
@@ -127,9 +133,10 @@ constexpr int STACK_CHANGED = 2;
 
     /* Update stack length and origin due to change in stack pointer. */
     if (delta > 0) {
-        mem_sp.mem_vir -= delta;
-        mem_sp.mem_phys -= delta;
-        mem_sp.mem_len += delta;
+        const std::size_t delta_clicks = static_cast<std::size_t>(delta);
+        mem_sp.mem_vir -= delta_clicks;
+        mem_sp.mem_phys -= delta_clicks;
+        mem_sp.mem_len += delta_clicks;
         changed |= STACK_CHANGED;
     }
 
@@ -138,8 +145,9 @@ constexpr int STACK_CHANGED = 2;
     r = size_ok(ft, rmp->mp_seg[T].mem_len, rmp->mp_seg[D].mem_len, rmp->mp_seg[S].mem_len,
                 rmp->mp_seg[D].mem_vir, rmp->mp_seg[S].mem_vir);
     if (r == OK) {
-        if (changed)
-            sys_newmap(static_cast<int>(rmp - mproc.data()), rmp->mp_seg);
+        if (changed) {
+            (void)sys_newmap(static_cast<int>(rmp - mproc.data()), rmp->mp_seg);
+        }
         return (OK);
     }
 
@@ -147,11 +155,12 @@ constexpr int STACK_CHANGED = 2;
     if (changed & DATA_CHANGED)
         mem_dp.mem_len = old_clicks;
     if (changed & STACK_CHANGED) {
-        mem_sp.mem_vir += delta;
-        mem_sp.mem_phys += delta;
-        mem_sp.mem_len -= delta;
+        const std::size_t delta_clicks = static_cast<std::size_t>(delta);
+        mem_sp.mem_vir += delta_clicks;
+        mem_sp.mem_phys += delta_clicks;
+        mem_sp.mem_len -= delta_clicks;
     }
-    return (ErrorCode::ENOMEM);
+    return static_cast<int>(ErrorCode::ENOMEM);
 }
 
 /*===========================================================================*
@@ -192,14 +201,14 @@ constexpr int STACK_CHANGED = 2;
 
     if (file_type == SEPARATE) {
         if (pt > MAX_PAGES || pd + ps > MAX_PAGES)
-            return (ErrorCode::ENOMEM);
+            return static_cast<int>(ErrorCode::ENOMEM);
     } else {
         if (pt + pd + ps > MAX_PAGES)
-            return (ErrorCode::ENOMEM);
+            return static_cast<int>(ErrorCode::ENOMEM);
     }
 
     if (dvir + dc > s_vir)
-        return (ErrorCode::ENOMEM);
+        return static_cast<int>(ErrorCode::ENOMEM);
 
     return (OK);
 }
@@ -216,7 +225,7 @@ constexpr int STACK_CHANGED = 2;
  *
  * @param proc_nr Index of the faulting process.
  */
-PRIVATE void stack_fault(int proc_nr) noexcept {
+PUBLIC void stack_fault(int proc_nr) noexcept {
     /* Handle a stack fault by growing the stack segment until sp is inside of it.
      * If this is impossible because data segment is in the way, kill the process.
      */
@@ -225,13 +234,13 @@ PRIVATE void stack_fault(int proc_nr) noexcept {
     int r;
     std::size_t new_sp; // vir_bytes -> std::size_t
 
-    rmp = &mproc[proc_nr];
-    sys_getsp(static_cast<int>(rmp - mproc.data()), &new_sp); // new_sp is std::size_t*
+    rmp = &mproc[static_cast<std::size_t>(proc_nr)];
+    (void)sys_getsp(static_cast<int>(rmp - mproc.data()), &new_sp); // new_sp is std::size_t*
     r = adjust(rmp, rmp->mp_seg[D].mem_len, new_sp);
     if (r == OK)
         return;
 
     /* Stack has bumped into data segment.  Kill the process. */
     rmp->mp_catch = 0;      /* don't catch this signal */
-    sig_proc(rmp, SIGSEGV); /* terminate process */
+    sig_proc(rmp, xinim::signals::SIGSEGV); /* terminate process */
 }

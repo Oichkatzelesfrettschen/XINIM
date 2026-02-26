@@ -19,7 +19,7 @@
 #include "sys/com.hpp"
 #include "sys/const.hpp"
 #include "sys/error.hpp"
-#include "../h/signal.hpp"
+#include <sys/signal.hpp>
 #include "sys/type.hpp"
 #include "compat.hpp"
 #include "const.hpp"

@@ -6,9 +6,9 @@
  */
 #pragma once
 
-#include "../"sys/error.hpp" // For ErrorCode enum
-#include <string>            // For std::string
-#include <system_error>      // For std::error_category, std::error_code
+#include <string>       // For std::string
+#include <system_error> // For std::error_category, std::error_code
+#include <sys/error.hpp> // For ErrorCode enum
 
 // Forward declaration if ErrorCode resides in a namespace, e.g. minix::fs.
 // If so, the overloads below should also be placed in that namespace.

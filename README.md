@@ -9,7 +9,7 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 ## 🚀 Key Innovations
 
 ### Pure C++23 Implementation
-- **100% C++23 Core**: No C files in core OS
+- **C++23 Core**: Migration to pure C++23 is in progress (legacy C remains in libc/third_party)
 - **Modern Language Features**: Concepts, ranges, coroutines, modules
 - **Compile-time Optimization**: Extensive constexpr and template metaprogramming
 - **RAII Throughout**: Automatic resource management and exception safety
@@ -62,40 +62,42 @@ XINIM/
 │   └── specs/            # Specifications
 ├── scripts/               # Build and development scripts
 ├── third_party/           # External dependencies
-└── xmake.lua             # Primary build system
+└── CMakeLists.txt        # Primary build system
 ```
 
 ## 🏗️ Build System
 
-XINIM uses **xmake** as its primary build system, providing:
+XINIM uses **CMake + Conan** as the primary build system, providing:
 
-- **Native C++23 Support**: Full language feature detection
+- **C++23 Standardization**: Consistent feature detection and enforcement
 - **Cross-platform**: Linux, macOS, Windows, BSD
-- **Multi-target**: Debug, Release, Profile, Coverage
-- **Dependency Management**: Automatic header/library detection
+- **Multi-target**: Debug and Release presets via CMake
+- **Dependency Management**: Conan packages and generated toolchains
 - **Toolchain Flexibility**: GCC, Clang, MSVC support
 
 ### Quick Start
 
 ```bash
-# Install xmake (if not already installed)
-curl -fsSL https://xmake.io/shget.text | bash
-source ~/.xmake/profile
-
 # Clone and build
 git clone https://github.com/Oichkatzelesfrettschen/XINIM.git
 cd XINIM
-xmake config --toolchain=clang
-xmake build
+
+# Install dependencies and configure toolchain
+scripts/conan_install.sh build Debug
+
+# Build with CMake presets
+cmake --preset debug
+cmake --build --preset debug
 ```
 
 ### Development Setup
 
 ```bash
 # Full development environment
-xmake config --mode=debug --toolchain=clang --ccache=y
-xmake build --verbose
-xmake run test_suite
+scripts/conan_install.sh build Debug
+cmake --preset debug
+cmake --build --preset debug
+ctest --output-on-failure --test-dir build
 ```
 
 ## 🧪 Testing & Quality Assurance
@@ -139,7 +141,7 @@ XINIM follows a mathematically rigorous layered architecture:
    - RAII resource management
 
 5. **L4 - Tool Chain Integration**
-   - xmake build system
+   - CMake + Conan build system
    - Cross-platform toolchains
    - Automated testing
 
@@ -201,8 +203,9 @@ Comprehensive documentation is available in multiple formats:
 
 ```bash
 # Generate full documentation
-xmake docs
-xdg-open docs/build/html/index.html
+doxygen docs/Doxyfile
+sphinx-build -b html docs/sphinx docs/sphinx/html
+xdg-open docs/sphinx/html/index.html
 ```
 
 ## 🤝 Contributing
@@ -213,7 +216,7 @@ We welcome contributions! Please see our [contributing guide](CONTRIBUTING.md) f
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes with comprehensive tests
-4. Ensure all tests pass: `xmake test`
+4. Ensure all tests pass: `ctest --output-on-failure --test-dir build`
 5. Submit a pull request
 
 ### Code Standards
@@ -231,7 +234,7 @@ XINIM is licensed under the BSD 3-Clause License. See [LICENSE](LICENSE) for det
 - **Original MINIX**: Foundation for microkernel design
 - **NIST**: Post-quantum cryptography standards
 - **LLVM/Clang**: Excellent C++23 toolchain
-- **xmake**: Superior build system for C++ projects
+- **CMake + Conan**: Modern build and dependency tooling
 
 ---
 

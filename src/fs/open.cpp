@@ -26,6 +26,13 @@
 #include "type.hpp"
 #include <cstddef> // For nullptr
 #include <cstdint> // For uint16_t, int32_t, int64_t etc.
+#include <string_view>
+
+[[nodiscard]] int fetch_name(std::string_view path, size_t len, int flag);
+[[nodiscard]] int get_fd(uint16_t bits, int *k, struct filp **fpt);
+[[nodiscard]] int forbidden(struct inode *rip, uint16_t access_desired, int real_uid);
+void truncate(struct inode *rip);
+static struct inode *new_node(char *path, uint16_t bits, uint16_t z0);
 
 PRIVATE char mode_map[] = {R_BIT, W_BIT, R_BIT | W_BIT, 0};
 
@@ -43,8 +50,6 @@ int do_creat() {
     mask_bits bits;
     struct filp *fil_ptr;
     int file_d;
-    extern struct inode *new_node();
-
     /* See if name ok and file descriptor and filp slots are available. */
     if (fetch_name(name, name_length, M3) != OK) // name, name_length are from param.hpp (message)
         return (err_code);
@@ -58,14 +63,14 @@ int do_creat() {
     bits = static_cast<uint16_t>(I_REGULAR | (mode & ALL_MODES & fp->fp_umask));
     rip = new_node(user_path, bits, NO_ZONE); // NO_ZONE is zone_nr (uint16_t)
     r = err_code;
-    if (r != OK && r != ErrorCode::EEXIST)
+    if (r != OK && r != static_cast<int>(ErrorCode::EEXIST))
         return (r);
 
     /* At this point two possibilities exist: the given path did not exist
      * and has been created, or it pre-existed.  In the later case, truncate
      * if possible, otherwise return an error.
      */
-    if (r == ErrorCode::EEXIST) {
+    if (r == static_cast<int>(ErrorCode::EEXIST)) {
         /* File exists already. */
         switch (rip->i_mode & I_TYPE) { // i_mode is mask_bits (uint16_t), I_TYPE is int
         case I_REGULAR:                 /* truncate regular file */
@@ -75,7 +80,7 @@ int do_creat() {
             break;
 
         case I_DIRECTORY: /* can't truncate directory */
-            r = ErrorCode::EISDIR;
+            r = static_cast<int>(ErrorCode::EISDIR);
             break;
 
         case I_CHAR_SPECIAL: /* special files are special */
@@ -115,7 +120,7 @@ int do_mknod() {
     mask_bits bits;
 
     if (!super_user)
-        return (ErrorCode::EPERM);                 /* only super_user may make nodes */
+        return static_cast<int>(ErrorCode::EPERM); /* only super_user may make nodes */
     if (fetch_name(name1, name1_length, M1) != OK) // name1, name1_length from param.hpp
         return (err_code);
     // mode is int. I_TYPE, ALL_MODES are int. fp_umask is mask_bits (uint16_t).

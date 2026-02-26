@@ -8,10 +8,10 @@
 
 namespace xinim {
 
-ScopedProcessSlot::ScopedProcessSlot(std::span<mproc> table) noexcept
+ScopedProcessSlot::ScopedProcessSlot(std::span<struct mproc> table) noexcept
     : table_{table}, slot_{nullptr}, index_{-1} {
     auto it =
-        std::ranges::find_if(table_, [](const mproc &p) { return (p.mp_flags & IN_USE) == 0; });
+        std::ranges::find_if(table_, [](const struct mproc &p) { return (p.mp_flags & IN_USE) == 0; });
     if (it != table_.end()) {
         slot_ = &*it;
         index_ = static_cast<int>(std::distance(table_.begin(), it));

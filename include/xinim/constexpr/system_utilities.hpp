@@ -12,7 +12,7 @@
  * - Template-based system call abstraction
  */
 
-import xinim.posix;
+#include <xinim/posix.hpp>
 
 #include <algorithm>
 #include <array>

@@ -6,18 +6,19 @@
  * fatal error handling.
  */
 
+#include <cerrno> // errno
 #include "sys/callnr.hpp"
 #include "sys/com.hpp"
 #include "sys/const.hpp"
-#include "sys/error.hpp"
-#include "../h/stat.h"
+#include <sys/stat.hpp>
 #include "sys/type.hpp"
 #include "const.hpp"
 #include "glo.hpp"
 #include "mproc.hpp"
+#include "syscall.hpp"
 
+#include <algorithm> // std::ranges algorithms
 #include <array>      // std::array
-#include <cerrno>     // errno
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uintptr_t
 #include <cstdio>     // printf
@@ -26,6 +27,12 @@
 #include <optional>   // std::optional
 #include <ranges>     // std::ranges algorithms
 #include <utility>    // std::pair
+
+#include "sys/error.hpp"
+
+extern "C" int open(const char *path, int flags, ...) noexcept;
+extern "C" int close(int fd) noexcept;
+[[noreturn]] PUBLIC void panic(const char *format, int num) noexcept;
 
 PRIVATE message copy_mess;
 
@@ -79,9 +86,13 @@ struct FileDescriptor {
  *
  * Utilizes @c std::ranges::any_of for clarity.
  */
-[[nodiscard]] bool has_exec_bits(mode_t mode) noexcept {
-    constexpr std::array<mode_t, 3> exec_bits{X_BIT << 6, X_BIT << 3, X_BIT};
-    return std::ranges::any_of(exec_bits, [mode](mode_t bit) { return (mode & bit) != 0; });
+[[nodiscard]] bool has_exec_bits(xinim::mode_t mode) noexcept {
+    constexpr std::array<xinim::mode_t, 3> exec_bits{
+        static_cast<xinim::mode_t>(X_BIT << 6),
+        static_cast<xinim::mode_t>(X_BIT << 3),
+        static_cast<xinim::mode_t>(X_BIT)};
+    return std::ranges::any_of(exec_bits,
+                               [mode](xinim::mode_t bit) { return (mode & bit) != 0; });
 }
 
 /**
@@ -95,7 +106,7 @@ struct FileDescriptor {
  * @param st     Stat structure describing the file.
  * @return 6 for owner, 3 for group or an empty optional if neither match.
  */
-[[nodiscard]] std::optional<int> ownership_shift(uid_t effuid, gid_t effgid,
+[[nodiscard]] std::optional<int> ownership_shift(xinim::uid_t effuid, xinim::gid_t effgid,
                                                  const struct stat *st) noexcept {
     const std::array<std::pair<bool, int>, 2> rules{
         {{effuid == st->st_uid, 6}, {effgid == st->st_gid, 3}}};
@@ -128,20 +139,23 @@ struct FileDescriptor {
     /* Only regular files can be executed. */
     const int mode = s_buf->st_mode & I_TYPE;
     if (mask == X_BIT && mode != I_REGULAR) {
-        return (ErrorCode::EACCES);
+        return static_cast<int>(ErrorCode::EACCES);
     }
     /* Even for superuser, at least 1 X bit must be on. */
     if (mp->mp_effuid == SUPER_USER && mask == X_BIT && has_exec_bits(s_buf->st_mode))
         return fd.release();
 
     /* Right adjust the relevant set of permission bits. */
-    const int shift = ownership_shift(mp->mp_effuid, mp->mp_effgid, s_buf).value_or(0);
+    const int shift =
+        ownership_shift(static_cast<xinim::uid_t>(mp->mp_effuid),
+                        static_cast<xinim::gid_t>(mp->mp_effgid), s_buf)
+            .value_or(0);
 
     if (mp->mp_effuid == SUPER_USER && mask != X_BIT)
         return fd.release();
-    if ((s_buf->st_mode >> shift) & mask) /* test the relevant bits */
+    if ((s_buf->st_mode >> shift) & static_cast<xinim::mode_t>(mask)) /* test the relevant bits */
         return fd.release();              /* permission granted */
-    return (ErrorCode::EACCES);           /* permission denied */
+    return static_cast<int>(ErrorCode::EACCES); /* permission denied */
 }
 
 /**
@@ -161,19 +175,19 @@ struct FileDescriptor {
         return (OK);
     src_space(copy_mess) = static_cast<char>(src_seg);
     src_proc_nr(copy_mess) = src_proc;
-    // src_buffer is a macro for a message field of type char* (e.g., m1p1)
-    src_buffer(copy_mess) = reinterpret_cast<char *>(src_vir);
+    // src_buffer is a macro for a message field of type int64_t
+    src_buffer(copy_mess) = static_cast<int64_t>(src_vir);
 
     dst_space(copy_mess) = static_cast<char>(dst_seg);
     dst_proc_nr(copy_mess) = dst_proc;
-    // dst_buffer is a macro for a message field of type char*
-    dst_buffer(copy_mess) = reinterpret_cast<char *>(dst_vir);
+    // dst_buffer is a macro for a message field of type int64_t
+    dst_buffer(copy_mess) = static_cast<int64_t>(dst_vir);
 
     // copy_bytes is a macro for a message field of type int (e.g., m1i2)
     // This is a potential narrowing conversion if bytes > INT_MAX.
     // This reflects the existing constraint of the message system.
     copy_bytes(copy_mess) = static_cast<int>(bytes);
-    sys_copy(&copy_mess);
+    (void)sys_copy(&copy_mess);
     return (copy_mess.m_type);
 }
 /**
@@ -184,7 +198,7 @@ struct FileDescriptor {
 [[nodiscard]] PUBLIC int no_sys() noexcept {
     /* A system call number not implemented by MM has been requested. */
 
-    return (ErrorCode::EINVAL);
+    return static_cast<int>(ErrorCode::EINVAL);
 }
 
 /**
@@ -202,6 +216,6 @@ struct FileDescriptor {
     if (num != NO_NUM)
         printf("%d", num);
     printf("\n");
-    tell_fs(SYNC, 0, 0, 0); /* flush the cache to the disk */
-    sys_abort();
+    (void)tell_fs(SYNC, 0, 0, 0); /* flush the cache to the disk */
+    (void)sys_abort();
 }

@@ -4,7 +4,6 @@
 // PCI Subsystem Implementation
 
 #include <xinim/pci/pci.hpp>
-#include <xinim/kernel/kassert.hpp>
 #include <vector>
 #include <cstring>
 

@@ -13,15 +13,17 @@
  * - CRTP patterns for static polymorphism
  */
 
-import xinim.posix;
+#include <xinim/posix.hpp>
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <concepts>
 #include <expected>
 #include <format>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <ranges>
 #include <span>
 #include <string_view>
@@ -298,12 +300,13 @@ public:
                 bool option_found = false;
                 
                 // Try to match against each option type
-                ([&]<typename Option>() {
-                    if (!option_found && 
+                ([&] {
+                    using Option = Options;
+                    if (!option_found &&
                         (matches_short_name<Option>(arg) || matches_long_name<Option>(arg))) {
-                        
+
                         auto& option = get_option<Option>();
-                        
+
                         if constexpr (std::is_same_v<typename Option::value_type, bool>) {
                             // Boolean flag
                             option = true;
@@ -312,7 +315,7 @@ public:
                             if (++i >= args.size()) {
                                 return std::unexpected(std::make_error_code(std::errc::invalid_argument));
                             }
-                            
+
                             if constexpr (std::is_arithmetic_v<typename Option::value_type>) {
                                 // Parse numeric value
                                 auto result = parse_numeric<typename Option::value_type>(args[i]);
@@ -323,7 +326,7 @@ public:
                                 option = args[i];
                             }
                         }
-                        
+
                         option_found = true;
                     }
                 }(), ...);  // Fold expression over all option types
@@ -349,7 +352,8 @@ public:
     [[nodiscard]] std::string generate_help() const {
         std::string help_text = "OPTIONS:\n";
         
-        ([&]<typename Option>() {
+        ([&] {
+            using Option = Options;
             const Option& option = get_option<Option>();
             
             if constexpr (requires { Option::short_name(); }) {
@@ -433,6 +437,8 @@ protected:
     }
 
 public:
+    virtual ~utility_base() = default;
+
     // Static interface that derived classes must implement
     static constexpr std::string_view name() { return Derived::name(); }
     static constexpr std::string_view description() { return Derived::description(); }
@@ -497,24 +503,24 @@ class utility_factory {
     using variant_type = std::variant<std::unique_ptr<Utilities>...>;
     
 public:
-    [[nodiscard]] static std::expected<std::unique_ptr<utility_base<void>>, std::error_code>
+    [[nodiscard]] static std::expected<variant_type, std::error_code>
     create_utility(std::string_view name) {
-        
-        std::unique_ptr<utility_base<void>> result;
+        std::optional<variant_type> result;
         bool found = false;
-        
-        ([&]<typename Utility>() {
+
+        ([&] {
+            using Utility = Utilities;
             if (!found && Utility::name() == name) {
-                result = std::make_unique<Utility>();
+                result = variant_type{std::make_unique<Utility>()};
                 found = true;
             }
-        }.template operator()<Utilities>(), ...);
-        
+        }(), ...);
+
         if (!found) {
             return std::unexpected(std::make_error_code(std::errc::invalid_argument));
         }
-        
-        return result;
+
+        return std::move(*result);
     }
     
     [[nodiscard]] static constexpr std::array<std::string_view, sizeof...(Utilities)> 

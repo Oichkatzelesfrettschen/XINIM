@@ -13,6 +13,7 @@
 #ifndef XINIM_KERNEL_SYSCALL_TABLE_HPP
 #define XINIM_KERNEL_SYSCALL_TABLE_HPP
 
+#include <cstddef>
 #include <cstdint>
 
 namespace xinim::kernel {
@@ -51,7 +52,7 @@ enum class SyscallNumber : uint64_t {
     // WRITE (1), GETPID (39), EXIT (60)
 };
 
-constexpr size_t MAX_SYSCALLS = 512;
+constexpr std::size_t MAX_SYSCALLS = 512;
 
 // ============================================================================
 // Syscall Handler Function Signature

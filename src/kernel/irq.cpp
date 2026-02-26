@@ -23,17 +23,32 @@ static bool g_irq_initialized = false;
 static uint16_t g_pic_mask = 0xFFFF;  // All masked initially
 
 // Port I/O functions (x86_64)
+/**
+ * @brief Write an 8-bit value to an I/O port.
+ *
+ * @param port I/O port number.
+ * @param value Value to write.
+ */
 static inline void outb(uint16_t port, uint8_t value) {
     asm volatile("outb %0, %1" :: "a"(value), "Nd"(port));
 }
 
-static inline uint8_t inb(uint16_t port) {
+/**
+ * @brief Read an 8-bit value from an I/O port.
+ *
+ * @param port I/O port number.
+ * @return Byte read from the port.
+ */
+[[maybe_unused]] static inline uint8_t inb(uint16_t port) {
     uint8_t value;
     asm volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
     return value;
 }
 
 // Initialize PIC (for legacy interrupts)
+/**
+ * @brief Initialize the legacy PIC with remapped vectors.
+ */
 static void init_pic() {
     // ICW1: Initialize command
     outb(PIC1_CMD, 0x11);  // Init + ICW4 needed
@@ -57,12 +72,20 @@ static void init_pic() {
 }
 
 // Disable PIC (when using APIC)
+/**
+ * @brief Mask all PIC IRQ lines to disable legacy PIC delivery.
+ */
 static void disable_pic() {
     // Mask all interrupts on both PICs
     outb(PIC1_DATA, 0xFF);
     outb(PIC2_DATA, 0xFF);
 }
 
+/**
+ * @brief Initialize the IRQ subsystem and legacy PIC.
+ *
+ * @return true on success or if already initialized.
+ */
 bool IRQ::initialize() {
     if (g_irq_initialized) {
         return true;
@@ -81,6 +104,9 @@ bool IRQ::initialize() {
     return true;
 }
 
+/**
+ * @brief Shutdown IRQ handling and mask all interrupts.
+ */
 void IRQ::shutdown() {
     if (!g_irq_initialized) {
         return;
@@ -89,7 +115,7 @@ void IRQ::shutdown() {
     // Mask all IRQs
     for (size_t i = 0; i < MAX_IRQS; ++i) {
         if (g_irq_descriptors[i].enabled) {
-            disable_irq(i);
+            disable_irq(static_cast<uint8_t>(i));
         }
     }
 
@@ -99,8 +125,15 @@ void IRQ::shutdown() {
     g_irq_initialized = false;
 }
 
+/**
+ * @brief Reserve a specific IRQ vector for a device.
+ *
+ * @param vector IRQ vector to reserve.
+ * @param device_name Human-readable device identifier.
+ * @return true on success.
+ */
 bool IRQ::allocate_irq(uint8_t vector, const char* device_name) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return false;
     }
 
@@ -120,6 +153,12 @@ bool IRQ::allocate_irq(uint8_t vector, const char* device_name) {
     return true;
 }
 
+/**
+ * @brief Allocate a free dynamic IRQ vector.
+ *
+ * @param device_name Human-readable device identifier.
+ * @return Allocated vector or 0 if none available.
+ */
 uint8_t IRQ::allocate_irq_dynamic(const char* device_name) {
     // Search for free IRQ in dynamic range
     for (uint8_t vector = IRQ_VECTOR_DYNAMIC_START; vector <= IRQ_VECTOR_DYNAMIC_END; ++vector) {
@@ -132,8 +171,13 @@ uint8_t IRQ::allocate_irq_dynamic(const char* device_name) {
     return 0;  // No free IRQ found
 }
 
+/**
+ * @brief Release a previously allocated IRQ vector.
+ *
+ * @param vector IRQ vector to free.
+ */
 void IRQ::free_irq(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return;
     }
 
@@ -157,16 +201,31 @@ void IRQ::free_irq(uint8_t vector) {
     desc.enabled = false;
 }
 
+/**
+ * @brief Check whether an IRQ vector is allocated.
+ *
+ * @param vector IRQ vector to query.
+ * @return true if allocated.
+ */
 bool IRQ::is_allocated(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return false;
     }
     return g_irq_descriptors[vector].allocated;
 }
 
+/**
+ * @brief Register an interrupt handler for a vector.
+ *
+ * @param vector IRQ vector to associate with the handler.
+ * @param handler Handler callback.
+ * @param context Opaque context pointer passed to the handler.
+ * @param flags IRQ configuration flags.
+ * @return true if the handler was registered.
+ */
 bool IRQ::register_handler(uint8_t vector, IRQHandler handler,
                            void* context, IRQFlags flags) {
-    if (vector >= MAX_IRQS || !handler) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS || !handler) {
         return false;
     }
 
@@ -194,8 +253,15 @@ bool IRQ::register_handler(uint8_t vector, IRQHandler handler,
     return true;
 }
 
+/**
+ * @brief Remove the handler registered for a vector.
+ *
+ * @param vector IRQ vector to clear.
+ * @param handler Handler callback to remove.
+ * @return true if removed.
+ */
 bool IRQ::unregister_handler(uint8_t vector, IRQHandler handler) {
-    if (vector >= MAX_IRQS || !handler) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS || !handler) {
         return false;
     }
 
@@ -210,8 +276,13 @@ bool IRQ::unregister_handler(uint8_t vector, IRQHandler handler) {
     return true;
 }
 
+/**
+ * @brief Enable interrupt delivery for the specified vector.
+ *
+ * @param vector IRQ vector to enable.
+ */
 void IRQ::enable_irq(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return;
     }
 
@@ -227,8 +298,13 @@ void IRQ::enable_irq(uint8_t vector) {
     // TODO: For APIC/IOAPIC, configure IOAPIC redirection entry
 }
 
+/**
+ * @brief Disable interrupt delivery for the specified vector.
+ *
+ * @param vector IRQ vector to disable.
+ */
 void IRQ::disable_irq(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return;
     }
 
@@ -244,13 +320,24 @@ void IRQ::disable_irq(uint8_t vector) {
     // TODO: For APIC/IOAPIC, mask IOAPIC redirection entry
 }
 
+/**
+ * @brief Check whether an IRQ vector is enabled.
+ *
+ * @param vector IRQ vector to query.
+ * @return true if enabled.
+ */
 bool IRQ::is_enabled(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return false;
     }
     return g_irq_descriptors[vector].enabled;
 }
 
+/**
+ * @brief Mask a legacy PIC IRQ line.
+ *
+ * @param irq_line PIC line number (0-15).
+ */
 void IRQ::mask_irq(uint8_t irq_line) {
     if (irq_line >= 16) {
         return;
@@ -265,6 +352,11 @@ void IRQ::mask_irq(uint8_t irq_line) {
     }
 }
 
+/**
+ * @brief Unmask a legacy PIC IRQ line.
+ *
+ * @param irq_line PIC line number (0-15).
+ */
 void IRQ::unmask_irq(uint8_t irq_line) {
     if (irq_line >= 16) {
         return;
@@ -279,6 +371,11 @@ void IRQ::unmask_irq(uint8_t irq_line) {
     }
 }
 
+/**
+ * @brief Send an end-of-interrupt signal for the vector.
+ *
+ * @param vector IRQ vector that completed.
+ */
 void IRQ::send_eoi(uint8_t vector) {
     if (vector < IRQ_VECTOR_BASE) {
         return;  // Not a hardware interrupt
@@ -296,6 +393,13 @@ void IRQ::send_eoi(uint8_t vector) {
     // TODO: For APIC, write to Local APIC EOI register
 }
 
+/**
+ * @brief Allocate an MSI vector and populate configuration data.
+ *
+ * @param config_out Output MSI configuration.
+ * @param device_name Device identifier for tracking.
+ * @return Allocated vector or 0 on failure.
+ */
 uint8_t IRQ::allocate_msi(MSIConfig& config_out, const char* device_name) {
     // Allocate a dynamic IRQ vector
     uint8_t vector = allocate_irq_dynamic(device_name);
@@ -320,12 +424,24 @@ uint8_t IRQ::allocate_msi(MSIConfig& config_out, const char* device_name) {
     return vector;
 }
 
+/**
+ * @brief Release a previously allocated MSI vector.
+ *
+ * @param vector MSI vector to free.
+ */
 void IRQ::free_msi(uint8_t vector) {
     free_irq(vector);
 }
 
+/**
+ * @brief Configure an MSI-X entry for the given vector.
+ *
+ * @param vector MSI-X vector to configure.
+ * @param entry MSI-X table entry to populate.
+ * @return true on success.
+ */
 bool IRQ::configure_msix(uint8_t vector, MSIXEntry& entry) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return false;
     }
 
@@ -340,8 +456,13 @@ bool IRQ::configure_msix(uint8_t vector, MSIXEntry& entry) {
     return true;
 }
 
+/**
+ * @brief Dispatch an interrupt to the registered handler.
+ *
+ * @param vector IRQ vector received.
+ */
 void IRQ::dispatch_interrupt(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return;
     }
 
@@ -360,27 +481,48 @@ void IRQ::dispatch_interrupt(uint8_t vector) {
     send_eoi(vector);
 }
 
+/**
+ * @brief Return the number of times a vector has fired.
+ *
+ * @param vector IRQ vector to query.
+ * @return Interrupt count.
+ */
 uint32_t IRQ::get_interrupt_count(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return 0;
     }
     return g_irq_descriptors[vector].count;
 }
 
+/**
+ * @brief Return the device name associated with a vector.
+ *
+ * @param vector IRQ vector to query.
+ * @return Device name or nullptr.
+ */
 const char* IRQ::get_device_name(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return nullptr;
     }
     return g_irq_descriptors[vector].device_name;
 }
 
+/**
+ * @brief Return the descriptor for a vector.
+ *
+ * @param vector IRQ vector to query.
+ * @return Descriptor pointer or nullptr.
+ */
 const IRQDescriptor* IRQ::get_descriptor(uint8_t vector) {
-    if (vector >= MAX_IRQS) {
+    if (static_cast<std::size_t>(vector) >= MAX_IRQS) {
         return nullptr;
     }
     return &g_irq_descriptors[vector];
 }
 
+/**
+ * @brief Dump IRQ state for debugging (not yet implemented).
+ */
 void IRQ::dump_irqs() {
     // TODO: Implement IRQ dump for debugging
     // This would print all allocated IRQs with their handlers and counts

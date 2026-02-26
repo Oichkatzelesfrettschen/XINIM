@@ -6,14 +6,35 @@
 
 #include "net_driver.hpp"
 
+#ifdef _WIN32
 #define WIN32_LEAN_AND_MEAN
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#else
+#include <cerrno>
+#include <arpa/inet.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <sys/socket.h>
+#include <unistd.h>
+
+using SOCKET = int;
+constexpr int INVALID_SOCKET = -1;
+inline int closesocket(SOCKET fd) { return close(fd); }
+inline int WSAGetLastError() { return errno; }
+struct WSADATA {};
+inline int WSAStartup(unsigned short, WSADATA*) { return 0; }
+inline void WSACleanup() {}
+constexpr int WSAECONNRESET = ECONNRESET;
+constexpr int WSAENOTCONN = ENOTCONN;
+constexpr int WSAECONNABORTED = ECONNABORTED;
+constexpr int SD_BOTH = SHUT_RDWR;
+#define MAKEWORD(a, b) static_cast<unsigned short>(((a) & 0xff) | (((b) & 0xff) << 8))
+#endif
 
 #include <array>
 #include <atomic>
-#include <cerrno>
 #include <cstdlib>
 #include <cstring>
 #include <deque>
@@ -21,6 +42,7 @@
 #include <fstream>
 #include <mutex>
 #include <span>
+#include <string_view>
 #include <system_error>
 #include <thread>
 #include <unordered_map>
@@ -36,11 +58,14 @@ static Config g_cfg{};
 static SOCKET g_udp_sock = INVALID_SOCKET;
 static SOCKET g_tcp_listen = INVALID_SOCKET;
 
+/**
+ * @brief Runtime metadata for a registered remote peer.
+ */
 struct Remote {
-    sockaddr_in addr{};
-    int addr_len = sizeof(sockaddr_in);
-    Protocol proto = Protocol::UDP;
-    SOCKET tcp_fd = INVALID_SOCKET;
+    sockaddr_in addr{}; ///< Peer socket address.
+    socklen_t addr_len = static_cast<socklen_t>(sizeof(sockaddr_in)); ///< Address length.
+    Protocol proto = Protocol::UDP; ///< Transport protocol.
+    SOCKET tcp_fd = INVALID_SOCKET; ///< Connected TCP socket for persistent links.
 };
 
 static std::unordered_map<node_t, Remote> g_remotes;
@@ -52,30 +77,59 @@ static RecvCallback g_callback;
 static std::atomic<bool> g_running{false};
 static std::thread g_udp_thread, g_tcp_thread;  // Use std::thread instead of jthread for compatibility
 
+/**
+ * @brief Resolve the persisted node ID path based on platform conventions.
+ *
+ * Honors Config::node_id_dir when provided; otherwise prefers APPDATA/
+ * LOCALAPPDATA on Windows and XDG_STATE_HOME or HOME on POSIX.
+ *
+ * @return Full filesystem path to the node_id file.
+ */
 [[nodiscard]] static std::filesystem::path node_id_file() {
-    // Assume node_id_dir is a std::filesystem::path in Config; if not, adjust accordingly
-    if (!g_cfg.node_id_dir.empty()) return g_cfg.node_id_dir / "node_id";
-    // On Windows, no direct equivalent to geteuid; assume not root or skip
-    // Use APPDATA or LOCALAPPDATA
+    if (!g_cfg.node_id_dir.empty()) {
+        return g_cfg.node_id_dir / "node_id";
+    }
+
+#ifdef _WIN32
     char *app_data = nullptr;
     size_t len = 0;
     if (_dupenv_s(&app_data, &len, "APPDATA") == 0 && app_data) {
         auto path = std::filesystem::path{app_data} / "xinim" / "node_id";
-        free(app_data);
+        std::free(app_data);
         return path;
     }
     if (_dupenv_s(&app_data, &len, "LOCALAPPDATA") == 0 && app_data) {
         auto path = std::filesystem::path{app_data} / "xinim" / "node_id";
-        free(app_data);
+        std::free(app_data);
         return path;
     }
     return std::filesystem::path{"node_id"};
+#else
+    if (const char *state_home = std::getenv("XDG_STATE_HOME"); state_home && *state_home) {
+        return std::filesystem::path{state_home} / "xinim" / "node_id";
+    }
+    if (const char *data_home = std::getenv("XDG_DATA_HOME"); data_home && *data_home) {
+        return std::filesystem::path{data_home} / "xinim" / "node_id";
+    }
+    if (const char *home = std::getenv("HOME"); home && *home) {
+        return std::filesystem::path{home} / ".local" / "state" / "xinim" / "node_id";
+    }
+    return std::filesystem::path{"node_id"};
+#endif
 }
 
+/**
+ * @brief Check whether the provided socket error indicates a lost connection.
+ */
 [[nodiscard]] static bool connection_lost(int err) noexcept {
     return err == WSAECONNRESET || err == WSAENOTCONN || err == WSAECONNABORTED;
 }
 
+/**
+ * @brief Re-establish the TCP connection for a remote peer.
+ *
+ * @param rem Remote peer metadata updated with the connected socket.
+ */
 static void reconnect_tcp(Remote &rem) {
     if (rem.tcp_fd != INVALID_SOCKET) closesocket(rem.tcp_fd);
     rem.tcp_fd = socket(rem.addr.sin_family, SOCK_STREAM, 0);
@@ -88,6 +142,12 @@ static void reconnect_tcp(Remote &rem) {
     }
 }
 
+/**
+ * @brief Prepend the local node ID to the outgoing payload.
+ *
+ * @param data Payload bytes.
+ * @return Framed payload containing [node_id | data].
+ */
 [[nodiscard]] static std::vector<std::byte> frame_payload(std::span<const std::byte> data) {
     node_t nid = local_node();
     std::vector<std::byte> buf(sizeof(nid) + data.size());
@@ -96,6 +156,13 @@ static void reconnect_tcp(Remote &rem) {
     return buf;
 }
 
+/**
+ * @brief Enqueue a received packet and invoke the callback if present.
+ *
+ * Applies the configured overflow policy when the queue is full.
+ *
+ * @param pkt Packet to enqueue.
+ */
 static void enqueue_packet(Packet &&pkt) {
     std::lock_guard lock{g_mutex};
     if (g_cfg.max_queue_length > 0 && g_queue.size() >= g_cfg.max_queue_length) {
@@ -106,35 +173,56 @@ static void enqueue_packet(Packet &&pkt) {
     if (g_callback) g_callback(g_queue.back());
 }
 
+/**
+ * @brief Receive UDP packets and push them into the shared queue.
+ */
 static void udp_recv_loop() {
     std::array<std::byte, 2048> buf;
     while (g_running.load(std::memory_order_relaxed)) {
         sockaddr_in peer{};
-        int len = sizeof(peer);
-        int n = recvfrom(g_udp_sock, reinterpret_cast<char *>(buf.data()), buf.size(), 0,
-                         reinterpret_cast<sockaddr *>(&peer), &len);
-        if (n <= static_cast<int>(sizeof(node_t))) continue;
+        socklen_t len = static_cast<socklen_t>(sizeof(peer));
+#ifdef _WIN32
+        const int buf_len = static_cast<int>(buf.size());
+        const auto n = ::recvfrom(g_udp_sock, reinterpret_cast<char *>(buf.data()), buf_len, 0,
+                                  reinterpret_cast<sockaddr *>(&peer), &len);
+#else
+        const auto n = ::recvfrom(g_udp_sock, reinterpret_cast<char *>(buf.data()), buf.size(), 0,
+                                  reinterpret_cast<sockaddr *>(&peer), &len);
+#endif
+        if (n <= 0) continue;
+        const auto n_bytes = static_cast<std::size_t>(n);
+        if (n_bytes <= sizeof(node_t)) continue;
         Packet pkt;
         std::memcpy(&pkt.src_node, buf.data(), sizeof(pkt.src_node));
-        pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n);
+        pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n_bytes);
         enqueue_packet(std::move(pkt));
     }
 }
 
+/**
+ * @brief Accept TCP clients and enqueue received packets.
+ */
 static void tcp_accept_loop() {
     listen(g_tcp_listen, SOMAXCONN);
     while (g_running.load(std::memory_order_relaxed)) {
         sockaddr_in peer{};
-        int len = sizeof(peer);
-        SOCKET client = accept(g_tcp_listen, reinterpret_cast<sockaddr *>(&peer), &len);
+        socklen_t len = static_cast<socklen_t>(sizeof(peer));
+        SOCKET client = ::accept(g_tcp_listen, reinterpret_cast<sockaddr *>(&peer), &len);
         if (client == INVALID_SOCKET) continue;
         std::array<std::byte, 2048> buf;
         while (true) {
-            int n = recv(client, reinterpret_cast<char *>(buf.data()), buf.size(), 0);
-            if (n <= static_cast<int>(sizeof(node_t))) break;
+            const auto n =
+#ifdef _WIN32
+                ::recv(client, reinterpret_cast<char *>(buf.data()), static_cast<int>(buf.size()), 0);
+#else
+                ::recv(client, reinterpret_cast<char *>(buf.data()), buf.size(), 0);
+#endif
+            if (n <= 0) break;
+            const auto n_bytes = static_cast<std::size_t>(n);
+            if (n_bytes <= sizeof(node_t)) break;
             Packet pkt;
             std::memcpy(&pkt.src_node, buf.data(), sizeof(pkt.src_node));
-            pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n);
+            pkt.payload.assign(buf.begin() + sizeof(pkt.src_node), buf.begin() + n_bytes);
             enqueue_packet(std::move(pkt));
         }
         closesocket(client);
@@ -185,7 +273,7 @@ void shutdown() noexcept {
         g_udp_sock = INVALID_SOCKET;
     }
     if (g_tcp_listen != INVALID_SOCKET) {
-        shutdown(g_tcp_listen, SD_BOTH);
+        ::shutdown(g_tcp_listen, SD_BOTH);
         closesocket(g_tcp_listen);
         g_tcp_listen = INVALID_SOCKET;
     }
@@ -225,7 +313,7 @@ void add_remote(node_t node, const std::string &host, uint16_t port, Protocol pr
 
     for (auto *p = res; p; p = p->ai_next) {
         if (p->ai_family == AF_INET) {
-            rem.addr_len = static_cast<int>(p->ai_addrlen);
+            rem.addr_len = static_cast<socklen_t>(p->ai_addrlen);
             std::memcpy(&rem.addr, p->ai_addr, p->ai_addrlen);
             break;
         }
@@ -277,8 +365,13 @@ std::errc send(node_t node, std::span<const std::byte> data) {
         auto try_send = [&](SOCKET sock) -> std::errc {
             size_t sent = 0;
             while (sent < buf.size()) {
-                int n = ::send(sock, reinterpret_cast<const char *>(buf.data() + sent), buf.size() - sent, 0);
-                if (n < 0) {
+#ifdef _WIN32
+                const int chunk = static_cast<int>(buf.size() - sent);
+                const auto n = ::send(sock, reinterpret_cast<const char *>(buf.data() + sent), chunk, 0);
+#else
+                const auto n = ::send(sock, reinterpret_cast<const char *>(buf.data() + sent), buf.size() - sent, 0);
+#endif
+                if (n <= 0) {
                     err = WSAGetLastError();
                     return std::errc::io_error;
                 }
@@ -314,8 +407,14 @@ std::errc send(node_t node, std::span<const std::byte> data) {
         return rc;
     }
 
-    int n = sendto(g_udp_sock, reinterpret_cast<const char *>(buf.data()), buf.size(), 0,
-                   reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len);
+    const auto n =
+#ifdef _WIN32
+        ::sendto(g_udp_sock, reinterpret_cast<const char *>(buf.data()), static_cast<int>(buf.size()), 0,
+                 reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len);
+#else
+        ::sendto(g_udp_sock, reinterpret_cast<const char *>(buf.data()), buf.size(), 0,
+                 reinterpret_cast<sockaddr *>(&rem.addr), rem.addr_len);
+#endif
     return (n < 0 || static_cast<size_t>(n) != buf.size()) ? std::errc::io_error : std::errc{};
 }
 
@@ -327,11 +426,17 @@ bool recv(Packet &out) {
     return true;
 }
 
+/**
+ * @brief Clear the receive queue without affecting socket state.
+ */
 void reset() noexcept {
     std::lock_guard lock{g_mutex};
     g_queue.clear();
 }
 
+/**
+ * @brief Simulate a socket failure by closing active descriptors.
+ */
 void simulate_socket_failure() noexcept {
     if (g_udp_sock != INVALID_SOCKET) {
         closesocket(g_udp_sock);
