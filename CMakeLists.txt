@@ -316,6 +316,22 @@ xinim_add_host_test(test_ipc_channel
 target_include_directories(test_ipc_channel PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
 set_tests_properties(test_ipc_channel PROPERTIES LABELS "unit;ipc;kernel")
 
+# --- ELF Parser Tests ---
+# Links elf_loader.cpp which calls early_serial; serial_stub.cpp satisfies that dep.
+xinim_add_host_test(test_elf_parser
+    test/test_elf_parser.cpp
+    src/kernel/elf_loader.cpp
+    test/stubs/serial_stub.cpp
+)
+target_include_directories(test_elf_parser PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/kernel
+)
+# serial_stub.cpp provides no-op methods; the class has private members only used
+# in the real Serial16550 implementation.  Suppress the unused-field warning for
+# this host-only stub target.
+target_compile_options(test_elf_parser PRIVATE -Wno-unused-private-field)
+set_tests_properties(test_elf_parser PROPERTIES LABELS "unit;kernel")
+
 # --- Boot / Integration Tests (QEMU-based, require kernel image) ---
 # These are registered but only meaningful when the kernel is built.
 
