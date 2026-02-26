@@ -17,49 +17,52 @@
  *   - QEMU hw/net/virtio-net.c
  */
 
+#include "virtio_net.hpp"
+#include <array>
 #include <cstddef>
 #include <cstdint>
 #include "../../kernel/early/serial_16550.hpp"
 
-extern xinim::early::Serial16550 early_serial;
+extern xinim::early::Serial16550 early_serial; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace xinim::drivers::net {
+namespace {
 
 // ============================================================================
 // virtio PCI constants (VirtIO Spec v1.2, Appendix A)
 // ============================================================================
 
 /// PCI Vendor ID assigned to Red Hat / QEMU virtio devices.
-static constexpr uint16_t VIRTIO_VENDOR_ID  = 0x1AF4;
+constexpr uint16_t VIRTIO_VENDOR_ID  = 0x1AF4;
 /// PCI Device ID for virtio-net (legacy = 0x1000; modern = 0x1041).
-static constexpr uint16_t VIRTIO_NET_DEVICE_ID_LEGACY = 0x1000;
-static constexpr uint16_t VIRTIO_NET_DEVICE_ID_MODERN = 0x1041;
+constexpr uint16_t VIRTIO_NET_DEVICE_ID_LEGACY = 0x1000;
+constexpr uint16_t VIRTIO_NET_DEVICE_ID_MODERN = 0x1041;
 
 // ============================================================================
 // virtio status bits (VirtIO Spec v1.2, Section 2.1)
 // ============================================================================
 
-static constexpr uint8_t VIRTIO_STATUS_ACKNOWLEDGE  = 0x01;
-static constexpr uint8_t VIRTIO_STATUS_DRIVER       = 0x02;
-static constexpr uint8_t VIRTIO_STATUS_DRIVER_OK    = 0x04;
-static constexpr uint8_t VIRTIO_STATUS_FEATURES_OK  = 0x08;
-static constexpr uint8_t VIRTIO_STATUS_FAILED       = 0x80;
+constexpr uint8_t VIRTIO_STATUS_ACKNOWLEDGE  = 0x01;
+constexpr uint8_t VIRTIO_STATUS_DRIVER       = 0x02;
+constexpr uint8_t VIRTIO_STATUS_DRIVER_OK    = 0x04;
+constexpr uint8_t VIRTIO_STATUS_FEATURES_OK  = 0x08;
+constexpr uint8_t VIRTIO_STATUS_FAILED       = 0x80;
 
 // ============================================================================
 // virtio-net feature bits (VirtIO Spec v1.2, Section 5.1.3)
 // ============================================================================
 
-static constexpr uint32_t VIRTIO_NET_F_CSUM       = (1U << 0);
-static constexpr uint32_t VIRTIO_NET_F_MAC        = (1U << 5);
-static constexpr uint32_t VIRTIO_NET_F_STATUS     = (1U << 16);
-static constexpr uint32_t VIRTIO_NET_F_MRG_RXBUF  = (1U << 15);
+constexpr uint32_t VIRTIO_NET_F_CSUM       = (1U << 0);
+constexpr uint32_t VIRTIO_NET_F_MAC        = (1U << 5);
+constexpr uint32_t VIRTIO_NET_F_STATUS     = (1U << 16);
+constexpr uint32_t VIRTIO_NET_F_MRG_RXBUF  = (1U << 15);
 
 // ============================================================================
 // virtio-net queue indices
 // ============================================================================
 
-static constexpr uint16_t VIRTIO_NET_RX_QUEUE = 0;
-static constexpr uint16_t VIRTIO_NET_TX_QUEUE = 1;
+constexpr uint16_t VIRTIO_NET_RX_QUEUE = 0;
+constexpr uint16_t VIRTIO_NET_TX_QUEUE = 1;
 
 // ============================================================================
 // virtio-net header (prepended to every packet, VirtIO Spec v1.2 Section 5.1.6)
@@ -79,8 +82,8 @@ struct VirtioNetHdr {
 // Virtqueue descriptor (VirtIO Spec v1.2, Section 2.7.5)
 // ============================================================================
 
-static constexpr uint16_t VRING_DESC_F_NEXT  = 0x1; ///< Buffer continues in next field
-static constexpr uint16_t VRING_DESC_F_WRITE = 0x2; ///< Buffer is device-writable
+constexpr uint16_t VRING_DESC_F_NEXT  = 0x1; ///< Buffer continues in next field
+constexpr uint16_t VRING_DESC_F_WRITE = 0x2; ///< Buffer is device-writable
 
 struct VringDesc {
     uint64_t addr;   ///< Guest physical address
@@ -93,13 +96,17 @@ struct VringDesc {
 // Driver state
 // ============================================================================
 
+constexpr std::size_t MAC_ADDR_LEN = 6;
+
 struct VirtioNetState {
     bool     initialized{false};
     uint32_t negotiated_features{0};
-    uint8_t  mac[6]{};
+    std::array<uint8_t, MAC_ADDR_LEN> mac{};
 };
 
-static VirtioNetState g_state;
+VirtioNetState g_state; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
+} // anonymous namespace
 
 // ============================================================================
 // Initialization
@@ -148,3 +155,4 @@ bool virtio_net_recv([[maybe_unused]] void* buf,
 }
 
 } // namespace xinim::drivers::net
+
