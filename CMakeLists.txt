@@ -270,6 +270,45 @@ xinim_add_host_test(test_kyber_constants
 )
 target_include_directories(test_kyber_constants PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
 
+# Apply subcategory labels for test filtering.
+# The macro already applies LABELS "unit"; these extend it.
+set_tests_properties(test_wait_graph test_wait_graph_stress PROPERTIES LABELS "unit;kernel")
+set_tests_properties(test_scheduler test_scheduler_edge test_scheduler_deadlock test_service_contract PROPERTIES LABELS "unit;scheduler")
+set_tests_properties(test_ticket_spinlock test_mcs_spinlock test_phase_rwlock test_capability_mutex test_lock_manager PROPERTIES LABELS "unit;sync")
+set_tests_properties(test_fips202 test_ntt_roundtrip test_montgomery_reduce test_kyber_constants PROPERTIES LABELS "unit;crypto")
+set_tests_properties(test_octonion test_fano_multiply test_core_types PROPERTIES LABELS "unit;math")
+set_tests_properties(test_service_manager PROPERTIES LABELS "unit;kernel")
+
+# --- Kyber512 E2E Compile/Constant Validation ---
+xinim_add_host_test(test_kyber_e2e
+    test/test_kyber_e2e.cpp
+)
+target_include_directories(test_kyber_e2e PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
+target_compile_definitions(test_kyber_e2e PRIVATE KYBER_K=2)
+set_tests_properties(test_kyber_e2e PROPERTIES LABELS "unit;crypto")
+
+# --- Service Manager API Tests ---
+xinim_add_host_test(test_service_manager_api
+    test/test_service_manager_api.cpp
+    src/kernel/service.cpp
+)
+set_tests_properties(test_service_manager_api PROPERTIES LABELS "unit;kernel")
+
+# --- Net Driver Stub Tests ---
+xinim_add_host_test(test_net_driver_stub
+    test/test_net_driver_stub.cpp
+    src/kernel/net_driver.cpp
+)
+target_include_directories(test_net_driver_stub PRIVATE ${CMAKE_SOURCE_DIR}/include)
+set_tests_properties(test_net_driver_stub PROPERTIES LABELS "unit;kernel")
+
+# --- Syscall Dispatch Table Tests ---
+xinim_add_host_test(test_syscall_dispatch
+    test/test_syscall_dispatch.cpp
+)
+target_include_directories(test_syscall_dispatch PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
+set_tests_properties(test_syscall_dispatch PROPERTIES LABELS "unit;kernel")
+
 # --- Boot / Integration Tests (QEMU-based, require kernel image) ---
 # These are registered but only meaningful when the kernel is built.
 
