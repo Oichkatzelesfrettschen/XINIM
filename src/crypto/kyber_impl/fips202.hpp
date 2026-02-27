@@ -69,6 +69,15 @@ struct keccak_state {
                                              std::span<const std::uint8_t> in) noexcept;
 
 /**
+ * @brief SHAKE256 absorb operation
+ * @param state SHAKE state
+ * @param in Input buffer span
+ * @return Success or error code
+ */
+[[nodiscard]] fips202_result shake256_absorb(keccak_state& state,
+                                             std::span<const std::uint8_t> in) noexcept;
+
+/**
  * @brief SHAKE128 squeeze blocks
  * @param out Output buffer span
  * @param state SHAKE state

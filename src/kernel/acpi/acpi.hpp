@@ -31,14 +31,14 @@ struct SdtHeader {
 
 struct Xsdt {
     SdtHeader header;
-    uint64_t  entries[];
+    uint64_t  entries[1];
 };
 
 struct Madt {
     SdtHeader header;
     uint32_t lapic_address;
     uint32_t flags;
-    uint8_t  entries[];
+    uint8_t  entries[1];
 };
 
 struct HpetTable {

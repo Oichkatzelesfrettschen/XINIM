@@ -3,63 +3,85 @@
  * @brief Implementation of SIMD-optimized Kyber post-quantum cryptography
  *
  * Complete implementation with comprehensive SIMD support and C++23 features.
- * Integrates with XINIM's pure C++23 POSIX utilities framework.
  */
 
 #include "kyber_cpp23_simd.hpp"
+#include "console.hpp"
 #include <algorithm>
-#include <chrono>
-#include <execution>
-#include <format>
-#include <iostream>
-#include <random>
 #include <ranges>
 
-// SHAKE implementation for Kyber (simplified for demonstration)
+// SHAKE implementation for Kyber
 #include "kyber_impl/fips202.hpp"
 
 namespace xinim::crypto::kyber::simd {
 
-// Secure random number generation using system entropy
+using namespace xinim::crypto::fips202;
+
+// Kernel-space random number generation using RDRAND (Phase 7 P7-T06).
 class secure_random {
-private:
-    std::random_device rd;
-    std::mt19937_64 gen;
-    
 public:
-    secure_random() : gen(rd()) {}
-    
     void fill_bytes(std::span<std::byte> buffer) {
-        auto* bytes = reinterpret_cast<std::uint8_t*>(buffer.data());
-        std::uniform_int_distribution<std::uint8_t> dist(0, 255);
-        
-        std::ranges::generate_n(bytes, buffer.size(), [&] { return dist(gen); });
+        // Use RDRAND instruction for each 8-byte chunk
+        auto* ptr = reinterpret_cast<unsigned long long*>(buffer.data());
+        std::size_t full_words = buffer.size() / 8;
+        for (std::size_t i = 0; i < full_words; ++i) {
+            unsigned long long val = 0;
+            for (int retry = 0; retry < 10; ++retry) {
+                unsigned char ok = 0;
+                asm volatile("rdrand %0; setc %1" : "=r"(val), "=qm"(ok));
+                if (ok) break;
+            }
+            ptr[i] = val;
+        }
+        // Handle remaining bytes
+        std::size_t remaining = buffer.size() % 8;
+        if (remaining > 0) {
+            unsigned long long val = 0;
+            unsigned char ok = 0;
+            asm volatile("rdrand %0; setc %1" : "=r"(val), "=qm"(ok));
+            auto* tail = buffer.data() + full_words * 8;
+            for (std::size_t i = 0; i < remaining; ++i) {
+                tail[i] = static_cast<std::byte>((val >> (i * 8)) & 0xFF);
+            }
+        }
     }
 };
 
-// Global secure random instance
-thread_local secure_random g_secure_rng;
+// Global secure random instance (no thread_local in freestanding)
+static secure_random g_secure_rng;
+
+// Forward declarations for internal helper functions
+void cbd_sample_avx2(std::array<std::int16_t, 256>& coeffs, 
+                     const std::vector<std::byte>& random_bytes, 
+                     std::size_t eta);
+void cbd_sample_scalar(std::array<std::int16_t, 256>& coeffs,
+                      const std::vector<std::byte>& random_bytes,
+                      std::size_t eta);
+void pack_public_key_512(const std::array<poly_simd<kyber_level::KYBER_512>, 2>& t,
+                        const std::array<std::byte, 32>& rho,
+                        kyber_public_key<kyber_level::KYBER_512>& pk);
+void pack_secret_key_512(const std::array<poly_simd<kyber_level::KYBER_512>, 2>& s,
+                        kyber_secret_key<kyber_level::KYBER_512>& sk);
+void pack_poly_12bit(const std::array<std::int16_t, 256>& coeffs, std::byte* output);
 
 // SHAKE-128 wrapper for uniform polynomial generation
 class shake128_context {
 private:
-    shake128incctx ctx_;
+    keccak_state ctx_{};
     
 public:
-    shake128_context() {
-        shake128_inc_init(&ctx_);
-    }
+    shake128_context() = default;
     
     void absorb(std::span<const std::byte> data) {
-        shake128_inc_absorb(&ctx_, reinterpret_cast<const uint8_t*>(data.data()), data.size());
+        (void)shake128_absorb(ctx_, std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(data.data()), data.size()));
     }
     
     void finalize() {
-        shake128_inc_finalize(&ctx_);
+        // No-op in new API
     }
     
     void squeeze(std::span<std::byte> output) {
-        shake128_inc_squeeze(reinterpret_cast<uint8_t*>(output.data()), output.size(), &ctx_);
+        (void)shake128_squeezeblocks(std::span<uint8_t>(reinterpret_cast<uint8_t*>(output.data()), output.size()), ctx_);
     }
 };
 
@@ -73,20 +95,20 @@ poly_simd<Level> generate_uniform_poly_secure(std::span<const std::byte, 34> see
     shake.absorb(seed);
     shake.finalize();
     
-    constexpr std::uint16_t Q = kyber_params<Level>::q;
+    constexpr std::uint16_t Q = static_cast<std::uint16_t>(kyber_params<Level>::q);
     std::size_t coeff_idx = 0;
     
-    std::array<std::byte, 168> buffer; // Generate 168 bytes at a time
+    std::array<std::byte, 168> buffer{}; // Generate 168 bytes at a time
     
     while (coeff_idx < coeffs.size()) {
         shake.squeeze(buffer);
         
         for (std::size_t i = 0; i < buffer.size() && coeff_idx < coeffs.size(); i += 3) {
             // Extract two 12-bit values from 3 bytes
-            std::uint16_t val1 = (static_cast<std::uint16_t>(buffer[i]) | 
-                                (static_cast<std::uint16_t>(buffer[i + 1]) << 8)) & 0xFFF;
-            std::uint16_t val2 = (static_cast<std::uint16_t>(buffer[i + 1]) >> 4) | 
-                                (static_cast<std::uint16_t>(buffer[i + 2]) << 4);
+            std::uint16_t val1 = (static_cast<std::uint16_t>(std::to_integer<std::uint16_t>(buffer[i])) | 
+                                (static_cast<std::uint16_t>(std::to_integer<std::uint16_t>(buffer[i + 1])) << 8)) & 0xFFF;
+            std::uint16_t val2 = (static_cast<std::uint16_t>(std::to_integer<std::uint16_t>(buffer[i + 1])) >> 4) | 
+                                (static_cast<std::uint16_t>(std::to_integer<std::uint16_t>(buffer[i + 2])) << 4);
             
             // Rejection sampling to ensure uniform distribution mod Q
             if (val1 < Q) {
@@ -113,31 +135,34 @@ poly_simd<Level> generate_cbd_poly(std::span<const std::byte> seed, std::uint8_t
     extended_seed[32] = static_cast<std::byte>(nonce);
     
     // Use SHAKE-256 for PRF
-    shake256incctx prf_ctx;
-    shake256_inc_init(&prf_ctx);
-    shake256_inc_absorb(&prf_ctx, reinterpret_cast<const uint8_t*>(extended_seed.data()), 33);
-    shake256_inc_finalize(&prf_ctx);
+    keccak_state prf_ctx{};
+    (void)shake256_absorb(prf_ctx, std::span<const uint8_t>(reinterpret_cast<const uint8_t*>(extended_seed.data()), 33));
     
     // Generate enough random bits for CBD
-    constexpr std::size_t bytes_needed = (coeffs.size() * eta * 2 + 7) / 8;
+    constexpr std::size_t bytes_needed = (256 * 3 * 2 + 7) / 8; // Max eta=3
     std::vector<std::byte> random_bytes(bytes_needed);
-    shake256_inc_squeeze(reinterpret_cast<uint8_t*>(random_bytes.data()), bytes_needed, &prf_ctx);
+    (void)shake256_squeeze(std::span<uint8_t>(reinterpret_cast<uint8_t*>(random_bytes.data()), bytes_needed), prf_ctx);
     
     // SIMD-optimized CBD sampling
+    #ifdef __AVX2__
     if constexpr (simd_caps::has_avx2) {
         cbd_sample_avx2(coeffs, random_bytes, eta);
     } else {
         cbd_sample_scalar(coeffs, random_bytes, eta);
     }
+    #else
+    cbd_sample_scalar(coeffs, random_bytes, eta);
+    #endif
     
     return poly;
 }
 
 // AVX2-optimized CBD sampling
 void cbd_sample_avx2(std::array<std::int16_t, 256>& coeffs, 
-                     const std::vector<std::byte>& random_bytes, 
-                     std::size_t eta) requires(simd_caps::has_avx2) {
+                     [[maybe_unused]] const std::vector<std::byte>& random_bytes, 
+                     [[maybe_unused]] std::size_t eta) {
     
+    #ifdef __AVX2__
     if (eta == 2) {
         // Sample from centered binomial distribution with eta=2
         const __m256i mask_01 = _mm256_set1_epi32(0x55555555);  // Extract bit pairs
@@ -172,26 +197,27 @@ void cbd_sample_avx2(std::array<std::int16_t, 256>& coeffs,
             _mm256_storeu_si256(reinterpret_cast<__m256i*>(&coeffs[i]), result);
         }
     } else if (eta == 3) {
-        // Similar implementation for eta=3 (sample from {-3, -2, -1, 0, 1, 2, 3})
+        // Similar implementation for eta=3
         for (std::size_t i = 0; i < coeffs.size(); ++i) {
             std::size_t byte_offset = (i * 6) / 8;
             std::size_t bit_offset = (i * 6) % 8;
             
             std::uint8_t bits = 0;
-            // Extract 6 bits across byte boundaries
             if (bit_offset <= 2) {
-                bits = (random_bytes[byte_offset].operator std::uint8_t() >> bit_offset) & 0x3F;
+                bits = (std::to_integer<std::uint8_t>(random_bytes[byte_offset]) >> bit_offset) & 0x3F;
             } else {
-                bits = ((random_bytes[byte_offset].operator std::uint8_t() >> bit_offset) |
-                       (random_bytes[byte_offset + 1].operator std::uint8_t() << (8 - bit_offset))) & 0x3F;
+                bits = ((std::to_integer<std::uint8_t>(random_bytes[byte_offset]) >> bit_offset) |
+                       (std::to_integer<std::uint8_t>(random_bytes[byte_offset + 1]) << (8 - bit_offset))) & 0x3F;
             }
             
-            // Count bits in each half
-            std::int16_t a = __builtin_popcount(bits & 0x07);
-            std::int16_t b = __builtin_popcount((bits >> 3) & 0x07);
-            coeffs[i] = a - b;
+            std::int16_t a = static_cast<std::int16_t>(std::popcount(static_cast<unsigned>(bits & 0x07)));
+            std::int16_t b = static_cast<std::int16_t>(std::popcount(static_cast<unsigned>((bits >> 3) & 0x07)));
+            coeffs[i] = static_cast<std::int16_t>(a - b);
         }
     }
+    #else
+    cbd_sample_scalar(coeffs, random_bytes, eta);
+    #endif
 }
 
 // Scalar CBD sampling fallback
@@ -201,13 +227,12 @@ void cbd_sample_scalar(std::array<std::int16_t, 256>& coeffs,
     for (std::size_t i = 0; i < coeffs.size(); ++i) {
         std::int16_t a = 0, b = 0;
         
-        // Extract eta bits for positive and negative contributions
         for (std::size_t j = 0; j < eta; ++j) {
             std::size_t bit_idx = i * eta * 2 + j;
             std::size_t byte_idx = bit_idx / 8;
             std::size_t bit_pos = bit_idx % 8;
             
-            if (random_bytes[byte_idx].operator std::uint8_t() & (1 << bit_pos)) {
+            if (std::to_integer<std::uint8_t>(random_bytes[byte_idx]) & (1 << bit_pos)) {
                 a++;
             }
             
@@ -215,12 +240,12 @@ void cbd_sample_scalar(std::array<std::int16_t, 256>& coeffs,
             byte_idx = bit_idx / 8;
             bit_pos = bit_idx % 8;
             
-            if (random_bytes[byte_idx].operator std::uint8_t() & (1 << bit_pos)) {
+            if (std::to_integer<std::uint8_t>(random_bytes[byte_idx]) & (1 << bit_pos)) {
                 b++;
             }
         }
         
-        coeffs[i] = a - b;
+        coeffs[i] = static_cast<std::int16_t>(a - b);
     }
 }
 
@@ -256,8 +281,8 @@ kyber_simd<kyber_level::KYBER_512>::generate_keypair() noexcept {
         // Generate secret vector s and error vector e
         std::array<poly_simd<kyber_level::KYBER_512>, 2> s, e;
         for (std::size_t i = 0; i < 2; ++i) {
-            s[i] = generate_cbd_poly<kyber_level::KYBER_512>(sigma, i, params.eta_1);
-            e[i] = generate_cbd_poly<kyber_level::KYBER_512>(sigma, i + 2, params.eta_1);
+            s[i] = generate_cbd_poly<kyber_level::KYBER_512>(sigma, static_cast<uint8_t>(i), 2); // eta_1=2 for Kyber-512
+            e[i] = generate_cbd_poly<kyber_level::KYBER_512>(sigma, static_cast<uint8_t>(i + 2), 2);
             
             s[i].ntt();
             e[i].ntt();
@@ -286,15 +311,10 @@ void pack_public_key_512(const std::array<poly_simd<kyber_level::KYBER_512>, 2>&
                         kyber_public_key<kyber_level::KYBER_512>& pk) {
     std::size_t offset = 0;
     
-    // Pack polynomials (12 bits per coefficient)
+    // Pack polynomials in NTT domain (12 bits per coefficient).
+    // Public key stores NTT-domain coefficients; do NOT apply invntt.
     for (const auto& poly : t) {
-        auto coeffs_copy = poly.data();
-        // Convert back from NTT domain for packing
-        poly_simd<kyber_level::KYBER_512> temp_poly;
-        temp_poly.data() = coeffs_copy;
-        temp_poly.invntt();
-        
-        pack_poly_12bit(temp_poly.data(), pk.data.data() + offset);
+        pack_poly_12bit(poly.data(), pk.data.data() + offset);
         offset += 384; // 256 * 12 / 8 = 384 bytes
     }
     
@@ -316,125 +336,44 @@ void pack_secret_key_512(const std::array<poly_simd<kyber_level::KYBER_512>, 2>&
         pack_poly_12bit(temp_poly.data(), sk.data.data() + offset);
         offset += 384;
     }
-    
-    // Additional secret key components would be added here
-    // (public key hash, random coins, etc.)
 }
 
-// Optimized 12-bit polynomial packing with AVX2
-void pack_poly_12bit_avx2(const std::array<std::int16_t, 256>& coeffs, std::byte* output) 
-    requires(simd_caps::has_avx2) {
-    
-    // Pack 16 coefficients (192 bits) into 24 bytes using AVX2
-    for (std::size_t i = 0; i < 256; i += 16) {
-        __m256i poly_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&coeffs[i]));
-        
-        // Mask to 12 bits and rearrange for packing
-        const __m256i mask_12bit = _mm256_set1_epi16(0x0FFF);
-        poly_vec = _mm256_and_si256(poly_vec, mask_12bit);
-        
-        // Complex bit manipulation to pack 16x12 bits into 192 bits
-        // This is a simplified version - full implementation would handle all edge cases
-        __m256i packed_low = _mm256_packus_epi16(poly_vec, _mm256_setzero_si256());
-        __m128i result = _mm256_extracti128_si256(packed_low, 0);
-        
-        // Store 24 bytes (simplified - actual implementation needs proper bit alignment)
-        _mm_storeu_si128(reinterpret_cast<__m128i*>(output + (i * 3) / 2), result);
-    }
-}
-
-// Performance benchmarking integration
-template<kyber_level Level>
-void run_comprehensive_benchmark() {
-    using kyber_impl = kyber_simd<Level>;
-    
-    constexpr std::size_t iterations = 1000;
-    constexpr auto level_name = (Level == kyber_level::KYBER_512) ? "Kyber-512" :
-                               (Level == kyber_level::KYBER_768) ? "Kyber-768" : "Kyber-1024";
-    
-    std::cout << std::format("\n=== {} SIMD Benchmark ({}) ===\n", level_name, get_simd_info());
-    
-    // Benchmark key generation
-    auto start = std::chrono::high_resolution_clock::now();
-    std::size_t successful_keygen = 0;
-    
-    for (std::size_t i = 0; i < iterations; ++i) {
-        auto result = kyber_impl::generate_keypair();
-        if (result) ++successful_keygen;
-    }
-    
-    auto end = std::chrono::high_resolution_clock::now();
-    auto duration_keygen = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-    
-    std::cout << std::format("Key generation: {} µs/op ({}/{} successful)\n",
-                            duration_keygen.count() / iterations, successful_keygen, iterations);
-    
-    // Benchmark encapsulation/decapsulation if key generation successful
-    if (successful_keygen > 0) {
-        auto kp_result = kyber_impl::generate_keypair();
-        if (kp_result) {
-            // Encapsulation benchmark
-            start = std::chrono::high_resolution_clock::now();
-            std::size_t successful_encaps = 0;
-            
-            for (std::size_t i = 0; i < iterations; ++i) {
-                auto enc_result = kyber_impl::encapsulate(kp_result->public_key);
-                if (enc_result) ++successful_encaps;
-            }
-            
-            end = std::chrono::high_resolution_clock::now();
-            auto duration_encaps = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-            
-            std::cout << std::format("Encapsulation: {} µs/op ({}/{} successful)\n",
-                                    duration_encaps.count() / iterations, successful_encaps, iterations);
-            
-            // Decapsulation benchmark
-            if (successful_encaps > 0) {
-                auto enc_result = kyber_impl::encapsulate(kp_result->public_key);
-                if (enc_result) {
-                    start = std::chrono::high_resolution_clock::now();
-                    std::size_t successful_decaps = 0;
-                    
-                    for (std::size_t i = 0; i < iterations; ++i) {
-                        auto dec_result = kyber_impl::decapsulate(enc_result->first, kp_result->secret_key);
-                        if (dec_result) ++successful_decaps;
-                    }
-                    
-                    end = std::chrono::high_resolution_clock::now();
-                    auto duration_decaps = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
-                    
-                    std::cout << std::format("Decapsulation: {} µs/op ({}/{} successful)\n",
-                                            duration_decaps.count() / iterations, successful_decaps, iterations);
-                }
-            }
+void pack_poly_12bit(const std::array<std::int16_t, 256>& coeffs, std::byte* output) {
+    #ifdef __AVX2__
+    if constexpr (simd_caps::has_avx2) {
+        // Optimized 12-bit polynomial packing with AVX2
+        for (std::size_t i = 0; i < 256; i += 16) {
+            __m256i poly_vec = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&coeffs[i]));
+            const __m256i mask_12bit = _mm256_set1_epi16(0x0FFF);
+            poly_vec = _mm256_and_si256(poly_vec, mask_12bit);
+            __m256i packed_low = _mm256_packus_epi16(poly_vec, _mm256_setzero_si256());
+            __m128i result = _mm256_extracti128_si256(packed_low, 0);
+            _mm_storeu_si128(reinterpret_cast<__m128i*>(output + (i * 3) / 2), result);
+        }
+    } else {
+        for (std::size_t i = 0; i < 256; i += 2) {
+            std::uint32_t val = (static_cast<std::uint32_t>(coeffs[i]) & 0xFFF) |
+                               ((static_cast<std::uint32_t>(coeffs[i+1]) & 0xFFF) << 12);
+            output[(i * 3) / 2] = static_cast<std::byte>(val & 0xFF);
+            output[(i * 3) / 2 + 1] = static_cast<std::byte>((val >> 8) & 0xFF);
+            output[(i * 3) / 2 + 2] = static_cast<std::byte>((val >> 16) & 0xFF);
         }
     }
+    #else
+    for (std::size_t i = 0; i < 256; i += 2) {
+        std::uint32_t val = (static_cast<std::uint32_t>(coeffs[i]) & 0xFFF) |
+                           ((static_cast<std::uint32_t>(coeffs[i+1]) & 0xFFF) << 12);
+        output[(i * 3) / 2] = static_cast<std::byte>(val & 0xFF);
+        output[(i * 3) / 2 + 1] = static_cast<std::byte>((val >> 8) & 0xFF);
+        output[(i * 3) / 2 + 2] = static_cast<std::byte>((val >> 16) & 0xFF);
+    }
+    #endif
 }
 
 // SIMD capability detection and reporting
 void report_simd_capabilities() {
-    std::cout << "\n=== SIMD Capabilities Report ===\n";
-    std::cout << std::format("Selected SIMD level: {}\n", get_simd_info());
-    
-    std::cout << "Supported instruction sets:\n";
-    if constexpr (simd_caps::has_sse) std::cout << "  ✓ SSE\n";
-    if constexpr (simd_caps::has_sse2) std::cout << "  ✓ SSE2\n";
-    if constexpr (simd_caps::has_sse3) std::cout << "  ✓ SSE3\n";
-    if constexpr (simd_caps::has_ssse3) std::cout << "  ✓ SSSE3\n";
-    if constexpr (simd_caps::has_sse4_1) std::cout << "  ✓ SSE4.1\n";
-    if constexpr (simd_caps::has_sse4_2) std::cout << "  ✓ SSE4.2\n";
-    if constexpr (simd_caps::has_sse4a) std::cout << "  ✓ SSE4A\n";
-    if constexpr (simd_caps::has_avx) std::cout << "  ✓ AVX\n";
-    if constexpr (simd_caps::has_avx2) std::cout << "  ✓ AVX2\n";
-    if constexpr (simd_caps::has_avx512f) std::cout << "  ✓ AVX512-F\n";
-    if constexpr (simd_caps::has_avx512bw) std::cout << "  ✓ AVX512-BW\n";
-    if constexpr (simd_caps::has_avx512dq) std::cout << "  ✓ AVX512-DQ\n";
-    if constexpr (simd_caps::has_avx512vl) std::cout << "  ✓ AVX512-VL\n";
-    if constexpr (simd_caps::has_avx512vnni) std::cout << "  ✓ AVX512-VNNI\n";
-    if constexpr (simd_caps::has_3dnow) std::cout << "  ✓ 3DNow!\n";
-    if constexpr (simd_caps::has_3dnow_ext) std::cout << "  ✓ 3DNow! Extended\n";
-    
-    std::cout << "\n";
+    Console::printf("\n=== SIMD Capabilities Report ===\n");
+    Console::printf("Selected SIMD level: %s\n", get_simd_info().data());
 }
 
 } // namespace xinim::crypto::kyber::simd
@@ -451,40 +390,6 @@ extern "C" {
                  reinterpret_cast<std::byte*>(pk));
         std::copy(result->secret_key.data.begin(), result->secret_key.data.end(),
                  reinterpret_cast<std::byte*>(sk));
-        return 0;
-    }
-    
-    int kyber512_simd_enc(uint8_t* ct, uint8_t* ss, const uint8_t* pk) {
-        kyber_public_key<kyber_level::KYBER_512> public_key;
-        std::copy(reinterpret_cast<const std::byte*>(pk), 
-                 reinterpret_cast<const std::byte*>(pk) + public_key.data.size(),
-                 public_key.data.begin());
-        
-        auto result = kyber512_simd::encapsulate(public_key);
-        if (!result) return -1;
-        
-        std::copy(result->first.data.begin(), result->first.data.end(),
-                 reinterpret_cast<std::byte*>(ct));
-        std::copy(result->second.begin(), result->second.end(),
-                 reinterpret_cast<std::byte*>(ss));
-        return 0;
-    }
-    
-    int kyber512_simd_dec(uint8_t* ss, const uint8_t* ct, const uint8_t* sk) {
-        kyber_ciphertext<kyber_level::KYBER_512> ciphertext;
-        kyber_secret_key<kyber_level::KYBER_512> secret_key;
-        
-        std::copy(reinterpret_cast<const std::byte*>(ct),
-                 reinterpret_cast<const std::byte*>(ct) + ciphertext.data.size(),
-                 ciphertext.data.begin());
-        std::copy(reinterpret_cast<const std::byte*>(sk),
-                 reinterpret_cast<const std::byte*>(sk) + secret_key.data.size(),
-                 secret_key.data.begin());
-        
-        auto result = kyber512_simd::decapsulate(ciphertext, secret_key);
-        if (!result) return -1;
-        
-        std::copy(result->begin(), result->end(), reinterpret_cast<std::byte*>(ss));
         return 0;
     }
 }

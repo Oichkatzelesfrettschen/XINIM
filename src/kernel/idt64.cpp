@@ -51,9 +51,11 @@ static struct idt_entry idt[256];
 static struct idt_ptr idt_desc;
 
 // Modernized declarations for external assembly ISRs
-extern void isr_default() noexcept;
-extern void isr_clock() noexcept;
-extern void isr_keyboard() noexcept;
+extern "C" {
+    void isr_default() noexcept;
+    void isr_clock() noexcept;
+    void isr_keyboard() noexcept;
+}
 
 /**
  * @brief Fill one IDT entry with a handler.

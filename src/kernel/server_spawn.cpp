@@ -383,19 +383,52 @@ int initialize_system_servers() {
  * @param init_path Path to init binary (e.g., "/sbin/init")
  * @return 0 on success, -1 on error
  */
+// Minimal init process: halts in a loop waiting for interrupts.
+// Phase 6 (P6-T04/T05) will implement fork/exec for real init.
+static void init_process_main() {
+    while (true) {
+        asm volatile("hlt");
+    }
+}
+
 int spawn_init_process(const char* init_path) {
     char buffer[128];
     snprintf(buffer, sizeof(buffer),
              "[SPAWN] Spawning init process from '%s'...\n", init_path);
     early_serial.write(buffer);
 
-    // Week 7 limitation: We don't yet have ELF loading or VFS access
-    // during boot, so we just create a placeholder
+    // Create a minimal init process (PID 1) with an IPC receive loop
+    ProcessControlBlock* pcb = create_pcb_with_pid(1);
+    if (!pcb) {
+        early_serial.write("[ERROR] Failed to create init PCB\n");
+        return -1;
+    }
 
-    early_serial.write("[WARN] Init process spawning not yet implemented\n");
-    early_serial.write("[INFO] System will run servers only (no userspace init)\n");
+    // Allocate stack
+    constexpr uint64_t INIT_STACK_SIZE = 4096;
+    void* stack = kmalloc(INIT_STACK_SIZE);
+    if (!stack) {
+        early_serial.write("[ERROR] Failed to allocate init stack\n");
+        return -1;
+    }
 
-    return -1;  // Not an error, just not implemented yet
+    pcb->name = pcb->name_storage.data();
+    std::strncpy(pcb->name_storage.data(), "init", pcb->name_storage.size() - 1);
+    pcb->name_storage.back() = '\0';
+    pcb->state = ProcessState::READY;
+    pcb->priority = 1;
+    pcb->stack_base = stack;
+    pcb->stack_size = INIT_STACK_SIZE;
+
+    void* stack_top = static_cast<char*>(stack) + INIT_STACK_SIZE;
+    uint64_t entry = reinterpret_cast<uint64_t>(init_process_main);
+    uint64_t sp = reinterpret_cast<uint64_t>(stack_top);
+    pcb->context.initialize(entry, sp, 0); // Ring 0 for now
+
+    scheduler_add_process(pcb);
+
+    early_serial.write("[OK] Init process (PID 1) spawned\n");
+    return 0;
 }
 
 // ============================================================================

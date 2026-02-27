@@ -14,7 +14,7 @@ namespace lattice {
  * @brief Eight component algebraic entity used as a capability token.
  */
 struct Octonion {
-    std::array<std::uint32_t, 8> comp; ///< Scalar and imaginary parts
+    std::array<std::uint32_t, 8> comp{}; ///< Scalar and imaginary parts
 
     /// Default initialize all components to zero.
     constexpr Octonion() = default;
@@ -73,30 +73,34 @@ struct Octonion {
         auto qac2 = a0 * c2 - a1 * c3 + a2 * c0 + a3 * c1;
         auto qac3 = a0 * c3 + a1 * c2 - a2 * c1 + a3 * c0;
 
-        auto qdb0 = d0 * b0 + d1 * b1 + d2 * b2 + d3 * b3;
-        auto qdb1 = d0 * b1 - d1 * b0 - d2 * b3 + d3 * b2;
-        auto qdb2 = d0 * b2 + d1 * b3 - d2 * b0 - d3 * b1;
-        auto qdb3 = d0 * b3 - d1 * b2 + d2 * b1 - d3 * b0;
+        // conj(d)*b: quaternion product of conjugate(d) and b
+        auto cdb0 = d0 * b0 + d1 * b1 + d2 * b2 + d3 * b3;
+        auto cdb1 = d0 * b1 - d1 * b0 + d2 * b3 - d3 * b2;
+        auto cdb2 = d0 * b2 - d1 * b3 - d2 * b0 + d3 * b1;
+        auto cdb3 = d0 * b3 + d1 * b2 - d2 * b1 - d3 * b0;
 
-        auto da0 = d0 * a0 + d1 * a1 + d2 * a2 + d3 * a3;
-        auto da1 = d0 * a1 - d1 * a0 - d2 * a3 + d3 * a2;
-        auto da2 = d0 * a2 + d1 * a3 - d2 * a0 - d3 * a1;
-        auto da3 = d0 * a3 - d1 * a2 + d2 * a1 - d3 * a0;
+        // d*a: quaternion product of d and a
+        auto da0 = d0 * a0 - d1 * a1 - d2 * a2 - d3 * a3;
+        auto da1 = d0 * a1 + d1 * a0 + d2 * a3 - d3 * a2;
+        auto da2 = d0 * a2 - d1 * a3 + d2 * a0 + d3 * a1;
+        auto da3 = d0 * a3 + d1 * a2 - d2 * a1 + d3 * a0;
 
-        auto bc0 = b0 * c0 - b1 * c1 - b2 * c2 - b3 * c3;
-        auto bc1 = b0 * c1 + b1 * c0 + b2 * c3 - b3 * c2;
-        auto bc2 = b0 * c2 - b1 * c3 + b2 * c0 + b3 * c1;
-        auto bc3 = b0 * c3 + b1 * c2 - b2 * c1 + b3 * c0;
+        // b*conj(c): quaternion product of b and conjugate(c)
+        auto bcc0 = b0 * c0 + b1 * c1 + b2 * c2 + b3 * c3;
+        auto bcc1 = -b0 * c1 + b1 * c0 - b2 * c3 + b3 * c2;
+        auto bcc2 = -b0 * c2 + b1 * c3 + b2 * c0 - b3 * c1;
+        auto bcc3 = -b0 * c3 - b1 * c2 + b2 * c1 + b3 * c0;
 
+        // Cayley-Dickson: (a,b)(c,d) = (ac - conj(d)*b, da + b*conj(c))
         Octonion out{};
-        out.comp[0] = qac0 - qdb0;
-        out.comp[1] = qac1 - qdb1;
-        out.comp[2] = qac2 - qdb2;
-        out.comp[3] = qac3 - qdb3;
-        out.comp[4] = da0 + bc0;
-        out.comp[5] = da1 + bc1;
-        out.comp[6] = da2 + bc2;
-        out.comp[7] = da3 + bc3;
+        out.comp[0] = qac0 - cdb0;
+        out.comp[1] = qac1 - cdb1;
+        out.comp[2] = qac2 - cdb2;
+        out.comp[3] = qac3 - cdb3;
+        out.comp[4] = da0 + bcc0;
+        out.comp[5] = da1 + bcc1;
+        out.comp[6] = da2 + bcc2;
+        out.comp[7] = da3 + bcc3;
         return out;
     }
 

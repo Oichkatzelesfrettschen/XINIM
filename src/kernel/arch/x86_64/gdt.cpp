@@ -54,20 +54,13 @@ static_assert(sizeof(GdtPointer) == 10, "GDT pointer must be 10 bytes");
 
 /**
  * @brief Global Descriptor Table (6 entries)
- *
- * Entry 0: Null descriptor (required by x86_64)
- * Entry 1: Kernel code segment (Ring 0, executable)
- * Entry 2: Kernel data segment (Ring 0, writable)
- * Entry 3: User code segment (Ring 3, executable)
- * Entry 4: User data segment (Ring 3, writable)
- * Entry 5-6: TSS descriptor (added by initialize_tss(), 16 bytes in 64-bit mode)
  */
-static GdtEntry g_gdt[7];  // 7 to accommodate TSS (which spans 2 entries)
+GdtEntry g_gdt[7];  
 
 /**
  * @brief GDT pointer for LGDT instruction
  */
-static GdtPointer g_gdt_ptr;
+GdtPointer g_gdt_ptr;
 
 // ============================================================================
 // Access Byte Flags

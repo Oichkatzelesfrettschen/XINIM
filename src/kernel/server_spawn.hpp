@@ -75,6 +75,11 @@ int spawn_init_process(const char* init_path);
 int initialize_system_servers();
 
 /**
+ * @brief Start the preemptive scheduler.
+ */
+[[noreturn]] void schedule_forever();
+
+/**
  * @brief Well-known server descriptors
  */
 extern ServerDescriptor g_vfs_server_desc;

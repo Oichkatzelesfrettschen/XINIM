@@ -265,6 +265,16 @@ void ReincarnationServer::check_health() {
     auto now = std::chrono::steady_clock::now();
     
     for (auto& [id, service] : services_) {
+        if (service.state == ServiceState::Stopped && service.restart_count > 0) {
+            // Check if delay has passed
+            auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                now - service.stats.last_crash_time).count();
+            if (elapsed >= service.policy.restart_delay_ms) {
+                start_service_locked(id);
+            }
+            continue;
+        }
+
         if (service.state != ServiceState::Running) {
             continue;
         }
@@ -309,7 +319,15 @@ void ReincarnationServer::recover_service(uint32_t service_id) {
     stop_service_locked(service_id);
     
     // Restart after delay
-    // TODO: Implement delayed restart (for now restart immediately)
+    if (service.policy.restart_delay_ms > 0) {
+        std::cerr << std::format("RS: Delaying restart of {} by {}ms\n", 
+                                service.name, service.policy.restart_delay_ms);
+        // In a real server, we would use a non-blocking timer.
+        // For now, we simulate it in the monitor thread.
+        service.state = ServiceState::Stopped; // Wait for next monitor cycle
+        return;
+    }
+
     if (start_service_locked(service_id)) {
         service.stats.last_restart_time = std::chrono::steady_clock::now();
     } else {

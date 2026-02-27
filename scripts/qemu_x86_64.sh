@@ -20,12 +20,13 @@ print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 # Default configuration for x86_64
-KERNEL_IMAGE="${PROJECT_ROOT}/build/xinim"
+KERNEL_IMAGE="${PROJECT_ROOT}/build/Debug/xinim"
 MEMORY="512M"
 CPU_TYPE="qemu64"
 MACHINE="q35"  # Modern PC with PCIe
 ACCEL=""
 SERIAL_OUTPUT="stdio"
+KSHELL_PORT=4555
 DISPLAY="-nographic"
 DEBUG_MODE=false
 GDB_PORT=1234
@@ -67,6 +68,10 @@ while [[ $# -gt 0 ]]; do
             DISPLAY=""
             shift
             ;;
+        --kshell-port)
+            KSHELL_PORT="$2"
+            shift 2
+            ;;
         --cmdline)
             KERNEL_CMDLINE="$2"
             shift 2
@@ -89,6 +94,7 @@ Options:
   -g, --debug            Enable GDB debugging
   --gdb-port PORT        GDB server port (default: 1234)
   --display              Enable graphical display (default: serial only)
+  --kshell-port PORT     TCP port for kshell on COM2 (default: 4555)
   --cmdline "ARGS"       Kernel command line arguments
   -h, --help             Show this help message
 
@@ -107,6 +113,9 @@ Examples:
 
   # Boot with host CPU passthrough (requires KVM)
   $0 --cpu host
+
+  # Connect to kshell via COM2 (after boot)
+  # socat - TCP:localhost:4555
 
 Recommended CPU types for x86_64:
   - qemu64:           Generic 64-bit x86 (best compatibility)
@@ -174,8 +183,9 @@ QEMU_ARGS=(
     -device "e1000,netdev=net0"               # E1000 network card
     -netdev "user,id=net0"                    # User-mode networking
     
-    # Serial port configuration
+    # Serial port configuration: COM1 for logs, COM2 for kshell
     -serial "$SERIAL_OUTPUT"
+    -serial "tcp::${KSHELL_PORT},server,nowait"
     
     # Display
     $DISPLAY
@@ -211,6 +221,7 @@ print_info "CPUs:         $SMP_CPUS"
 print_info "CPU Type:     $CPU_TYPE"
 print_info "Machine:      $MACHINE"
 print_info "Acceleration: ${ACCEL#-accel }"
+print_info "kshell port:  $KSHELL_PORT (COM2 via TCP)"
 print_info "================================"
 
 # Launch QEMU

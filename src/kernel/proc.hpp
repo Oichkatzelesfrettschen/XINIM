@@ -1,79 +1,105 @@
 #pragma once
 // Modernized for C++23
 
-/* Here is the declaration of the process table.  Three assembly code routines
- * reference fields in it.  They are restart(), save(), and csv().  When
- * changing 'proc', be sure to change the field offsets built into the code.
- * It contains the process' registers, memory map, accounting, and message
- * send/receive information.
- */
-#include <sys/const.hpp>      // Process table sizing constants
-#include <sys/type.hpp>       // Message, mem_map, real_time, xinim types
-#include "../include/defs.hpp" // Project-wide integer definitions
-#include "./type.hpp"          // pc_psw definition
-#include "const.hpp"           // Scheduling constants and printf macro
+#include <sys/const.hpp>      
+#include <sys/type.hpp>       
+#include "../include/defs.hpp" 
+#include "./type.hpp"          
+#include "const.hpp"           
+
 #ifdef printf
 #undef printf
 #endif
 
-// Function prototypes
-PUBLIC int mini_send(int caller, int dest, message *m_ptr);
-PUBLIC int mini_rec(int caller, int src, message *m_ptr);
-PUBLIC void pick_proc();
-PUBLIC void ready(struct proc *rp);
-PUBLIC void unready(struct proc *rp);
-PUBLIC void cp_mess(int src, uint64_t src_phys, void* src_vir, uint64_t dest_phys, void* dest_vir);
-PUBLIC void inform(int proc_nr) noexcept;
-PUBLIC void lock() noexcept;
-PUBLIC void restore() noexcept;
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// Kernel Primitives (Renamed to avoid collisions with POSIX)
+int mini_send(int caller, int dest, message *m_ptr) noexcept;
+int mini_rec(int caller, int src, message *m_ptr) noexcept;
+int ipc_send(int dest, message *m_ptr) noexcept;
+int ipc_receive(int src, message *m_ptr) noexcept;
+void interrupt(int task, message *m_ptr) noexcept;
+void sys_call(int function, int caller, int src_dest, message *m_ptr) noexcept;
+void kernel_sched() noexcept;
+
+// Architecture / Hardware Primitives
+void port_in(unsigned port, unsigned *val) noexcept;
+void port_out(unsigned port, unsigned val) noexcept;
+void portw_in(unsigned port, unsigned *val) noexcept;
+void portw_out(unsigned port, unsigned val) noexcept;
+void phys_copy(void *dst, const void *src, std::size_t n) noexcept;
+void phys_copy16(void *dst, const void *src, std::size_t words) noexcept;
+void lock() noexcept;
+void restore() noexcept;
+void unlock() noexcept;
+void reboot() noexcept;
+void halt() noexcept;
+
+// Process & Memory Management
+void pick_proc() noexcept;
+void ready(struct proc *rp) noexcept;
+void unready(struct proc *rp) noexcept;
+void cp_mess(int src, uint64_t src_phys, const void* src_vir, uint64_t dest_phys, void* dest_vir) noexcept;
+void inform(int proc_nr) noexcept;
+void cause_sig(int proc_nr, int sig_nr) noexcept;
+uint64_t umap(struct proc *rp, int seg, std::size_t vir_addr, std::size_t bytes) noexcept;
 
 /**
  * @brief Process descriptor stored in the kernel table.
- *
- * The table entry tracks register state, memory layout and accounting
- * information for every task and user process.
  */
-EXTERN struct proc {
-    std::uint64_t p_reg[NR_REGS];  /* process' registers */
-    xinim::virt_addr_t p_sp;       /* stack pointer - Formerly u64_t */
-    struct pc_psw p_pcpsw;         /* pc and psw as pushed by interrupt */
-    int p_flags;                   /* P_SLOT_FREE, SENDING, RECEIVING, etc. */
-    struct mem_map p_map[NR_SEGS]; /* memory map */
-    xinim::virt_addr_t p_splimit;  /* lowest legal stack value - Formerly u64_t */
-    xinim::pid_t p_pid;            /* process id passed in from MM - Formerly int */
-    std::uint64_t p_token;         /**< Capability token for privileged operations. */
+struct proc {
+    std::uint64_t p_reg[NR_REGS];  
+    xinim::virt_addr_t p_sp;       
+    struct pc_psw p_pcpsw;         
+    int p_flags;                   
+    struct mem_map p_map[NR_SEGS]; 
+    xinim::virt_addr_t p_splimit;  
+    xinim::pid_t p_pid;            
+    std::uint64_t p_token;         
 
-    real_time user_time;   /* user time in ticks (real_time -> xinim::time_t) */
-    real_time sys_time;    /* sys time in ticks (real_time -> xinim::time_t) */
-    real_time child_utime; /* cumulative user time of children (real_time -> xinim::time_t) */
-    real_time child_stime; /* cumulative sys time of children (real_time -> xinim::time_t) */
-    real_time p_alarm;     /* time of next alarm in ticks, or 0 (real_time -> xinim::time_t) */
+    real_time user_time;   
+    real_time sys_time;    
+    real_time child_utime; 
+    real_time child_stime; 
+    real_time p_alarm;     
 
-    struct proc *p_callerq;  /* head of list of procs wishing to send */
-    struct proc *p_sendlink; /* link to next proc wishing to send */
-    message *p_messbuf;      /* pointer to message buffer */
-    int p_getfrom;           /* from whom does process want to receive? */
+    struct proc *p_callerq;  
+    struct proc *p_sendlink; 
+    message *p_messbuf;      
+    int p_getfrom;           
 
-    struct proc *p_nextready; /* pointer to next ready process */
-    int p_pending;            /* bit map for pending signals 1-16 */
-    xinim::phys_addr_t cr3;   /* page table base - Formerly u64_t */
-    int p_priority;           /* scheduling priority */
-    int p_cpu;                /* CPU affinity */
-} proc[NR_TASKS + NR_PROCS];
+    struct proc *p_nextready; 
+    int p_pending;            
+    xinim::phys_addr_t cr3;   
+    int p_priority;           
+    int p_cpu;                
+};
+
+#ifndef EXTERN
+#define EXTERN extern
+#endif
+
+EXTERN struct proc proc[NR_TASKS + NR_PROCS];
 
 /* Bits for p_flags in proc[].  A process is runnable iff p_flags == 0 */
-inline constexpr unsigned int P_SLOT_FREE = 001; /* set when slot is not in use */
-inline constexpr unsigned int NO_MAP = 002;      /* keeps unmapped forked child from running */
-inline constexpr unsigned int SENDING = 004;     /* set when process blocked trying to send */
-inline constexpr unsigned int RECEIVING = 010;   /* set when process blocked trying to recv */
+inline constexpr unsigned int P_SLOT_FREE = 001; 
+inline constexpr unsigned int NO_MAP = 002;      
+inline constexpr unsigned int SENDING = 004;     
+inline constexpr unsigned int RECEIVING = 010;   
 
-#define proc_addr(n) &proc[NR_TASKS + n] // Macro for pointer arithmetic, can be kept
+#define proc_addr(n) &proc[NR_TASKS + n] 
 inline constexpr struct proc *NIL_PROC = nullptr;
 
-EXTERN struct proc *proc_ptr;                        /* &proc[cur_proc] */
-EXTERN struct proc *bill_ptr;                        /* ptr to process to bill for clock ticks */
-EXTERN struct proc *rdy_head[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list heads */
-EXTERN struct proc *rdy_tail[NR_CPUS][SCHED_QUEUES]; /* per-CPU ready list tails */
+EXTERN struct proc *proc_ptr;                        
+EXTERN struct proc *bill_ptr;                        
+EXTERN struct proc *rdy_head[NR_CPUS][SCHED_QUEUES]; 
+EXTERN struct proc *rdy_tail[NR_CPUS][SCHED_QUEUES]; 
 
-EXTERN unsigned int busy_map;            /* bit map of busy tasks */
-EXTERN message *task_mess[NR_TASKS + 1]; /* ptrs to messages for busy tasks */
+EXTERN unsigned int busy_map;            
+EXTERN message *task_mess[NR_TASKS + 1]; 
+
+#ifdef __cplusplus
+}
+#endif

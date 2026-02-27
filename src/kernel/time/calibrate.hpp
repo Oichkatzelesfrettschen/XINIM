@@ -1,7 +1,7 @@
 #pragma once
 #include <stdint.h>
-#include "../../arch/x86_64/hal/apic.hpp"
-#include "../../arch/x86_64/hal/hpet.hpp"
+#include "../../hal/x86_64/hal/apic.hpp"
+#include "../../hal/x86_64/hal/hpet.hpp"
 
 namespace xinim::time {
 

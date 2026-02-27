@@ -3,7 +3,7 @@
  * @brief Unit tests for AdaptiveMutex.
  */
 
-#include "../src/kernel/adaptive_mutex.hpp"
+#include "adaptive_mutex.hpp"
 #include <cassert>
 #include <thread>
 #include <vector>

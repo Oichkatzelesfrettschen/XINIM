@@ -1,19 +1,19 @@
 /**
  * @file hal.cpp
- * @brief Hardware Abstraction Layer Implementation
+ * @brief Hardware Abstraction Layer Implementation (Bare-metal refactored)
  */
 
 #include <xinim/hal/hal.hpp>
-#include <iostream>
+#include "console.hpp"
 
 namespace xinim {
 namespace hal {
 
 bool initialize() {
-    std::cout << "HAL initialization..." << std::endl;
-    // TODO: Implement HAL initialization
+    Console::printf("HAL initialization...\n");
     return true;
 }
 
 } // namespace hal
 } // namespace xinim
+

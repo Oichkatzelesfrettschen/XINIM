@@ -1,203 +1,112 @@
-// Number Theoretic Transform (NTT) - C++23 with SIMD optimization
-#include "ntt.hpp"
+/**
+ * @file ntt.cpp
+ * @brief Number Theoretic Transform for Kyber polynomial multiplication.
+ *
+ * Implements NTT, inverse NTT, and base multiplication per the
+ * CRYSTALS-Kyber reference implementation (round 3).
+ * q = 3329, n = 256, primitive 512th root of unity = 17.
+ */
+
+#include "ntt.h"
+#include "params.h"
 #include "reduce.hpp"
-#include "params.hpp"
-#include <xinim/hal/arch.hpp>
-#include <xinim/hal/simd.hpp>
-#include <array>
-#include <bit>
-#include <concepts>
+#include "poly.h"
 
-namespace xinim::crypto::kyber {
+using xinim::crypto::kyber::montgomery_reduce;
+using xinim::crypto::kyber::barrett_reduce;
+using xinim::crypto::kyber::KYBER_Q;
 
-// Precomputed zetas for NTT
-constexpr std::array<int16_t, 128> zetas = {
+/* Precomputed zetas in Montgomery domain (zeta_i * 2^16 mod q). */
+const int16_t zetas[128] = {
     -1044,  -758,  -359, -1517,  1493,  1422,   287,   202,
      -171,   622,  1577,   182,   962, -1202, -1474,  1468,
       573, -1325,   264,   383,  -829,  1458, -1602,  -130,
      -681,  1017,   732,   608, -1542,   411,  -205, -1571,
      1223,   652,  -552,  1015, -1293,  1491,  -282, -1544,
       516,    -8,  -320,  -666, -1618, -1162,   126,  1469,
-     -853,   -90,  -271,   830,   107, -1421,  -247,  -951,
-     -398,   961, -1508,  -725,   448, -1065,   677, -1275,
-    -1103,   430,   555,   843, -1251,   871,  1550,   105,
-      422,   587,   177,  -235,  -291,  -460,  1574,  1653,
-     -246,   778,  1159,  -147,  -777,  1483,  -602,  1119,
-    -1590,   644,  -872,   349,   418,   329,  -156,   -75,
-      817,  1097,   603,   610,  1322, -1285, -1465,   384,
-    -1215,  -136,  1218, -1335,  -874,   220, -1187, -1659,
-    -1185, -1530, -1278,   794, -1510,  -854,  -870,   478,
-     -108,  -308,   996,   991,   958, -1460,  1522,  1628
+     -853,   -90, -1170,  1210,   334,  -536,  -112, -1623,
+     -728,   -36,   842,  -500, -1024,  -211,   178,  1264,
+      546,  -271,   732,  -596, -1425, -1455,  -225, -1400,
+      -28,  -759, -1583,   -59, -1344,  1159,  -666,  -997,
+      478,  -471,  -116, -1179,  1069,  1498,   213,   551,
+     -150, -1270,   -71, -1201,  1023, -1494, -1269,   -48,
+      648,   939,   -51, -1048, -1478,   149,  -764, -1217,
+      -41, -1496,   574, -1020, -1040, -1140, -1260,  -627,
+     1229, -1100, -1089,   752,   286,  1079,   484,  -956,
+    -1292,  1508,   -19, -1200,   560, -1573, -1307, -1419,
 };
 
-// Architecture-specific butterfly operations
-namespace detail {
+/**
+ * @brief Forward NTT (in-place, Cooley-Tukey butterfly).
+ *
+ * Input coefficients in normal order, output in bit-reversed order.
+ * All values remain in Montgomery domain.
+ */
+void ntt(int16_t r[256]) {
+    unsigned int len, start, j, k;
+    int16_t t, zeta;
 
-#ifdef XINIM_ARCH_X86_64
-// AVX2 optimized butterfly for x86_64
-inline void butterfly_avx2(int16_t* a, int16_t* b, int16_t zeta) noexcept {
-    if (__builtin_cpu_supports("avx2")) {
-        // AVX2 implementation for 16 coefficients at once
-        __m256i va = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(a));
-        __m256i vb = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(b));
-        __m256i vzeta = _mm256_set1_epi16(zeta);
-        
-        // t = fqmul(zeta, b[j])
-        __m256i t = _mm256_mulhi_epi16(vb, vzeta);
-        t = _mm256_mullo_epi16(t, _mm256_set1_epi16(KYBER_Q));
-        t = _mm256_sub_epi16(_mm256_mullo_epi16(vb, vzeta), t);
-        
-        // b[j] = a[j] - t
-        vb = _mm256_sub_epi16(va, t);
-        // a[j] = a[j] + t
-        va = _mm256_add_epi16(va, t);
-        
-        _mm256_storeu_si256(reinterpret_cast<__m256i*>(a), va);
-        _mm256_storeu_si256(reinterpret_cast<__m256i*>(b), vb);
-        return;
-    }
-    // Fallback to scalar
-}
-#endif
-
-#ifdef XINIM_ARCH_ARM64
-// NEON optimized butterfly for ARM64
-inline void butterfly_neon(int16_t* a, int16_t* b, int16_t zeta) noexcept {
-    // NEON implementation for 8 coefficients at once
-    int16x8_t va = vld1q_s16(a);
-    int16x8_t vb = vld1q_s16(b);
-    int16x8_t vzeta = vdupq_n_s16(zeta);
-    
-    // Montgomery multiplication approximation
-    int32x4_t t_low = vmull_s16(vget_low_s16(vb), vget_low_s16(vzeta));
-    int32x4_t t_high = vmull_s16(vget_high_s16(vb), vget_high_s16(vzeta));
-    
-    // Reduce
-    int16x4_t t_reduced_low = vqrshrn_n_s32(t_low, 16);
-    int16x4_t t_reduced_high = vqrshrn_n_s32(t_high, 16);
-    int16x8_t t = vcombine_s16(t_reduced_low, t_reduced_high);
-    
-    // Butterfly operation
-    vb = vsubq_s16(va, t);
-    va = vaddq_s16(va, t);
-    
-    vst1q_s16(a, va);
-    vst1q_s16(b, vb);
-}
-#endif
-
-// Generic scalar butterfly
-template<typename T>
-requires std::integral<T> && std::signed_integral<T>
-inline void butterfly_scalar(T& a, T& b, T zeta) noexcept {
-    T t = montgomery_reduce(static_cast<int32_t>(zeta) * b);
-    b = a - t;
-    a = a + t;
-}
-
-} // namespace detail
-
-// Main NTT function with architecture dispatch
-void ntt(poly* p) noexcept {
-    unsigned int len, start, j, k = 1;
-    int16_t zeta;
-
-    // Prefetch polynomial data for better cache usage
-    xinim::hal::prefetch<xinim::hal::prefetch_hint::read_medium>(p->coeffs);
-    
-    // NTT layers
+    k = 1;
     for (len = 128; len >= 2; len >>= 1) {
-        for (start = 0; start < 256; start += 2 * len) {
+        for (start = 0; start < 256; start = j + len) {
             zeta = zetas[k++];
-            
-            // Process butterflies
             for (j = start; j < start + len; ++j) {
-#ifdef XINIM_ARCH_X86_64
-                if constexpr (xinim::hal::is_x86_64) {
-                    if (len >= 16 && __builtin_cpu_supports("avx2")) {
-                        detail::butterfly_avx2(&p->coeffs[j], &p->coeffs[j + len], zeta);
-                        j += 15; // Process 16 at once
-                        continue;
-                    }
-                }
-#endif
-#ifdef XINIM_ARCH_ARM64
-                if constexpr (xinim::hal::is_arm64) {
-                    if (len >= 8) {
-                        detail::butterfly_neon(&p->coeffs[j], &p->coeffs[j + len], zeta);
-                        j += 7; // Process 8 at once
-                        continue;
-                    }
-                }
-#endif
-                // Scalar fallback
-                detail::butterfly_scalar(p->coeffs[j], p->coeffs[j + len], zeta);
+                t = static_cast<int16_t>(montgomery_reduce(
+                    static_cast<int32_t>(zeta) * r[j + len]));
+                r[j + len] = static_cast<int16_t>(r[j] - t);
+                r[j] = static_cast<int16_t>(r[j] + t);
             }
         }
     }
-    
-    // Memory barrier for consistency
-    xinim::hal::memory_barrier();
 }
 
-// Inverse NTT with architecture optimization
-void invntt(poly* p) noexcept {
-    unsigned int start, len, j, k = 127;
-    int16_t zeta;
-    const int16_t f = 1441; // mont^2/128
-    
-    // Prefetch polynomial data
-    xinim::hal::prefetch<xinim::hal::prefetch_hint::read_medium>(p->coeffs);
-    
-    // Inverse NTT layers
+/**
+ * @brief Inverse NTT (in-place, Gentleman-Sande butterfly).
+ *
+ * Input in bit-reversed order, output in normal order.
+ * Multiplies by Montgomery factor n^{-1} = 3303 (= 128^{-1} * 2^16 mod q).
+ */
+void invntt(int16_t r[256]) {
+    unsigned int start, len, j, k;
+    int16_t t, zeta;
+    static constexpr int16_t f = 1441; /* 128^{-1} * 2^16 mod q */
+
+    k = 127;
     for (len = 2; len <= 128; len <<= 1) {
-        for (start = 0; start < 256; start += 2 * len) {
-            zeta = -zetas[k--];
-            
+        for (start = 0; start < 256; start = j + len) {
+            zeta = zetas[k--];
             for (j = start; j < start + len; ++j) {
-#ifdef XINIM_ARCH_X86_64
-                if constexpr (xinim::hal::is_x86_64) {
-                    if (len >= 16 && __builtin_cpu_supports("avx2")) {
-                        // AVX2 optimized inverse butterfly
-                        __m256i va = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&p->coeffs[j]));
-                        __m256i vb = _mm256_loadu_si256(reinterpret_cast<const __m256i*>(&p->coeffs[j + len]));
-                        
-                        __m256i t = _mm256_add_epi16(va, vb);
-                        vb = _mm256_sub_epi16(va, vb);
-                        vb = _mm256_mullo_epi16(vb, _mm256_set1_epi16(zeta));
-                        
-                        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&p->coeffs[j]), t);
-                        _mm256_storeu_si256(reinterpret_cast<__m256i*>(&p->coeffs[j + len]), vb);
-                        
-                        j += 15;
-                        continue;
-                    }
-                }
-#endif
-                // Scalar fallback
-                int16_t t = p->coeffs[j];
-                p->coeffs[j] = barrett_reduce(t + p->coeffs[j + len]);
-                p->coeffs[j + len] = montgomery_reduce(static_cast<int32_t>(zeta) * (t - p->coeffs[j + len]));
+                t = r[j];
+                r[j] = barrett_reduce(static_cast<int16_t>(t + r[j + len]));
+                r[j + len] = static_cast<int16_t>(r[j + len] - t);
+                r[j + len] = static_cast<int16_t>(montgomery_reduce(
+                    static_cast<int32_t>(zeta) * r[j + len]));
             }
         }
     }
-    
-    // Final reduction
+
     for (j = 0; j < 256; ++j) {
-        p->coeffs[j] = montgomery_reduce(static_cast<int32_t>(f) * p->coeffs[j]);
+        r[j] = static_cast<int16_t>(montgomery_reduce(
+            static_cast<int32_t>(f) * r[j]));
     }
-    
-    xinim::hal::memory_barrier();
 }
 
-// Multiplication of polynomials in NTT domain
-void basemul(int16_t r[2], const int16_t a[2], const int16_t b[2], int16_t zeta) noexcept {
-    r[0] = montgomery_reduce(static_cast<int32_t>(a[1]) * b[1]);
-    r[0] = montgomery_reduce(static_cast<int32_t>(r[0]) * zeta);
-    r[0] += montgomery_reduce(static_cast<int32_t>(a[0]) * b[0]);
-    
-    r[1] = montgomery_reduce(static_cast<int32_t>(a[0]) * b[1]);
-    r[1] += montgomery_reduce(static_cast<int32_t>(a[1]) * b[0]);
-}
+/**
+ * @brief Multiplication of polynomials in NTT domain.
+ *
+ * Computes r = a * b in the base ring Z_q[X]/(X^2 - zeta).
+ * Each call processes one degree-1 factor (2 coefficients).
+ */
+void basemul(int16_t r[2], const int16_t a[2], const int16_t b[2], int16_t zeta) {
+    r[0] = static_cast<int16_t>(montgomery_reduce(
+        static_cast<int32_t>(a[1]) * b[1]));
+    r[0] = static_cast<int16_t>(montgomery_reduce(
+        static_cast<int32_t>(r[0]) * zeta));
+    r[0] = static_cast<int16_t>(r[0] + montgomery_reduce(
+        static_cast<int32_t>(a[0]) * b[0]));
 
-} // namespace xinim::crypto::kyber
+    r[1] = static_cast<int16_t>(montgomery_reduce(
+        static_cast<int32_t>(a[0]) * b[1]));
+    r[1] = static_cast<int16_t>(r[1] + montgomery_reduce(
+        static_cast<int32_t>(a[1]) * b[0]));
+}

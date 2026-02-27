@@ -3,133 +3,80 @@
 
 namespace sched {
 
-/// Global scheduler instance used by kernel tests.
 Scheduler scheduler{};
 
-/**
- * @brief Select the next runnable thread.
- *
- * Requeues the current thread when it remains runnable and switches to the
- * front of the ready queue.
- *
- * @return Identifier of the thread now running or @c std::nullopt when the
- *         queue is empty.
- */
-std::optional<xinim::pid_t> Scheduler::preempt() {
-    if (ready_.empty()) {
+xinim::pid_t Scheduler::pick_next() noexcept {
+    if (ready_head_ == ready_tail_) {
         current_ = -1;
-        return std::nullopt;
+        return -1;
     }
-
-    if (current_ != -1 && !blocked_.contains(current_)) {
-        ready_.push_back(current_);
-    }
-
-    current_ = ready_.front();
-    ready_.pop_front();
+    
+    current_ = ready_queue_[ready_head_];
+    ready_head_ = (ready_head_ + 1) % MAX_PROCS;
     return current_;
 }
 
-/**
- * @brief Yield execution to @p target when it is runnable.
- *
- * The current thread is queued and control transfers to the selected thread if
- * it is present in the ready list.
- *
- * @param target Identifier of the thread to run next.
- */
-void Scheduler::yield_to(xinim::pid_t target) {
-    if (!std::erase(ready_, target)) {
-        return; // target not runnable
+void Scheduler::ready(xinim::pid_t pid) noexcept {
+    // Check if already in queue (inefficient but safe for small MAX_PROCS)
+    for (int i = ready_head_; i != ready_tail_; i = (i + 1) % MAX_PROCS) {
+        if (ready_queue_[i] == pid) return;
     }
-    if (current_ != -1) {
-        ready_.push_back(current_);
-    }
-    current_ = target;
+    
+    ready_queue_[ready_tail_] = pid;
+    ready_tail_ = (ready_tail_ + 1) % MAX_PROCS;
 }
 
-/**
- * @brief Block @p src until @p dst is runnable.
- *
- * The wait-for graph is updated and @p src removed from the ready queue. The
- * operation fails if adding the edge creates a cycle.
- *
- * @param src Identifier of the blocking thread.
- * @param dst Thread being awaited.
- * @return @c true on success.
- */
-bool Scheduler::block_on(xinim::pid_t src, xinim::pid_t dst) {
-    if (graph_.add_edge(src, dst)) {
-        return false;
+void Scheduler::unready(xinim::pid_t pid) noexcept {
+    int new_tail = ready_head_;
+    for (int i = ready_head_; i != ready_tail_; i = (i + 1) % MAX_PROCS) {
+        if (ready_queue_[i] != pid) {
+            ready_queue_[new_tail] = ready_queue_[i];
+            new_tail = (new_tail + 1) % MAX_PROCS;
+        }
     }
+    ready_tail_ = new_tail;
+}
 
-    waiting_[src] = dst;
-    blocked_.insert(src);
-
-    std::erase(ready_, src);
-
-    if (current_ == src) {
-        preempt();
+bool Scheduler::block_on(xinim::pid_t pid, xinim::pid_t target) noexcept {
+    if (pid < 0 || pid >= MAX_PROCS) return false;
+    
+    unready(pid);
+    waiting_[pid] = target;
+    if (target != -1) {
+        graph_.add_edge(pid, target);
     }
     return true;
 }
 
-/**
- * @brief Unblock @p pid and return it to the ready queue.
- *
- * Any wait-for edges from the thread are removed before it is requeued.
- *
- * @param pid Thread identifier to unblock.
- */
-void Scheduler::unblock(xinim::pid_t pid) {
-    if (auto it = waiting_.find(pid); it != waiting_.end()) {
-        graph_.remove_edge(pid, it->second);
-        waiting_.erase(it);
+void Scheduler::unblock(xinim::pid_t pid) noexcept {
+    if (pid < 0 || pid >= MAX_PROCS) return;
+    
+    xinim::pid_t target = waiting_[pid];
+    if (target != -1) {
+        graph_.remove_edge(pid, target);
     }
-
-    if (blocked_.erase(pid)) {
-        ready_.push_back(pid);
-    }
+    waiting_[pid] = -1;
+    ready(pid);
 }
 
-/**
- * @brief Check if a thread is blocked.
- *
- * @param pid Thread identifier to query.
- * @return @c true when the thread is blocked.
- */
-bool Scheduler::is_blocked(xinim::pid_t pid) const noexcept { return blocked_.contains(pid); }
-
-/**
- * @brief Inspect the next runnable thread without dequeuing.
- */
-xinim::pid_t Scheduler::pick() const noexcept { return ready_.empty() ? -1 : ready_.front(); }
-
-/**
- * @brief Perform a direct hand-off from the current thread to @p receiver.
- *
- * When @p receiver exists in the ready queue, the current thread is queued
- * and execution transfers immediately.  This primitive facilitates tightly
- * coupled message-passing patterns.
- */
-void Scheduler::direct_handoff(xinim::pid_t receiver) {
-    if (!std::erase(ready_, receiver)) {
-        return; // receiver not runnable
-    }
+void Scheduler::yield() noexcept {
     if (current_ != -1) {
-        ready_.push_back(current_);
+        ready(current_);
     }
-    current_ = receiver;
+    pick_next();
 }
 
-/**
- * @brief Notify the service manager that a service crashed.
- *
- * @param pid Identifier of the failing service.
- */
-void Scheduler::crash(xinim::pid_t pid) {
+void Scheduler::yield_to(xinim::pid_t pid) noexcept {
+    if (current_ != -1) {
+        ready(current_);
+    }
+    unready(pid);
+    current_ = pid;
+}
+
+void Scheduler::handle_crash(xinim::pid_t pid) {
+    // Note: service_manager might still use std containers, but we'll get to that.
     if (!svc::service_manager.handle_crash(pid) && current_ == pid) {
-        // Service exceeded restart limit; drop the thread from scheduling.
         current_ = -1;
     }
 }

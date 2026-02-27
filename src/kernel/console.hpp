@@ -11,6 +11,9 @@
 
 namespace Console {
 
+/** Initialize the console subsystem (stub). */
+inline void init() {}
+
 /** Print formatted text to the host console. */
 inline void printf(const char *fmt, ...) {
     va_list ap;

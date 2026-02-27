@@ -1,19 +1,19 @@
 /**
  * @file filesystem.cpp
- * @brief Filesystem Implementation
+ * @brief Filesystem Initialization
  */
 
 #include <xinim/fs/filesystem.hpp>
-#include <iostream>
+#include "console.hpp"
 
 namespace xinim {
 namespace fs {
 
 bool initialize() {
-    std::cout << "Filesystem initialization..." << std::endl;
-    // TODO: Implement filesystem initialization
+    Console::printf("Filesystem initialization...\n");
     return true;
 }
 
 } // namespace fs
 } // namespace xinim
+

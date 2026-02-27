@@ -1,49 +1,81 @@
 /**
  * @file interrupts.cpp
- * @brief Interrupt setup and registration
+ * @brief Unified interrupt setup and registration.
  *
- * Initializes the IDT and registers interrupt handlers.
- * Updated for Week 8 Phase 2: Preemptive scheduling.
+ * This is the single IDT initialization path. It uses
+ * arch::x86_64::idt::init() to create the IDT table and load it via lidt,
+ * then installs all interrupt handlers:
+ *   - Default handler for all 256 vectors (from mpx64.cpp)
+ *   - Timer (vector 32) from interrupts.S
+ *   - Clock (CLOCK_VECTOR) from mpx64.cpp
+ *   - Keyboard (KEYBOARD_VECTOR) from mpx64.cpp
  *
- * @author XINIM Development Team
- * @date November 2025
+ * The old idt64.cpp is superseded by this consolidated path.
  */
 
 #include <stdint.h>
 #include "arch/x86_64/idt.hpp"
-#include "interrupts.hpp"  // Week 8: New interrupt declarations
+#include "interrupts.hpp"
 #include "early/serial_16550.hpp"
 #include "../hal/x86_64/hal/apic.hpp"
+#include "proc.hpp"
+#include "glo.hpp"
+#include "sys/com.hpp"
 
-// Week 8: Use new timer interrupt handler (defined in arch/x86_64/interrupts.S)
-// This handler integrates with the scheduler for preemptive multitasking
+// MINIX heritage ISR handlers (defined in mpx64.cpp)
+extern "C" {
+    void isr_default() noexcept;
+    void isr_clock() noexcept;
+    void isr_keyboard() noexcept;
+    void s_call() noexcept;
+}
+
+extern xinim::early::Serial16550 kshell_serial;
 
 namespace {
     xinim::early::Serial16550* g_serial = nullptr;
-    xinim::hal::x86_64::Lapic* g_lapic  = nullptr;
 }
 
-/**
- * @brief Initialize interrupts
- *
- * Week 8 Phase 2: Register timer_interrupt_handler for preemptive scheduling.
- *
- * @param serial Early serial console for logging
- * @param lapic Local APIC for interrupt control
- */
-void interrupts_init(xinim::early::Serial16550& serial, xinim::hal::x86_64::Lapic& lapic) {
+// C-linkage ISR entry points for COM serial ports.
+// Called from the IDT via isr_default or a dedicated stub.
+extern "C" void isr_com1() noexcept {
+    if (g_serial) {
+        g_serial->isr_handler();
+    }
+}
+
+extern "C" void isr_com2() noexcept {
+    kshell_serial.isr_handler();
+}
+
+void interrupts_init(xinim::early::Serial16550& serial, [[maybe_unused]] xinim::hal::x86_64::Lapic& lapic) {
     using namespace xinim::arch::x86_64::idt;
 
     g_serial = &serial;
-    g_lapic  = &lapic;
 
-    // Initialize IDT
+    // Initialize IDT with zeroed entries and load via lidt
     init();
 
-    // Week 8 Phase 2: Register timer interrupt handler (vector 32 = IRQ 0)
-    // This handler saves context, calls scheduler, and restores next process
-    set_gate(32, timer_interrupt_handler, 0x8E, 0);
+    // Install default handler for all 256 vectors
+    for (int i = 0; i < 256; ++i) {
+        set_gate(i, reinterpret_cast<void(*)()>(isr_default), 0x8E, 0);
+    }
 
-    serial.write("[IDT] Timer interrupt handler registered (vector 32)\n");
+    // Install specific handlers (overwrite defaults).
+    // CLOCK_VECTOR (32) uses the assembly timer_interrupt_handler from interrupts.S
+    // which saves context and calls timer_interrupt_c_handler.
+    set_gate(CLOCK_VECTOR, timer_interrupt_handler, 0x8E, 0);
+    set_gate(KEYBOARD_VECTOR, reinterpret_cast<void(*)()>(isr_keyboard), 0x8E, 0);
+    set_gate(SYS_VECTOR, reinterpret_cast<void(*)()>(s_call), 0x8E, 0);
+
+    // Serial port interrupt handlers (COM1=IRQ4, COM2=IRQ3)
+    set_gate(COM1_VECTOR, reinterpret_cast<void(*)()>(isr_com1), 0x8E, 0);
+    set_gate(COM2_VECTOR, reinterpret_cast<void(*)()>(isr_com2), 0x8E, 0);
+
+    // Enable receive interrupts on both serial ports
+    serial.enable_rx_interrupt();
+    kshell_serial.enable_rx_interrupt();
+
+    serial.write("[IDT] Unified IDT initialized (256 vectors)\n");
+    serial.write("[IDT] Timer, Keyboard, Syscall, COM1, COM2 handlers registered\n");
 }
-

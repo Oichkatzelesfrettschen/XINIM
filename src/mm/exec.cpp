@@ -24,7 +24,7 @@
 #include <algorithm>  // For std::min (if min is not a macro)
 #include <cstddef>    // For std::size_t
 #include <cstdint>    // For uint64_t, int64_t
-#include <filesystem> // For std::filesystem::path
+#include <cstring>    // For strlen
 #include "syscall.hpp"
 #include "param.hpp"
 #include "sys/error.hpp"
@@ -84,8 +84,8 @@ class ProcessImage {
      *
      * @param st   Stat buffer populated with file metadata.
      */
-    ProcessImage(const std::filesystem::path &path, struct stat &st)
-        : fd_{allowed(path.c_str(), &st, X_BIT)} {}
+    ProcessImage(const char *path, struct stat &st)
+        : fd_{allowed(path, &st, X_BIT)} {}
 
     /**
      * @brief Close the descriptor if it is valid.
@@ -171,9 +171,8 @@ PUBLIC int do_exec() {
                  static_cast<std::size_t>(exec_len));
     if (r != OK)
         return (r); /* file name not in user data segment */
-    std::filesystem::path exec_path{u.name_buf};
     DirectoryGuard dir_guard{who};
-    ProcessImage image{exec_path, s_buf};
+    ProcessImage image{u.name_buf, s_buf};
     if (image.fd() < 0)
         return image.fd(); /* file was not executable */
 

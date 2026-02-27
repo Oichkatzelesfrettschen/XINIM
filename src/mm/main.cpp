@@ -198,7 +198,13 @@ static void mm_init() noexcept { // PRIVATE -> static, void return, noexcept
 
     init_clicks = init_text_clicks + init_data_clicks;
     ram_base = init_org + init_clicks;  /* start of RAM disk */
-    ram_clicks = tot_clicks - ram_base; /* size of RAM disk */
+    /* tot_clicks = total size of (MINIX + RAM disk) region from address 0.
+     * ram_clicks = total - start of RAM disk = RAM disk size. */
+    if (tot_clicks > ram_base) {
+        ram_clicks = tot_clicks - ram_base;
+    } else {
+        ram_clicks = 0; /* no RAM disk space available */
+    }
     const auto removed = alloc_mem(tot_clicks); /* remove RAM disk from map (alloc_mem takes uint64_t) */
     if (removed == NO_MEM) {
         panic("do_brk2 alloc_mem failed", NO_NUM);

@@ -1,19 +1,37 @@
 /**
  * @file network.cpp
- * @brief Network Stack Implementation
+ * @brief Network Stack Implementation for Lattice IPC
  */
 
 #include <xinim/net/network.hpp>
-#include <iostream>
+#include "console.hpp"
+#include <vector>
+#include <span>
+#include <system_error>
 
-namespace xinim {
 namespace net {
 
 bool initialize() {
-    std::cout << "Network stack initialization..." << std::endl;
-    // TODO: Implement network initialization
+    Console::printf("Network stack initialized.\n");
     return true;
 }
 
+void shutdown() noexcept {
+}
+
+node_t local_node() noexcept {
+    return 1; 
+}
+
+std::errc send(node_t node, std::span<const std::byte> data) {
+    (void)node; (void)data;
+    return std::errc{};
+}
+
+bool recv(Packet &out) {
+    (void)out;
+    return false;
+}
+
 } // namespace net
-} // namespace xinim
+

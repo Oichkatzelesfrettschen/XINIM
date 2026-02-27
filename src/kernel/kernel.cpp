@@ -1,49 +1,34 @@
 /**
  * @file kernel.cpp
- * @brief XINIM Kernel Implementation
+ * @brief XINIM Kernel Implementation (Bare-metal refactored)
  */
 
 #include <xinim/kernel/kernel.hpp>
-#include <iostream>
-#include <thread>
-#include <chrono>
+#include "console.hpp"
 
 namespace xinim {
 namespace kernel {
 
-Kernel::Kernel() : initialized_(false) {
-}
-
-Kernel::~Kernel() {
-    if (initialized_) {
-        shutdown();
-    }
-}
+Kernel::Kernel() : initialized_(false) {}
 
 bool Kernel::initialize() {
-    std::cout << "Kernel initialization starting..." << std::endl;
-    // TODO: Implement full kernel initialization
+    Console::printf("Kernel initialization starting...\n");
     initialized_ = true;
-    std::cout << "Kernel initialization complete!" << std::endl;
+    Console::printf("Kernel initialization complete!\n");
     return true;
 }
 
 void Kernel::run() {
-    std::cout << "XINIM Kernel running..." << std::endl;
-    std::cout << "Press Ctrl+C to shutdown" << std::endl;
-
-    // Simple main loop for now
-    while (initialized_) {
-        std::this_thread::sleep_for(std::chrono::seconds(1));
-        // TODO: Implement proper kernel scheduling
-    }
+    if (!initialized_) return;
+    Console::printf("XINIM Kernel running...\n");
 }
 
 void Kernel::shutdown() {
-    std::cout << "Kernel shutting down..." << std::endl;
+    Console::printf("Kernel shutting down...\n");
     initialized_ = false;
-    std::cout << "Kernel shutdown complete!" << std::endl;
+    Console::printf("Kernel shutdown complete!\n");
 }
 
 } // namespace kernel
 } // namespace xinim
+

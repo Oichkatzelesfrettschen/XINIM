@@ -4,6 +4,29 @@
 #include <cstddef>
 #include <cstdint>
 
+// Undefine any conflicting macros from legacy params.h
+#undef KYBER_N
+#undef KYBER_Q
+#undef KYBER_K
+#undef KYBER_SYMBYTES
+#undef KYBER_SSBYTES
+#undef KYBER_SEEDBYTES
+#undef KYBER_POLYBYTES
+#undef KYBER_POLYVECBYTES
+#undef KYBER_POLYCOMPRESSEDBYTES
+#undef KYBER_POLYVECCOMPRESSEDBYTES
+#undef KYBER_ETA1
+#undef KYBER_ETA2
+#undef KYBER_PUBLICKEYBYTES
+#undef KYBER_SECRETKEYBYTES
+#undef KYBER_CIPHERTEXTBYTES
+#undef KYBER_INDCPA_MSGBYTES
+#undef KYBER_INDCPA_PUBLICKEYBYTES
+#undef KYBER_INDCPA_SECRETKEYBYTES
+#undef KYBER_INDCPA_BYTES
+#undef MONT
+#undef QINV
+
 namespace xinim::crypto::kyber {
 
 // Kyber parameter sets
@@ -80,34 +103,6 @@ constexpr int16_t QINV = -3327; // q^(-1) mod 2^16
 } // namespace xinim::crypto::kyber
 
 // C compatibility layer
-#ifndef __cplusplus
-    #define KYBER_N 256
-    #define KYBER_Q 3329
-    #define KYBER_K 3
-    
-    #define KYBER_SYMBYTES 32
-    #define KYBER_SSBYTES 32
-    #define KYBER_SEEDBYTES 32
-    
-    #define KYBER_POLYBYTES 384
-    #define KYBER_POLYVECBYTES 1152
-    #define KYBER_POLYCOMPRESSEDBYTES 128
-    #define KYBER_POLYVECCOMPRESSEDBYTES 960
-    
-    #define KYBER_ETA1 2
-    #define KYBER_ETA2 2
-    
-    #define KYBER_PUBLICKEYBYTES 1184
-    #define KYBER_SECRETKEYBYTES 2400
-    #define KYBER_CIPHERTEXTBYTES 1088
-    
-    #define KYBER_INDCPA_MSGBYTES 32
-    #define KYBER_INDCPA_PUBLICKEYBYTES 1184
-    #define KYBER_INDCPA_SECRETKEYBYTES 1152
-    #define KYBER_INDCPA_BYTES 1088
-    
-    #define MONT -1044
-    #define QINV -3327
-#else
+#ifdef __cplusplus
     using namespace xinim::crypto::kyber;
 #endif

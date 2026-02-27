@@ -12,6 +12,8 @@
 #include <expected>
 #include <system_error>
 #include <memory>
+#include <vector>
+#include <array>
 
 namespace xinim::crypto::random {
 
