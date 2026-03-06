@@ -1,5 +1,107 @@
 # XINIM Changelog
 
+## v1.2.0 -- Foundation Correctness (2026-03-05)
+
+Resolves 75 tasks across 5 implementation phases + integration/docs.
+Fixes the kernel's foundational correctness deficits: working memory
+reclamation, a single authoritative scheduler, correct IPC semantics,
+a real process lifecycle, FPU state preservation, and deadlock-safe locks.
+
+### Phase 1: Kernel Heap Allocator
+
+Replace 1MB bump allocator (no-op free) with 4MB free-list allocator.
+
+- `src/kernel/heap.hpp` / `heap.cpp`: First-fit with forward+backward coalescing,
+  16-byte alignment, 32-byte block header. heap_init/heap_alloc/heap_free/heap_stats.
+- `src/kernel/klib64.cpp`: malloc() -> heap_alloc(), free() -> heap_free().
+  Removed 1MB static bump array; 4MB free-list heap.
+- `src/kernel/server_spawn.cpp`: removed 16MB duplicate kmalloc; routes through malloc.
+- New test: `test/test_heap_allocator.cpp` (11 tests: alloc/free, coalescing,
+  exhaustion, alignment, double-free, stats, fragmentation stress).
+
+### Phase 2: Unified O(1) Scheduler
+
+Replaced two incompatible schedulers (proc.cpp priority queue + schedule.cpp flat FIFO)
+with a single `UnifiedScheduler`.
+
+- `src/kernel/unified_scheduler.hpp` / `unified_scheduler.cpp`:
+  O(1) bitmap scheduler: uint64_t priority_bitmap + per-priority doubly-linked PCB queues.
+  pick_next() uses `__builtin_ctzll()` -- 1 instruction to find highest priority.
+  64 priority levels; configurable per-priority quanta; WaitForGraph deadlock detection.
+- `src/kernel/scoped_irq_lock.hpp`: RAII interrupt disable/restore (pushfq/cli/popfq).
+- `src/kernel/sys/dispatch.cpp`: sys_getpid_impl returns real current PID.
+  Caller PID from g_unified_scheduler.current_pid() (was hardcoded 1).
+- `src/kernel/timer.cpp`: timer_interrupt_handler_c calls g_unified_scheduler.timer_tick().
+- New test: `test/test_unified_scheduler.cpp` (13 tests: empty, priority ordering,
+  FIFO, block/unblock, deadlock detection, yield, quantum, bitmap consistency).
+
+### Phase 3: IPC Hardening
+
+Fixed silent data corruption on channel exhaustion, added back-pressure.
+
+- Channel QUEUE_SIZE: 8 -> 32. Channel::connect() returns nullptr (E_CHAN_FULL) on full.
+- Added `E_CHAN_FULL`, `E_QUEUE_FULL`, `E_NO_CHANNEL`, `E_DEADLOCK` to sys/error.hpp.
+- Blocking send: blocks sender when queue full; receiver unblocks on pop.
+- Blocking receive: blocks receiver when no message; sender unblocks on push.
+- Message source tagging: msg.m_source set in lattice_send.
+- Per-process incoming bitset (incoming_channels_[]) for O(1) recv.
+- New tests: `test_ipc_blocking.cpp` (5 tests), `test_ipc_exhaustion.cpp` (2 tests).
+
+### Phase 4: Process Lifecycle and FPU State
+
+Implemented correct process exit/wait and FPU state preservation.
+
+- `src/kernel/process_lifecycle.hpp` / `process_lifecycle.cpp`:
+  process_exit(): ZOMBIE state, stack cleanup via heap_free, parent notification.
+  process_wait(): zombie child scan, reap (DEAD), block parent on none.
+- `src/kernel/sys/dispatch.cpp`: sys_exit_impl calls process_exit (was: infinite halt).
+  SYS_wait4 handled in kernel via process_wait (was: routed to PM stub).
+- `src/kernel/context.hpp`: added alignas(16) uint8_t fxsave_area[512].
+  CpuContext: 208 -> 720 bytes. initialize() sets MXCSR=0x1F80.
+- `src/arch/x86_64/context_switch.S`: fxsave/fxrstor at offset 0xD0.
+- New test: `test/test_process_lifecycle.cpp` (6 tests).
+
+### Phase 5: Lock Safety and Synchronization
+
+Added MAX_SPINS timeouts to all spin-wait loops; fixed data race; added IRQ guard.
+
+- MCSSpinlock: MCS_MAX_SPINS=100k on lock/unlock successor-wait.
+- PhaseRWLock: RWLOCK_MAX_SPINS=100k on read_lock/write_lock.
+- TicketSpinlock: TICKET_MAX_SPINS=10M.
+- QuaternionSpinlock: removed non-atomic orientation field (data race);
+  simplified to pure TAS spinlock; ticket parameter is cosmetic.
+- MCSIrqLockGuard: RAII that disables interrupts before MCS lock acquisition.
+- at_wini.cpp, xt_wini.cpp: ScopedPortLock::~ScopedPortLock uses restore()
+  instead of unlock() (preserves RFLAGS from lock()).
+- New test: `test/test_lock_timeout.cpp` (10 tests).
+
+### Phase 6: Integration, Documentation, and Hardening
+
+- cmake/CompilerWarnings.cmake: promoted -Wshadow to -Werror=shadow (0 violations).
+  -Wconversion/-Wsign-conversion remain warnings pending v1.3.0 cleanup.
+- docs/analysis/TODO_TRACKER.md: 3 PHASE6 items marked REMOVED (resolved in v1.2.0).
+- docs/analysis/CLAIMS_AUDIT.md: updated for v1.2.0 test count (31) and subsystems.
+- 31/31 host-side unit tests pass.
+
+### Test Count Delta
+
+| Release | Host Tests | Passing |
+|---------|-----------|---------|
+| v1.0.0  | 20        | n/a     |
+| v1.1.0  | 25        | 25/25   |
+| v1.2.0  | 31        | 31/31   |
+
+### Known Limitations (carried to v1.3.0)
+
+- POSIX compliance: 0% (no userland process; VFS returns ENOSYS)
+- Kyber KEM: foundations correct, kem.cpp missing (Phase 9)
+- Ring 3: all servers run Ring 0 (Phase 9)
+- virtio-net: skeleton only (Phase 10)
+- -Wconversion/-Wsign-conversion: 13 files with warnings, blocked by v1.1.0 code
+- QEMU boot: infrastructure wired, validation requires CI QEMU runner
+
+---
+
 ## v1.1.0 -- Technical Debt Resolution (2026-02-26)
 
 This release resolves 150 atomic tasks across 8 phases, addressing

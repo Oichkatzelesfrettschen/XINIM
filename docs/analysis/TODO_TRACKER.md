@@ -1,6 +1,7 @@
 # TODO/FIXME Triage Tracker
 
 Phase 5 baseline: 2026-02-26. Total in src/ (non-legacy): 125 items.
+v1.2.0 update: 2026-03-05. Phase 6 REMOVED count below reflects resolved items.
 
 ## Triage Categories
 
@@ -33,9 +34,9 @@ Phase 5 baseline: 2026-02-26. Total in src/ (non-legacy): 125 items.
 | syscalls/exec.cpp | 278 | Implement proper VMA cleanup and page table updates | PHASE7 |
 | syscalls/signal.cpp | 81 | Check permissions | PHASE7 |
 | adaptive_mutex.hpp | 310 | Add proper initialization check | DEFERRED |
-| sys/dispatch.cpp | 43 | return actual cur_proc from proc.cpp | PHASE6 |
-| sys/dispatch.cpp | 69 | terminate current process, free PCB, notify parent | PHASE6 |
-| sys/dispatch.cpp | 79 | Caller PID -- derive from cur_proc | PHASE6 |
+| sys/dispatch.cpp | 43 | return actual cur_proc from proc.cpp | REMOVED (v1.2.0 Phase 2: g_unified_scheduler.current_pid()) |
+| sys/dispatch.cpp | 69 | terminate current process, free PCB, notify parent | REMOVED (v1.2.0 Phase 4: process_exit()) |
+| sys/dispatch.cpp | 79 | Caller PID -- derive from cur_proc | REMOVED (v1.2.0 Phase 2: g_unified_scheduler.current_pid()) |
 | ipc_test.cpp | 52 | Actually send IPC message when lattice_send is available | PHASE6 |
 | fd_table.cpp | 227 | Call VFS close on inode | PHASE7 |
 | fd_table.cpp | 272 | Increment inode reference count | PHASE7 |
@@ -73,10 +74,10 @@ Lower priority; not in kernel build path. DEFERRED.
 
 | Category | Count |
 |----------|-------|
-| PHASE6   | 6     |
+| PHASE6   | 3     |
 | PHASE7   | 20    |
 | DEFERRED | 99    |
-| REMOVED  | 0     |
+| REMOVED  | 3 (v1.2.0: dispatch.cpp PHASE6 items) |
 | **Total** | **125** |
 
 ## Removal Policy
