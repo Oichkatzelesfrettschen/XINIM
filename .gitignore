@@ -155,6 +155,10 @@ coverage/
 .ccls-cache/
 compile_commands.json
 infer-out/
+cscope.out
+cscope.files
+cscope.in.out
+cscope.po.out
 
 # ==============================================================================
 # System-specific
