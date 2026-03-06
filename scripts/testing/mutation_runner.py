@@ -12,7 +12,7 @@ from typing import Dict, Iterable, Sequence
 
 DEFAULT_CONFIG = {
     "mutations": ["cxx_add_to_sub", "cxx_eq_to_ne"],
-    "tests": ["xmake run contract-suite", "xmake run property-suite"],
+    "tests": ["ctest --output-on-failure --test-dir build/Debug -L unit"],
 }
 
 

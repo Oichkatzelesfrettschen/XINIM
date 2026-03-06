@@ -46,24 +46,24 @@ Usage: $0 [command] [options]
 Commands:
   build-image [target]  Build container image
                         Targets: build, test, debug, ci (default: build)
-  
+
   build                 Build XINIM kernel in container
   test                  Run tests in container
   debug                 Start interactive debugging session
   ci                    Run full CI pipeline in container
   shell                 Start interactive shell in container
-  
+
   clean                 Remove all XINIM container images
   prune                 Prune unused container resources
-  
+
   qemu                  Boot XINIM kernel in QEMU (in container)
   qemu-debug            Boot XINIM in QEMU with GDB server
-  
+
   lint                  Run linting in container
   format                Run code formatter in container
   analyze               Run static analysis in container
   coverage              Generate coverage report in container
-  
+
   help                  Show this help message
 
 Options:
@@ -87,11 +87,11 @@ EOF
 build_image() {
     local target="${1:-build}"
     local cache_opt=""
-    
+
     if [[ "$NO_CACHE" == "true" ]]; then
         cache_opt="--no-cache"
     fi
-    
+
     case "$target" in
         build)
             local stage="build-env"
@@ -115,7 +115,7 @@ build_image() {
             exit 1
             ;;
     esac
-    
+
     echo -e "${GREEN}[BUILD]${NC} Building $tag (stage: $stage)..."
     $CONTAINER_RT build \
         $cache_opt \
@@ -123,7 +123,7 @@ build_image() {
         -t "$tag" \
         -f "$CONTAINER_FILE" \
         "$PROJECT_ROOT"
-    
+
     echo -e "${GREEN}[SUCCESS]${NC} Image built: $tag"
 }
 
@@ -131,7 +131,7 @@ build_image() {
 ensure_image() {
     local image="$1"
     local target="$2"
-    
+
     if [[ "$REBUILD" == "true" ]]; then
         echo -e "${YELLOW}[WARN]${NC} Rebuild requested, building image..."
         build_image "$target"
@@ -144,35 +144,35 @@ ensure_image() {
 # Run build in container
 run_build() {
     ensure_image "$BUILD_IMAGE" "build"
-    
+
     echo -e "${GREEN}[BUILD]${NC} Building XINIM in container..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$BUILD_IMAGE" \
-        bash -c "xmake config --toolchain=clang && xmake build --verbose"
-    
+        bash -c "cmake --preset debug && cmake --build build/Debug"
+
     echo -e "${GREEN}[SUCCESS]${NC} Build completed!"
 }
 
 # Run tests in container
 run_tests() {
     ensure_image "$TEST_IMAGE" "test"
-    
+
     echo -e "${GREEN}[TEST]${NC} Running tests in container..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$TEST_IMAGE" \
-        bash -c "xmake config --toolchain=clang && xmake build && xmake run test-all"
-    
+        bash -c "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"
+
     echo -e "${GREEN}[SUCCESS]${NC} Tests completed!"
 }
 
 # Start debug session
 run_debug() {
     ensure_image "$DEBUG_IMAGE" "debug"
-    
+
     echo -e "${GREEN}[DEBUG]${NC} Starting debug session..."
     $CONTAINER_RT run -it --rm \
         --privileged \
@@ -186,7 +186,7 @@ run_debug() {
 # Run CI pipeline
 run_ci() {
     ensure_image "$CI_IMAGE" "ci"
-    
+
     echo -e "${GREEN}[CI]${NC} Running CI pipeline in container..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
@@ -195,22 +195,22 @@ run_ci() {
         bash -c "
             set -e
             echo '=== Building XINIM ==='
-            xmake config --toolchain=clang
-            xmake build --verbose
-            
+            cmake --preset debug
+            cmake --build build/Debug
+
             echo '=== Running Tests ==='
-            if ! xmake run test-all; then
+            if ! ctest --output-on-failure --test-dir build/Debug -L unit; then
                 echo '[WARN] Some tests failed'
             fi
-            
+
             echo '=== Running Lint ==='
-            if ! xmake run lint; then
+            if ! run-clang-tidy -p build/Debug; then
                 echo '[WARN] Lint completed with warnings'
             fi
-            
+
             echo '=== CI Pipeline Complete ==='
         "
-    
+
     echo -e "${GREEN}[SUCCESS]${NC} CI pipeline completed!"
 }
 
@@ -219,7 +219,7 @@ run_shell() {
     local image="${1:-$BUILD_IMAGE}"
     local target="${2:-build}"
     ensure_image "$image" "$target"
-    
+
     echo -e "${GREEN}[SHELL]${NC} Starting interactive shell..."
     $CONTAINER_RT run -it --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
@@ -231,19 +231,19 @@ run_shell() {
 # Run QEMU in container
 run_qemu() {
     ensure_image "$TEST_IMAGE" "test"
-    
+
     # First build if kernel doesn't exist
-    if [[ ! -f "${PROJECT_ROOT}/build/xinim" ]]; then
+    if [[ ! -f "${PROJECT_ROOT}/build/Debug/xinim" ]]; then
         run_build
     fi
-    
+
     echo -e "${GREEN}[QEMU]${NC} Booting XINIM in QEMU..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$TEST_IMAGE" \
         qemu-system-x86_64 \
-            -kernel /xinim/build/xinim \
+            -kernel /xinim/build/Debug/xinim \
             -nographic \
             -no-reboot \
             -m 512M \
@@ -254,21 +254,21 @@ run_qemu() {
 # Run QEMU with GDB debug server
 run_qemu_debug() {
     ensure_image "$DEBUG_IMAGE" "debug"
-    
-    if [[ ! -f "${PROJECT_ROOT}/build/xinim" ]]; then
+
+    if [[ ! -f "${PROJECT_ROOT}/build/Debug/xinim" ]]; then
         run_build
     fi
-    
+
     echo -e "${GREEN}[QEMU-DEBUG]${NC} Booting XINIM in QEMU with GDB server on port 1234..."
-    echo -e "${BLUE}[INFO]${NC} Connect with: gdb build/xinim -ex 'target remote localhost:1234'"
-    
+    echo -e "${BLUE}[INFO]${NC} Connect with: gdb build/Debug/xinim -ex 'target remote localhost:1234'"
+
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         -p 1234:1234 \
         "$DEBUG_IMAGE" \
         qemu-system-x86_64 \
-            -kernel /xinim/build/xinim \
+            -kernel /xinim/build/Debug/xinim \
             -nographic \
             -no-reboot \
             -m 512M \
@@ -280,52 +280,52 @@ run_qemu_debug() {
 # Run linting
 run_lint() {
     ensure_image "$CI_IMAGE" "ci"
-    
+
     echo -e "${GREEN}[LINT]${NC} Running linting..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$CI_IMAGE" \
-        bash -c "xmake config --toolchain=clang && xmake build && xmake run lint"
+        bash -c "cmake --preset debug && cmake --build build/Debug && run-clang-tidy -p build/Debug"
 }
 
 # Run formatter
 run_format() {
     ensure_image "$BUILD_IMAGE" "build"
-    
+
     echo -e "${GREEN}[FORMAT]${NC} Running code formatter..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$BUILD_IMAGE" \
-        bash -c "xmake run format"
+        bash -c "find src include -name '*.cpp' -o -name '*.hpp' -o -name '*.h' | xargs clang-format --dry-run --Werror"
 }
 
 # Run static analysis
 run_analyze() {
     ensure_image "$CI_IMAGE" "ci"
-    
+
     echo -e "${GREEN}[ANALYZE]${NC} Running static analysis..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$CI_IMAGE" \
-        bash -c "xmake run analyze"
+        bash -c "cmake --preset debug && cmake --build build/Debug && cppcheck --enable=all --suppress=missingInclude src/"
 }
 
 # Generate coverage report
 run_coverage() {
     ensure_image "$TEST_IMAGE" "test"
-    
+
     echo -e "${GREEN}[COVERAGE]${NC} Generating coverage report..."
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$TEST_IMAGE" \
         bash -c "
-            xmake config --mode=coverage --toolchain=clang
-            xmake build xinim-coverage
-            xmake run xinim-coverage
+            cmake -B build/Coverage -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS='--coverage' -DCMAKE_C_FLAGS='--coverage'
+            cmake --build build/Coverage
+            ctest --output-on-failure --test-dir build/Coverage -L unit
         "
 }
 

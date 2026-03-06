@@ -17,9 +17,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     gnupg \
     && rm -rf /var/lib/apt/lists/*
 
-# Add LLVM apt repository for clang-18+
+# Add LLVM apt repository for clang-21
 RUN curl -fsSL https://apt.llvm.org/llvm-snapshot.gpg.key | gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg \
-    && echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-18 main" > /etc/apt/sources.list.d/llvm.list
+    && echo "deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] http://apt.llvm.org/noble/ llvm-toolchain-noble-21 main" > /etc/apt/sources.list.d/llvm.list
 
 # =============================================================================
 # Stage 2: Build Environment (Lightweight)
@@ -34,44 +34,46 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     cmake \
     pkg-config \
     # LLVM/Clang toolchain
-    clang-18 \
-    lld-18 \
-    lldb-18 \
-    clang-tools-18 \
-    clang-tidy-18 \
-    clang-format-18 \
-    libc++-18-dev \
-    libc++abi-18-dev \
+    clang-21 \
+    lld-21 \
+    lldb-21 \
+    clang-tools-21 \
+    clang-tidy-21 \
+    clang-format-21 \
+    libc++-21-dev \
+    libc++abi-21-dev \
     # Assembly
     nasm \
     # Libraries
     libsodium-dev \
     # Useful utilities
     git \
+    python3 \
+    python3-pip \
+    python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
 # Create symbolic links for clang tools
-RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang-18 100 \
-    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-18 100 \
-    && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-18 100 \
-    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-18 100 \
-    && update-alternatives --install /usr/bin/ld ld /usr/bin/lld-18 100 \
-    && update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-18 100 \
-    && update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-18 100
+RUN update-alternatives --install /usr/bin/cc cc /usr/bin/clang-21 100 \
+    && update-alternatives --install /usr/bin/c++ c++ /usr/bin/clang++-21 100 \
+    && update-alternatives --install /usr/bin/clang clang /usr/bin/clang-21 100 \
+    && update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-21 100 \
+    && update-alternatives --install /usr/bin/ld ld /usr/bin/lld-21 100 \
+    && update-alternatives --install /usr/bin/clang-format clang-format /usr/bin/clang-format-21 100 \
+    && update-alternatives --install /usr/bin/clang-tidy clang-tidy /usr/bin/clang-tidy-21 100
 
-# Install xmake
-RUN curl -fsSL https://xmake.io/shget.text | bash \
-    && ln -s /root/.local/bin/xmake /usr/local/bin/xmake
+# Install Conan package manager
+RUN python3 -m venv /opt/venv \
+    && /opt/venv/bin/pip install --no-cache-dir conan
 
-# Set environment for xmake
-ENV PATH="/root/.local/bin:${PATH}"
+ENV PATH="/opt/venv/bin:${PATH}"
 
 # Create working directory
 WORKDIR /xinim
 
 # Default build command
-CMD ["xmake", "build", "--verbose"]
+CMD ["cmake", "--build", "build/Debug"]
 
 # =============================================================================
 # Stage 3: Test Environment (includes QEMU for kernel testing)
@@ -90,24 +92,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     lcov \
     # Static analysis
     cppcheck \
-    # Python for test scripts
-    python3 \
-    python3-pip \
-    python3-venv \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
 
-# Install Python testing tools in a virtual environment
-RUN python3 -m venv /opt/venv \
-    && /opt/venv/bin/pip install --no-cache-dir \
-        pytest \
-        lizard
-
-# Add virtual environment to PATH
-ENV PATH="/opt/venv/bin:${PATH}"
+# Install Python testing tools
+RUN /opt/venv/bin/pip install --no-cache-dir \
+    pytest \
+    lizard
 
 # Default test command
-CMD ["xmake", "run", "test-all"]
+CMD ["ctest", "--output-on-failure", "--test-dir", "build/Debug", "-L", "unit"]
 
 # =============================================================================
 # Stage 4: Debug Environment (full debugging support)
@@ -163,7 +157,7 @@ ENV CI=true
 ENV XINIM_CI=1
 
 # Default CI command
-CMD ["bash", "-c", "xmake config --toolchain=clang && xmake build --verbose && xmake run test-all"]
+CMD ["bash", "-c", "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"]
 
 # =============================================================================
 # Stage 6: Minimal Runtime (for deployment/distribution)
@@ -183,7 +177,7 @@ WORKDIR /xinim
 # in the build context at image build time. Build the kernel first, then
 # copy it to the repo root before building this stage:
 #   ./containers/container.sh build
-#   cp build/xinim ./xinim
+#   cp build/Debug/xinim ./xinim
 #   docker build --target runtime -t xinim-runtime -f containers/Containerfile .
 COPY xinim /xinim/xinim
 

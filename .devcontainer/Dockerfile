@@ -37,13 +37,10 @@ RUN apt-get update && export DEBIAN_FRONTEND=noninteractive \
         python3-venv \
     && rm -rf /var/lib/apt/lists/*
 
-# Install xmake (primary build system) - install globally for all users
-RUN curl -fsSL https://xmake.io/shget.text | bash \
-    && mv /root/.local/bin/xmake /usr/local/bin/xmake
-
-# Install Python tools in a virtual environment
+# Install Python tools (Conan, testing) in a virtual environment
 RUN python3 -m venv /opt/venv \
     && /opt/venv/bin/pip install --no-cache-dir \
+        conan \
         lizard \
         pytest
 

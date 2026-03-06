@@ -2,7 +2,7 @@ name: Container Build and Test
 
 on:
   push:
-    branches: ["master", "main"]
+    branches: ["main"]
     paths:
       - 'src/**'
       - 'include/**'
@@ -77,7 +77,6 @@ jobs:
     needs: build-container
     permissions:
       contents: read
-    # Build on all PRs and all branches (including master)
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -89,12 +88,12 @@ jobs:
             -t xinim-build:local \
             -f containers/Containerfile \
             .
-          
+
           docker run --rm \
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-build:local \
-            bash -c "xmake config --toolchain=clang && xmake build --verbose"
+            bash -c "cmake --preset debug && cmake --build build/Debug"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -135,7 +134,7 @@ jobs:
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-test:local \
-            bash -c "xmake config --toolchain=clang && xmake run test-all"
+            bash -c "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"
 
   # =============================================================================
   # Static Analysis in Container
@@ -163,7 +162,7 @@ jobs:
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-ci:local \
-            bash -c "xmake config --toolchain=clang && xmake build && xmake run lint"
+            bash -c "cmake --preset debug && cmake --build build/Debug && run-clang-tidy -p build/Debug"
 
       - name: Run cppcheck
         run: |
@@ -240,7 +239,7 @@ jobs:
             -w /xinim \
             xinim-test:local \
             qemu-system-x86_64 \
-              -kernel build/xinim \
+              -kernel build/Debug/xinim \
               -nographic \
               -no-reboot \
               -m 256M \

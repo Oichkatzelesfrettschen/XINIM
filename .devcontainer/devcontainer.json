@@ -1,5 +1,5 @@
 // XINIM Development Container Configuration
-// Optimized for C++23 development with xmake build system
+// Optimized for C++23 development with CMake + Conan build system
 {
 	"name": "XINIM C++23 Development",
 	"build": {
@@ -22,15 +22,15 @@
 			"version": "3.12"
 		},
 		"ghcr.io/chaoswars/vscode-features/llvm:1": {
-			"llvm-version": "18"
+			"llvm-version": "21"
 		}
 	},
 
 	// Forward QEMU GDB port for kernel debugging
 	"forwardPorts": [1234],
 
-	// Run xmake config after container creation
-	"postCreateCommand": "sh -lc 'if [ -f xmake.lua ]; then xmake config --toolchain=clang; else echo \"xmake.lua not found, skipping xmake config\"; fi'",
+	// Configure CMake after container creation
+	"postCreateCommand": "cmake --preset debug || cmake -B build/Debug -DCMAKE_BUILD_TYPE=Debug",
 
 	// VSCode customizations for C++23 development
 	"customizations": {

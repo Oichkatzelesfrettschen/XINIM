@@ -37,13 +37,13 @@ The `Containerfile` uses multi-stage builds to create optimized images for diffe
 
 ### 1. `build-env` (Lightweight Build)
 
-**Size**: ~1.5 GB  
+**Size**: ~1.5 GB
 **Purpose**: Building XINIM kernel
 
 Includes:
-- Clang 18 with C++23 support
+- Clang 21 with C++23 support
 - CMake & Ninja build systems
-- xmake (primary build system)
+- Conan package manager
 - libsodium (crypto dependency)
 
 ```bash
@@ -53,7 +53,7 @@ Includes:
 
 ### 2. `test-env` (Testing)
 
-**Size**: ~2.5 GB  
+**Size**: ~2.5 GB
 **Purpose**: Running tests and QEMU emulation
 
 Includes everything in `build-env` plus:
@@ -70,7 +70,7 @@ Includes everything in `build-env` plus:
 
 ### 3. `debug-env` (Full Debug)
 
-**Size**: ~3 GB  
+**Size**: ~3 GB
 **Purpose**: Interactive debugging sessions
 
 Includes everything in `test-env` plus:
@@ -86,7 +86,7 @@ Includes everything in `test-env` plus:
 
 ### 4. `ci-env` (CI Pipeline)
 
-**Size**: ~3 GB  
+**Size**: ~3 GB
 **Purpose**: GitHub Actions CI runs
 
 Includes everything in `test-env` plus:
@@ -101,7 +101,7 @@ Includes everything in `test-env` plus:
 
 ### 5. `runtime` (Minimal)
 
-**Size**: Varies based on built kernel (verify with `docker images` or `podman images`)  
+**Size**: Varies based on built kernel (verify with `docker images` or `podman images`)
 **Purpose**: Running pre-built XINIM kernel
 
 Minimal image containing only QEMU and the built kernel.
@@ -109,7 +109,7 @@ Minimal image containing only QEMU and the built kernel.
 **Note**: This stage requires a pre-built kernel binary in the build context:
 ```bash
 ./containers/container.sh build
-cp build/xinim ./xinim
+cp build/Debug/xinim ./xinim
 docker build --target runtime -t xinim-runtime -f containers/Containerfile .
 ```
 
@@ -165,7 +165,7 @@ docker build --target runtime -t xinim-runtime -f containers/Containerfile .
 
 # Boot in QEMU with GDB server
 ./containers/container.sh qemu-debug
-# Then connect with: gdb build/xinim -ex 'target remote localhost:1234'
+# Then connect with: gdb build/Debug/xinim -ex 'target remote localhost:1234'
 ```
 
 ### Interactive Shell
@@ -235,7 +235,7 @@ gh workflow run container-build.yml
 ./containers/container.sh qemu-debug
 
 # Terminal 2: Connect GDB
-gdb build/xinim -ex 'target remote localhost:1234'
+gdb build/Debug/xinim -ex 'target remote localhost:1234'
 
 # GDB commands
 (gdb) break kernel_main
@@ -244,23 +244,13 @@ gdb build/xinim -ex 'target remote localhost:1234'
 (gdb) x/20i $rip
 ```
 
-### Using AddressSanitizer
-
-```bash
-./containers/container.sh shell
-# Inside container:
-xmake config --mode=asan --toolchain=clang
-xmake build xinim-asan
-xmake run xinim-asan
-```
-
 ### Using Valgrind
 
 ```bash
 ./containers/container.sh shell
 # Inside container:
-xmake build
-valgrind --leak-check=full ./build/xinim
+cmake --build build/Debug
+valgrind --leak-check=full ./build/Debug/test_heap_allocator
 ```
 
 ## Customizing the Container
@@ -302,14 +292,6 @@ Clear cache and rebuild:
 ./containers/container.sh --no-cache build-image build
 ```
 
-### xmake not found
-
-The xmake binary is at `/root/.local/bin/xmake`. Ensure PATH is set:
-
-```bash
-export PATH="/root/.local/bin:$PATH"
-```
-
 ### QEMU not starting
 
 Ensure the kernel is built first:
@@ -324,7 +306,7 @@ Ensure the kernel is built first:
 Currently, the containers support:
 
 - **x86_64**: Full support (primary architecture)
-- **ARM64**: Build support (cross-compilation possible)
+- **i386**: Build system stub (v1.4.0); boot assembly deferred
 
 ## License
 

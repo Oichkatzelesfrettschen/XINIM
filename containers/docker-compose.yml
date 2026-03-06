@@ -2,8 +2,6 @@
 # Provides multi-container orchestration for development workflows
 # Compatible with both Docker Compose and Podman Compose
 
-version: "3.8"
-
 services:
   # =============================================================================
   # Build Service - For compiling XINIM kernel
@@ -18,7 +16,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "xmake config --toolchain=clang && xmake build --verbose"
+    command: bash -c "cmake --preset debug && cmake --build build/Debug"
     profiles:
       - build
 
@@ -35,7 +33,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "xmake config --toolchain=clang && xmake build && xmake run test-all"
+    command: bash -c "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"
     depends_on:
       - build
     profiles:
@@ -83,7 +81,7 @@ services:
     tty: true
     command: >
       qemu-system-x86_64
-        -kernel /xinim/build/xinim
+        -kernel /xinim/build/Debug/xinim
         -nographic
         -no-reboot
         -m 512M
@@ -113,7 +111,7 @@ services:
     tty: true
     command: >
       qemu-system-x86_64
-        -kernel /xinim/build/xinim
+        -kernel /xinim/build/Debug/xinim
         -nographic
         -no-reboot
         -m 512M
@@ -140,17 +138,17 @@ services:
       bash -c "
         set -e
         echo '=== Configuring Build ==='
-        xmake config --toolchain=clang
-        
+        cmake --preset debug
+
         echo '=== Building XINIM ==='
-        xmake build --verbose
-        
+        cmake --build build/Debug
+
         echo '=== Running Tests ==='
-        xmake run test-all || echo 'Some tests failed'
-        
+        ctest --output-on-failure --test-dir build/Debug -L unit || echo 'Some tests failed'
+
         echo '=== Running Lint ==='
-        xmake run lint || echo 'Lint completed with warnings'
-        
+        run-clang-tidy -p build/Debug || echo 'Lint completed with warnings'
+
         echo '=== CI Pipeline Complete ==='
       "
     profiles:
@@ -169,7 +167,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "xmake config --toolchain=clang && xmake build && xmake run lint"
+    command: bash -c "cmake --preset debug && cmake --build build/Debug && run-clang-tidy -p build/Debug"
     profiles:
       - lint
 
@@ -186,7 +184,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "xmake run format"
+    command: bash -c "find src include -name '*.cpp' -o -name '*.hpp' -o -name '*.h' | xargs clang-format --dry-run --Werror"
     profiles:
       - format
 
@@ -205,9 +203,10 @@ services:
     working_dir: /xinim
     command: |
       bash -c "
-        xmake config --mode=coverage --toolchain=clang
-        xmake build xinim-coverage
-        xmake run xinim-coverage
+        cmake -B build/Coverage -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS='--coverage' -DCMAKE_C_FLAGS='--coverage'
+        cmake --build build/Coverage
+        ctest --output-on-failure --test-dir build/Coverage -L unit
+        python3 scripts/testing/coverage_heatmap.py --binary build/Coverage/xinim --profdata build/Coverage/default.profdata --output coverage-heatmap.html
       "
     profiles:
       - coverage
@@ -230,11 +229,6 @@ services:
     command: /bin/bash
     profiles:
       - shell
-
-# Volumes for persistent storage (optional, for future use)
-# volumes:
-#   xinim-build-cache:
-#     name: xinim-build-cache
 
 # Networks
 networks:
