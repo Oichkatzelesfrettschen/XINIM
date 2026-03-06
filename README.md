@@ -110,6 +110,10 @@ ctest --output-on-failure --test-dir build
 - **Integration Tests**: System-level verification
 - **POSIX Compliance**: Official test suite validation
 - **Performance Benchmarks**: Continuous optimization
+- **Contract Suites**: Service contract invariant tests (`test/contract/`)
+- **Chaos Harnesses**: Deterministic chaos runner (`python3 scripts/testing/chaos_runner.py`) and resilience tests (`test/chaos/`)
+- **Coverage Heatmaps**: `python3 scripts/testing/coverage_heatmap.py` converts LLVM coverage exports into browsable HTML dashboards
+- **Docs-as-Code Pipeline**: `python3 scripts/docs/doc_pipeline.py` drives Doxygen XML generation and Sphinx+Breathe rendering
 
 ### Code Quality Tools
 - **Static Analysis**: Clang-Tidy, cppcheck
