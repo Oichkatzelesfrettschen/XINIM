@@ -154,6 +154,7 @@ coverage/
 # Static analysis
 .ccls-cache/
 compile_commands.json
+infer-out/
 
 # ==============================================================================
 # System-specific
