@@ -93,6 +93,7 @@ add_executable(xinim
     src/arch/x86_64/syscall_handler.S
     src/arch/x86_64/context_switch.S
     src/arch/x86_64/interrupts.S
+    src/kernel/unified_scheduler.cpp
     src/kernel/lattice_ipc.cpp
     src/kernel/early/serial_16550.cpp
     src/kernel/bare_metal_stubs.cpp
@@ -316,6 +317,15 @@ xinim_add_host_test(test_ipc_channel
 )
 target_include_directories(test_ipc_channel PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
 set_tests_properties(test_ipc_channel PROPERTIES LABELS "unit;ipc;kernel")
+
+# --- Unified Scheduler Tests ---
+xinim_add_host_test(test_unified_scheduler
+    test/test_unified_scheduler.cpp
+    src/kernel/unified_scheduler.cpp
+    ${XINIM_TEST_COMMON_SOURCES}
+)
+target_compile_definitions(test_unified_scheduler PRIVATE XINIM_ARCH_X86_64)
+set_tests_properties(test_unified_scheduler PROPERTIES LABELS "unit;scheduler")
 
 # --- Heap Allocator Tests ---
 xinim_add_host_test(test_heap_allocator

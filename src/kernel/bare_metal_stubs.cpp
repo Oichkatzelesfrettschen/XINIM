@@ -347,8 +347,8 @@ void init_signal_state(ProcessControlBlock*) {}
 // VFS lookup stub (Phase 6)
 void* vfs_lookup(const char*) { return nullptr; }
 
-// Scheduler add process stub (Phase 5)
-void scheduler_add_process(ProcessControlBlock*) {}
+// v1.2.0: scheduler_add_process() is now defined in scheduler.cpp
+// (backed by unified_scheduler.cpp). No stub needed.
 
 } // namespace xinim::kernel
 

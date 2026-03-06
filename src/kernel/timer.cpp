@@ -6,6 +6,7 @@
 #include <stdint.h>
 #include "early/serial_16550.hpp"
 #include "scheduler.hpp"
+#include "unified_scheduler.hpp"
 #include "hal/x86_64/hal/apic.hpp"
 
 extern xinim::early::Serial16550 early_serial;
@@ -25,7 +26,7 @@ void initialize_timer() {
 } // namespace xinim::kernel
 
 extern "C" void timer_interrupt_handler_c() {
-    // EOI
-    // xinim::kernel::g_timer_lapic->eoi();
+    // v1.2.0: unified scheduler handles tick counting and quantum expiry
+    xinim::kernel::g_unified_scheduler.timer_tick();
     xinim::kernel::schedule();
 }

@@ -10,6 +10,7 @@
 #include "../early/serial_16550.hpp"
 #include "../time/monotonic.hpp"
 #include "../lattice_ipc.hpp"
+#include "../unified_scheduler.hpp"
 #include "console.hpp"
 
 extern xinim::early::Serial16550 early_serial;
@@ -40,8 +41,7 @@ static uint64_t sys_debug_write_impl(const char* s, uint64_t n) {
 }
 
 static int64_t sys_getpid_impl() {
-    // TODO: return actual cur_proc from proc.cpp
-    return 1;
+    return xinim::kernel::g_unified_scheduler.current_pid();
 }
 
 static int64_t sys_getppid_impl() {
@@ -83,9 +83,14 @@ static int64_t sys_brk_impl(uint64_t addr) {
 }
 
 static void sys_exit_impl([[maybe_unused]] int status) {
-    // TODO Phase-6: terminate current process, free PCB, notify parent
-    early_serial.write("[SYSCALL] exit() called\n");
-    // For now, halt the CPU
+    auto* pcb = xinim::kernel::g_unified_scheduler.current();
+    if (pcb) {
+        pcb->state = xinim::kernel::ProcessState::ZOMBIE;
+        pcb->exit_status = status;
+        pcb->has_exited = true;
+        xinim::kernel::g_unified_scheduler.yield();
+    }
+    // Fallback: halt if no current process
     while (true) { asm volatile("hlt"); }
 }
 
@@ -93,8 +98,8 @@ extern "C" uint64_t xinim_syscall_dispatch(uint64_t no,
     uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
     (void)a3; (void)a4;
 
-    // Caller PID -- TODO: derive from cur_proc
-    xinim::pid_t caller = 1;
+    xinim::pid_t caller = xinim::kernel::g_unified_scheduler.current_pid();
+    if (caller < 0) caller = 1; // Fallback during early boot
 
     switch (no) {
         // --- Kernel-handled syscalls ---
