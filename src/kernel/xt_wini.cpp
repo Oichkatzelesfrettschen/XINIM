@@ -36,7 +36,7 @@
 class ScopedPortLock {
   public:
     ScopedPortLock() { lock(); }
-    ~ScopedPortLock() { unlock(); }
+    ~ScopedPortLock() { restore(); }
 };
 
 /**

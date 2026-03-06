@@ -346,6 +346,13 @@ xinim_add_host_test(test_process_lifecycle
 target_compile_definitions(test_process_lifecycle PRIVATE XINIM_ARCH_X86_64)
 set_tests_properties(test_process_lifecycle PROPERTIES LABELS "unit;kernel")
 
+# --- Lock Timeout Tests ---
+xinim_add_host_test(test_lock_timeout
+    test/test_lock_timeout.cpp
+)
+target_include_directories(test_lock_timeout PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
+set_tests_properties(test_lock_timeout PROPERTIES LABELS "unit;sync")
+
 # --- IPC Blocking Tests ---
 xinim_add_host_test(test_ipc_blocking
     test/test_ipc_blocking.cpp

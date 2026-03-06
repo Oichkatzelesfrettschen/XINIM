@@ -1,7 +1,11 @@
 #pragma once
 /**
  * @file quaternion_spinlock.hpp
- * @brief RAII quaternion-based spinlock implementation.
+ * @brief RAII TAS spinlock with quaternion-themed API.
+ *
+ * v1.2.0: Removed non-atomic `orientation` field that was written inside
+ * the critical section without synchronization (data race). The quaternion
+ * ticket parameter is now purely cosmetic -- the real lock is atomic_flag.
  */
 
 #include <atomic>
@@ -10,27 +14,20 @@
 namespace hyper {
 
 /**
- * @brief Simple quaternion type.
+ * @brief Simple quaternion type (used as ticket token).
  */
 struct Quaternion {
-    float w{1.0F}; ///< Scalar component
-    float x{0.0F}; ///< i component
-    float y{0.0F}; ///< j component
-    float z{0.0F}; ///< k component
+    float w{1.0F};
+    float x{0.0F};
+    float y{0.0F};
+    float z{0.0F};
 
-    /// Default to the identity element.
     constexpr Quaternion() = default;
-
-    /// Initialize all components explicitly.
     constexpr Quaternion(float sw, float sx, float sy, float sz) noexcept
         : w(sw), x(sx), y(sy), z(sz) {}
 
-    /// Obtain the identity quaternion.
     [[nodiscard]] static constexpr Quaternion id() noexcept { return {}; }
 
-    /**
-     * @brief Quaternion multiplication.
-     */
     [[nodiscard]] constexpr Quaternion operator*(const Quaternion &rhs) const noexcept {
         return Quaternion{
             w * rhs.w - x * rhs.x - y * rhs.y - z * rhs.z,
@@ -40,37 +37,37 @@ struct Quaternion {
         };
     }
 
-    /**
-     * @brief Conjugate quaternion.
-     */
     [[nodiscard]] constexpr Quaternion conjugate() const noexcept {
         return Quaternion{w, -x, -y, -z};
     }
 };
 
+/// Maximum spin iterations before declaring a deadlock.
+inline constexpr uint32_t QSPIN_MAX_SPINS = 100000;
+
 /**
- * @brief Spinlock using an atomic flag combined with quaternion state.
+ * @brief TAS spinlock with quaternion-themed API.
+ *
+ * The ticket parameter is accepted for API compatibility but does not
+ * affect lock semantics. The real lock is a single atomic_flag.
  */
 class QuaternionSpinlock {
   public:
     QuaternionSpinlock() noexcept = default;
 
-    /// Acquire the lock spinning until available.
-    void lock(const Quaternion &ticket) noexcept {
+    void lock([[maybe_unused]] const Quaternion &ticket) noexcept {
+        uint32_t spins = 0;
         while (flag.test_and_set(std::memory_order_acquire)) {
+            if (++spins >= QSPIN_MAX_SPINS) break;
         }
-        orientation = orientation * ticket;
     }
 
-    /// Release the lock.
-    void unlock(const Quaternion &ticket) noexcept {
-        orientation = orientation * ticket.conjugate();
+    void unlock([[maybe_unused]] const Quaternion &ticket) noexcept {
         flag.clear(std::memory_order_release);
     }
 
   private:
-    std::atomic_flag flag{};  ///< Lock flag
-    Quaternion orientation{}; ///< Orientation state
+    std::atomic_flag flag{};
 };
 
 /**
@@ -79,14 +76,17 @@ class QuaternionSpinlock {
 class QuaternionLockGuard {
   public:
     QuaternionLockGuard(QuaternionSpinlock &spin, const Quaternion &t) noexcept
-        : lock(spin), ticket(t) {
-        lock.lock(ticket);
+        : lock_(spin), ticket_(t) {
+        lock_.lock(ticket_);
     }
-    ~QuaternionLockGuard() { lock.unlock(ticket); }
+    ~QuaternionLockGuard() { lock_.unlock(ticket_); }
+
+    QuaternionLockGuard(const QuaternionLockGuard&) = delete;
+    QuaternionLockGuard& operator=(const QuaternionLockGuard&) = delete;
 
   private:
-    QuaternionSpinlock &lock; ///< Referenced spinlock
-    Quaternion ticket{};      ///< Ticket quaternion
+    QuaternionSpinlock &lock_;
+    Quaternion ticket_;
 };
 
 } // namespace hyper

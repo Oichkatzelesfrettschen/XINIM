@@ -33,7 +33,7 @@
 class ScopedPortLock {
   public:
     ScopedPortLock() { lock(); }
-    ~ScopedPortLock() { unlock(); }
+    ~ScopedPortLock() { restore(); }
 };
 
 /* I/O Ports used by winchester disk controller. */

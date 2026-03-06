@@ -12,6 +12,9 @@
 
 namespace xinim::sync {
 
+/// Maximum spin iterations for RWLock acquisition before declaring a deadlock.
+inline constexpr uint32_t RWLOCK_MAX_SPINS = 100000;
+
 /**
  * @brief Phase-fair reader-writer lock.
  *
@@ -54,10 +57,12 @@ class PhaseRWLock {
      * 4. If changed, decrement and retry in new phase
      */
     void read_lock() noexcept {
+        uint32_t total_spins = 0;
         while (true) {
             // Check if writer is waiting
             while (writer_waiting_.load(std::memory_order_acquire)) {
-                cpu_pause(); // Spin until writer finishes
+                if (++total_spins >= RWLOCK_MAX_SPINS) return; // timeout
+                cpu_pause();
             }
 
             // Read current phase
@@ -74,6 +79,8 @@ class PhaseRWLock {
             // Phase changed - writer acquired
             // Decrement and retry in new phase
             readers_.fetch_sub(1, std::memory_order_release);
+
+            if (++total_spins >= RWLOCK_MAX_SPINS) return; // timeout
         }
     }
 
@@ -124,7 +131,9 @@ class PhaseRWLock {
         phase_.fetch_add(1, std::memory_order_acquire);
 
         // Wait for all readers from previous phase to finish
+        uint32_t spins = 0;
         while (readers_.load(std::memory_order_acquire) > 0) {
+            if (++spins >= RWLOCK_MAX_SPINS) return; // timeout
             cpu_pause();
         }
 

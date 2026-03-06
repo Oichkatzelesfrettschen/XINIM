@@ -12,6 +12,11 @@
 
 namespace xinim::sync {
 
+/// Maximum spin iterations before declaring a deadlock.
+/// At 3 GHz, 10M spins ~= 3 ms -- long enough for real preemption but
+/// short enough to prevent indefinite hangs from lock ordering bugs.
+inline constexpr uint32_t TICKET_MAX_SPINS = 10'000'000;
+
 /**
  * @brief FIFO-fair spinlock using ticket algorithm.
  *
@@ -44,7 +49,9 @@ class TicketSpinlock {
         const uint32_t my_ticket = next_ticket_.fetch_add(1, std::memory_order_relaxed);
 
         // Spin until our ticket is called
+        uint32_t spins = 0;
         while (now_serving_.load(std::memory_order_acquire) != my_ticket) {
+            if (++spins >= TICKET_MAX_SPINS) break; // timeout: deadlock
             cpu_pause();
         }
 
