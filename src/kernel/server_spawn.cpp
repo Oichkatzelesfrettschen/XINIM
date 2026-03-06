@@ -50,41 +50,19 @@ namespace xinim::kernel {
 
 // Week 8: PCB, ProcessState, BlockReason now defined in pcb.hpp (consolidated)
 
-// ============================================================================
-// Simple Kernel Heap Allocator (Week 7)
-// ============================================================================
+// v1.2.0: Duplicate kmalloc() removed. All allocation routes through the
+// unified free-list heap in klib64.cpp (backed by heap.cpp).
+// kmalloc() is now a thin wrapper around malloc() + memset().
 
-/**
- * @brief Simple bump allocator for kernel memory
- *
- * This is a TEMPORARY allocator for Week 7. Week 8+ will use the proper
- * kernel heap allocator.
- */
-namespace {
-    constexpr uint64_t KERNEL_HEAP_BASE = 0xFFFF'8000'0000'0000ULL;
-    constexpr uint64_t KERNEL_HEAP_SIZE = 16 * 1024 * 1024;  // 16 MB
-    uint64_t g_heap_current = KERNEL_HEAP_BASE;
-    uint64_t g_heap_end = KERNEL_HEAP_BASE + KERNEL_HEAP_SIZE;
-}
+extern "C" void* malloc(size_t);
 
-/**
- * @brief Allocate kernel memory (temporary implementation)
- */
 static void* kmalloc(uint64_t size) {
-    // Align to 16 bytes
-    size = (size + 15) & ~15ULL;
-
-    if (g_heap_current + size > g_heap_end) {
+    void* ptr = malloc(static_cast<size_t>(size));
+    if (ptr) {
+        memset(ptr, 0, static_cast<size_t>(size));
+    } else {
         early_serial.write("[ERROR] kernel heap exhausted\n");
-        return nullptr;
     }
-
-    void* ptr = reinterpret_cast<void*>(g_heap_current);
-    g_heap_current += size;
-
-    // Zero initialize
-    memset(ptr, 0, size);
-
     return ptr;
 }
 

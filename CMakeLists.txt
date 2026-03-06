@@ -53,6 +53,7 @@ add_executable(xinim
     src/kernel/panic.cpp
     src/boot/limine/shim.cpp
     src/kernel/klib64.cpp
+    src/kernel/heap.cpp
     src/kernel/mpx64_stubs.S
     src/kernel/exception_stubs.cpp
     src/kernel/signal_stubs.cpp
@@ -315,6 +316,13 @@ xinim_add_host_test(test_ipc_channel
 )
 target_include_directories(test_ipc_channel PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
 set_tests_properties(test_ipc_channel PROPERTIES LABELS "unit;ipc;kernel")
+
+# --- Heap Allocator Tests ---
+xinim_add_host_test(test_heap_allocator
+    test/test_heap_allocator.cpp
+    src/kernel/heap.cpp
+)
+set_tests_properties(test_heap_allocator PROPERTIES LABELS "unit;kernel")
 
 # --- ELF Parser Tests ---
 # Links elf_loader.cpp which calls early_serial; serial_stub.cpp satisfies that dep.

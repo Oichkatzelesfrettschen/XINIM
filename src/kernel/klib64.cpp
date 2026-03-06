@@ -10,33 +10,42 @@
 #include "glo.hpp"
 #include "proc.hpp"
 #include "type.hpp"
+#include "heap.hpp"
 #include <cstdint>
 #include <cstddef>
 #include <cstring>
 
 static uint64_t lockvar = 0;
 
-static constexpr size_t KERNEL_HEAP_SIZE = 1024 * 1024; // 1 MB
-static uint8_t kernel_heap[KERNEL_HEAP_SIZE];
-static size_t heap_pos = 0;
+// v1.2.0: 4 MB free-list heap replaces the 1 MB bump allocator.
+static constexpr size_t KERNEL_HEAP_SIZE = 4 * 1024 * 1024;
+static uint8_t kernel_heap[KERNEL_HEAP_SIZE]
+    __attribute__((aligned(16)));
+static bool heap_initialized = false;
+
+static void ensure_heap_init() {
+    if (!heap_initialized) {
+        xinim::kernel::heap_init(kernel_heap, KERNEL_HEAP_SIZE);
+        heap_initialized = true;
+    }
+}
 
 extern "C" {
 void* malloc(size_t size) {
-    size_t aligned_size = (size + 15) & ~15ULL;
-    if (heap_pos + aligned_size > KERNEL_HEAP_SIZE) {
-        return nullptr; // Out of heap space
-    }
-    void* ptr = &kernel_heap[heap_pos];
-    heap_pos += aligned_size;
-    return ptr;
+    ensure_heap_init();
+    return xinim::kernel::heap_alloc(static_cast<uint64_t>(size));
 }
-// Simple free: no-op for bump allocator. Documented limitation.
-// Phase 5+ may implement a free-list allocator.
-void free(void*) {}
 
-// Returns heap usage statistics for kshell diagnostics.
-size_t kernel_heap_used() { return heap_pos; }
-size_t kernel_heap_total() { return KERNEL_HEAP_SIZE; }
+void free(void* ptr) {
+    xinim::kernel::heap_free(ptr);
+}
+
+size_t kernel_heap_used() {
+    return static_cast<size_t>(xinim::kernel::heap_used());
+}
+size_t kernel_heap_total() {
+    return static_cast<size_t>(xinim::kernel::heap_total());
+}
 }
 
 // C++ Runtime stubs (Must be outside extern "C")
