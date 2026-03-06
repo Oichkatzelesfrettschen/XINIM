@@ -108,6 +108,16 @@ add_executable(xinim
     src/vfs/fd_table.cpp
     src/vfs/buffer_cache.cpp
     src/vfs/vfs_server.cpp
+    # PCI bus enumeration (freestanding, no STL)
+    src/pci/pci.cpp
+    src/hal/x86_64/hal/pci.cpp
+    # Drivers
+    src/drivers/net/virtio_net.cpp
+    # Hardware-accelerated crypto (AES-NI, SHA-NI with software fallback)
+    src/crypto/aes_hw.cpp
+    src/crypto/sha2_hw.cpp
+    # Recovery server (Resurrection Server -- DAG-based service restart)
+    src/kernel/recovery/recovery_dag.cpp
 )
 
 # Apply project-wide target defaults (C++23, defines, includes)
@@ -116,6 +126,12 @@ xinim_set_warnings(xinim)
 
 # Bare-metal: disable hosted C++ runtime assumptions
 target_compile_options(xinim PRIVATE -ffreestanding)
+
+# Enable AES-NI and SHA-NI intrinsics for hardware crypto files
+set_source_files_properties(src/crypto/aes_hw.cpp PROPERTIES
+    COMPILE_FLAGS "-maes -msse4.1")
+set_source_files_properties(src/crypto/sha2_hw.cpp PROPERTIES
+    COMPILE_FLAGS "-msha -msse4.1 -mssse3")
 
 # Linker script for bare-metal kernel layout (1MB physical load)
 target_link_options(xinim PRIVATE -T ${CMAKE_SOURCE_DIR}/linker.ld)
@@ -303,6 +319,41 @@ target_include_directories(test_kyber_e2e PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto
 target_compile_definitions(test_kyber_e2e PRIVATE KYBER_K=2)
 set_tests_properties(test_kyber_e2e PROPERTIES LABELS "unit;crypto")
 
+# --- Kyber768 KEM Full Round-Trip Tests ---
+xinim_add_host_test(test_kyber_kem
+    test/test_kyber_kem.cpp
+    src/crypto/kyber_impl/fips202.cpp
+    src/crypto/kyber_impl/ntt.cpp
+    src/crypto/kyber_impl/poly.cpp
+    src/crypto/kyber_impl/polyvec.cpp
+    src/crypto/kyber_impl/cbd.cpp
+    src/crypto/kyber_impl/reduce.cpp
+    src/crypto/kyber_impl/verify.cpp
+    src/crypto/kyber_impl/symmetric.cpp
+    src/crypto/kyber_impl/indcpa.cpp
+    src/crypto/kyber_impl/kem.cpp
+    src/crypto/kyber_impl/randombytes.cpp
+)
+target_include_directories(test_kyber_kem PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
+set_tests_properties(test_kyber_kem PROPERTIES LABELS "unit;crypto")
+
+# --- Hardware Crypto (AES-NI + SHA-NI) Tests ---
+xinim_add_host_test(test_hw_crypto
+    test/test_hw_crypto.cpp
+    src/crypto/aes_hw.cpp
+    src/crypto/sha2_hw.cpp
+)
+target_compile_options(test_hw_crypto PRIVATE -maes -msha -msse4.1 -mssse3)
+target_compile_definitions(test_hw_crypto PRIVATE XINIM_ARCH_X86_64)
+set_tests_properties(test_hw_crypto PROPERTIES LABELS "unit;crypto")
+
+# --- Recovery DAG (Resurrection Server) Tests ---
+xinim_add_host_test(test_recovery_dag
+    test/test_recovery_dag.cpp
+    src/kernel/recovery/recovery_dag.cpp
+)
+set_tests_properties(test_recovery_dag PROPERTIES LABELS "unit;kernel")
+
 # --- Service Manager API Tests ---
 xinim_add_host_test(test_service_manager_api
     test/test_service_manager_api.cpp
@@ -413,6 +464,23 @@ target_include_directories(test_bare_vfs PRIVATE
     ${CMAKE_SOURCE_DIR}/include
 )
 set_tests_properties(test_bare_vfs PROPERTIES LABELS "unit;vfs;kernel")
+
+# --- VFS Extended Tests (v1.4.0: lseek, dup/dup2, arena free list) ---
+xinim_add_host_test(test_vfs_extended
+    test/test_vfs_extended.cpp
+    src/vfs/inode_table.cpp
+    src/vfs/dirent.cpp
+    src/vfs/path_walk.cpp
+    src/vfs/ramfs_ops.cpp
+    src/vfs/mount_table.cpp
+    src/vfs/fd_table.cpp
+    src/vfs/buffer_cache.cpp
+)
+target_include_directories(test_vfs_extended PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/vfs
+    ${CMAKE_SOURCE_DIR}/include
+)
+set_tests_properties(test_vfs_extended PROPERTIES LABELS "unit;vfs;kernel")
 
 # --- Boot / Integration Tests (QEMU-based, require kernel image) ---
 # These are registered but only meaningful when the kernel is built.

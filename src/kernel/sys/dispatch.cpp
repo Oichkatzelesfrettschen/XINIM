@@ -49,21 +49,27 @@ static int64_t sys_getppid_impl() {
     return 0; // init has no parent
 }
 
-/// Route a syscall to a server via lattice IPC. Returns the server's reply
-/// status, or -ENOSYS if the server hasn't implemented the operation yet.
-static int64_t route_to_server(xinim::pid_t caller, xinim::pid_t server,
-                               int msg_type, uint64_t a0, uint64_t a1, uint64_t a2) {
+/// Send a fully-constructed IPC request to a server and return its reply value.
+/// The caller must populate request.m_type and all fields before calling.
+static int64_t send_to_server(xinim::pid_t caller, xinim::pid_t server,
+                              message& request) {
+    message response{};
+    if (send_ipc_request(caller, server, request, response) != 0) {
+        return -1; // IPC transport error
+    }
+    return static_cast<int64_t>(response.m_type);
+}
+
+/// Route a syscall to a PM/generic server with three integer args.
+/// Used for PM-side routing (fork, kill) where the message layout is simple.
+static int64_t route_pm(xinim::pid_t caller, xinim::pid_t server,
+                        int msg_type, uint64_t a0, uint64_t a1, uint64_t a2) {
     message request{};
     request.m_type = msg_type;
     request.m_u.m_m1.m1i1 = static_cast<int>(a0);
     request.m_u.m_m1.m1i2 = static_cast<int>(a1);
     request.m_u.m_m1.m1i3 = static_cast<int>(a2);
-
-    message response{};
-    if (send_ipc_request(caller, server, request, response) != 0) {
-        return -1; // IPC failed
-    }
-    return static_cast<int64_t>(response.m_type);
+    return send_to_server(caller, server, request);
 }
 
 // Identity syscalls: always run as root (uid/gid = 0) until process
@@ -125,44 +131,123 @@ extern "C" uint64_t xinim_syscall_dispatch(uint64_t no,
         case SYS_munmap:  return static_cast<uint64_t>(0);  // no-op free
 
         // --- Routed to VFS server ---
-        case SYS_write:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_write), a0, a1, a2));
-        case SYS_read:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_read), a0, a1, a2));
-        case SYS_open:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_open), a0, a1, a2));
-        case SYS_close:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_close), a0, 0, 0));
-        case SYS_lseek:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_lseek), a0, a1, a2));
-        case SYS_dup:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_dup), a0, 0, 0));
-        case SYS_dup2:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_dup2), a0, a1, 0));
-        case SYS_pipe:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_pipe), a0, 0, 0));
-        case SYS_stat:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_stat), a0, a1, 0));
-        case SYS_fstat:
-            return static_cast<uint64_t>(route_to_server(caller, VFS_SERVER_PID,
-                                                         static_cast<int>(SYS_fstat), a0, a1, 0));
+        // Each case packs the message with the correct VFS_* type constant
+        // and correct field layout matching vfs_server.cpp's expectations.
+        case SYS_write: {
+            // VFS_WRITE: m1i1=fd, m1i2=count, m1p1=buf
+            message req{};
+            req.m_type = VFS_WRITE;
+            req.m_u.m_m1.m1i1 = static_cast<int>(a0);          // fd
+            req.m_u.m_m1.m1i2 = static_cast<int>(a2);          // count
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a1);   // buf
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_read: {
+            // VFS_READ: m1i1=fd, m1i2=count, m1p1=buf
+            message req{};
+            req.m_type = VFS_READ;
+            req.m_u.m_m1.m1i1 = static_cast<int>(a0);          // fd
+            req.m_u.m_m1.m1i2 = static_cast<int>(a2);          // count
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a1);   // buf
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_open: {
+            // VFS_OPEN: m1p1=path, m1i1=flags, m1i2=mode
+            message req{};
+            req.m_type = VFS_OPEN;
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a0);   // path
+            req.m_u.m_m1.m1i1 = static_cast<int>(a1);          // flags
+            req.m_u.m_m1.m1i2 = static_cast<int>(a2);          // mode
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_close: {
+            // VFS_CLOSE: m1i1=fd
+            message req{};
+            req.m_type = VFS_CLOSE;
+            req.m_u.m_m1.m1i1 = static_cast<int>(a0);          // fd
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_lseek: {
+            // VFS_LSEEK: m2i1=fd, m2i2=whence, m2l1=offset (int64_t)
+            // Uses mess_2 to keep int fields and int64 field non-overlapping.
+            message req{};
+            req.m_type = VFS_LSEEK;
+            req.m_u.m_m2.m2i1 = static_cast<int>(a0);          // fd
+            req.m_u.m_m2.m2i2 = static_cast<int>(a2);          // whence
+            req.m_u.m_m2.m2l1 = static_cast<int64_t>(a1);      // offset
+            req.m_u.m_m2.m2i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_dup: {
+            // VFS_DUP: m1i1=oldfd
+            message req{};
+            req.m_type = VFS_DUP;
+            req.m_u.m_m1.m1i1 = static_cast<int>(a0);          // oldfd
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_dup2: {
+            // VFS_DUP2: m1i1=oldfd, m1i2=newfd
+            message req{};
+            req.m_type = VFS_DUP2;
+            req.m_u.m_m1.m1i1 = static_cast<int>(a0);          // oldfd
+            req.m_u.m_m1.m1i2 = static_cast<int>(a1);          // newfd
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_pipe: {
+            // VFS_PIPE: m1p1=pipefd (int[2])
+            message req{};
+            req.m_type = VFS_PIPE;
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a0);   // pipefd array
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_stat: {
+            // VFS_STAT: m1p1=path
+            message req{};
+            req.m_type = VFS_STAT;
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a0);   // path
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_fstat: {
+            // VFS_FSTAT: m1i1=fd
+            message req{};
+            req.m_type = VFS_FSTAT;
+            req.m_u.m_m1.m1i1 = static_cast<int>(a0);          // fd
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_mkdir: {
+            // VFS_MKDIR: m1p1=path, m1i1=mode
+            message req{};
+            req.m_type = VFS_MKDIR;
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a0);   // path
+            req.m_u.m_m1.m1i1 = static_cast<int>(a1);          // mode
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
+        case SYS_unlink: {
+            // VFS_UNLINK: m1p1=path
+            message req{};
+            req.m_type = VFS_UNLINK;
+            req.m_u.m_m1.m1p1 = reinterpret_cast<char*>(a0);   // path
+            req.m_u.m_m1.m1i3 = static_cast<int>(caller);
+            return static_cast<uint64_t>(send_to_server(caller, VFS_SERVER_PID, req));
+        }
 
         // --- Routed to Process Manager ---
         case SYS_fork:
-            return static_cast<uint64_t>(route_to_server(caller, PM_SERVER_PID,
-                                                         static_cast<int>(SYS_fork), 0, 0, 0));
+            return static_cast<uint64_t>(route_pm(caller, PM_SERVER_PID,
+                                                   PROC_FORK, 0, 0, 0));
         case SYS_execve:
-            return static_cast<uint64_t>(route_to_server(caller, PM_SERVER_PID,
-                                                         static_cast<int>(SYS_execve), a0, a1, a2));
+            return static_cast<uint64_t>(route_pm(caller, PM_SERVER_PID,
+                                                   PROC_EXEC, a0, a1, a2));
         case SYS_wait4: {
             // v1.2.0: Handle in kernel directly (PM server is stub)
             int wait_status = 0;
@@ -176,8 +261,8 @@ extern "C" uint64_t xinim_syscall_dispatch(uint64_t no,
             return static_cast<uint64_t>(child);
         }
         case SYS_kill:
-            return static_cast<uint64_t>(route_to_server(caller, PM_SERVER_PID,
-                                                         static_cast<int>(SYS_kill), a0, a1, 0));
+            return static_cast<uint64_t>(route_pm(caller, PM_SERVER_PID,
+                                                   PROC_KILL, a0, a1, 0));
 
         default:
             Console::printf("Syscall %lu not implemented\n", no);

@@ -51,6 +51,19 @@ FdEntry* fd_get(int fd) {
     return &g_fd_table[fd];
 }
 
+// Force a specific fd slot to point at the given inode/flags/pos.
+// If the slot is already occupied it is silently released first (caller
+// must handle close-on-dup2 semantics before calling).
+// Returns newfd on success, -1 on invalid newfd.
+int fd_allocate_at(int newfd, uint32_t ino, uint32_t flags, int64_t pos) {
+    if (newfd < 0 || newfd >= static_cast<int>(MAX_FDS)) return -1;
+    if (ino == 0) return -1;
+    g_fd_table[newfd].ino   = ino;
+    g_fd_table[newfd].flags = flags;
+    g_fd_table[newfd].pos   = pos;
+    return newfd;
+}
+
 // Close and release FD. Returns 0 on success, -1 on bad fd.
 int fd_release(int fd) {
     if (fd < 0 || fd >= static_cast<int>(MAX_FDS)) return -1;

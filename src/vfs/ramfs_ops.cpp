@@ -40,10 +40,14 @@ static int ramfs_open(uint32_t ino, uint32_t flags, int* out_fd) {
     int fd = fd_allocate(ino, flags);
     if (fd < 0) return -IPC_EMFILE;
 
-    // O_TRUNC: zero file size
+    // O_TRUNC: zero file size and reclaim any arena allocation
     if ((flags & O_TRUNC) && !(inode->iflags & INODE_IS_DIR)) {
-        inode->size  = 0;
-        inode->iflags |= INODE_IS_INLINE;
+        if (!(inode->iflags & INODE_IS_INLINE) && inode->size > 0) {
+            data_arena_free(static_cast<uint32_t>(inode->data_block_off),
+                            static_cast<uint32_t>(inode->size));
+        }
+        inode->size   = 0;
+        inode->iflags = static_cast<uint16_t>((inode->iflags & ~0u) | INODE_IS_INLINE);
         __builtin_memset(inode->inline_data, 0, INLINE_THRESHOLD);
     }
 
@@ -154,6 +158,11 @@ static int ramfs_close(int fd) {
         inode->open_count--;
         // If nlink==0 and no open FDs: free the inode (deferred unlink)
         if (inode->nlink == 0 && inode->open_count == 0) {
+            // Reclaim arena storage before freeing the inode
+            if (!(inode->iflags & INODE_IS_INLINE) && inode->size > 0) {
+                data_arena_free(static_cast<uint32_t>(inode->data_block_off),
+                                static_cast<uint32_t>(inode->size));
+            }
             inode_free(ino);
         }
     }
@@ -259,6 +268,11 @@ static int ramfs_unlink(uint32_t parent_ino, const char* name, uint8_t namelen) 
 
     // Free inode only if no open FDs hold it
     if (child->nlink == 0 && child->open_count == 0) {
+        // Reclaim arena storage before freeing the inode
+        if (!(child->iflags & INODE_IS_INLINE) && child->size > 0) {
+            data_arena_free(static_cast<uint32_t>(child->data_block_off),
+                            static_cast<uint32_t>(child->size));
+        }
         inode_free(child_ino);
     }
     return 0;

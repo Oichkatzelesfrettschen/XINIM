@@ -12,6 +12,7 @@ RawInode* inode_get(uint32_t ino);
 
 // Data arena
 uint32_t data_arena_alloc(uint32_t len);
+void     data_arena_free(uint32_t off, uint32_t len);
 uint8_t* data_arena_ptr(uint32_t off);
 
 // Exposed for buffer_cache.cpp

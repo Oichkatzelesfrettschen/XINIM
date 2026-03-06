@@ -14,6 +14,10 @@
 #include "arch/x86_64/idt.hpp"
 #include "arch/x86_64/tss.hpp"
 #include "arch/x86_64/syscall_init.hpp"
+#include "arch/x86_64/fpu_init.hpp"
+#include "arch/x86_64/cpu_features.hpp"
+#include <xinim/pci/pci.hpp>
+#include "../drivers/net/virtio_net.hpp"
 #include "server_spawn.hpp"
 
 #ifdef XINIM_ARCH_X86_64
@@ -69,6 +73,20 @@ extern "C" void _start() {
     kshell_serial.init();
     kputs("XINIM Kernel Booting...\n");
 
+#ifdef XINIM_ARCH_X86_64
+    xinim::arch::x86_64::fpu_init();
+    xinim::arch::x86_64::g_cpu_features = xinim::arch::x86_64::cpu_detect_features();
+
+    kputs("[cpu] Features:");
+    if (xinim::arch::x86_64::g_cpu_features.aesni)  kputs(" AES-NI");
+    if (xinim::arch::x86_64::g_cpu_features.sha_ni) kputs(" SHA-NI");
+    if (xinim::arch::x86_64::g_cpu_features.avx2)   kputs(" AVX2");
+    if (xinim::arch::x86_64::g_cpu_features.avx)    kputs(" AVX");
+    if (xinim::arch::x86_64::g_cpu_features.sse42)  kputs(" SSE4.2");
+    if (xinim::arch::x86_64::g_cpu_features.rdrand) kputs(" RDRAND");
+    kputs("\n");
+#endif
+
 #ifdef XINIM_BOOT_LIMINE
     g_boot_info = xinim::boot::from_limine();
 
@@ -86,6 +104,11 @@ extern "C" void _start() {
     xinim::arch::x86_64::idt::init();
 
     interrupts_init(early_serial, g_lapic);
+
+    // PCI bus enumeration and device init
+    kputs("[pci] Enumerating PCI bus...\n");
+    xinim::pci::PCI::initialize();
+    xinim::drivers::net::virtio_net_init();
 
     xinim::kernel::initialize_system_servers();
 

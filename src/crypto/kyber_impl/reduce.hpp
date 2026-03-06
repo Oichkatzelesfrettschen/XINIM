@@ -15,17 +15,15 @@ namespace xinim::crypto::kyber {
 // Montgomery reduction constant is now provided by params.hpp
 
 // Modern C++23 constexpr Montgomery reduction
+// IMPORTANT: KYBER_Q must be cast to int32_t to preserve signed arithmetic.
+// params.hpp defines KYBER_Q as constexpr size_t; mixing with int32_t operands
+// would produce unsigned arithmetic and wrong results for negative inputs.
 template<std::integral T>
 constexpr int16_t montgomery_reduce(T a) noexcept {
-    if consteval {
-        int16_t t = static_cast<int16_t>(a) * QINV;
-        t = static_cast<int16_t>((a - static_cast<int32_t>(t) * KYBER_Q) >> 16);
-        return t;
-    } else {
-        int16_t t = static_cast<int16_t>(a) * QINV;
-        t = static_cast<int16_t>((a - static_cast<int32_t>(t) * KYBER_Q) >> 16);
-        return t;
-    }
+    static constexpr int32_t q = static_cast<int32_t>(KYBER_Q);
+    int16_t t = static_cast<int16_t>(a) * QINV;
+    t = static_cast<int16_t>((static_cast<int32_t>(a) - static_cast<int32_t>(t) * q) >> 16);
+    return t;
 }
 
 // Barrett reduction with constexpr support

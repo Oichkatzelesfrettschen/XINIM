@@ -1,5 +1,97 @@
 # XINIM Changelog
 
+## v1.4.0 -- Kyber KEM, PCI/virtio-net, Hardware Crypto, Recovery Server (2026-03-06)
+
+Fixes all Kyber768 KEM bugs, adds PCI bus enumeration and virtio-net PCI walk,
+hardware-accelerated AES-128/SHA-256, a DAG-based service recovery server,
+FPU/SSE initialization, CPU feature detection, and i386 build system stub.
+36 unit tests pass, 0 regressions.
+
+### Phase A: Kyber768 KEM Fix
+- Fixed `indcpa_keypair_derand`: hash input now includes `coins || KYBER_K` (33 bytes)
+  matching CRYSTALS-Kyber reference; was hashing only 32 bytes.
+- Fixed `poly_compress`: added positive normalization (`u += (u >> 15) & KYBER_Q`)
+  and constant-time Barrett division for both K=2/3 (128-byte) and K=4 (160-byte) paths.
+- `test_kyber_kem`: 5/5 subtests pass (keypair, roundtrip, corruption, determinism, different coins).
+- New files: `kem.cpp`, `indcpa.cpp`, `verify.cpp`, `symmetric.cpp`, `cbd.cpp`,
+  `poly.cpp`, `polyvec.cpp` (all in `src/crypto/kyber_impl/`).
+
+### Phase B: FPU/SSE Initialization
+- Created `src/kernel/arch/x86_64/fpu_init.hpp`: sets CR4.OSFXSR, CR4.OSXMMEXCPT,
+  CR0.MP, CR0.NE, clears CR0.EM. Prerequisite for FXSAVE/FXRSTOR in `context_switch.S`.
+- Wired into `_start()` before GDT/IDT/timer setup.
+
+### Phase C: PCI Bus Enumeration
+- Created `src/kernel/arch/x86_64/portio.hpp`: inline `inb/inw/inl/outb/outw/outl`.
+- Made `src/pci/pci.cpp` freestanding: replaced `std::vector` with fixed-size
+  `PCIDevice[64]` array, removed all STL dependencies, uses shared `portio.hpp`.
+- Added `pci.cpp` + `hal/pci.cpp` to kernel build target.
+- Wired `PCI::initialize()` into `_start()` after interrupts_init.
+
+### Phase D: virtio-net PCI Walk
+- Implemented `virtio_net_init()`: PCI device scan (VID=1AF4, DID=1000/1041),
+  feature negotiation (F_MAC, F_STATUS), MAC address readout, queue size detection.
+- Legacy I/O BAR register layout (VirtIO Spec v1.2, Appendix A).
+- Virtqueue DMA allocation deferred (needs physically-contiguous page allocator).
+- Added `virtio_net.cpp` to kernel build target.
+
+### Phase E: Hardware Crypto Acceleration
+- Created `src/kernel/arch/x86_64/cpu_features.hpp`: CPUID-based feature detection
+  for AES-NI, SHA-NI, AVX, AVX2, SSE4.2, RDRAND, etc. Global `g_cpu_features`.
+- Feature detection wired into `_start()`, logged to serial.
+- Created `src/crypto/aes_hw.hpp/cpp`: AES-128 with AES-NI hardware acceleration
+  and portable Rijndael software fallback. Runtime dispatch via `g_cpu_features.aesni`.
+  NIST FIPS 197 test vector verified.
+- Created `src/crypto/sha2_hw.hpp/cpp`: SHA-256 with Intel SHA Extensions (SHA-NI)
+  acceleration and portable software fallback. Runtime dispatch via `g_cpu_features.sha_ni`.
+  NIST FIPS 180-4 test vectors verified (empty, "abc", 448-bit).
+- `test_hw_crypto`: 7 subtests (3 AES + 3 SHA + 1 roundtrip).
+
+### Phase F: Minix RS Recovery Server
+- Created `src/kernel/recovery/service_node.hpp`: ServiceNode descriptor with
+  name, PID, state, restart policy, dependency indices. Freestanding.
+- Created `src/kernel/recovery/recovery_dag.hpp/cpp`: DAG-based service dependency
+  tracker. Kahn's algorithm for topological restart ordering. Cycle detection.
+  `notify_crash()` returns restart order for RESTART/KILL_DEPS/PANIC/IGNORE policies.
+- `test_recovery_dag`: 32 subtests (add/find, deps, cycles, validate, crash handling,
+  topo sort with transitive deps, PID lookup, restart counting).
+
+### Phase G: QEMU i386 Build System Stub
+- Created `cmake/i386.cmake`: CMake toolchain for i686 target (-m32 -march=i686).
+- Created `conan/profiles/xinim-i386`: Conan profile for 32-bit build.
+- Made `cmake/ProjectOptions.cmake` arch-aware: auto-selects `XINIM_ARCH_X86_64`
+  or `XINIM_ARCH_I386` based on `CMAKE_SYSTEM_PROCESSOR`.
+- Boot assembly and GDT/IDT for i386 deferred to v1.5.0.
+
+### Test Results
+- 36/36 unit tests pass (was 34 in v1.3.0)
+- New tests: `test_kyber_kem` (+1, was in build but not listed), `test_hw_crypto`,
+  `test_recovery_dag`
+- Labels: crypto(7), ipc(3), kernel(15), math(3), scheduler(5), sync(6), vfs(2)
+
+### Files Created
+- `src/kernel/arch/x86_64/fpu_init.hpp`
+- `src/kernel/arch/x86_64/portio.hpp`
+- `src/kernel/arch/x86_64/cpu_features.hpp`
+- `src/crypto/aes_hw.hpp`, `src/crypto/aes_hw.cpp`
+- `src/crypto/sha2_hw.hpp`, `src/crypto/sha2_hw.cpp`
+- `src/kernel/recovery/service_node.hpp`
+- `src/kernel/recovery/recovery_dag.hpp`, `src/kernel/recovery/recovery_dag.cpp`
+- `test/test_hw_crypto.cpp`, `test/test_recovery_dag.cpp`
+- `cmake/i386.cmake`, `conan/profiles/xinim-i386`
+
+### Files Modified
+- `src/kernel/main.cpp` (fpu_init, cpu_features, PCI init, virtio-net init)
+- `src/pci/pci.cpp` (freestanding: no STL, uses portio.hpp)
+- `src/drivers/net/virtio_net.cpp` (PCI walk + feature negotiation)
+- `src/crypto/kyber_impl/indcpa.cpp` (keygen hash fix)
+- `src/crypto/kyber_impl/poly.cpp` (compress normalization fix)
+- `CMakeLists.txt` (new sources, tests, per-file compile flags)
+- `cmake/ProjectOptions.cmake` (arch-aware defines)
+- `docs/CHANGELOG.md`, `docs/analysis/TODO_TRACKER.md`
+
+---
+
 ## v1.3.0 -- Bare-Metal VFS Implementation (2026-03-05)
 
 Implements ADR-0009: a freestanding ramfs with first functional POSIX syscalls.

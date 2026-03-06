@@ -29,7 +29,15 @@ static uint64_t g_inode_bitmap[MAX_INODES / 64]; // 16 words = 128 bytes
 // Block unit: CACHE_BLK_SIZE (512 bytes). data_block_off in RawInode is
 // a byte offset into this arena.
 alignas(CACHE_BLK_SIZE) uint8_t g_data_arena[DATA_ARENA_SIZE];
-static uint32_t g_data_arena_used; // next free byte offset
+static uint32_t g_data_arena_used; // next free byte (bump pointer)
+
+// Free list for reclaimed arena regions.
+// Stored as (offset, size) pairs; up to DATA_FREE_SLOTS entries.
+// Insertions try to coalesce with adjacent entries (O(n) scan).
+static constexpr uint32_t DATA_FREE_SLOTS = 256;
+struct ArenaFreeSlot { uint32_t off; uint32_t sz; };
+static ArenaFreeSlot g_arena_free[DATA_FREE_SLOTS];
+static uint32_t      g_arena_free_count = 0;
 
 // ============================================================================
 // Bitmap helpers
@@ -55,7 +63,9 @@ void inode_table_init() {
     __builtin_memset(g_inodes, 0, sizeof(g_inodes));
     __builtin_memset(g_inode_bitmap, 0, sizeof(g_inode_bitmap));
     __builtin_memset(g_data_arena, 0, sizeof(g_data_arena));
-    g_data_arena_used = 0;
+    __builtin_memset(g_arena_free, 0, sizeof(g_arena_free));
+    g_data_arena_used  = 0;
+    g_arena_free_count = 0;
 
     // Reserve slot 0: inode 0 is the invalid/free sentinel
     bitmap_set(0);
@@ -96,16 +106,75 @@ RawInode* inode_get(uint32_t ino) {
     return &g_inodes[ino];
 }
 
-// Allocate len bytes from the data arena. Returns byte offset into
-// g_data_arena on success, DATA_ARENA_SIZE on exhaustion.
-// Allocations are CACHE_BLK_SIZE-aligned.
+// Allocate len bytes from the data arena.
+// First-fit search through the free list; falls back to bump allocator.
+// Returns byte offset into g_data_arena on success, DATA_ARENA_SIZE on exhaustion.
+// All allocations are CACHE_BLK_SIZE-aligned.
 uint32_t data_arena_alloc(uint32_t len) {
-    // Round len up to next CACHE_BLK_SIZE boundary
+    if (len == 0) return DATA_ARENA_SIZE;
     uint32_t aligned = (len + CACHE_BLK_SIZE - 1u) & ~(CACHE_BLK_SIZE - 1u);
-    if (g_data_arena_used + aligned > DATA_ARENA_SIZE) return DATA_ARENA_SIZE; // full
+
+    // First-fit search in free list
+    for (uint32_t i = 0; i < g_arena_free_count; ++i) {
+        if (g_arena_free[i].sz >= aligned) {
+            uint32_t off = g_arena_free[i].off;
+            uint32_t remainder = g_arena_free[i].sz - aligned;
+            if (remainder > 0) {
+                // Split: shrink this slot
+                g_arena_free[i].off += aligned;
+                g_arena_free[i].sz   = remainder;
+            } else {
+                // Exact fit: remove slot (swap with last)
+                g_arena_free[i] = g_arena_free[--g_arena_free_count];
+            }
+            return off;
+        }
+    }
+
+    // Bump allocator fallback
+    if (g_data_arena_used + aligned > DATA_ARENA_SIZE) return DATA_ARENA_SIZE;
     uint32_t off = g_data_arena_used;
     g_data_arena_used += aligned;
     return off;
+}
+
+// Return a region to the arena free list.
+// Merges with adjacent free entries (forward and backward) to limit fragmentation.
+// Silently leaks if the free list is full (never crashes).
+void data_arena_free(uint32_t off, uint32_t len) {
+    if (off >= DATA_ARENA_SIZE || len == 0) return;
+    uint32_t aligned = (len + CACHE_BLK_SIZE - 1u) & ~(CACHE_BLK_SIZE - 1u);
+    if (off + aligned > DATA_ARENA_SIZE) return;
+
+    // Attempt to coalesce with an existing free slot that is adjacent.
+    for (uint32_t i = 0; i < g_arena_free_count; ++i) {
+        // Merge: existing slot immediately precedes the freed region
+        if (g_arena_free[i].off + g_arena_free[i].sz == off) {
+            g_arena_free[i].sz += aligned;
+            // Check if this newly extended slot now also touches the next slot
+            for (uint32_t j = 0; j < g_arena_free_count; ++j) {
+                if (j == i) continue;
+                if (g_arena_free[i].off + g_arena_free[i].sz == g_arena_free[j].off) {
+                    g_arena_free[i].sz += g_arena_free[j].sz;
+                    g_arena_free[j] = g_arena_free[--g_arena_free_count];
+                    break;
+                }
+            }
+            return;
+        }
+        // Merge: freed region immediately precedes the existing slot
+        if (off + aligned == g_arena_free[i].off) {
+            g_arena_free[i].off  = off;
+            g_arena_free[i].sz  += aligned;
+            return;
+        }
+    }
+
+    // No adjacent slot found: add a new free entry if space permits
+    if (g_arena_free_count < DATA_FREE_SLOTS) {
+        g_arena_free[g_arena_free_count++] = { off, aligned };
+    }
+    // If free list is full we leak this region (acceptable: avoids crash)
 }
 
 // Return pointer to data arena at given byte offset.

@@ -8,8 +8,16 @@ option(XINIM_ENABLE_WERROR "Treat warnings as errors" ON)
 
 function(xinim_apply_target_defaults target)
     target_compile_features(${target} PUBLIC cxx_std_23)
+
+    # Architecture define: default to x86_64 unless i386 toolchain is active
+    if(CMAKE_SYSTEM_PROCESSOR STREQUAL "i686" OR CMAKE_SYSTEM_PROCESSOR STREQUAL "i386")
+        set(_XINIM_ARCH_DEF XINIM_ARCH_I386)
+    else()
+        set(_XINIM_ARCH_DEF XINIM_ARCH_X86_64)
+    endif()
+
     target_compile_definitions(${target} PRIVATE
-        XINIM_ARCH_X86_64
+        ${_XINIM_ARCH_DEF}
         _XOPEN_SOURCE=700
         _GNU_SOURCE
     )

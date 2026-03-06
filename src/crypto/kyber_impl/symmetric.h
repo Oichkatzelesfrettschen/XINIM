@@ -7,7 +7,18 @@
 
 #include "fips202.hpp"
 
+// Bring keccak_state into global scope for C-compatible usage.
+using xinim::crypto::fips202::keccak_state;
+// Bring the SHAKE128_RATE constant into scope for XOF_BLOCKBYTES.
+using xinim::crypto::fips202::SHAKE128_RATE;
+
 typedef keccak_state xof_state;
+
+// C-bridge function declarations: implemented in symmetric.cpp.
+// These wrap the namespace API for use in macro expansions below.
+void sha3_256(uint8_t out[32], const uint8_t *in, size_t inlen);
+void sha3_512(uint8_t out[64], const uint8_t *in, size_t inlen);
+void shake128_squeezeblocks(uint8_t *out, size_t nblocks, keccak_state *state);
 
 #define kyber_shake128_absorb KYBER_NAMESPACE(kyber_shake128_absorb)
 void kyber_shake128_absorb(keccak_state *s,

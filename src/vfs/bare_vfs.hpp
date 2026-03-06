@@ -69,6 +69,11 @@ inline constexpr uint32_t O_CREAT   = 0x0040;
 inline constexpr uint32_t O_TRUNC   = 0x0200;
 inline constexpr uint32_t O_APPEND  = 0x0400;
 
+// lseek whence values (SEEK_* compatible)
+inline constexpr int SEEK_SET = 0; // absolute position
+inline constexpr int SEEK_CUR = 1; // relative to current position
+inline constexpr int SEEK_END = 2; // relative to file end
+
 // Inode internal flags
 inline constexpr uint16_t INODE_IS_INLINE = 0x0001; // data in inline_data[]
 inline constexpr uint16_t INODE_IS_DIR    = 0x0002; // is a directory

@@ -8,6 +8,7 @@
 
 void     fd_table_init();
 int      fd_allocate(uint32_t ino, uint32_t flags);
+int      fd_allocate_at(int newfd, uint32_t ino, uint32_t flags, int64_t pos);
 FdEntry* fd_get(int fd);
 int      fd_release(int fd);
 

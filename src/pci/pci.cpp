@@ -4,7 +4,6 @@
 // PCI Subsystem Implementation
 
 #include <xinim/pci/pci.hpp>
-#include <vector>
 #include <cstring>
 
 namespace xinim::pci {
@@ -13,40 +12,20 @@ namespace xinim::pci {
 constexpr uint16_t CONFIG_ADDRESS = 0xCF8;
 constexpr uint16_t CONFIG_DATA = 0xCFC;
 
-// Global device list
-static std::vector<PCIDevice> g_devices;
+// Global device list (fixed-size, no STL -- freestanding safe)
+static constexpr size_t MAX_PCI_DEVICES = 64;
+static PCIDevice g_devices[MAX_PCI_DEVICES];
+static size_t g_device_count = 0;
 static bool g_initialized = false;
 
-// Port I/O functions (x86_64)
-static inline void outl(uint16_t port, uint32_t value) {
-    asm volatile("outl %0, %1" :: "a"(value), "Nd"(port));
-}
-
-static inline uint32_t inl(uint16_t port) {
-    uint32_t value;
-    asm volatile("inl %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
-
-static inline void outw(uint16_t port, uint16_t value) {
-    asm volatile("outw %0, %1" :: "a"(value), "Nd"(port));
-}
-
-static inline uint16_t inw(uint16_t port) {
-    uint16_t value;
-    asm volatile("inw %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
-
-static inline void outb(uint16_t port, uint8_t value) {
-    asm volatile("outb %0, %1" :: "a"(value), "Nd"(port));
-}
-
-static inline uint8_t inb(uint16_t port) {
-    uint8_t value;
-    asm volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
+// Port I/O from centralized header
+#include "../kernel/arch/x86_64/portio.hpp"
+using xinim::arch::x86_64::outl;
+using xinim::arch::x86_64::inl;
+using xinim::arch::x86_64::outw;
+using xinim::arch::x86_64::inw;
+using xinim::arch::x86_64::outb;
+using xinim::arch::x86_64::inb;
 
 // Create PCI config address
 static uint32_t pci_address(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset) {
@@ -62,7 +41,7 @@ bool PCI::initialize() {
         return true;
     }
 
-    g_devices.clear();
+    g_device_count = 0;
     g_initialized = true;
 
     // Enumerate all devices
@@ -72,7 +51,7 @@ bool PCI::initialize() {
 }
 
 void PCI::shutdown() {
-    g_devices.clear();
+    g_device_count = 0;
     g_initialized = false;
 }
 
@@ -147,7 +126,9 @@ static void probe_function(uint8_t bus, uint8_t device, uint8_t function) {
         PCI::read_bar(dev, i, dev.bars[i]);
     }
 
-    g_devices.push_back(dev);
+    if (g_device_count < MAX_PCI_DEVICES) {
+        g_devices[g_device_count++] = dev;
+    }
 }
 
 static void probe_device(uint8_t bus, uint8_t device) {
@@ -174,42 +155,42 @@ static void probe_device(uint8_t bus, uint8_t device) {
 }
 
 bool PCI::enumerate_devices() {
-    g_devices.clear();
+    g_device_count = 0;
 
     // Scan all buses, devices, and functions
     for (uint16_t bus = 0; bus < 256; ++bus) {
         for (uint8_t device = 0; device < 32; ++device) {
-            probe_device(bus, device);
+            probe_device(static_cast<uint8_t>(bus), device);
         }
     }
 
-    return !g_devices.empty();
+    return g_device_count > 0;
 }
 
 size_t PCI::get_device_count() {
-    return g_devices.size();
+    return g_device_count;
 }
 
 const PCIDevice* PCI::get_device(size_t index) {
-    if (index < g_devices.size()) {
+    if (index < g_device_count) {
         return &g_devices[index];
     }
     return nullptr;
 }
 
 const PCIDevice* PCI::find_device(uint16_t vendor_id, uint16_t device_id) {
-    for (const auto& dev : g_devices) {
-        if (dev.vendor_id == vendor_id && dev.device_id == device_id) {
-            return &dev;
+    for (size_t i = 0; i < g_device_count; ++i) {
+        if (g_devices[i].vendor_id == vendor_id && g_devices[i].device_id == device_id) {
+            return &g_devices[i];
         }
     }
     return nullptr;
 }
 
 const PCIDevice* PCI::find_device_by_class(uint8_t class_code, uint8_t subclass) {
-    for (const auto& dev : g_devices) {
-        if (dev.class_code == class_code && dev.subclass == subclass) {
-            return &dev;
+    for (size_t i = 0; i < g_device_count; ++i) {
+        if (g_devices[i].class_code == class_code && g_devices[i].subclass == subclass) {
+            return &g_devices[i];
         }
     }
     return nullptr;

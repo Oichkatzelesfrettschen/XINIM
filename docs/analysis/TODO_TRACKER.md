@@ -2,6 +2,9 @@
 
 Phase 5 baseline: 2026-02-26. Total in src/ (non-legacy): 125 items.
 v1.2.0 update: 2026-03-05. Phase 6 REMOVED count below reflects resolved items.
+v1.4.0 update: 2026-03-06. VFS bare-metal files (src/vfs/bare_*.cpp etc.) have zero TODOs.
+Legacy VFS files (src/vfs/vfs.cpp, tmpfs.cpp, etc.) are not in the kernel build target;
+their TODOs are catalogued below as DEFERRED.
 
 ## Triage Categories
 
@@ -55,12 +58,15 @@ v1.2.0 update: 2026-03-05. Phase 6 REMOVED count below reflects resolved items.
 
 (Remaining 5 in mm/ are driver-adjacent DEFERRED items.)
 
-## Crypto (2 TODOs)
+## Crypto (2 TODOs + 3 resolved in v1.4.0)
 
 | File | Line | Text | Category |
 |------|------|------|----------|
 | crypto/kyber.cpp | 50 | Implement proper AEAD (ChaCha20-Poly1305 or AES-GCM) | PHASE7 |
 | crypto/kyber.cpp | 76 | Implement proper AEAD decryption | PHASE7 |
+| crypto/kyber_impl/kem.cpp | - | Kyber768 KEM enc/dec roundtrip | REMOVED (v1.4.0 Phase A: indcpa_keypair_derand + poly_compress fixed, 5/5 tests pass) |
+| crypto/aes_hw.cpp | - | AES-128 AES-NI acceleration | REMOVED (v1.4.0 Phase E: sw+hw dispatch, NIST test vectors pass) |
+| crypto/sha2_hw.cpp | - | SHA-256 SHA-NI acceleration | REMOVED (v1.4.0 Phase E: sw+hw dispatch, NIST test vectors pass) |
 
 ## Drivers (20+ TODOs)
 
@@ -70,15 +76,26 @@ All in src/drivers/ and src/block/ -- DEFERRED pending driver implementation pha
 
 Lower priority; not in kernel build path. DEFERRED.
 
+## New bare-metal VFS source files (src/vfs/bare_*.cpp, inode_table.cpp, etc.)
+
+Zero active TODOs in the following v1.3.0/v1.4.0 files (as of 2026-03-06):
+bare_vfs.hpp, inode_table.cpp, dirent.cpp, path_walk.cpp, ramfs_ops.cpp,
+mount_table.cpp, fd_table.cpp (vfs/), buffer_cache.cpp, vfs_server.cpp.
+
+Legacy VFS files (src/vfs/vfs.cpp, tmpfs.cpp, filesystem.cpp, mount.cpp,
+ramfs.hpp, ext2.cpp, path_util.hpp, vfs_enhanced.cpp, vfs_security.cpp)
+contain ~25 TODO items but are NOT in the kernel build target. Catalogued
+as DEFERRED pending legacy cleanup or deletion.
+
 ## Summary
 
 | Category | Count |
 |----------|-------|
 | PHASE6   | 3     |
 | PHASE7   | 20    |
-| DEFERRED | 99    |
-| REMOVED  | 3 (v1.2.0: dispatch.cpp PHASE6 items) |
-| **Total** | **125** |
+| DEFERRED | 99 + 25 (legacy VFS files) |
+| REMOVED  | 6 (3 v1.2.0 + 3 v1.4.0) |
+| **Total** | **125 active + 25 legacy-only** |
 
 ## Removal Policy
 
