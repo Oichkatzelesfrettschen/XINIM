@@ -334,6 +334,20 @@ xinim_add_host_test(test_heap_allocator
 )
 set_tests_properties(test_heap_allocator PROPERTIES LABELS "unit;kernel")
 
+# --- IPC Blocking Tests ---
+xinim_add_host_test(test_ipc_blocking
+    test/test_ipc_blocking.cpp
+)
+target_include_directories(test_ipc_blocking PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
+set_tests_properties(test_ipc_blocking PROPERTIES LABELS "unit;ipc;kernel")
+
+# --- IPC Exhaustion Tests ---
+xinim_add_host_test(test_ipc_exhaustion
+    test/test_ipc_exhaustion.cpp
+)
+target_include_directories(test_ipc_exhaustion PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
+set_tests_properties(test_ipc_exhaustion PROPERTIES LABELS "unit;ipc;kernel")
+
 # --- ELF Parser Tests ---
 # Links elf_loader.cpp which calls early_serial; serial_stub.cpp satisfies that dep.
 xinim_add_host_test(test_elf_parser

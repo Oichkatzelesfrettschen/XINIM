@@ -108,7 +108,13 @@ enum class ErrorCode : int {
     E_NO_PERM = -8,    // ordinary users can't send to tasks
     E_BAD_FCN = -9,    // only valid functions are SEND, RECEIVE, BOTH
     E_BAD_ADDR = -10,  // bad address given to utility routine
-    E_BAD_PROC = -11   // bad proc number given to utility
+    E_BAD_PROC = -11,  // bad proc number given to utility
+
+    // v1.2.0: IPC-specific error codes
+    E_CHAN_FULL = -12,  // IPC channel table full (no more channels available)
+    E_QUEUE_FULL = -13, // IPC message queue full and NONBLOCK set
+    E_NO_CHANNEL = -14, // No IPC channel exists between src and dst
+    E_DEADLOCK = -15    // Blocking would create a deadlock cycle
 };
 
 #endif // H_ERROR_HPP

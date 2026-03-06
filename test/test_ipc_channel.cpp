@@ -42,7 +42,7 @@ static void test_channel_overflow() {
     lattice::Channel ch;
     message m{};
 
-    // Fill the queue
+    // Fill the queue (v1.2.0: QUEUE_SIZE is now 32)
     for (std::size_t i = 0; i < lattice::Channel::QUEUE_SIZE; ++i) {
         m.m_type = static_cast<int>(i);
         assert(ch.push(m));
