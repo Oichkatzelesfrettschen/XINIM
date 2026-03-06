@@ -1,5 +1,101 @@
 # XINIM Changelog
 
+## v1.3.0 -- Bare-Metal VFS Implementation (2026-03-05)
+
+Implements ADR-0009: a freestanding ramfs with first functional POSIX syscalls.
+Zero STL in the VFS critical path. Fixed ~1.35 MB memory footprint.
+
+### New VFS Subsystem (src/vfs/)
+
+All files are freestanding: -ffreestanding -fno-exceptions -fno-rtti compatible.
+No heap allocation in any hot path. All storage is pre-allocated static arrays.
+
+- `bare_vfs.hpp`: Core structs -- RawInode (64B alignas(64)), DirEntry (32B),
+  MountEntry (64B), FdEntry (16B), FsOps function pointer table, KStat, CacheBlock.
+  Constants: MAX_INODES=1024, MAX_DIRENTS=8192, MAX_MOUNTS=8, MAX_FDS=64,
+  CACHE_BLOCKS=64, DATA_ARENA_SIZE=1MB.
+
+- `inode_table.cpp`: Flat inode array + 16-word bitmap allocator.
+  O(1) alloc via __builtin_ctzll(~bitmap_word). 1MB data arena for file bodies.
+  inode_alloc / inode_free / inode_get / data_arena_alloc / data_arena_ptr.
+
+- `dirent.cpp`: Directory entry arena with DIRENT_BLOCK_SIZE=32 slots per dir.
+  dirent_add / dirent_lookup / dirent_remove / dirent_readdir.
+  Lookup is O(DIRENT_BLOCK_SIZE) = O(32) per directory level.
+
+- `path_walk.cpp`: Zero-allocation path component slicing.
+  Handles "." (skip), ".." (parent_ino lookup), trailing slashes, root.
+  path_walk / path_walk_parent (two-pass component collector).
+
+- `ramfs_ops.cpp`: All 8 FsOps implemented for ramfs:
+  open / read / write / close / stat / mkdir / unlink / readdir.
+  Files <= 24 bytes use inode inline_data (INODE_IS_INLINE flag);
+  larger files promoted to data_arena on write. Deferred unlink on close.
+
+- `mount_table.cpp`: Fixed array of 8 mount entries.
+  Longest-prefix matching in O(8). Pre-mounts "/" at ino=1.
+  mount_add / mount_remove / mount_resolve.
+
+- `fd_table.cpp`: Global FD table with MAX_FDS=64 entries.
+  O(MAX_FDS) scan for free slot. fd_allocate / fd_get / fd_release.
+
+- `buffer_cache.cpp`: 64 x 512-byte cache slots. LRU eviction via lru_seq counter.
+  O(CACHE_BLOCKS) scan on miss. cache_get / cache_mark_dirty / cache_flush.
+
+- `vfs_server.cpp`: Full VFS IPC message loop replacing the stub.
+  Handles: VFS_OPEN, VFS_READ, VFS_WRITE, VFS_CLOSE, VFS_STAT, VFS_MKDIR,
+  VFS_UNLINK, VFS_READDIR. Default reply: -ENOSYS.
+  vfs_server_init() creates root inode, /bin, /dev, /proc, /tmp.
+
+- `bare_metal_stubs.cpp`: vfs_server_main() now calls vfs_server_init() +
+  vfs_server_loop() instead of the ENOSYS stub. Also adds memcmp() to klib64.
+
+### New Tests
+
+- `test/test_bare_vfs.cpp`: 13 host-side unit tests.
+  Covers: inode alloc/free, bounds check, mkdir, inline/arena write,
+  read roundtrip (small + large), stat, path_walk, unlink, FD lifecycle,
+  mount_resolve.
+
+### Test Count Delta
+
+| Release | Host Tests | Passing |
+|---------|-----------|---------|
+| v1.2.0  | 31        | 31/31   |
+| v1.3.0  | 32        | 32/32   |
+
+### POSIX Compliance Progress
+
+- open/read/write/close on ramfs files: FUNCTIONAL (first POSIX progress)
+- stat on ramfs files: FUNCTIONAL
+- mkdir/unlink: FUNCTIONAL
+- SYS_write to fd=1/2 (stdout/stderr): echoes to serial (preserved)
+- POSIX compliance rises from 0% toward partial (ramfs round-trips pass)
+
+### Memory Budget (fixed, known at compile time)
+
+| Structure | Size |
+|-----------|------|
+| Inode table (1024 * ~80B) | ~80 KB |
+| Dirent arena (8192 * 32B) | 256 KB |
+| Data arena | 1 MB |
+| Buffer cache (64 * ~528B) | ~33 KB |
+| Mount table (8 * 64B) | 512 B |
+| FD table (64 * 16B) | 1 KB |
+| **Total** | **~1.37 MB** |
+
+### Known Limitations (carried to v1.4.0)
+
+- POSIX compliance: partial (ramfs functional, no userland process yet)
+- FD table: global (per-process tables are v1.4.0)
+- Filenames > 26 chars: -ENAMETOOLONG (overflow table deferred)
+- Kyber KEM: kem.cpp still missing
+- Ring 3: all servers run Ring 0
+- virtio-net: skeleton only
+- data_arena: no free list (allocations are permanent for v1.3.0)
+
+---
+
 ## v1.2.0 -- Foundation Correctness (2026-03-05)
 
 Resolves 75 tasks across 5 implementation phases + integration/docs.

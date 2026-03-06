@@ -99,6 +99,15 @@ add_executable(xinim
     src/kernel/early/serial_16550.cpp
     src/kernel/bare_metal_stubs.cpp
     src/hal/hal.cpp
+    # Bare-metal VFS subsystem (ADR-0009 / v1.3.0)
+    src/vfs/inode_table.cpp
+    src/vfs/dirent.cpp
+    src/vfs/path_walk.cpp
+    src/vfs/ramfs_ops.cpp
+    src/vfs/mount_table.cpp
+    src/vfs/fd_table.cpp
+    src/vfs/buffer_cache.cpp
+    src/vfs/vfs_server.cpp
 )
 
 # Apply project-wide target defaults (C++23, defines, includes)
@@ -386,6 +395,24 @@ target_include_directories(test_elf_parser PRIVATE
 # this host-only stub target.
 target_compile_options(test_elf_parser PRIVATE -Wno-unused-private-field)
 set_tests_properties(test_elf_parser PROPERTIES LABELS "unit;kernel")
+
+# --- Bare-Metal VFS Tests ---
+# Links all bare-metal VFS subsystem sources (freestanding-compatible, no kernel deps).
+xinim_add_host_test(test_bare_vfs
+    test/test_bare_vfs.cpp
+    src/vfs/inode_table.cpp
+    src/vfs/dirent.cpp
+    src/vfs/path_walk.cpp
+    src/vfs/ramfs_ops.cpp
+    src/vfs/mount_table.cpp
+    src/vfs/fd_table.cpp
+    src/vfs/buffer_cache.cpp
+)
+target_include_directories(test_bare_vfs PRIVATE
+    ${CMAKE_SOURCE_DIR}/src/vfs
+    ${CMAKE_SOURCE_DIR}/include
+)
+set_tests_properties(test_bare_vfs PROPERTIES LABELS "unit;vfs;kernel")
 
 # --- Boot / Integration Tests (QEMU-based, require kernel image) ---
 # These are registered but only meaningful when the kernel is built.

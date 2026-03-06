@@ -1,314 +1,124 @@
 /**
  * @file buffer_cache.cpp
- * @brief Block Buffer Cache Implementation
- * @author XINIM Project
- * @version 1.0
- * @date 2025
+ * @brief Pre-allocated buffer cache for bare-metal VFS (ADR-0009)
+ *
+ * Replaces the previous STL-based BufferCache class (which used std::mutex,
+ * std::list, std::unordered_map -- all incompatible with -ffreestanding).
+ *
+ * Design: 64 fixed-size 512-byte cache slots. LRU eviction by lowest
+ * lru_seq counter: O(CACHE_BLOCKS) scan on miss. Zero malloc during I/O.
+ *
+ * For ramfs (device_id=1) the backing store is g_data_arena in inode_table.cpp.
+ * block_num is the block index (byte_offset / CACHE_BLK_SIZE) into the arena.
  */
 
-#include <xinim/vfs/buffer_cache.hpp>
-#include <xinim/log.hpp>
+#include "bare_vfs.hpp"
+#include "inode_table.hpp"
 #include <cstring>
 
-namespace xinim::vfs {
+inline constexpr uint64_t CACHE_BLOCK_FREE = ~uint64_t{0}; // UINT64_MAX
 
-BufferCache::BufferCache(size_t max_blocks)
-    : max_blocks_(max_blocks),
-      cache_hits_(0),
-      cache_misses_(0),
-      evictions_(0),
-      read_callback_(nullptr),
-      write_callback_(nullptr) {
+// ============================================================================
+// Global cache storage
+// ============================================================================
+
+static CacheBlock g_cache[CACHE_BLOCKS];
+static uint32_t   g_lru_seq; // global monotonically-increasing LRU counter
+
+// ============================================================================
+// Public API
+// ============================================================================
+
+void cache_init() {
+    __builtin_memset(g_cache, 0, sizeof(g_cache));
+    for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
+        g_cache[i].block_num = CACHE_BLOCK_FREE;
+    }
+    g_lru_seq = 0;
 }
 
-BufferCache::~BufferCache() {
-    // Flush all dirty blocks before destruction
-    sync();
-}
+// Return (and potentially load) a cache block for (block_num, device_id).
+// On hit: update lru_seq and return pointer.
+// On miss: evict LRU block, load data from data_arena, return pointer.
+// Returns nullptr if block_num is out of range for device.
+CacheBlock* cache_get(uint64_t block_num, uint32_t device_id) {
+    // Only device_id=1 (ramfs data arena) supported in v1.3.0
+    if (device_id != 1) return nullptr;
 
-int BufferCache::get_block(uint64_t device_id, uint64_t block_number,
-                           uint32_t block_size, void* data) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    uint64_t max_block = DATA_ARENA_SIZE / CACHE_BLK_SIZE;
+    if (block_num >= max_block) return nullptr;
 
-    BlockKey key{device_id, block_number};
-    auto it = cache_map_.find(key);
+    uint32_t tick = ++g_lru_seq;
 
-    if (it != cache_map_.end()) {
-        // Cache hit!
-        cache_hits_++;
-
-        auto block = *it->second;
-        std::memcpy(data, block->data.data(), block_size);
-
-        // Move to front of LRU list (mark as recently used)
-        touch_block(it->second);
-
-        return 0;
-    }
-
-    // Cache miss - need to read from device
-    cache_misses_++;
-
-    if (!read_callback_) {
-        LOG_ERROR("buffer_cache: No read callback set");
-        return -EIO;
-    }
-
-    // Evict if cache is full
-    if (cache_map_.size() >= max_blocks_) {
-        if (!evict_lru()) {
-            LOG_WARN("buffer_cache: Failed to evict block, cache full");
-            // Continue anyway - we'll just exceed cache size slightly
+    // Cache hit scan
+    for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
+        if (g_cache[i].block_num == block_num &&
+            g_cache[i].device_id == device_id) {
+            g_cache[i].lru_seq = tick;
+            return &g_cache[i];
         }
     }
 
-    // Create new cached block
-    auto new_block = std::make_shared<CachedBlock>(device_id, block_number, block_size);
-
-    // Read from device
-    int ret = read_callback_(device_id, block_number, block_size, new_block->data.data());
-    if (ret < 0) {
-        LOG_ERROR("buffer_cache: Failed to read block %lu from device %lu: %d",
-                  block_number, device_id, ret);
-        return ret;
+    // Cache miss -- find LRU slot to evict.
+    // Free slots (block_num == CACHE_BLOCK_FREE) are preferred.
+    uint32_t evict   = 0;
+    uint32_t min_seq = g_cache[0].lru_seq;
+    for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
+        if (g_cache[i].block_num == CACHE_BLOCK_FREE) {
+            evict = i;
+            min_seq = 0; // free slot terminates search
+            break;
+        }
+        if (g_cache[i].lru_seq < min_seq) {
+            min_seq = g_cache[i].lru_seq;
+            evict   = i;
+        }
     }
 
-    // Copy data to output
-    std::memcpy(data, new_block->data.data(), block_size);
+    // Flush dirty evicted block back to arena before replacing
+    CacheBlock* slot = &g_cache[evict];
+    if (slot->block_num != CACHE_BLOCK_FREE && slot->dirty) {
+        uint8_t* dst = data_arena_ptr(
+            static_cast<uint32_t>(slot->block_num * CACHE_BLK_SIZE));
+        if (dst) {
+            __builtin_memcpy(dst, slot->data, CACHE_BLK_SIZE);
+        }
+        slot->dirty = 0;
+    }
 
-    // Add to cache
-    lru_list_.push_front(new_block);
-    cache_map_[key] = lru_list_.begin();
-
-    return 0;
-}
-
-int BufferCache::put_block(uint64_t device_id, uint64_t block_number,
-                           uint32_t block_size, const void* data,
-                           bool write_through) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    BlockKey key{device_id, block_number};
-    auto it = cache_map_.find(key);
-
-    std::shared_ptr<CachedBlock> block;
-
-    if (it != cache_map_.end()) {
-        // Block already in cache - update it
-        block = *it->second;
-        std::memcpy(block->data.data(), data, block_size);
-        block->dirty = !write_through;
-
-        // Move to front of LRU list
-        touch_block(it->second);
+    // Load requested block from arena into the slot
+    uint8_t* src = data_arena_ptr(static_cast<uint32_t>(block_num * CACHE_BLK_SIZE));
+    if (src) {
+        __builtin_memcpy(slot->data, src, CACHE_BLK_SIZE);
     } else {
-        // Block not in cache - create new entry
-
-        // Evict if cache is full
-        if (cache_map_.size() >= max_blocks_) {
-            if (!evict_lru()) {
-                LOG_WARN("buffer_cache: Failed to evict block, cache full");
-            }
-        }
-
-        // Create new block
-        block = std::make_shared<CachedBlock>(device_id, block_number, block_size);
-        std::memcpy(block->data.data(), data, block_size);
-        block->dirty = !write_through;
-
-        // Add to cache
-        lru_list_.push_front(block);
-        cache_map_[key] = lru_list_.begin();
+        __builtin_memset(slot->data, 0, CACHE_BLK_SIZE);
     }
 
-    // Write through if requested
-    if (write_through) {
-        if (!write_callback_) {
-            LOG_ERROR("buffer_cache: No write callback set");
-            return -EIO;
-        }
-
-        int ret = write_callback_(device_id, block_number, block_size, data);
-        if (ret < 0) {
-            LOG_ERROR("buffer_cache: Failed to write block %lu to device %lu: %d",
-                      block_number, device_id, ret);
-            return ret;
-        }
-    }
-
-    return 0;
+    slot->block_num  = block_num;
+    slot->device_id  = device_id;
+    slot->lru_seq    = tick;
+    slot->dirty      = 0;
+    return slot;
 }
 
-int BufferCache::sync() {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    int errors = 0;
-
-    // Flush all dirty blocks
-    for (auto& block : lru_list_) {
-        if (block->dirty) {
-            int ret = flush_block(block);
-            if (ret < 0) {
-                errors++;
-            }
-        }
-    }
-
-    return errors > 0 ? -EIO : 0;
+// Mark block as dirty (data will be written back on eviction or flush).
+void cache_mark_dirty(CacheBlock* block) {
+    if (block) block->dirty = 1;
 }
 
-int BufferCache::sync_device(uint64_t device_id) {
-    std::lock_guard<std::mutex> lock(mutex_);
+// Write all dirty blocks for device_id back to the backing store.
+void cache_flush(uint32_t device_id) {
+    for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
+        CacheBlock* slot = &g_cache[i];
+        if (slot->block_num == CACHE_BLOCK_FREE) continue;
+        if (slot->device_id != device_id) continue;
+        if (!slot->dirty) continue;
 
-    int errors = 0;
-
-    // Flush dirty blocks for specific device
-    for (auto& block : lru_list_) {
-        if (block->device_id == device_id && block->dirty) {
-            int ret = flush_block(block);
-            if (ret < 0) {
-                errors++;
-            }
+        uint8_t* dst = data_arena_ptr(
+            static_cast<uint32_t>(slot->block_num * CACHE_BLK_SIZE));
+        if (dst) {
+            __builtin_memcpy(dst, slot->data, CACHE_BLK_SIZE);
         }
-    }
-
-    return errors > 0 ? -EIO : 0;
-}
-
-void BufferCache::invalidate_block(uint64_t device_id, uint64_t block_number) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    BlockKey key{device_id, block_number};
-    auto it = cache_map_.find(key);
-
-    if (it != cache_map_.end()) {
-        auto block = *it->second;
-
-        // Flush if dirty
-        if (block->dirty) {
-            flush_block(block);
-        }
-
-        // Remove from LRU list and cache map
-        lru_list_.erase(it->second);
-        cache_map_.erase(it);
+        slot->dirty = 0;
     }
 }
-
-void BufferCache::invalidate_device(uint64_t device_id) {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    // Find all blocks for this device
-    auto it = lru_list_.begin();
-    while (it != lru_list_.end()) {
-        auto block = *it;
-
-        if (block->device_id == device_id) {
-            // Flush if dirty
-            if (block->dirty) {
-                flush_block(block);
-            }
-
-            // Remove from cache map
-            BlockKey key{device_id, block->block_number};
-            cache_map_.erase(key);
-
-            // Remove from LRU list
-            it = lru_list_.erase(it);
-        } else {
-            ++it;
-        }
-    }
-}
-
-void BufferCache::get_stats(uint64_t& hits, uint64_t& misses, uint64_t& evictions,
-                            size_t& dirty_blocks) const {
-    std::lock_guard<std::mutex> lock(mutex_);
-
-    hits = cache_hits_;
-    misses = cache_misses_;
-    evictions = evictions_;
-
-    // Count dirty blocks
-    dirty_blocks = 0;
-    for (const auto& block : lru_list_) {
-        if (block->dirty) {
-            dirty_blocks++;
-        }
-    }
-}
-
-void BufferCache::set_read_callback(int (*callback)(uint64_t, uint64_t, uint32_t, void*)) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    read_callback_ = callback;
-}
-
-void BufferCache::set_write_callback(int (*callback)(uint64_t, uint64_t, uint32_t, const void*)) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    write_callback_ = callback;
-}
-
-bool BufferCache::evict_lru() {
-    // Find least recently used block that is not pinned
-    for (auto it = lru_list_.rbegin(); it != lru_list_.rend(); ++it) {
-        auto block = *it;
-
-        // Skip pinned blocks
-        if (block->ref_count > 0) {
-            continue;
-        }
-
-        // Flush if dirty
-        if (block->dirty) {
-            int ret = flush_block(block);
-            if (ret < 0) {
-                LOG_WARN("buffer_cache: Failed to flush block during eviction");
-                continue;  // Try next block
-            }
-        }
-
-        // Remove from cache map
-        BlockKey key{block->device_id, block->block_number};
-        cache_map_.erase(key);
-
-        // Remove from LRU list (convert reverse iterator to forward iterator)
-        lru_list_.erase(std::next(it).base());
-
-        evictions_++;
-        return true;
-    }
-
-    return false;  // No evictable blocks
-}
-
-void BufferCache::touch_block(LRUIter it) {
-    // Move block to front of LRU list
-    lru_list_.splice(lru_list_.begin(), lru_list_, it);
-}
-
-int BufferCache::flush_block(std::shared_ptr<CachedBlock> block) {
-    if (!write_callback_) {
-        LOG_ERROR("buffer_cache: No write callback set");
-        return -EIO;
-    }
-
-    int ret = write_callback_(block->device_id, block->block_number,
-                             block->block_size, block->data.data());
-    if (ret < 0) {
-        LOG_ERROR("buffer_cache: Failed to flush block %lu on device %lu: %d",
-                  block->block_number, block->device_id, ret);
-        return ret;
-    }
-
-    block->dirty = false;
-    return 0;
-}
-
-// Global buffer cache instance
-static BufferCache global_cache(1024);  // Cache 1024 blocks (4 MB for 4KB blocks)
-
-BufferCache& get_global_buffer_cache() {
-    return global_cache;
-}
-
-} // namespace xinim::vfs

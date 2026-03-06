@@ -12,6 +12,9 @@
 // sys/type.hpp defines the message struct used by lattice IPC.
 #include "sys/type.hpp"
 
+// VFS server implementation (ADR-0009 bare-metal VFS)
+#include "../vfs/vfs_server.hpp"
+
 // Forward declarations for lattice IPC functions (defined in lattice_ipc.cpp).
 // Cannot include lattice_ipc.hpp here due to conflicts with the C stubs below.
 namespace lattice {
@@ -20,9 +23,8 @@ namespace lattice {
     int lattice_recv(int pid, message* out, IpcFlags flags);
 }
 
-// Syscall number for SYS_write (matches include/xinim/sys/syscalls.h)
-static constexpr int STUB_SYS_WRITE = 6;
-static constexpr int STUB_OK = 0;
+// (STUB_SYS_WRITE and STUB_OK removed: vfs_server_main() now delegates to
+//  vfs_server_loop() in src/vfs/vfs_server.cpp which handles all VFS messages.)
 
 extern xinim::early::Serial16550 early_serial;
 
@@ -156,43 +158,19 @@ void handle_unhandled_interrupt() {
 // These handle the syscall types routed to each server via lattice IPC.
 // Phase 7 will replace these with full implementations.
 
-// VFS server: handles SYS_read, SYS_write, SYS_open, SYS_close.
-// Currently SYS_write to any fd echoes to the serial console.
+// early_serial write_char: exposed for vfs_server.cpp serial fallback
+void early_serial_write_char(char c) {
+    early_serial.write_char(c);
+}
+
+// VFS server: full bare-metal ramfs implementation (ADR-0009 / v1.3.0).
+// vfs_server_init() sets up inodes, dirents, FD table, mount table, root dir.
+// vfs_server_loop() is the IPC dispatch loop (blocks on lattice_recv).
 void vfs_server_main() {
-    constexpr int VFS_PID = 2;
-    early_serial.write("[VFS] Server started\n");
-    for (;;) {
-        message msg{};
-        int rc = lattice::lattice_recv(VFS_PID, &msg, lattice::IpcFlags::NONE);
-        if (rc != 0) continue;
-
-        message reply{};
-        reply.m_type = STUB_OK;
-
-        switch (msg.m_type) {
-        case STUB_SYS_WRITE: {
-            // m1p1 = buf pointer, m1i2 = count
-            const char* buf = msg.m_u.m_m1.m1p1;
-            int count       = msg.m_u.m_m1.m1i2;
-            if (buf && count > 0) {
-                for (int i = 0; i < count; ++i)
-                    early_serial.write_char(buf[i]);
-                reply.m_type = count; // bytes written
-            } else {
-                reply.m_type = -1;
-            }
-            break;
-        }
-        default:
-            reply.m_type = -1; // ENOSYS
-            break;
-        }
-
-        // Reply to caller (m_u.m_m1.m1i1 carries caller PID in our protocol)
-        int caller = static_cast<int>(msg.m_u.m_m1.m1i1);
-        if (caller > 0)
-            lattice::lattice_send(VFS_PID, caller, reply, lattice::IpcFlags::NONE);
-    }
+    early_serial.write("[VFS] Server started (bare-metal ramfs v1.3.0)\n");
+    vfs_server_init();
+    early_serial.write("[VFS] Init complete: root, /bin, /dev, /proc, /tmp\n");
+    vfs_server_loop();
 }
 
 void proc_mgr_main() {

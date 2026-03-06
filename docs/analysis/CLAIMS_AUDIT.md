@@ -146,10 +146,14 @@ Scorecard: 3 VERIFIED, 3 FALSE, 1 MISLEADING, 1 UNVERIFIED, 1 RESOLVED, 1 partia
 
 ## Test Infrastructure Status
 
-v1.2.0 (2026-03-05): 31 host-side CTest unit tests: ALL PASS (was 25 in v1.1.0)
+v1.3.0 (2026-03-05): 32 host-side CTest unit tests: ALL PASS (was 31 in v1.2.0)
 - 2 QEMU integration tests: registered, require boot validation
 - New tests (Phases 1-5): test_heap_allocator, test_unified_scheduler,
   test_process_lifecycle, test_ipc_blocking, test_ipc_exhaustion, test_lock_timeout
+
+v1.3.0 new: test_bare_vfs (13 tests -- inode alloc, mkdir, read/write, stat,
+  path_walk, unlink, FD lifecycle, mount_resolve).
+v1.3.0 VFS: open/read/write/close/stat/mkdir/unlink on ramfs now functional.
 
 v1.2.0 key subsystem changes:
 - Heap: 4MB free-list allocator with working free() + coalescing
@@ -160,9 +164,10 @@ v1.2.0 key subsystem changes:
 - Locks: MAX_SPINS on all spin loops, MCSIrqLockGuard, QuaternionSpinlock data race fixed
 
 ### 2 (updated). "POSIX-2024 compliance"
-**Status: FALSE (aspirational -- v1.2.0 progress logged)**
+**Status: FALSE (aspirational -- v1.3.0 first POSIX progress)**
 - exit syscall now works (calls process_exit, ZOMBIE lifecycle, cleans up stacks)
 - wait4 handled in kernel (process_wait, not PM server stub)
 - getpid returns real current process PID (was hardcoded 1)
 - Functional: debug_write, getpid, getppid, exit, getuid/gid/euid/egid, brk, wait4
-- POSIX compliance still 0% (no userland process, VFS still stub ENOSYS)
+- VFS (v1.3.0): open/read/write/close/stat/mkdir/unlink on ramfs now functional
+- POSIX compliance: partial (ramfs round-trips pass; no userland process yet)
