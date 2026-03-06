@@ -61,6 +61,10 @@ struct CpuContext_x86_64 {
     // Control registers
     uint64_t cr3;     // Page directory base (for memory isolation)
 
+    // v1.2.0: FPU/SSE/AVX state (512-byte FXSAVE region)
+    // Must be 16-byte aligned for FXSAVE/FXRSTOR instructions.
+    alignas(16) uint8_t fxsave_area[512];
+
     /**
      * @brief Initialize context for a new process
      * @param entry_point Function to execute
@@ -100,12 +104,20 @@ struct CpuContext_x86_64 {
 
         // CR3 will be set later when page tables are created
         cr3 = 0;
+
+        // v1.2.0: Initialize FPU state
+        // Zero the FXSAVE area, then set MXCSR to default (mask all FP exceptions)
+        for (int i = 0; i < 512; i++) fxsave_area[i] = 0;
+        // MXCSR is at offset 24 in the FXSAVE area (4 bytes, little-endian)
+        // Default value 0x1F80: mask all exceptions, round-to-nearest
+        fxsave_area[24] = 0x80;
+        fxsave_area[25] = 0x1F;
     }
-} __attribute__((packed));
+};
 
 using CpuContext = CpuContext_x86_64;
 
-// Size: 26 * 8 = 208 bytes
+// Size: 26*8 + 512 = 720 bytes
 
 #elif defined(XINIM_ARCH_ARM64)
 

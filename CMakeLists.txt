@@ -94,6 +94,7 @@ add_executable(xinim
     src/arch/x86_64/context_switch.S
     src/arch/x86_64/interrupts.S
     src/kernel/unified_scheduler.cpp
+    src/kernel/process_lifecycle.cpp
     src/kernel/lattice_ipc.cpp
     src/kernel/early/serial_16550.cpp
     src/kernel/bare_metal_stubs.cpp
@@ -333,6 +334,17 @@ xinim_add_host_test(test_heap_allocator
     src/kernel/heap.cpp
 )
 set_tests_properties(test_heap_allocator PROPERTIES LABELS "unit;kernel")
+
+# --- Process Lifecycle Tests ---
+xinim_add_host_test(test_process_lifecycle
+    test/test_process_lifecycle.cpp
+    src/kernel/unified_scheduler.cpp
+    src/kernel/process_lifecycle.cpp
+    src/kernel/heap.cpp
+    ${XINIM_TEST_COMMON_SOURCES}
+)
+target_compile_definitions(test_process_lifecycle PRIVATE XINIM_ARCH_X86_64)
+set_tests_properties(test_process_lifecycle PROPERTIES LABELS "unit;kernel")
 
 # --- IPC Blocking Tests ---
 xinim_add_host_test(test_ipc_blocking

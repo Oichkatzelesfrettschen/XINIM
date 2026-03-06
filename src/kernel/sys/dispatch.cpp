@@ -11,6 +11,7 @@
 #include "../time/monotonic.hpp"
 #include "../lattice_ipc.hpp"
 #include "../unified_scheduler.hpp"
+#include "../process_lifecycle.hpp"
 #include "console.hpp"
 
 extern xinim::early::Serial16550 early_serial;
@@ -82,13 +83,11 @@ static int64_t sys_brk_impl(uint64_t addr) {
     return static_cast<int64_t>(heap_end);
 }
 
-static void sys_exit_impl([[maybe_unused]] int status) {
-    auto* pcb = xinim::kernel::g_unified_scheduler.current();
-    if (pcb) {
-        pcb->state = xinim::kernel::ProcessState::ZOMBIE;
-        pcb->exit_status = status;
-        pcb->has_exited = true;
-        xinim::kernel::g_unified_scheduler.yield();
+static void sys_exit_impl(int status) {
+    xinim::pid_t pid = xinim::kernel::g_unified_scheduler.current_pid();
+    if (pid >= 0) {
+        xinim::kernel::process_exit(pid, status);
+        return;
     }
     // Fallback: halt if no current process
     while (true) { asm volatile("hlt"); }
@@ -164,9 +163,18 @@ extern "C" uint64_t xinim_syscall_dispatch(uint64_t no,
         case SYS_execve:
             return static_cast<uint64_t>(route_to_server(caller, PM_SERVER_PID,
                                                          static_cast<int>(SYS_execve), a0, a1, a2));
-        case SYS_wait4:
-            return static_cast<uint64_t>(route_to_server(caller, PM_SERVER_PID,
-                                                         static_cast<int>(SYS_wait4), a0, a1, a2));
+        case SYS_wait4: {
+            // v1.2.0: Handle in kernel directly (PM server is stub)
+            int wait_status = 0;
+            xinim::pid_t child = xinim::kernel::process_wait(
+                caller, static_cast<xinim::pid_t>(a0), &wait_status);
+            if (a1 != 0) {
+                // Write status to user pointer if provided
+                auto* status_ptr = reinterpret_cast<int*>(a1);
+                *status_ptr = wait_status;
+            }
+            return static_cast<uint64_t>(child);
+        }
         case SYS_kill:
             return static_cast<uint64_t>(route_to_server(caller, PM_SERVER_PID,
                                                          static_cast<int>(SYS_kill), a0, a1, 0));

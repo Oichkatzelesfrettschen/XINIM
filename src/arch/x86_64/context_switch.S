@@ -64,12 +64,18 @@ context_switch:
     mov rax, cr3
     mov [rdi + 0xC0], rax
 
+    # v1.2.0: Save FPU/SSE state (FXSAVE area at offset 0xD0)
+    fxsave [rdi + 0xD0]
+
     # Restore next context
     mov rax, [rsi + 0xC0]
     test rax, rax
     jz .skip_cr3
     mov cr3, rax
 .skip_cr3:
+
+    # v1.2.0: Restore FPU/SSE state
+    fxrstor [rsi + 0xD0]
 
     mov ax, [rsi + 0x78]
     mov gs, ax
