@@ -278,6 +278,10 @@ target_include_directories(test_kyber_constants PRIVATE ${CMAKE_SOURCE_DIR}/src/
 set_tests_properties(test_wait_graph test_wait_graph_stress PROPERTIES LABELS "unit;kernel")
 set_tests_properties(test_scheduler test_scheduler_edge test_scheduler_deadlock test_service_contract PROPERTIES LABELS "unit;scheduler")
 set_tests_properties(test_ticket_spinlock test_mcs_spinlock test_phase_rwlock test_capability_mutex test_lock_manager PROPERTIES LABELS "unit;sync")
+# test_ticket_spinlock contains a time-sensitive FIFO fairness test that
+# relies on a 10ms sleep; it fails when CTest parallelism starves threads.
+# Reserve all logical CPUs so the test runs in a quiet environment.
+set_tests_properties(test_ticket_spinlock PROPERTIES PROCESSORS 4)
 set_tests_properties(test_fips202 test_ntt_roundtrip test_montgomery_reduce test_kyber_constants PROPERTIES LABELS "unit;crypto")
 set_tests_properties(test_octonion test_fano_multiply test_core_types PROPERTIES LABELS "unit;math")
 set_tests_properties(test_service_manager PROPERTIES LABELS "unit;kernel")
