@@ -22,7 +22,7 @@ constexpr TransformResult kUnsupported{
     .estimated_cycles = 0u,
 };
 
-constexpr std::array<Mapping, 27> kMappings{{
+constexpr std::array<Mapping, 44> kMappings{{
     // Native ABI passthrough (core subset only)
     {SourceAbi::kNative, 64, 0, SYS_read, SYS_read, 0},
     {SourceAbi::kNative, 64, 0, SYS_write, SYS_write, 0},
@@ -30,10 +30,22 @@ constexpr std::array<Mapping, 27> kMappings{{
     {SourceAbi::kNative, 64, 0, SYS_close, SYS_close, 0},
     {SourceAbi::kNative, 64, 0, SYS_lseek, SYS_lseek, 0},
     {SourceAbi::kNative, 64, 0, SYS_getpid, SYS_getpid, 0},
+    {SourceAbi::kNative, 64, 0, SYS_getppid, SYS_getppid, 0},
     {SourceAbi::kNative, 64, 0, SYS_fork, SYS_fork, 0},
     {SourceAbi::kNative, 64, 0, SYS_execve, SYS_execve, 0},
     {SourceAbi::kNative, 64, 0, SYS_exit, SYS_exit, 0},
     {SourceAbi::kNative, 64, 0, SYS_wait4, SYS_wait4, 0},
+    {SourceAbi::kNative, 32, 0, SYS_read, SYS_read, 0},
+    {SourceAbi::kNative, 32, 0, SYS_write, SYS_write, 0},
+    {SourceAbi::kNative, 32, 0, SYS_open, SYS_open, 0},
+    {SourceAbi::kNative, 32, 0, SYS_close, SYS_close, 0},
+    {SourceAbi::kNative, 32, 0, SYS_lseek, SYS_lseek, 0},
+    {SourceAbi::kNative, 32, 0, SYS_getpid, SYS_getpid, 0},
+    {SourceAbi::kNative, 32, 0, SYS_getppid, SYS_getppid, 0},
+    {SourceAbi::kNative, 32, 0, SYS_fork, SYS_fork, 0},
+    {SourceAbi::kNative, 32, 0, SYS_execve, SYS_execve, 0},
+    {SourceAbi::kNative, 32, 0, SYS_exit, SYS_exit, 0},
+    {SourceAbi::kNative, 32, 0, SYS_wait4, SYS_wait4, 0},
 
     // Linux 64 -> native and legacy table
     {SourceAbi::kLinux, 64, 0, 0, SYS_read, 0},
@@ -42,6 +54,7 @@ constexpr std::array<Mapping, 27> kMappings{{
     {SourceAbi::kLinux, 64, 0, 3, SYS_close, 3},
     {SourceAbi::kLinux, 64, 0, 8, SYS_lseek, 8},
     {SourceAbi::kLinux, 64, 0, 39, SYS_getpid, 39},
+    {SourceAbi::kLinux, 64, 0, 110, SYS_getppid, 110},
     {SourceAbi::kLinux, 64, 0, 57, SYS_fork, 57},
     {SourceAbi::kLinux, 64, 0, 59, SYS_execve, 59},
     {SourceAbi::kLinux, 64, 0, 60, SYS_exit, 60},
@@ -54,7 +67,11 @@ constexpr std::array<Mapping, 27> kMappings{{
     {SourceAbi::kLinux, 32, 0, 6, SYS_close, 3},
     {SourceAbi::kLinux, 32, 0, 19, SYS_lseek, 8},
     {SourceAbi::kLinux, 32, 0, 20, SYS_getpid, 39},
+    {SourceAbi::kLinux, 32, 0, 64, SYS_getppid, 110},
     {SourceAbi::kLinux, 32, 0, 2, SYS_fork, 57},
+    {SourceAbi::kLinux, 32, 0, 11, SYS_execve, 59},
+    {SourceAbi::kLinux, 32, 0, 1, SYS_exit, 60},
+    {SourceAbi::kLinux, 32, 0, 114, SYS_wait4, 61},
 }};
 
 [[nodiscard]] TransformResult exact_lookup(
@@ -89,6 +106,12 @@ constexpr std::array<Mapping, 27> kMappings{{
     uint8_t arg_shape,
     uint32_t foreign_syscall_no,
     TransformTarget target) {
+    // Prefix fallback is only allowed for explicitly-shaped tagged calls.
+    // This prevents accidental remaps for ordinary syscall numbers.
+    if (arg_shape == 0) {
+        return kUnsupported;
+    }
+
     uint32_t best_prefix = 0;
     const Mapping* best = nullptr;
     for (const auto& item : kMappings) {
@@ -162,4 +185,3 @@ TransformResult transform_syscall(
 }
 
 } // namespace xinim::abi::lattice
-

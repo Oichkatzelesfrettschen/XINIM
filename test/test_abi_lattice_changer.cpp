@@ -37,6 +37,38 @@ int main() {
            "Linux32 write must map to SYS_write",
            failures);
 
+    const auto linux32_execve = xinim::abi::lattice::transform_syscall(
+        xinim::abi::lattice::SourceAbi::kLinux, 32, 0, 11,
+        xinim::abi::lattice::TransformTarget::kNativeSyscalls);
+    expect(linux32_execve.supported &&
+               linux32_execve.syscall_no == static_cast<uint32_t>(SYS_execve),
+           "Linux32 execve must map to SYS_execve",
+           failures);
+
+    const auto linux32_exit = xinim::abi::lattice::transform_syscall(
+        xinim::abi::lattice::SourceAbi::kLinux, 32, 0, 1,
+        xinim::abi::lattice::TransformTarget::kNativeSyscalls);
+    expect(linux32_exit.supported &&
+               linux32_exit.syscall_no == static_cast<uint32_t>(SYS_exit),
+           "Linux32 exit must map to SYS_exit",
+           failures);
+
+    const auto linux32_wait4 = xinim::abi::lattice::transform_syscall(
+        xinim::abi::lattice::SourceAbi::kLinux, 32, 0, 114,
+        xinim::abi::lattice::TransformTarget::kNativeSyscalls);
+    expect(linux32_wait4.supported &&
+               linux32_wait4.syscall_no == static_cast<uint32_t>(SYS_wait4),
+           "Linux32 wait4 must map to SYS_wait4",
+           failures);
+
+    const auto native32_getppid = xinim::abi::lattice::transform_syscall(
+        xinim::abi::lattice::SourceAbi::kNative, 32, 0, SYS_getppid,
+        xinim::abi::lattice::TransformTarget::kNativeSyscalls);
+    expect(native32_getppid.supported &&
+               native32_getppid.syscall_no == static_cast<uint32_t>(SYS_getppid),
+           "Native32 getppid must passthrough to SYS_getppid",
+           failures);
+
     const auto bsd_read = xinim::abi::lattice::transform_syscall(
         xinim::abi::lattice::SourceAbi::kBsd, 64, 0, 0,
         xinim::abi::lattice::TransformTarget::kNativeSyscalls);
@@ -68,6 +100,13 @@ int main() {
            "shared-prefix metric should detect common high bits",
            failures);
 
+    const auto unknown_linux32 = xinim::abi::lattice::transform_syscall(
+        xinim::abi::lattice::SourceAbi::kLinux, 32, 0, 58,
+        xinim::abi::lattice::TransformTarget::kNativeSyscalls);
+    expect(!unknown_linux32.supported,
+           "Unknown Linux32 syscall must not be remapped by prefix fallback",
+           failures);
+
     if (failures != 0) {
         std::println(std::cerr, "{} lattice changer ABI test(s) failed.", failures);
         return EXIT_FAILURE;
@@ -76,4 +115,3 @@ int main() {
     std::println(std::cout, "ALL lattice changer ABI tests passed.");
     return EXIT_SUCCESS;
 }
-
