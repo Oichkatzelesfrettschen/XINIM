@@ -500,6 +500,7 @@ add_executable(xinim
     src/kernel/unified_scheduler.cpp
     src/kernel/process_lifecycle.cpp
     src/kernel/lattice_ipc.cpp
+    src/kernel/abi/lattice_changer.cpp
     src/kernel/early/serial_16550.cpp
     src/kernel/bare_metal_stubs.cpp
     src/kernel/freestanding_memory.cpp
@@ -700,6 +701,7 @@ set(XINIM_X86_32_KERNEL_SOURCES
     src/kernel/i486/ring3.cpp
     src/kernel/i486/ring3_entry.S
     src/kernel/i486/shell.cpp
+    src/kernel/abi/lattice_changer.cpp
     src/vfs/core_init.cpp
     src/vfs/inode_table.cpp
     src/vfs/vnode_table.cpp
@@ -1664,6 +1666,7 @@ set_tests_properties(test_kernel_fd_table PROPERTIES LABELS "unit;kernel;fd")
 xinim_add_host_test(test_kernel_syscall_table
     test/test_kernel_syscall_table.cpp
     src/kernel/syscall_table.cpp
+    src/kernel/abi/lattice_changer.cpp
     test/stubs/serial_stub.cpp
 )
 target_include_directories(test_kernel_syscall_table PRIVATE
@@ -1671,7 +1674,18 @@ target_include_directories(test_kernel_syscall_table PRIVATE
     ${CMAKE_SOURCE_DIR}/src/kernel
 )
 target_compile_options(test_kernel_syscall_table PRIVATE -Wno-unused-private-field)
+target_compile_definitions(test_kernel_syscall_table PRIVATE XINIM_ENABLE_LATTICE_CHANGER=1)
 set_tests_properties(test_kernel_syscall_table PROPERTIES LABELS "unit;kernel;syscall")
+
+xinim_add_host_test(test_abi_lattice_changer
+    test/test_abi_lattice_changer.cpp
+    src/kernel/abi/lattice_changer.cpp
+)
+target_include_directories(test_abi_lattice_changer PRIVATE
+    ${CMAKE_SOURCE_DIR}
+    ${CMAKE_SOURCE_DIR}/include
+)
+set_tests_properties(test_abi_lattice_changer PROPERTIES LABELS "unit;abi;syscall")
 
 xinim_add_host_test(test_kernel_pipe
     test/test_kernel_pipe.cpp

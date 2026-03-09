@@ -1,6 +1,7 @@
 #include <stdint.h>
 #include <string.h>
 #include <xinim/sys/syscalls.h>
+#include <xinim/abi/lattice_changer.hpp>
 #include <xinim/core_types.hpp>
 #include "../../../include/xinim/ipc/message_types.h"
 #include "../../../include/xinim/ipc/vfs_protocol.hpp"
@@ -99,14 +100,37 @@ static void sys_exit_impl(int status) {
     while (true) { asm volatile("hlt"); }
 }
 
+static uint64_t resolve_syscall_no(uint64_t raw_no) {
+#ifdef XINIM_ENABLE_LATTICE_CHANGER
+    if (!xinim::abi::lattice::is_tagged(raw_no)) {
+        return raw_no;
+    }
+
+    const auto tagged = xinim::abi::lattice::decode_tagged_syscall(raw_no);
+    const auto translation = xinim::abi::lattice::transform_syscall(
+        tagged.source,
+        tagged.word_bits,
+        tagged.arg_shape,
+        tagged.foreign_syscall_no,
+        xinim::abi::lattice::TransformTarget::kNativeSyscalls);
+    if (!translation.supported || translation.estimated_cycles > 32) {
+        return UINT64_MAX;
+    }
+    return translation.syscall_no;
+#else
+    return raw_no;
+#endif
+}
+
 extern "C" uint64_t xinim_syscall_dispatch(uint64_t no,
     uint64_t a0, uint64_t a1, uint64_t a2, uint64_t a3, uint64_t a4) {
     (void)a3; (void)a4;
+    const uint64_t resolved_no = resolve_syscall_no(no);
 
     xinim::pid_t caller = xinim::kernel::g_unified_scheduler.current_pid();
     if (caller < 0) caller = 1; // Fallback during early boot
 
-    switch (no) {
+    switch (resolved_no) {
         // --- Kernel-handled syscalls ---
         case SYS_debug_write:
             return sys_debug_write_impl(reinterpret_cast<const char*>(a0), a1);
@@ -265,7 +289,7 @@ extern "C" uint64_t xinim_syscall_dispatch(uint64_t no,
                                                    PROC_KILL, a0, a1, 0));
 
         default:
-            Console::printf("Syscall %lu not implemented\n", no);
+            Console::printf("Syscall %lu (resolved=%lu) not implemented\n", no, resolved_no);
             return static_cast<uint64_t>(-1);
     }
 }

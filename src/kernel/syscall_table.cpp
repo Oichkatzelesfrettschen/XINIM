@@ -10,6 +10,7 @@
  */
 
 #include "syscall_table.hpp"
+#include "xinim/abi/lattice_changer.hpp"
 #include "early/serial_16550.hpp"
 #include <array>
 #include <cstdio>
@@ -180,27 +181,48 @@ extern "C" int64_t syscall_dispatch(uint64_t syscall_num,
                                      uint64_t arg5, uint64_t arg6) {
     using namespace xinim::kernel;
 
+    uint64_t resolved_syscall_num = syscall_num;
+#ifdef XINIM_ENABLE_LATTICE_CHANGER
+    if (xinim::abi::lattice::is_tagged(syscall_num)) {
+        const auto tagged = xinim::abi::lattice::decode_tagged_syscall(syscall_num);
+        const auto translation = xinim::abi::lattice::transform_syscall(
+            tagged.source,
+            tagged.word_bits,
+            tagged.arg_shape,
+            tagged.foreign_syscall_no,
+            xinim::abi::lattice::TransformTarget::kLegacyLinux64Table);
+        if (!translation.supported || translation.estimated_cycles > 32) {
+            return -ENOSYS;
+        }
+        resolved_syscall_num = translation.syscall_no;
+    }
+#endif
+
     // Update statistics
     g_total_syscalls++;
-    if (syscall_num < MAX_SYSCALLS) {
-        g_syscall_count[syscall_num]++;
+    if (resolved_syscall_num < MAX_SYSCALLS) {
+        g_syscall_count[resolved_syscall_num]++;
     }
 
     // Validate syscall number
-    if (syscall_num >= MAX_SYSCALLS) {
+    if (resolved_syscall_num >= MAX_SYSCALLS) {
         char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "[SYSCALL] Invalid syscall number: %lu\n", syscall_num);
+                 "[SYSCALL] Invalid syscall number: %lu (resolved=%lu)\n",
+                 syscall_num,
+                 resolved_syscall_num);
         early_serial.write(buffer);
         return -ENOSYS;
     }
 
     // Get handler
-    SyscallHandler handler = g_syscall_table[syscall_num];
+    SyscallHandler handler = g_syscall_table[resolved_syscall_num];
     if (!handler) {
         char buffer[128];
         snprintf(buffer, sizeof(buffer),
-                 "[SYSCALL] Unimplemented syscall: %lu\n", syscall_num);
+                 "[SYSCALL] Unimplemented syscall: %lu (resolved=%lu)\n",
+                 syscall_num,
+                 resolved_syscall_num);
         early_serial.write(buffer);
         return -ENOSYS;
     }
@@ -210,7 +232,7 @@ extern "C" int64_t syscall_dispatch(uint64_t syscall_num,
     char buffer[256];
     snprintf(buffer, sizeof(buffer),
              "[SYSCALL] %lu(0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx, 0x%lx)\n",
-             syscall_num, arg1, arg2, arg3, arg4, arg5, arg6);
+             resolved_syscall_num, arg1, arg2, arg3, arg4, arg5, arg6);
     early_serial.write(buffer);
     #endif
 

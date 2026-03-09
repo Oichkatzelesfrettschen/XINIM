@@ -3,6 +3,8 @@
 include_guard()
 
 option(XINIM_ENABLE_WERROR "Treat warnings as errors" ON)
+option(XINIM_ENABLE_LATTICE_CHANGER
+    "Enable tagged lattice-changer ABI transform for foreign syscall numbers" ON)
 # XINIM_ENABLE_SANITIZERS removed: bare-metal kernel cannot link sanitizer runtimes.
 # Sanitizers may be revisited for host-side tests only in a future phase.
 
@@ -37,6 +39,9 @@ function(xinim_apply_target_defaults target)
         _XOPEN_SOURCE=700
         _GNU_SOURCE
     )
+    if(XINIM_ENABLE_LATTICE_CHANGER)
+        target_compile_definitions(${target} PRIVATE XINIM_ENABLE_LATTICE_CHANGER=1)
+    endif()
     # Assembly files in this project use AT&T syntax (the GAS/Clang default).
     # Do not add -masm=intel here.
     target_include_directories(${target} PRIVATE

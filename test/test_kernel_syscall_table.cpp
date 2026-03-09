@@ -1,4 +1,5 @@
 #include "src/kernel/syscall_table.hpp"
+#include "include/xinim/abi/lattice_changer.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -110,14 +111,32 @@ int main() {
     expect(xinim::kernel::syscall_dispatch(999, 0, 0, 0, 0, 0, 0) == expected_enosys,
            "out-of-range syscalls should return -ENOSYS",
            failures);
+    expect(xinim::kernel::syscall_dispatch(
+               xinim::abi::lattice::encode_tagged_syscall(
+                   xinim::abi::lattice::SourceAbi::kLinux, 64, 0, 39),
+               0, 0, 0, 0, 0, 0) == 4242,
+           "tagged Linux64 getpid should translate to native GETPID",
+           failures);
+    expect(xinim::kernel::syscall_dispatch(
+               xinim::abi::lattice::encode_tagged_syscall(
+                   xinim::abi::lattice::SourceAbi::kLinux, 32, 0, 4),
+               0, 0, 9, 0, 0, 0) == 9,
+           "tagged Linux32 write should translate to native WRITE",
+           failures);
+    expect(xinim::kernel::syscall_dispatch(
+               xinim::abi::lattice::encode_tagged_syscall(
+                   xinim::abi::lattice::SourceAbi::kMach, 64, 0, 1),
+               0, 0, 0, 0, 0, 0) == expected_enosys,
+           "tagged Mach call should fail until IPC bridge exists",
+           failures);
 
     expect(xinim::kernel::get_syscall_count(
-               static_cast<uint64_t>(xinim::kernel::SyscallNumber::GETPID)) == 1,
-           "GETPID should increment its syscall counter",
+               static_cast<uint64_t>(xinim::kernel::SyscallNumber::GETPID)) == 2,
+           "GETPID should include native and translated Linux64 invocations",
            failures);
     expect(xinim::kernel::get_syscall_count(
-               static_cast<uint64_t>(xinim::kernel::SyscallNumber::WRITE)) == 1,
-           "WRITE should increment its syscall counter",
+               static_cast<uint64_t>(xinim::kernel::SyscallNumber::WRITE)) == 2,
+           "WRITE should include native and translated Linux32 invocations",
            failures);
     expect(xinim::kernel::get_syscall_count(200) == 1,
            "known-but-unimplemented syscalls should still be counted",
@@ -125,8 +144,8 @@ int main() {
     expect(xinim::kernel::get_syscall_count(999) == 0,
            "out-of-range syscalls should not update a table entry",
            failures);
-    expect(xinim::kernel::get_total_syscall_count() == 5,
-           "total syscall count should include successful and rejected dispatches",
+    expect(xinim::kernel::get_total_syscall_count() == 7,
+           "total syscall count should include native and translated dispatches",
            failures);
 
     if (failures != 0) {
