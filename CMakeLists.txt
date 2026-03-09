@@ -1869,11 +1869,11 @@ if(TARGET xinim_x86_64_image)
     )
 
     add_test(
-        NAME kshell_test
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/test/boot/kshell_test.py
+        NAME x86_64_shell_test
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
         WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
     )
-    set_tests_properties(kshell_test PROPERTIES
+    set_tests_properties(x86_64_shell_test PROPERTIES
         LABELS "integration;kshell"
         ENVIRONMENT
             "XINIM_ARTIFACT_ROOT=${XINIM_ARTIFACT_ROOT};XINIM_STATE_ROOT=${XINIM_STATE_ROOT};XINIM_PROJECT_ROOT=${XINIM_PROJECT_ROOT};XINIM_BUILD_ROOT=${XINIM_BUILD_ROOT};XINIM_IMAGE_ROOT=${XINIM_IMAGE_ROOT};XINIM_LOG_ROOT=${XINIM_LOG_ROOT}"
