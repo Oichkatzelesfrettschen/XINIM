@@ -57,7 +57,13 @@ struct operation_context {
     bool follow_symlinks{true};
 
     // Other context flags can be added, e.g., umask for creation operations.
-    operation_context() = default;
+    constexpr operation_context() = default;
+    constexpr operation_context(mode execution_mode_value,
+                                bool audit_enabled_value,
+                                bool follow_symlinks_value) noexcept
+        : execution_mode(execution_mode_value),
+          audit_enabled(audit_enabled_value),
+          follow_symlinks(follow_symlinks_value) {}
 };
 
 // --- File Status Structure ---

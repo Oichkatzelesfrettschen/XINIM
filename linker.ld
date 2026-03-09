@@ -1,50 +1,49 @@
-/* Xinim Kernel Linker Script - Limine boot protocol (x86-64, 1MB physical load) */
-/* WHY: Merged Limine protocol sections from src/kernel/linker.ld so that both
-        the Limine .requests section and legacy multiboot header are covered.
-        src/kernel/linker.ld is now superseded by this file. */
+/* Xinim Kernel Linker Script - Limine higher-half x86_64 kernel layout */
 
 OUTPUT_FORMAT(elf64-x86-64)
 OUTPUT_ARCH(i386:x86-64)
 ENTRY(_start)
 
+PHDRS {
+    requests PT_LOAD FLAGS(4);
+    text PT_LOAD FLAGS(5);
+    rodata PT_LOAD FLAGS(4);
+    data PT_LOAD FLAGS(6);
+}
+
 _kernel_physical_start = 1M;
-_kernel_virtual_start = 1M;
+_kernel_virtual_base = 0xffffffff80000000;
 
 SECTIONS {
-    . = 1M;
+    . = _kernel_virtual_base + _kernel_physical_start;
+    _kernel_virtual_start = .;
 
-    /* Limine boot protocol request section (must appear before .text) */
-    .limine_requests ALIGN(4K) : {
+    /* Limine must see a higher-half ELF image, not a low 1 MiB VMA binary. */
+    .limine_requests ALIGN(4K) : AT(ADDR(.limine_requests) - _kernel_virtual_base) {
         KEEP(*(.limine.requests))
-    }
+    } :requests
 
-    /* Legacy multiboot header (kept for compatibility) */
-    .multiboot_header ALIGN(4K) : {
+    .multiboot_header ALIGN(4K) : AT(ADDR(.multiboot_header) - _kernel_virtual_base) {
         *(.multiboot_header)
-    }
+    } :requests
 
-    /* Kernel code */
-    .text ALIGN(4K) : {
+    .text ALIGN(4K) : AT(ADDR(.text) - _kernel_virtual_base) {
         *(.text .text.* .gnu.linkonce.t.*)
-    }
+    } :text
 
-    /* Kernel read-only data */
-    .rodata ALIGN(4K) : {
+    .rodata ALIGN(4K) : AT(ADDR(.rodata) - _kernel_virtual_base) {
         *(.rodata .rodata.* .gnu.linkonce.r.*)
-    }
+    } :rodata
 
-    /* Kernel read-write data */
-    .data ALIGN(4K) : {
+    .data ALIGN(4K) : AT(ADDR(.data) - _kernel_virtual_base) {
         *(.data .data.* .gnu.linkonce.d.*)
-    }
+    } :data
 
-    /* Kernel uninitialized data */
-    .bss ALIGN(4K) : {
+    .bss ALIGN(4K) (NOLOAD) : AT(ADDR(.bss) - _kernel_virtual_base) {
         *(.bss .bss.* .gnu.linkonce.b.*)
         *(COMMON)
-    }
+    } :data
 
-    /* Symbols marking the end of kernel physical/virtual memory usage */
-    _kernel_physical_end = ALIGN(4K, .);
-    _kernel_virtual_end = _kernel_virtual_start + (_kernel_physical_end - _kernel_physical_start);
+    _kernel_virtual_end = ALIGN(4K, .);
+    _kernel_physical_end = LOADADDR(.bss) + SIZEOF(.bss);
 }

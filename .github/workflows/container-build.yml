@@ -93,7 +93,7 @@ jobs:
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-build:local \
-            bash -c "cmake --preset debug && cmake --build build/Debug"
+            bash -lc "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug"
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
@@ -134,7 +134,7 @@ jobs:
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-test:local \
-            bash -c "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"
+            bash -lc "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug && ctest --preset x86_64-debug -L unit"
 
   # =============================================================================
   # Static Analysis in Container
@@ -162,7 +162,7 @@ jobs:
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-ci:local \
-            bash -c "cmake --preset debug && cmake --build build/Debug && run-clang-tidy -p build/Debug"
+            bash -lc "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug && run-clang-tidy -p build/x86_64/Debug"
 
       - name: Run cppcheck
         run: |
@@ -238,11 +238,4 @@ jobs:
             -v ${{ github.workspace }}:/xinim:Z \
             -w /xinim \
             xinim-test:local \
-            qemu-system-x86_64 \
-              -kernel build/Debug/xinim \
-              -nographic \
-              -no-reboot \
-              -m 256M \
-              -cpu qemu64 \
-              -serial mon:stdio \
-              -device isa-debug-exit,iobase=0xf4,iosize=0x04 || echo "QEMU test completed or timed out"
+            bash -lc "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug --target xinim_x86_64_image && ctest --preset x86_64-debug -R '^boot_smoke_test$'" || echo "QEMU test completed or timed out"

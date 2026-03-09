@@ -201,6 +201,8 @@ find docs/analysis/archive/ -name "*.md" -mtime +90 -delete
 
 - `docs/CONTRIBUTING.md` - Pre-commit hooks and code style
 - `docs/analysis/AUDIT_SUMMARY.md` - Repository audit snapshot
+- `docs/analysis/BUILD_GRAPH_RECONCILIATION.md` - Active vs legacy source-tree reconciliation for filesystem, commands, kernel, and mm code
+- `build/<lane>/<config>/analysis/build_graph_audit.md` - Generated CMake source coverage audit
 - `docs/analysis/ROADMAP_CONSOLIDATED.md` - Authoritative roadmap
 - `docs/analysis/TODO_TRACKER.md` - Consolidated TODO tracking
 - `.clang-format` - Code formatting configuration
@@ -218,6 +220,7 @@ find docs/analysis/archive/ -name "*.md" -mtime +90 -delete
 
 **Next steps:**
 1. Integrate analysis into CI/CD
-2. Set up automated report generation
-3. Establish quality gates
+2. Run `cmake --build <build-dir> --target xinim_audit_build_coverage` to refresh the build graph audit
+3. Set up automated report generation
+4. Establish quality gates
 4. Regular security audits

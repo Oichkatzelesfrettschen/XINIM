@@ -6,7 +6,7 @@
 #include <concepts>
 #include <type_traits>
 
-#ifdef XINIM_ARCH_X86_64
+#if defined(__AVX2__) || defined(__x86_64__) || defined(__i386__)
     #include <immintrin.h>
 #endif
 

@@ -112,10 +112,15 @@ User configuration file: `~/.mkshrc`
 ## Integration Status
 
 - [ ] Download mksh source
-- [ ] Implement xinim_syscalls.c
-- [ ] Implement xinim_terminal.c
-- [ ] Implement xinim_job_control.c
+- [x] Draft `xinim_syscalls.c`, `xinim_terminal.c`, and `xinim_job_control.c`
+- [x] Compile the integration layer in the native build as a reference artifact
 - [ ] Build mksh for XINIM
 - [ ] Run test suite
 - [ ] Install to /bin/mksh
 - [ ] Set as default shell
+
+Current note:
+- The active shell lane remains `userland/shell/xinim-sh/` and the staged
+  guest `xash` path.
+- The `integration/*.c` files now compile as a reference library in the native
+  build, but they are still not the active shell lane.

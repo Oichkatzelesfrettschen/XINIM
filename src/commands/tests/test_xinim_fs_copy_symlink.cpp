@@ -89,6 +89,7 @@ struct CopySymlinkTestCase {
 
     bool expect_success;
     std::optional<std::errc> expected_ec_val_on_error;
+    bool create_source_as_symlink{true};
 
     void run(const std::filesystem::path& test_case_base_path, int& failures) const {
         std::print(std::cout, "Test Case: {} (Mode: {})... ", name,
@@ -105,7 +106,19 @@ struct CopySymlinkTestCase {
         // Else, source_symlink_target_str might be a non-existent path (for dangling symlink tests)
         // or an absolute path provided by the test case.
 
-        TempTestEntity source_symlink_entity(test_case_base_path, name + "_source_link", TempTestEntity::EntityType::Symlink, actual_source_symlink_target.string());
+        std::optional<TempTestEntity> source_entity_holder;
+        std::filesystem::path source_path = test_case_base_path / (name + "_source_link");
+        if (create_source_as_symlink) {
+            source_entity_holder.emplace(test_case_base_path, name + "_source_link",
+                                         TempTestEntity::EntityType::Symlink,
+                                         actual_source_symlink_target.string());
+            source_path = source_entity_holder->path;
+        } else if (create_source_symlink_target_as_file) {
+            source_entity_holder.emplace(test_case_base_path, name + "_source_link",
+                                         TempTestEntity::EntityType::File,
+                                         "plain_file_source");
+            source_path = source_entity_holder->path;
+        }
 
         std::filesystem::path full_dest_link_path = test_case_base_path / dest_link_name_suffix;
         std::filesystem::remove_all(full_dest_link_path);
@@ -114,7 +127,7 @@ struct CopySymlinkTestCase {
             else { std::ofstream f(full_dest_link_path); f << "pre-existing_dest_content"; }
         }
 
-        auto result = xinim::fs::copy_symlink(source_symlink_entity.path, full_dest_link_path, ctx_params);
+        auto result = xinim::fs::copy_symlink(source_path, full_dest_link_path, ctx_params);
         bool actual_op_succeeded = result.has_value();
         std::error_code actual_ec = result ? std::error_code{} : result.error();
 
@@ -133,7 +146,11 @@ struct CopySymlinkTestCase {
                          std::println(std::cerr, "\n  Verification FAIL: Dest symlink target mismatch. Expected '{}', Got '{}'.", actual_source_symlink_target.string(), dest_target_content.string()); post_check_passed = false;
                     }
                 }
-                std::println(std::cout, post_check_passed ? "PASS" : "FAIL (Post-conditions)");
+                if (post_check_passed) {
+                    std::println(std::cout, "PASS");
+                } else {
+                    std::println(std::cout, "FAIL (Post-conditions)");
+                }
                 if(!post_check_passed) failures++;
             } else {
                 std::println(std::cout, "FAIL (expected error, got success)"); failures++;
@@ -164,22 +181,24 @@ int main() {
     xinim::fs::operation_context std_ctx; std_ctx.execution_mode = xinim::fs::mode::standard;
     xinim::fs::operation_context direct_ctx; direct_ctx.execution_mode = xinim::fs::mode::direct;
 
-    TempTestEntity test_run_base_dir("CopySymlinkTestRunBase", TempTestEntity::EntityType::Directory);
+    TempTestEntity test_run_base_dir(std::filesystem::temp_directory_path(),
+                                     "CopySymlinkTestRunBase",
+                                     TempTestEntity::EntityType::Directory);
 
     TempTestEntity existing_target_file(test_run_base_dir.path, "existing_target_file", TempTestEntity::EntityType::File, "target_content");
     std::filesystem::path non_existent_target = test_run_base_dir.path / "i_do_not_exist.txt";
 
 
     std::vector<CopySymlinkTestCase> test_cases = {
-        {"CopyToNew_TargetExists_Std", existing_target_file.path.string(), true, "dest_s1_std.lnk", false, {}, std_ctx, true, {}},
-        {"CopyToNew_TargetExists_Direct", existing_target_file.path.string(), true, "dest_s1_direct.lnk", false, {}, direct_ctx, true, {}},
-        {"CopyToNew_TargetDangling_Std", non_existent_target.string(), false, "dest_s2_std_dangling.lnk", false, {}, std_ctx, true, {}}, // Copying a dangling symlink is fine
+        {"CopyToNew_TargetExists_Std", existing_target_file.path.string(), true, "dest_s1_std.lnk", false, {}, std_ctx, true, {}, true},
+        {"CopyToNew_TargetExists_Direct", existing_target_file.path.string(), true, "dest_s1_direct.lnk", false, {}, direct_ctx, true, {}, true},
+        {"CopyToNew_TargetDangling_Std", non_existent_target.string(), false, "dest_s2_std_dangling.lnk", false, {}, std_ctx, true, {}, true},
 
-        {"Copy_SourceNotSymlink_Std_Fails", existing_target_file.path.string(), true, "dest_s3_std.lnk", false, {}, std_ctx, false, std::errc::invalid_argument}, // Source (existing_target_file.path) is a file, not symlink. read_symlink should fail.
-        {"Copy_SourceNonExistent_Std_Fails", "completely_non_existent_source_symlink", false, "dest_s4_std.lnk", false, {}, std_ctx, false, std::errc::no_such_file_or_directory}, // Source symlink itself doesn't exist
+        {"Copy_SourceNotSymlink_Std_Fails", existing_target_file.path.string(), true, "dest_s3_std.lnk", false, {}, std_ctx, false, std::errc::invalid_argument, false},
+        {"Copy_SourceNonExistent_Std_Fails", "completely_non_existent_source_symlink", false, "dest_s4_std.lnk", false, {}, std_ctx, false, std::errc::no_such_file_or_directory, false},
 
-        {"Copy_DestExistsAsFile_Std_Fails", existing_target_file.path.string(), true, "dest_s5_std_exists.lnk", true, TempTestEntity::EntityType::File, std_ctx, false, std::errc::file_exists},
-        {"Copy_DestExistsAsDir_Std_Fails", existing_target_file.path.string(), true, "dest_s6_std_exists_dir", true, TempTestEntity::EntityType::Directory, std_ctx, false, std::errc::file_exists}, // create_symlink fails if 'to' exists
+        {"Copy_DestExistsAsFile_Std_Fails", existing_target_file.path.string(), true, "dest_s5_std_exists.lnk", true, TempTestEntity::EntityType::File, std_ctx, false, std::errc::file_exists, true},
+        {"Copy_DestExistsAsDir_Std_Fails", existing_target_file.path.string(), true, "dest_s6_std_exists_dir", true, TempTestEntity::EntityType::Directory, std_ctx, false, std::errc::file_exists, true},
     };
 
     for (const auto& tc : test_cases) {

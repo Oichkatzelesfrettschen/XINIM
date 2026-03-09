@@ -199,7 +199,11 @@ struct LinkTestCase {
                         verification_passed = false;
                     }
                 }
-                std::println(std::cout, verification_passed ? "PASS" : "FAIL (Verification)");
+                if (verification_passed) {
+                    std::println(std::cout, "PASS");
+                } else {
+                    std::println(std::cout, "FAIL (Verification)");
+                }
                 if (!verification_passed) failures++;
             } else {
                 std::println(std::cout, "FAIL (expected error, got success)"); failures++;

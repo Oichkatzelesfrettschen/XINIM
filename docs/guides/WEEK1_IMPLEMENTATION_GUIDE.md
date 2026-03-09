@@ -1,4 +1,8 @@
 # Week 1 Implementation Guide: Cross-Compiler Bootstrap
+Historical note: this guide describes an older staged toolchain bootstrap flow
+and is preserved as background material only. Use `docs/BUILD.md` for the
+current Conan + CMake build path.
+
 **Phase:** Toolchain & libc (Week 1 of 4)
 **Timeline:** 5 days
 **Goal:** Build x86_64-xinim-elf cross-compiler toolchain

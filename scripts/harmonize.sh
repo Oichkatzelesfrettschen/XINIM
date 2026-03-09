@@ -6,6 +6,11 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
 
+# shellcheck disable=SC1091
+export XINIM_REPO_ROOT="${PROJECT_ROOT}"
+source "${SCRIPT_DIR}/xinim-env.sh"
+xinim_ensure_project_dirs
+
 cd "$PROJECT_ROOT"
 
 GREEN='\033[0;32m'
@@ -52,13 +57,17 @@ PROFILE_ARG=""
 if [[ -f conan/profiles/xinim-clang ]]; then
     PROFILE_ARG="conan/profiles/xinim-clang"
 fi
-./scripts/conan_install.sh . "${MODE^}" "$PROFILE_ARG"
+BUILD_DIR="${XINIM_BUILD_ROOT}/${MODE^}"
+./scripts/conan_install.sh "${BUILD_DIR}" "${MODE^}" "$PROFILE_ARG"
 
-print_status "Configuring preset: $MODE"
-cmake --preset "$MODE"
+print_status "Configuring build tree: ${BUILD_DIR}"
+cmake -S "${PROJECT_ROOT}" -B "${BUILD_DIR}" -G Ninja \
+    -DCMAKE_BUILD_TYPE="${MODE^}" \
+    -DCMAKE_TOOLCHAIN_FILE="${BUILD_DIR}/generators/conan_toolchain.cmake" \
+    -DXINIM_STATE_ROOT="${XINIM_STATE_ROOT}"
 
 print_status "Building..."
-cmake --build --preset "$MODE"
+cmake --build "${BUILD_DIR}"
 
 if [[ "$RUN_FORMAT" == true ]]; then
     print_status "Formatting modified C++ files..."
@@ -69,17 +78,17 @@ fi
 if [[ "$RUN_LINT" == true ]]; then
     print_status "Running clang-tidy on modified C++ files..."
     git diff --name-only --diff-filter=ACM | grep -E '\.(cpp|hpp|cc|hh|cxx|hxx)$' | \
-        xargs -r clang-tidy -p build
+        xargs -r clang-tidy -p "${BUILD_DIR}"
 fi
 
 if [[ "$RUN_TESTS" == true ]]; then
     print_status "Running tests..."
-    ctest --output-on-failure --test-dir build
+    ctest --output-on-failure --test-dir "${BUILD_DIR}"
 fi
 
 if [[ "$RUN_DOCS" == true ]]; then
     print_status "Generating documentation..."
-    cmake --build --preset "$MODE" --target docs
+    cmake --build "${BUILD_DIR}" --target xinim_docs
 fi
 
 print_status "Harmonization complete."

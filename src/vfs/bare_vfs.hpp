@@ -5,11 +5,20 @@
  * All structures are freestanding: no STL, no heap, no exceptions.
  * Designed for -ffreestanding -fno-exceptions -fno-rtti compilation.
  *
- * Memory layout (fixed, known at compile time, ~1.35 MB total):
- *   Inode table:   MAX_INODES * 64B  = 64 KB
- *   Dirent arena:  MAX_DIRENTS * 32B = 256 KB
- *   Data arena:    DATA_ARENA_SIZE   = 1 MB
- *   Buffer cache:  CACHE_BLOCKS * (512+16)B ~= 32 KB
+ * Memory layout is profile-driven.
+ *
+ * Default profile:
+ *   Inode table:   MAX_INODES * RawInode ~= 80 KB
+ *   Dirent arena:  MAX_DIRENTS * 32B     = 256 KB
+ *   Data arena:    DATA_ARENA_SIZE       = 1 MB
+ *   Buffer cache:  CACHE_BLOCKS * 528B   ~= 32 KB
+ *
+ * Tiny profile:
+ *   Inode table:   MAX_INODES * RawInode ~= 30 KB
+ *   Vnode cache:   MAX_VNODES * 16B      = 1 KB
+ *   Dirent arena:  MAX_DIRENTS * 32B     = 64 KB
+ *   Data arena:    DATA_ARENA_SIZE       = 256 KB
+ *   Buffer cache:  disabled
  *   Mount table:   MAX_MOUNTS * 64B  = 512 B
  *   FD table:      MAX_FDS * 16B     = 1 KB
  */
@@ -24,13 +33,29 @@
  * Compile-time limits
  * ========================================================================== */
 
-inline constexpr uint32_t MAX_INODES       = 1024;
-inline constexpr uint32_t MAX_DIRENTS      = 8192;   // 256 KB / 32 bytes
-inline constexpr uint32_t MAX_MOUNTS       = 8;
-inline constexpr uint32_t MAX_FDS          = 64;
-inline constexpr uint32_t CACHE_BLOCKS     = 64;
-inline constexpr uint32_t CACHE_BLK_SIZE   = 512;
-inline constexpr uint32_t DATA_ARENA_SIZE  = (1u << 20); // 1 MB
+#if defined(XINIM_VFS_PROFILE_TINY)
+inline constexpr bool     VFS_PROFILE_TINY        = true;
+inline constexpr uint32_t MAX_INODES              = 384;
+inline constexpr uint32_t MAX_VNODES              = 64;
+inline constexpr uint32_t MAX_DIRENTS             = 2048;      // 64 KiB / 32 bytes
+inline constexpr uint32_t MAX_MOUNTS              = 8;
+inline constexpr uint32_t MAX_FDS                 = 32;
+inline constexpr uint32_t CACHE_BLOCKS            = 1;         // backing storage for type use only
+inline constexpr uint32_t CACHE_BLK_SIZE          = 512;
+inline constexpr uint32_t DATA_ARENA_SIZE         = (256u << 10); // 256 KiB
+inline constexpr bool     VFS_BUFFER_CACHE_ENABLED = false;
+#else
+inline constexpr bool     VFS_PROFILE_TINY        = false;
+inline constexpr uint32_t MAX_INODES              = 1024;
+inline constexpr uint32_t MAX_VNODES              = 256;
+inline constexpr uint32_t MAX_DIRENTS             = 8192;      // 256 KiB / 32 bytes
+inline constexpr uint32_t MAX_MOUNTS              = 8;
+inline constexpr uint32_t MAX_FDS                 = 64;
+inline constexpr uint32_t CACHE_BLOCKS            = 64;
+inline constexpr uint32_t CACHE_BLK_SIZE          = 512;
+inline constexpr uint32_t DATA_ARENA_SIZE         = (1u << 20); // 1 MiB
+inline constexpr bool     VFS_BUFFER_CACHE_ENABLED = true;
+#endif
 
 /* ============================================================================
  * POSIX file type / mode constants (subset needed for ramfs)
@@ -141,6 +166,9 @@ struct MountEntry {
     uint32_t       root_ino;   // Inode of mounted root (0 = free/inactive slot)
     uint32_t       _pad;       // padding for alignment
     const FsOps*   ops;        // Filesystem operations for this mount
+#if UINTPTR_MAX == 0xffffffff
+    uint32_t       _pad32;     // keep the freestanding mount entry cache-line sized on x86_32
+#endif
     char           path[48];   // Absolute mount point path (null-terminated)
 };
 static_assert(sizeof(MountEntry) == 64, "MountEntry must be 64 bytes");
@@ -155,6 +183,22 @@ struct FdEntry {
     int64_t  pos;    // Current file position (signed; -1 = append mode)
 };
 static_assert(sizeof(FdEntry) == 16, "FdEntry must be 16 bytes");
+
+/* ============================================================================
+ * VnodeHandle -- compact reclaimable metadata handle
+ *
+ * WHY a vnode-like layer: lets the compact VFS keep a bounded active metadata
+ * working set even when the raw inode table is larger.
+ * ========================================================================== */
+
+struct VnodeHandle {
+    uint32_t ino;          // Backing inode number (0 = free slot)
+    uint16_t refs;         // Active references (open files / temporary lookups)
+    uint16_t generation;   // Bumps each time the slot is reused
+    uint32_t last_used;    // LRU-ish timestamp for reclaiming unreferenced slots
+    uint32_t flags;        // Reserved for dirty/exec hints in later revisions
+};
+static_assert(sizeof(VnodeHandle) == 16, "VnodeHandle must be 16 bytes");
 
 /* ============================================================================
  * KStat -- kernel-internal stat structure (maps to POSIX struct stat)

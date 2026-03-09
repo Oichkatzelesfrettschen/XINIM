@@ -82,14 +82,6 @@ public:
     TempTestEntity& operator=(const TempTestEntity&) = delete;
 };
 
-std::optional<ino_t> get_inode(const std::filesystem::path& p) {
-    struct stat statbuf;
-    if (::stat(p.c_str(), &statbuf) != 0) {
-        // std::println(std::cerr, "Debug: get_inode for '{}' failed: {}", p.string(), strerror(errno));
-        return std::nullopt;
-    }
-    return statbuf.st_ino;
-}
 } // anonymous namespace
 // --- End of Helper code ---
 
@@ -106,7 +98,7 @@ struct RenameTestCase {
     xinim::fs::mode op_mode_for_ctx; // Renamed from op_mode
     bool expect_rename_success;
     std::optional<std::errc> expected_ec_on_error;
-    std::filesystem::path symlink_target_for_source; // Only if source_type is Symlink
+    std::filesystem::path symlink_target_for_source{}; // Only if source_type is Symlink
 
     // setup_action is simplified: it's now mainly for creating the source entity,
     // as dest pre-existence is handled by flags.
@@ -144,9 +136,14 @@ struct RenameTestCase {
         // Setup destination if it should pre-exist
         if (dest_should_pre_exist) {
             if (dest_pre_existing_type == TempTestEntity::EntityType::Directory) {
-                std::filesystem::create_directory(full_dest_path);
+                std::filesystem::path dir_path_to_create = full_dest_path;
+                if (full_dest_path.parent_path() != test_case_base_path && !full_dest_path.parent_path().empty()) {
+                    dir_path_to_create = full_dest_path.parent_path();
+                }
+                std::filesystem::create_directories(dir_path_to_create);
                 if (dest_pre_existing_is_non_empty_dir) {
-                    std::ofstream f(full_dest_path / "dummy.txt"); f << "dummy";
+                    std::ofstream f(dir_path_to_create / "dummy.txt");
+                    f << "dummy";
                 }
             } else if (dest_pre_existing_type == TempTestEntity::EntityType::File) {
                 std::ofstream f(full_dest_path); f << "pre-existing_dest_content";
@@ -194,7 +191,11 @@ struct RenameTestCase {
                          }
                      }
                 }
-                 std::println(std::cout, post_check_passed ? "PASS" : "FAIL (Post-conditions)");
+                 if (post_check_passed) {
+                     std::println(std::cout, "PASS");
+                 } else {
+                     std::println(std::cout, "FAIL (Post-conditions)");
+                 }
                  if(!post_check_passed) failures++;
 
             } else {
@@ -249,7 +250,7 @@ int main() {
         {"RenameFileToNonEmptyDir_Std_Fails", TempTestEntity::EntityType::File, "src_file_to_dir.txt", "dst_nonempty_dir", true, TempTestEntity::EntityType::Directory, true, xinim::fs::mode::standard, false, std::errc::is_a_directory},
         {"RenameDirToNonEmptyDir_Std_Fails", TempTestEntity::EntityType::Directory, "src_dir_to_dir", "dst_nonempty_dir2", true, TempTestEntity::EntityType::Directory, true, xinim::fs::mode::standard, false, std::errc::directory_not_empty},
 
-        {"RenameFileToEmptyDir_Std", TempTestEntity::EntityType::File, "src_file_to_empty_dir.txt", "dst_empty_dir", true, TempTestEntity::EntityType::Directory, false, xinim::fs::mode::standard, true, {}, {}},
+        {"RenameFileToEmptyDir_Std_Fails", TempTestEntity::EntityType::File, "src_file_to_empty_dir.txt", "dst_empty_dir", true, TempTestEntity::EntityType::Directory, false, xinim::fs::mode::standard, false, std::errc::is_a_directory, {}},
         {"RenameDirToEmptyDir_Std", TempTestEntity::EntityType::Directory, "src_dir_to_empty_dir", "dst_empty_dir2", true, TempTestEntity::EntityType::Directory, false, xinim::fs::mode::standard, true, {}, {}},
 
         {"RenameNonExistentSource_Std_Fails", TempTestEntity::EntityType::File, "non_existent_source.txt", "dst_for_nonexist.txt", false, {}, false, xinim::fs::mode::standard, false, std::errc::no_such_file_or_directory, {}, {}},

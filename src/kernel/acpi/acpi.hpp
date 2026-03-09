@@ -34,6 +34,11 @@ struct Xsdt {
     uint64_t  entries[1];
 };
 
+struct Rsdt {
+    SdtHeader header;
+    uint32_t  entries[1];
+};
+
 struct Madt {
     SdtHeader header;
     uint32_t lapic_address;
@@ -70,7 +75,7 @@ struct Discovery {
     uint32_t ioapic_gsi_base{0};
 };
 
-// Probe ACPI using RSDP physical address and HHDM offset to read tables.
-Discovery probe(uint64_t rsdp_phys, uint64_t hhdm_offset);
+// Probe ACPI using an accessible RSDP pointer plus HHDM for table/MMIO mappings.
+Discovery probe(const void* rsdp, uint64_t hhdm_offset);
 
 } // namespace xinim::acpi

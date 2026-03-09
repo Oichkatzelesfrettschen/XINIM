@@ -1,4 +1,4 @@
-name: Build Stub Image
+name: Build x86_64 Image
 
 on:
   push:
@@ -6,29 +6,46 @@ on:
   pull_request:
 
 jobs:
-  build-stub:
+  build-image:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Install deps
+      - name: Install dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build cmake
+          sudo apt-get install -y \
+            clang-21 \
+            lld-21 \
+            libc++-21-dev \
+            libc++abi-21-dev \
+            cmake \
+            ninja-build \
+            python3 \
+            python3-pip \
+            git \
+            xorriso \
+            grub-common \
+            grub-pc-bin \
+            mtools
+          python3 -m pip install "conan>=2.8,<3"
 
-      - name: Configure (presets)
-        run: cmake --preset dev-default
+      - name: Configure toolchain
+        run: |
+          conan install . \
+            -pr:h=conan/profiles/clang-x86_64 \
+            -s build_type=Debug \
+            -o '&:lane=x86_64' \
+            -of build/x86_64/Debug \
+            --build=missing
 
-      - name: Build image builder
-        run: cmake --build --preset tools
+      - name: Configure and build image
+        run: |
+          cmake --preset x86_64-debug
+          cmake --build --preset x86_64-debug --target xinim_x86_64_image
 
-      - name: Create stub image
-        run: cmake --build --preset stub
-
-      - name: Upload stub image
+      - name: Upload image
         uses: actions/upload-artifact@v4
         with:
-          name: xinim-stub
-          path: build/xinim-stub.img
-
+          name: xinim-x86_64-iso
+          path: build/x86_64/Debug/images/x86_64/xinim-x86_64.iso

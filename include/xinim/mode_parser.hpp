@@ -39,11 +39,11 @@ class ModeParser {
         }
 
         // Determine if octal or symbolic.
-        bool is_octal_candidate = !mode_str.empty() && std::ranges::all_of(mode_str, [](char c) {
-            return c >= '0' && c <= '7';
+        bool is_numeric_candidate = !mode_str.empty() && std::ranges::all_of(mode_str, [](char c) {
+            return c >= '0' && c <= '9';
         });
 
-        if (is_octal_candidate) {
+        if (is_numeric_candidate) {
             return parse_octal(mode_str);
         } else {
             // If not purely octal, try parsing as symbolic.
@@ -104,8 +104,15 @@ class ModeParser {
         std::filesystem::perms &perms_accumulator) const {    // Accumulator is modified
         size_t op_pos = clause.find_first_of("+-=");
         if (op_pos == std::string_view::npos) { // Operator must exist
-            return std::unexpected(std::string("Symbolic mode clause '") + std::string(clause) +
-                                   "' missing operator.");
+            const bool all_alpha = std::ranges::all_of(clause, [](char c) {
+                return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
+            });
+            if (all_alpha) {
+                return std::unexpected(std::string("Symbolic mode clause '") +
+                                       std::string(clause) + "' missing operator.");
+            }
+            return std::unexpected(std::string("Invalid operator in symbolic mode: '") +
+                                   std::string(clause) + "'");
         }
         // Operator at start (e.g. "+x") is allowed by some chmod, implies 'a' for who.
         // This parser makes 'who' optional, defaulting to 'a' if op_pos is 0.
@@ -149,9 +156,9 @@ class ModeParser {
         }
 
         std::filesystem::perms perms_from_what_str = std::filesystem::perms::none;
-        if (what_str.empty() && op != '=') { // e.g. "u+", "g-" - perms_from_what_str remains none
-            // This is valid, means no change to permissions bits unless op is '=' (clears specific
-            // bits).
+        if (what_str.empty() && op != '=') {
+            return std::unexpected(std::string("Missing permissions in symbolic mode: '") +
+                                   std::string(clause) + "'");
         } else { // what_str is not empty or op is '='
             for (char c : what_str) {
                 std::filesystem::perms p_bit = get_permission_char_mask(c);

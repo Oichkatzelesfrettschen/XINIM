@@ -31,6 +31,8 @@
 #include "buffer_cache.hpp"
 #include "ramfs_ops.hpp"
 #include "bare_vfs.hpp"
+#include "core_init.hpp"
+#include "seed.hpp"
 
 // Include kernel message types
 #include "sys/type.hpp"
@@ -43,68 +45,21 @@ namespace lattice {
     int lattice_recv(int pid, message* out, IpcFlags flags);
 }
 
-// Serial for boot log
-namespace xinim::early {
-    class Serial16550;
-}
-extern xinim::early::Serial16550 early_serial;
-
 // Defined in bare_metal_stubs.cpp inside extern "C"
 extern "C" void early_serial_write_char(char c);
 
 inline constexpr int VFS_PID = 2;
 
 // ============================================================================
-// Root directory setup
-// ============================================================================
-
-static void create_root_dir() {
-    // Root inode is ino=1. Allocate it explicitly.
-    // inode_alloc() skips slot 0 (reserved) and finds slot 1 first.
-    uint32_t ino = inode_alloc();
-    // If the allocator returned something other than 1, something is wrong.
-    // In normal init sequence this is always 1.
-
-    // Allocate dirent block for root
-    uint32_t dstart = dirent_block_alloc();
-
-    RawInode* root = inode_get(ino);
-    if (!root) return;
-
-    root->mode       = static_cast<uint16_t>(S_IFDIR | 0x1EDu); // rwxr-xr-x = 0755
-    root->iflags     = static_cast<uint16_t>(INODE_IS_USED | INODE_IS_DIR);
-    root->nlink      = 2; // "." + "/"
-    root->parent_ino = ino; // root's parent is itself
-    root->dirent_start = static_cast<uint64_t>(dstart);
-    root->size       = 0;
-
-    // Add "." and ".." to root
-    dirent_add(ino, ino, DT_DIR, ".", 1);
-    dirent_add(ino, ino, DT_DIR, "..", 2);
-}
-
-// Create a standard directory under root (e.g., /bin, /dev, /proc, /tmp)
-static void create_std_dir(const char* name, uint8_t namelen) {
-    ramfs_ops.mkdir(1 /*root ino*/, name, namelen, 0x1EDu /*0755*/);
-}
-
-// ============================================================================
 // Public: vfs_server_init
 // ============================================================================
 
 void vfs_server_init() {
-    inode_table_init();
-    dirent_table_init();
-    fd_table_init();
-    cache_init();
-    create_root_dir();
-    mount_table_init(); // mounts "/" -> ino=1 -> ramfs_ops
+    vfs_core_init();
+}
 
-    // Create standard mount directories
-    create_std_dir("bin",  3);
-    create_std_dir("dev",  3);
-    create_std_dir("proc", 4);
-    create_std_dir("tmp",  3);
+bool vfs_server_initialized() {
+    return vfs_core_initialized();
 }
 
 // ============================================================================

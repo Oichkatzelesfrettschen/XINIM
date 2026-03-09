@@ -15,7 +15,7 @@ void Serial16550::init() {}
 void Serial16550::write_char(char) {}
 void Serial16550::write(const char*) {}
 char Serial16550::read_char() { return '\0'; }
-void Serial16550::shell() {}
+bool Serial16550::shell(const xinim::boot::BootInfo*, bool) { return false; }
 void Serial16550::enable_rx_interrupt() {}
 void Serial16550::isr_handler() {}
 bool Serial16550::try_read_char(char&) { return false; }

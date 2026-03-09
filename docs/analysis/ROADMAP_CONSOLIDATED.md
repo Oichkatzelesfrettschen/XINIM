@@ -48,7 +48,7 @@ Status: Active
 1. Complete execve, signal handling, and memory mapping paths.
 2. Wire POSIX test suites into CTest with labeled targets.
 3. Add boot-time smoke tests for userland shells and IPC.
-4. Validate POSIX compliance claims with recorded test outputs.
+4. Validate staged POSIX-progress claims with recorded test outputs.
 5. Expand logging for kernel services and IPC traces.
 
 ## Phase 4: Complexity and Error-Handling Refactors (Week 8-12)
@@ -65,7 +65,7 @@ Status: Active
 ## Deliverables and Metrics
 - Clean CMake + Conan build with warnings-as-errors.
 - QEMU boot logs captured and reproducible.
-- POSIX compliance tests integrated and reported.
+- staged POSIX-progress tests integrated and reported with evidence.
 - Claims audit updated with verified evidence and links.
 - Consolidated roadmap replaces conflicting legacy guidance.
 

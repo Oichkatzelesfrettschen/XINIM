@@ -24,7 +24,7 @@ migration strategy required to standardize Xinim on pure C++23 and CMake.
 - servers: VFS, process manager, memory manager, reincarnation server.
 - userland: shell, commands, utilities.
 - libc: refactored C++23 runtime and compatibility layer.
-- tests: unit, integration, POSIX compliance.
+- tests: unit, integration, and staged POSIX-progress validation.
 - third_party: Conan-managed or modernized vendored deps.
 
 Each target exposes:

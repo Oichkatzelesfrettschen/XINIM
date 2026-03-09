@@ -16,6 +16,8 @@
  */
 
 #include <charconv>
+#include <cctype>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -109,6 +111,7 @@ class HeadEngine {
      * @thread_safety Not thread-safe.
      */
     bool process_stream(std::istream& stream, const std::string& filename) {
+        (void)filename;
         std::string line;
         size_t lines_printed = 0;
         
@@ -182,7 +185,7 @@ HeadOptions parse_arguments(int argc, char *argv[]) {
             }
 
             opts.line_count = count;
-        } else if (arg.length() > 1 && std::isdigit(arg[1])) {
+        } else if (arg.length() > 1 && std::isdigit(static_cast<unsigned char>(arg[1]))) {
             // Legacy -42 format
             std::string_view count_str = arg.substr(1);
             size_t count;

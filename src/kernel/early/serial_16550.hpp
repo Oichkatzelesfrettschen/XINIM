@@ -2,6 +2,10 @@
 #include <cstddef>
 #include <cstdint>
 
+namespace xinim::boot {
+struct BootInfo;
+}
+
 namespace xinim::early {
 
 /// Well-known x86 PC serial port base addresses.
@@ -15,12 +19,15 @@ inline constexpr std::size_t SERIAL_RX_BUF_SIZE = 256;
 
 class Serial16550 {
   public:
-    explicit Serial16550(std::uint16_t base_port = SERIAL_COM1_BASE) : base_(base_port) {}
+    constexpr explicit Serial16550(std::uint16_t base_port = SERIAL_COM1_BASE) noexcept
+        : base_(base_port) {}
     void init();
     void write_char(char c);
     void write(const char* s);
     char read_char();
-    void shell();
+    [[gnu::no_stack_protector]]
+    bool shell(const xinim::boot::BootInfo* boot_info = nullptr,
+               bool allow_continue = false);
 
     /// Enable receive interrupts (IER bit 0). Call after IDT is set up.
     void enable_rx_interrupt();

@@ -1,6 +1,6 @@
 /**
  * @file builtins.cpp
- * @brief Built-in commands for xinim-sh
+ * @brief Built-in commands for xash
  *
  * Implements shell built-in commands:
  * - cd: Change directory
@@ -106,7 +106,7 @@ int builtin_exit(Command* cmd) {
     for (size_t i = 0; i < MAX_JOBS; i++) {
         if (g_shell.jobs[i].pgid != 0 &&
             g_shell.jobs[i].state == JobState::RUNNING) {
-            fprintf(stderr, "xinim-sh: There are running jobs\n");
+            fprintf(stderr, "xash: There are running jobs\n");
             list_jobs();
             return 1;
         }
@@ -222,7 +222,7 @@ int builtin_bg(Command* cmd) {
 int builtin_help(Command* cmd) {
     (void)cmd;  // Unused
 
-    printf("XINIM Shell (xinim-sh) - Version 1.0\n");
+    printf("XASH Shell - Version 1.0\n");
     printf("\n");
     printf("Built-in commands:\n");
     printf("  cd [dir]         Change directory\n");

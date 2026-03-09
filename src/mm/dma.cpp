@@ -1,204 +1,148 @@
 /**
  * @file dma.cpp
- * @brief DMA buffer management implementation
- * 
- * Provides physical memory allocation for DMA operations with cache coherency
- * and scatter-gather support. Based on Linux DMA API and BSD busdma.
+ * @brief Compatibility DMA helpers layered on top of the active allocator.
  */
 
 #include <xinim/mm/dma.hpp>
-#include <cstring>
+
 #include <algorithm>
+#include <utility>
 
 namespace xinim::mm {
 
-// Physical memory allocator (simplified for now - will integrate with PMM)
-static void* allocate_physical_pages(size_t num_pages, uint64_t& phys_addr) {
-    // TODO: Integrate with actual PMM
-    // For now, use aligned allocation and assume identity mapping
-    void* virt = aligned_alloc(4096, num_pages * 4096);
-    if (virt) {
-        std::memset(virt, 0, num_pages * 4096);
-        // TODO: Get real physical address from page tables
-        phys_addr = reinterpret_cast<uint64_t>(virt);
-    }
-    return virt;
-}
-
-static void free_physical_pages(void* virt, size_t num_pages) {
-    // TODO: Integrate with actual PMM
-    free(virt);
-}
-
-// DMABuffer implementation
-
-DMABuffer::DMABuffer(size_t size, DMAConstraints constraints)
-    : size_(size)
-    , constraints_(constraints)
-    , virt_addr_(nullptr)
-    , phys_addr_(0)
-{
-    allocate();
-}
-
-DMABuffer::~DMABuffer() {
-    if (virt_addr_) {
-        size_t num_pages = (size_ + 4095) / 4096;
-        free_physical_pages(virt_addr_, num_pages);
-    }
-}
-
-DMABuffer::DMABuffer(DMABuffer&& other) noexcept
-    : size_(other.size_)
-    , constraints_(other.constraints_)
-    , virt_addr_(other.virt_addr_)
-    , phys_addr_(other.phys_addr_)
-{
-    other.size_ = 0;
-    other.virt_addr_ = nullptr;
-    other.phys_addr_ = 0;
-}
-
-DMABuffer& DMABuffer::operator=(DMABuffer&& other) noexcept {
-    if (this != &other) {
-        if (virt_addr_) {
-            size_t num_pages = (size_ + 4095) / 4096;
-            free_physical_pages(virt_addr_, num_pages);
-        }
-        
-        size_ = other.size_;
-        constraints_ = other.constraints_;
-        virt_addr_ = other.virt_addr_;
-        phys_addr_ = other.phys_addr_;
-        
-        other.size_ = 0;
-        other.virt_addr_ = nullptr;
-        other.phys_addr_ = 0;
-    }
-    return *this;
-}
-
-void DMABuffer::allocate() {
-    size_t num_pages = (size_ + 4095) / 4096;
-    virt_addr_ = allocate_physical_pages(num_pages, phys_addr_);
-    
-    if (!virt_addr_) {
-        throw std::bad_alloc();
-    }
-    
-    // Validate constraints
-    if (constraints_.max_address && phys_addr_ + size_ > constraints_.max_address) {
-        free_physical_pages(virt_addr_, num_pages);
-        virt_addr_ = nullptr;
-        phys_addr_ = 0;
-        throw std::bad_alloc();
-    }
-    
-    if (constraints_.alignment && (phys_addr_ % constraints_.alignment) != 0) {
-        free_physical_pages(virt_addr_, num_pages);
-        virt_addr_ = nullptr;
-        phys_addr_ = 0;
-        throw std::bad_alloc();
-    }
-}
-
-void DMABuffer::sync(SyncDirection direction) {
-    if (!virt_addr_) return;
-    
-    // TODO: Implement cache operations based on architecture
-    // For x86_64 with cache coherency, this is often a no-op
-    // But we may need sfence/mfence for ordering
-    
-    switch (direction) {
-        case SyncDirection::ToDevice:
-            // Flush CPU cache to ensure device sees latest data
-            __asm__ volatile("sfence" ::: "memory");
-            break;
-            
-        case SyncDirection::FromDevice:
-            // Invalidate CPU cache to ensure CPU sees device's data
-            __asm__ volatile("mfence" ::: "memory");
-            break;
-            
-        case SyncDirection::Bidirectional:
-            __asm__ volatile("mfence" ::: "memory");
-            break;
-    }
-}
-
-// DMAPool implementation
-
-DMAPool::DMAPool(size_t block_size, size_t num_blocks, DMAConstraints constraints)
-    : block_size_((block_size + 63) & ~63)  // Align to 64 bytes
-    , num_blocks_(num_blocks)
-    , constraints_(constraints)
-{
-    // Allocate one large buffer for the pool
-    size_t total_size = block_size_ * num_blocks_;
-    pool_buffer_ = std::make_unique<DMABuffer>(total_size, constraints);
-    
-    // Initialize free list
-    free_blocks_.reserve(num_blocks_);
-    for (size_t i = 0; i < num_blocks_; ++i) {
-        free_blocks_.push_back(i);
-    }
-}
-
-void* DMAPool::allocate(uint64_t& phys_addr) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    if (free_blocks_.empty()) {
-        return nullptr;
-    }
-    
-    size_t block_idx = free_blocks_.back();
-    free_blocks_.pop_back();
-    
-    uint8_t* virt_base = static_cast<uint8_t*>(pool_buffer_->virtual_address());
-    uint64_t phys_base = pool_buffer_->physical_address();
-    
-    phys_addr = phys_base + (block_idx * block_size_);
-    return virt_base + (block_idx * block_size_);
-}
-
-void DMAPool::free(void* ptr) {
-    std::lock_guard<std::mutex> lock(mutex_);
-    
-    uint8_t* virt_base = static_cast<uint8_t*>(pool_buffer_->virtual_address());
-    size_t offset = static_cast<uint8_t*>(ptr) - virt_base;
-    size_t block_idx = offset / block_size_;
-    
-    if (block_idx < num_blocks_) {
-        free_blocks_.push_back(block_idx);
-    }
-}
-
-// SGList implementation
-
-bool SGList::add_entry(uint64_t phys_addr, size_t length) {
-    if (entries.size() >= max_entries) {
+bool SGList::add_entry(uint64_t phys_addr, std::size_t length) {
+    if (length == 0) {
         return false;
     }
-    
-    // Try to coalesce with previous entry
-    if (!entries.empty()) {
-        auto& last = entries.back();
+
+    if (!entries_.empty()) {
+        auto& last = entries_.back();
         if (last.phys_addr + last.length == phys_addr) {
             last.length += length;
             return true;
         }
     }
-    
-    entries.push_back({phys_addr, length});
+
+    entries_.push_back({phys_addr, length});
     return true;
 }
 
-size_t SGList::total_length() const {
-    size_t total = 0;
-    for (const auto& entry : entries) {
+std::size_t SGList::total_length() const noexcept {
+    std::size_t total = 0;
+    for (const auto& entry : entries_) {
         total += entry.length;
     }
     return total;
+}
+
+DMAPool::DMAPool(std::size_t block_size, std::size_t num_blocks, DMAFlags flags)
+    : block_size_(std::max<std::size_t>(block_size, 64))
+    , num_blocks_(num_blocks)
+    , flags_(flags | DMAFlags::CONTIGUOUS)
+    , pool_buffer_(DMAAllocator::allocate_aligned(block_size_ * num_blocks_, 64, flags_ | DMAFlags::ZERO)) {
+    free_blocks_.reserve(num_blocks_);
+    for (std::size_t index = 0; index < num_blocks_; ++index) {
+        free_blocks_.push_back(num_blocks_ - index - 1);
+    }
+}
+
+DMAPool::~DMAPool() {
+    if (pool_buffer_.is_valid()) {
+        DMAAllocator::free(pool_buffer_);
+    }
+}
+
+void* DMAPool::allocate(uint64_t& phys_addr) {
+    if (!pool_buffer_.is_valid() || free_blocks_.empty()) {
+        phys_addr = 0;
+        return nullptr;
+    }
+
+    const std::size_t block_index = free_blocks_.back();
+    free_blocks_.pop_back();
+    ++allocated_blocks_;
+
+    auto* virt_base = static_cast<unsigned char*>(pool_buffer_.virtual_addr);
+    phys_addr = pool_buffer_.physical_addr + (block_index * block_size_);
+    return virt_base + (block_index * block_size_);
+}
+
+void DMAPool::free(void* ptr) {
+    if (!pool_buffer_.is_valid() || ptr == nullptr) {
+        return;
+    }
+
+    auto* virt_base = static_cast<unsigned char*>(pool_buffer_.virtual_addr);
+    auto* current = static_cast<unsigned char*>(ptr);
+    if (current < virt_base || current >= virt_base + pool_buffer_.size) {
+        return;
+    }
+
+    const std::size_t offset = static_cast<std::size_t>(current - virt_base);
+    const std::size_t block_index = offset / block_size_;
+    if (block_index >= num_blocks_) {
+        return;
+    }
+
+    free_blocks_.push_back(block_index);
+    if (allocated_blocks_ > 0) {
+        --allocated_blocks_;
+    }
+}
+
+DMAMapping::DMAMapping(const DMABuffer& buffer, bool to_device) noexcept
+    : buffer_(buffer)
+    , to_device_(to_device)
+    , active_(buffer.is_valid()) {
+    if (!active_) {
+        return;
+    }
+
+    if (to_device_) {
+        DMAAllocator::sync_for_device(buffer_);
+    } else {
+        DMAAllocator::sync_for_cpu(buffer_);
+    }
+}
+
+DMAMapping::~DMAMapping() {
+    if (!active_) {
+        return;
+    }
+
+    if (to_device_) {
+        DMAAllocator::sync_for_cpu(buffer_);
+    } else {
+        DMAAllocator::sync_for_device(buffer_);
+    }
+}
+
+DMAMapping::DMAMapping(DMAMapping&& other) noexcept
+    : buffer_(other.buffer_)
+    , to_device_(other.to_device_)
+    , active_(other.active_) {
+    other.buffer_ = DMABuffer{};
+    other.active_ = false;
+}
+
+DMAMapping& DMAMapping::operator=(DMAMapping&& other) noexcept {
+    if (this != &other) {
+        if (active_) {
+            if (to_device_) {
+                DMAAllocator::sync_for_cpu(buffer_);
+            } else {
+                DMAAllocator::sync_for_device(buffer_);
+            }
+        }
+
+        buffer_ = other.buffer_;
+        to_device_ = other.to_device_;
+        active_ = other.active_;
+
+        other.buffer_ = DMABuffer{};
+        other.active_ = false;
+    }
+    return *this;
 }
 
 } // namespace xinim::mm

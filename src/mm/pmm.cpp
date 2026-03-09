@@ -203,52 +203,55 @@ uint64_t PhysicalMemoryManager::alloc_pages_aligned(size_t count, size_t alignme
 }
 
 uint64_t PhysicalMemoryManager::buddy_alloc(uint32_t order, MemoryZone zone) {
-    std::lock_guard<std::mutex> lock(global_lock_);
+    {
+        std::lock_guard<std::mutex> lock(global_lock_);
 
-    ZoneDescriptor* zone_desc = get_zone(zone);
-    if (!zone_desc) {
-        LOG_ERROR("PMM: Invalid zone");
-        return 0;
-    }
+        ZoneDescriptor* zone_desc = get_zone(zone);
+        if (!zone_desc) {
+            LOG_ERROR("PMM: Invalid zone");
+            return 0;
+        }
 
-    std::lock_guard<std::mutex> zone_lock(zone_desc->lock);
+        std::lock_guard<std::mutex> zone_lock(zone_desc->lock);
 
-    // Try to find a free block of the requested order
-    for (uint32_t current_order = order; current_order < ZoneDescriptor::MAX_ORDER; current_order++) {
-        if (zone_desc->free_area[current_order].nr_free > 0) {
-            // Found a block, remove it from free list
-            uint64_t addr = zone_desc->free_area[current_order].free_list.back();
-            zone_desc->free_area[current_order].free_list.pop_back();
-            zone_desc->free_area[current_order].nr_free--;
+        // Try to find a free block of the requested order.
+        for (uint32_t current_order = order; current_order < ZoneDescriptor::MAX_ORDER;
+             current_order++) {
+            if (zone_desc->free_area[current_order].nr_free > 0) {
+                // Found a block, remove it from the free list.
+                uint64_t addr = zone_desc->free_area[current_order].free_list.back();
+                zone_desc->free_area[current_order].free_list.pop_back();
+                zone_desc->free_area[current_order].nr_free--;
 
-            // Split down to requested order
-            while (current_order > order) {
-                current_order--;
-                uint64_t buddy_addr = addr + (get_pages_for_order(current_order) * PAGE_SIZE);
-                add_to_free_list(buddy_addr, current_order, zone);
-            }
-
-            // Mark pages as allocated
-            uint64_t pfn = phys_to_pfn(addr);
-            size_t num_pages = get_pages_for_order(order);
-            for (size_t i = 0; i < num_pages; i++) {
-                if (pfn + i < total_page_frames_) {
-                    page_frames_[pfn + i].flags = PageFrame::FLAG_ALLOCATED;
-                    page_frames_[pfn + i].ref_count = 1;
-                    page_frames_[pfn + i].order = order;
+                // Split down to the requested order.
+                while (current_order > order) {
+                    current_order--;
+                    uint64_t buddy_addr = addr + (get_pages_for_order(current_order) * PAGE_SIZE);
+                    add_to_free_list(buddy_addr, current_order, zone);
                 }
+
+                // Mark pages as allocated.
+                uint64_t pfn = phys_to_pfn(addr);
+                size_t num_pages = get_pages_for_order(order);
+                for (size_t i = 0; i < num_pages; i++) {
+                    if (pfn + i < total_page_frames_) {
+                        page_frames_[pfn + i].flags = PageFrame::FLAG_ALLOCATED;
+                        page_frames_[pfn + i].ref_count = 1;
+                        page_frames_[pfn + i].order = order;
+                    }
+                }
+
+                zone_desc->pages_free -= num_pages;
+                zone_desc->alloc_count++;
+                free_pages_ -= num_pages;
+                used_pages_ += num_pages;
+
+                return addr;
             }
-
-            zone_desc->pages_free -= num_pages;
-            zone_desc->alloc_count++;
-            free_pages_ -= num_pages;
-            used_pages_ += num_pages;
-
-            return addr;
         }
     }
 
-    // Try fallback to other zones if this zone is exhausted
+    // Try fallback to other zones only after releasing the allocator locks.
     if (zone == MemoryZone::HIGH) {
         uint64_t addr = buddy_alloc(order, MemoryZone::NORMAL);
         if (addr) return addr;
@@ -356,8 +359,8 @@ void PhysicalMemoryManager::unref_page(uint64_t phys_addr) {
 }
 
 ZoneDescriptor* PhysicalMemoryManager::get_zone(MemoryZone zone) {
-    int idx = static_cast<int>(zone);
-    if (idx >= 0 && idx < NUM_ZONES) {
+    const std::size_t idx = static_cast<std::size_t>(zone);
+    if (idx < NUM_ZONES) {
         return &zones_[idx];
     }
     return nullptr;

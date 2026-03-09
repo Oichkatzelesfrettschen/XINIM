@@ -1,15 +1,22 @@
 #!/bin/bash
 # XINIM QEMU Interactive Test Script
-# Targets x86_64 v1 with Serial/Telnet interaction
+# Targets the current x86_64 image-based lane with serial/telnet interaction.
 
-set -e
+set -euo pipefail
 
-PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-KERNEL_BIN="${PROJECT_ROOT}/build/Debug/xinim"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
 
-if [[ ! -f "$KERNEL_BIN" ]]; then
-    echo "Error: Kernel binary not found at $KERNEL_BIN"
-    echo "Please build with: cmake --build build/Debug --target xinim"
+# shellcheck disable=SC1091
+export XINIM_REPO_ROOT="${PROJECT_ROOT}"
+source "${SCRIPT_DIR}/xinim-env.sh"
+xinim_ensure_project_dirs
+
+BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-${XINIM_IMAGE_ROOT}/x86_64/xinim-x86_64.iso}"
+
+if [[ ! -f "${BOOT_IMAGE}" ]]; then
+    echo "Error: Boot image not found at ${BOOT_IMAGE}"
+    echo "Please build an x86_64 boot image first."
     exit 1
 fi
 
@@ -31,7 +38,8 @@ echo "==========================================="
 qemu-system-x86_64 \
     -cpu qemu64 \
     -m 512M \
-    -kernel "$KERNEL_BIN" \
+    -cdrom "${BOOT_IMAGE}" \
+    -boot d \
     -serial stdio \
     -serial telnet:localhost:4444,server,nowait \
     -monitor telnet:localhost:4445,server,nowait \
@@ -41,7 +49,8 @@ qemu-system-x86_64 \
 qemu-system-x86_64 \
     -cpu qemu64 \
     -m 512M \
-    -kernel "$KERNEL_BIN" \
+    -cdrom "${BOOT_IMAGE}" \
+    -boot d \
     -serial stdio \
     -serial telnet:localhost:4444,server,nowait \
     -monitor telnet:localhost:4445,server,nowait \

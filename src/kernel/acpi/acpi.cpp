@@ -6,17 +6,45 @@ static uint8_t sum_bytes(const uint8_t* p, size_t n) {
     uint8_t s=0; for (size_t i=0;i<n;i++) s+=p[i]; return s;
 }
 
-Discovery probe(uint64_t rsdp_phys, uint64_t hhdm_offset) {
+static const void* phys_to_hhdm_ptr(uint64_t phys_addr, uint64_t hhdm_offset) {
+    return reinterpret_cast<const void*>(hhdm_offset + phys_addr);
+}
+
+static const Rsdp* resolve_rsdp(const void* rsdp_ptr, uint64_t hhdm_offset) {
+    const auto raw = reinterpret_cast<uint64_t>(rsdp_ptr);
+    if (raw == 0) {
+        return nullptr;
+    }
+    if (raw < hhdm_offset) {
+        return reinterpret_cast<const Rsdp*>(phys_to_hhdm_ptr(raw, hhdm_offset));
+    }
+    return reinterpret_cast<const Rsdp*>(rsdp_ptr);
+}
+
+Discovery probe(const void* rsdp_ptr, uint64_t hhdm_offset) {
     Discovery d{};
-    if (!rsdp_phys) return d;
-    auto* rsdp = reinterpret_cast<const Rsdp*>(hhdm_offset + rsdp_phys);
+    auto* rsdp = resolve_rsdp(rsdp_ptr, hhdm_offset);
+    if (rsdp == nullptr) return d;
     if (sum_bytes(reinterpret_cast<const uint8_t*>(rsdp), (rsdp->revision>=2)?rsdp->length:20) != 0) return d;
-    uint64_t xsdt_phys = (rsdp->revision>=2 && rsdp->xsdt_address)? rsdp->xsdt_address : rsdp->rsdt_address;
-    d.xsdt_phys = xsdt_phys;
-    auto* xsdt = reinterpret_cast<const Xsdt*>(hhdm_offset + xsdt_phys);
-    size_t entries = (xsdt->header.length - sizeof(SdtHeader)) / sizeof(uint64_t);
+    const bool use_xsdt = rsdp->revision >= 2 && rsdp->xsdt_address != 0;
+    const uint64_t table_phys = use_xsdt ? rsdp->xsdt_address : rsdp->rsdt_address;
+    if (!table_phys) return d;
+    d.xsdt_phys = table_phys;
+
+    const auto* sdt = reinterpret_cast<const SdtHeader*>(phys_to_hhdm_ptr(table_phys, hhdm_offset));
+    if (sdt->length < sizeof(SdtHeader)) return d;
+
+    const size_t entry_size = use_xsdt ? sizeof(uint64_t) : sizeof(uint32_t);
+    const size_t entries = (sdt->length - sizeof(SdtHeader)) / entry_size;
     for (size_t i=0;i<entries;i++) {
-        auto phys = xsdt->entries[i];
+        uint64_t phys = 0;
+        if (use_xsdt) {
+            const auto* xsdt = reinterpret_cast<const Xsdt*>(sdt);
+            phys = xsdt->entries[i];
+        } else {
+            const auto* rsdt = reinterpret_cast<const Rsdt*>(sdt);
+            phys = rsdt->entries[i];
+        }
         auto* hdr = reinterpret_cast<const SdtHeader*>(hhdm_offset + phys);
         if (hdr->signature[0]=='A' && hdr->signature[1]=='P' && hdr->signature[2]=='I' && hdr->signature[3]=='C') {
             d.madt_phys = phys;

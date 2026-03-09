@@ -12,7 +12,8 @@ Status: Draft (active)
 ## Test Tiers
 1. Unit tests: fast, isolated component tests.
 2. Integration tests: cross-module verification (IPC, VFS, MM, scheduler).
-3. POSIX compliance: targeted compliance suites.
+3. POSIX progress tracking: targeted shell, syscall, and utility suites tied to
+   active evidence rather than broad conformance claims.
 4. Boot validation: QEMU boot and smoke tests.
 5. Performance baselines: benchmark critical algorithms.
 ## CTest Integration

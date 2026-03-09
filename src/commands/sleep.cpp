@@ -1,37 +1,31 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+#include <charconv>
+#include <chrono>
+#include <iostream>
+#include <string_view>
+#include <thread>
 
-/* sleep - suspend a process for x sec		Author: Andy Tanenbaum */
+namespace {
 
-// Entry point for the sleep command
-/**
- * @brief Entry point for the sleep utility.
- * @param argc Number of command-line arguments as per C++23 [basic.start.main].
- * @param argv Array of command-line argument strings.
- * @return Exit status as specified by C++23 [basic.start.main].
- */
-int main(int argc, char *argv[]) {
-    int seconds = 0; // Number of seconds to sleep
+void print_usage() {
+    std::cerr << "Usage: sleep seconds\n";
+}
 
+}
+
+int main(int argc, char* argv[]) {
     if (argc != 2) {
-        std_err("Usage: sleep time\n");
+        print_usage();
         return 1;
     }
 
-    // Convert numeric argument from string to integer
-    for (const char *p = argv[1]; *p != '\0'; ++p) {
-        const char c = *p;
-        if (c < '0' || c > '9') {
-            std_err("sleep: bad arg\n");
-            return 1;
-        }
-        seconds = 10 * seconds + (c - '0');
+    const std::string_view arg(argv[1]);
+    unsigned int seconds = 0;
+    const auto [ptr, ec] = std::from_chars(arg.data(), arg.data() + arg.size(), seconds);
+    if (ec != std::errc{} || ptr != arg.data() + arg.size()) {
+        std::cerr << "sleep: bad arg\n";
+        return 1;
     }
 
-    // Sleep for the requested duration
-    sleep(seconds);
+    std::this_thread::sleep_for(std::chrono::seconds(seconds));
     return 0;
 }

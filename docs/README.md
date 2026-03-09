@@ -4,6 +4,7 @@
 
 ### Build and Development
 - [BUILD.md](BUILD.md) - Build instructions (CMake + Conan, prerequisites, tests)
+- [CURRENT_REALITY.md](CURRENT_REALITY.md) - Verified repository state and known limits
 - [REQUIREMENTS.md](REQUIREMENTS.md) - Full dependency version matrix
 - [LINTERS.md](LINTERS.md) - Linter configuration and usage
 - [STYLE_GUIDE.md](STYLE_GUIDE.md) - C++23 coding style guide
@@ -39,10 +40,12 @@
 - [analysis/README.md](analysis/README.md) - Analysis reports index
 - [analysis/CLAIMS_AUDIT.md](analysis/CLAIMS_AUDIT.md) - Feature claims verification
 - [analysis/ROADMAP_CONSOLIDATED.md](analysis/ROADMAP_CONSOLIDATED.md) - Consolidated roadmap
+- [analysis/ROADMAP_100_STEP.md](analysis/ROADMAP_100_STEP.md) - Granular active modernization roadmap
 - [analysis/TODO_TRACKER.md](analysis/TODO_TRACKER.md) - TODO/FIXME triage (Phase 5)
+- [external_sources/I486_QEMU_PORTABILITY_SOURCES.md](external_sources/I486_QEMU_PORTABILITY_SOURCES.md) - Primary sources for the current i486/QEMU rescope
 
 ### POSIX
-- [POSIX_COMPLIANCE.md](POSIX_COMPLIANCE.md) - POSIX compliance status
+- [POSIX_COMPLIANCE.md](POSIX_COMPLIANCE.md) - POSIX conformance roadmap
 
 ## Archived Documentation
 

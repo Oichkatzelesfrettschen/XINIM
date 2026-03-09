@@ -1,6 +1,6 @@
 /**
  * @file main.cpp
- * @brief Main entry point and loop for xinim-sh
+ * @brief Main entry point and loop for xash
  *
  * Implements:
  * - Shell initialization
@@ -186,7 +186,7 @@ int shell_main() {
 
     // Print welcome message
     if (g_shell.interactive) {
-        printf("XINIM Shell (xinim-sh) version 1.0\n");
+        printf("XASH Shell version 1.0\n");
         printf("Type 'help' for help, 'exit' to exit\n\n");
     }
 
@@ -200,7 +200,7 @@ int shell_main() {
 
         // Print prompt
         if (g_shell.interactive) {
-            printf("xinim-sh$ ");
+            printf("xash$ ");
             fflush(stdout);
         }
 

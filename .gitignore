@@ -3,11 +3,13 @@
 # ==============================================================================
 
 # CMake/Conan build system
+.xinim/
 build/
 build_debug/
 build-*/
 dist/
 CMakeUserPresets.json
+.scratch/
 
 # Third-party source downloads
 third_party/dietlibc-src/
@@ -72,6 +74,7 @@ xinim.bin
 # Temporary files
 *.tmp
 *.temp
+__pycache__/
 .DS_Store
 Thumbs.db
 
@@ -188,3 +191,4 @@ $RECYCLE.BIN/
 # Archive directory contents are tracked via git
 # Individual archived files should be explicitly added if needed
 scripts/__pycache__/
+/mksh

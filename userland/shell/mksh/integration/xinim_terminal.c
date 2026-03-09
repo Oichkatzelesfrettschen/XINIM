@@ -45,7 +45,7 @@ int xinim_tcsetattr(int fd, int optional_actions, const struct termios *termios_
         return -1;
     }
     
-    return ioctl(fd, cmd, termios_p);
+    return ioctl(fd, (unsigned long)cmd, termios_p);
 }
 
 /**
@@ -63,16 +63,16 @@ int xinim_terminal_raw_mode(int fd) {
     raw = saved_termios;
     
     /* Input modes - disable canonical mode, echo, signals */
-    raw.c_iflag &= ~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
+    raw.c_iflag &= (tcflag_t)~(BRKINT | ICRNL | INPCK | ISTRIP | IXON);
     
     /* Output modes - disable post-processing */
-    raw.c_oflag &= ~(OPOST);
+    raw.c_oflag &= (tcflag_t)~OPOST;
     
     /* Control modes - set 8-bit chars */
     raw.c_cflag |= (CS8);
     
     /* Local modes - disable echo, canonical mode, extended functions, signals */
-    raw.c_lflag &= ~(ECHO | ICANON | IEXTEN | ISIG);
+    raw.c_lflag &= (tcflag_t)~(ECHO | ICANON | IEXTEN | ISIG);
     
     /* Control characters - minimum read is 1 byte */
     raw.c_cc[VMIN] = 1;

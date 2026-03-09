@@ -378,7 +378,7 @@ UniqProcessor::process(FileStream& input, FileStream& output) noexcept {
         ssize_t line_length;
         
         while ((line_length = getline(&line_ptr, &line_size, input.get())) != -1) {
-            current_line.assign(line_ptr, line_length);
+            current_line.assign(line_ptr, static_cast<std::size_t>(line_length));
             
             // Remove trailing newline if present
             if (!current_line.empty() && current_line.back() == '\n') {
@@ -504,16 +504,16 @@ parse_arguments(int argc, char* argv[],
             } else if (arg.starts_with("-f")) {
                 const auto num_str = arg.substr(2);
                 if (num_str.empty() && i + 1 < argc) {
-                    options.skip_fields = std::atoi(argv[++i]);
+                    options.skip_fields = static_cast<std::size_t>(std::atoi(argv[++i]));
                 } else {
-                    options.skip_fields = std::atoi(num_str.data());
+                    options.skip_fields = static_cast<std::size_t>(std::atoi(num_str.data()));
                 }
             } else if (arg.starts_with("-s")) {
                 const auto num_str = arg.substr(2);
                 if (num_str.empty() && i + 1 < argc) {
-                    options.skip_chars = std::atoi(argv[++i]);
+                    options.skip_chars = static_cast<std::size_t>(std::atoi(argv[++i]));
                 } else {
-                    options.skip_chars = std::atoi(num_str.data());
+                    options.skip_chars = static_cast<std::size_t>(std::atoi(num_str.data()));
                 }
             } else if (arg == "--help") {
                 show_help(argv[0]);

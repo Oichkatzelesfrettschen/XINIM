@@ -13,7 +13,6 @@
 #include "gdt.hpp"
 #include "../../early/serial_16550.hpp"
 #include <cstring>
-#include <cstdio>
 
 extern xinim::early::Serial16550 early_serial;
 
@@ -129,16 +128,13 @@ void initialize_tss() {
     // Add TSS descriptor to GDT
     uint64_t tss_base = reinterpret_cast<uint64_t>(&g_tss);
     uint32_t tss_limit = sizeof(TaskStateSegment) - 1;
+    early_serial.write("[TSS] Installing descriptor into GDT\n");
     add_tss_to_gdt(tss_base, tss_limit);
 
     // Load TSS (selector 0x28 = GDT entry 5, RPL=0)
+    early_serial.write("[TSS] Loading selector 0x28\n");
     tss_load(TSS_SEL);
-
-    char buffer[128];
-    snprintf(buffer, sizeof(buffer),
-             "[TSS] Loaded at 0x%lx, selector 0x%x\n",
-             tss_base, TSS_SEL);
-    early_serial.write(buffer);
+    early_serial.write("[TSS] Selector loaded\n");
     early_serial.write("[TSS] Initialization complete\n");
 }
 

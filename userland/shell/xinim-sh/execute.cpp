@@ -1,6 +1,6 @@
 /**
  * @file execute.cpp
- * @brief Command execution for xinim-sh
+ * @brief Command execution for xash
  *
  * Handles command execution including:
  * - Fork and exec
@@ -75,7 +75,7 @@ int execute_command(Command* cmd) {
         execvp(cmd->args[0], cmd->args);
 
         // If we get here, exec failed
-        fprintf(stderr, "xinim-sh: %s: command not found\n", cmd->args[0]);
+        fprintf(stderr, "xash: %s: command not found\n", cmd->args[0]);
         exit(127);
     } else {
         // Parent process

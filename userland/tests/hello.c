@@ -27,9 +27,10 @@
  */
 
 #include <stdio.h>
+#include <sys/types.h>
 #include <unistd.h>
 
-int main() {
+int main(void) {
     // Test 1: printf (buffered I/O via dietlibc)
     printf("Hello from XINIM userspace!\n");
 

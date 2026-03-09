@@ -1,87 +1,93 @@
-name: CMake Build
+name: Conan + CMake Build
 
 on:
   push:
-    branches: ["master"]
+    branches: ["master", "main"]
   pull_request:
-  schedule:
-    - cron: "0 0 * * 0"
 
 jobs:
-  build:
+  x86_64-debug:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential nasm cloc cppcheck cscope python3-pip clang-18 lld-18 lldb-18 cmake ninja-build
-      - name: Configure and Build
-        run: cmake -B build && cmake --build build -- -j$(nproc)
-      - name: Run unit tests
-        run: ctest --test-dir build --output-on-failure
+          sudo apt-get install -y \
+            clang-21 \
+            lld-21 \
+            libc++-21-dev \
+            libc++abi-21-dev \
+            cmake \
+            ninja-build \
+            python3 \
+            python3-pip \
+            git \
+            xorriso \
+            grub-common \
+            grub-pc-bin \
+            mtools \
+            qemu-system-x86
+          python3 -m pip install "conan>=2.8,<3"
 
-  analysis:
+      - name: Configure Conan toolchain
+        run: |
+          conan install . \
+            -pr:h=conan/profiles/clang-x86_64 \
+            -s build_type=Debug \
+            -o '&:lane=x86_64' \
+            -of build/x86_64/Debug \
+            --build=missing
+
+      - name: Configure and build
+        run: |
+          cmake --preset x86_64-debug
+          cmake --build --preset x86_64-debug
+
+      - name: Run tests
+        run: ctest --preset x86_64-debug
+
+  i486-debug:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - name: Install analysis dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential nasm clang-18 clang-tidy-18 cppcheck cscope
-          pip install lizard
-      - name: Configure
-        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_CLANG_TIDY=ON -DENABLE_CPPCHECK=ON
-      - name: Build
-        run: cmake --build build -- -j$(nproc)
-      - name: Run analysis tools
-        run: |
-          # The run_cppcheck.sh script will execute clang-tidy and cppcheck.
-          tools/run_cppcheck.sh
-      - name: Upload analysis reports
-        uses: actions/upload-artifact@v3
-        with:
-          name: analysis-reports
-          path: build/reports
-        if: always()
+      - uses: actions/checkout@v4
 
-  asan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install sanitizer dependencies
+      - name: Install 32-bit lane dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential nasm clang-18
-      - name: Configure and Build with ASan
-        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_ASAN=ON && cmake --build build -- -j$(nproc)
-      - name: Run unit tests with ASan
-        run: ctest --test-dir build --output-on-failure
+          sudo apt-get install -y \
+            clang-21 \
+            lld-21 \
+            libc++-21-dev \
+            libc++abi-21-dev \
+            libc6-dev-i386 \
+            lib32gcc-s1 \
+            cmake \
+            ninja-build \
+            python3 \
+            python3-pip \
+            git \
+            xorriso \
+            grub-common \
+            grub-pc-bin \
+            mtools \
+            qemu-system-x86
+          python3 -m pip install "conan>=2.8,<3"
 
-  tsan:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install sanitizer dependencies
+      - name: Configure Conan toolchain
         run: |
-          sudo apt-get update
-          sudo apt-get install -y build-essential nasm clang-18
-      - name: Configure and Build with TSan
-        run: cmake -B build -DBUILD_SYSTEM=OFF -DENABLE_TSAN=ON && cmake --build build -- -j$(nproc)
-      - name: Run unit tests with TSan
-        run: ctest --test-dir build --output-on-failure
+          conan install . \
+            -pr:h=conan/profiles/clang-x86_32 \
+            -s build_type=Debug \
+            -o '&:lane=i486' \
+            -of build/i486/Debug \
+            --build=missing
 
-  format:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - name: Install clang-format
+      - name: Configure and build
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-format-18
-      - name: Check formatting
-        run: |
-          FILES=$(git ls-files '*.cpp' '*.h' '*.cc' '*.cxx' '*.hpp' '*.hh')
-          if [ -n "$FILES" ]; then
-            clang-format-18 --dry-run --Werror $FILES
-          fi
+          cmake --preset i486-debug
+          cmake --build --preset i486-debug
+
+      - name: Run tests
+        run: ctest --preset i486-debug

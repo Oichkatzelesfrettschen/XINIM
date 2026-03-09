@@ -30,6 +30,9 @@ static uint32_t   g_lru_seq; // global monotonically-increasing LRU counter
 // ============================================================================
 
 void cache_init() {
+    if constexpr (!VFS_BUFFER_CACHE_ENABLED) {
+        return;
+    }
     __builtin_memset(g_cache, 0, sizeof(g_cache));
     for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
         g_cache[i].block_num = CACHE_BLOCK_FREE;
@@ -42,6 +45,12 @@ void cache_init() {
 // On miss: evict LRU block, load data from data_arena, return pointer.
 // Returns nullptr if block_num is out of range for device.
 CacheBlock* cache_get(uint64_t block_num, uint32_t device_id) {
+    if constexpr (!VFS_BUFFER_CACHE_ENABLED) {
+        (void)block_num;
+        (void)device_id;
+        return nullptr;
+    }
+
     // Only device_id=1 (ramfs data arena) supported in v1.3.0
     if (device_id != 1) return nullptr;
 
@@ -103,11 +112,19 @@ CacheBlock* cache_get(uint64_t block_num, uint32_t device_id) {
 
 // Mark block as dirty (data will be written back on eviction or flush).
 void cache_mark_dirty(CacheBlock* block) {
+    if constexpr (!VFS_BUFFER_CACHE_ENABLED) {
+        (void)block;
+        return;
+    }
     if (block) block->dirty = 1;
 }
 
 // Write all dirty blocks for device_id back to the backing store.
 void cache_flush(uint32_t device_id) {
+    if constexpr (!VFS_BUFFER_CACHE_ENABLED) {
+        (void)device_id;
+        return;
+    }
     for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
         CacheBlock* slot = &g_cache[i];
         if (slot->block_num == CACHE_BLOCK_FREE) continue;

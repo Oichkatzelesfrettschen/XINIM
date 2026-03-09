@@ -4,15 +4,24 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import shutil
 import subprocess
 import sys
 from pathlib import Path
 from typing import Dict, Iterable, Sequence
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+XINIM_STATE_ROOT = Path(
+    os.environ.get("XINIM_STATE_ROOT", str(REPO_ROOT / "build" / "_state"))
+)
+XINIM_BUILD_ROOT = Path(
+    os.environ.get("XINIM_BUILD_ROOT", str(REPO_ROOT / "build"))
+)
+
 DEFAULT_CONFIG = {
     "mutations": ["cxx_add_to_sub", "cxx_eq_to_ne"],
-    "tests": ["ctest --output-on-failure --test-dir build/Debug -L unit"],
+    "tests": [f"ctest --output-on-failure --test-dir {XINIM_BUILD_ROOT / 'Debug'} -L unit"],
 }
 
 

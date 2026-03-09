@@ -24,6 +24,7 @@ enum class DMAFlags : uint32_t {
     COHERENT = (1 << 1),       // Cache-coherent memory (uncached)
     ZERO = (1 << 2),           // Zero the allocated memory
     CONTIGUOUS = (1 << 3),     // Physically contiguous (always true for DMA)
+    BELOW_16MB = (1 << 4),     // Allocate memory below 16MB and within one 64KiB ISA DMA window
 };
 
 inline DMAFlags operator|(DMAFlags a, DMAFlags b) {

@@ -1,5 +1,9 @@
 # dietlibc Integration Guide for XINIM
 
+Historical note: this guide documents an older `/opt/xinim-toolchain` and
+environment-script workflow. It is not the canonical build path. Use
+`docs/BUILD.md` for the active Conan + CMake flow.
+
 **Version:** 1.0
 **Date:** 2025-11-17
 **Target:** XINIM OS developers integrating dietlibc into userland
@@ -11,7 +15,7 @@
 This guide explains how to integrate dietlibc 0.34 into XINIM's userland, including:
 1. Building userland programs with dietlibc
 2. Syscall adapter layer for XINIM kernel
-3. POSIX compliance extensions
+3. POSIX-oriented compatibility extensions
 4. Performance optimization
 5. Debugging and testing
 
@@ -23,7 +27,7 @@ This guide explains how to integrate dietlibc 0.34 into XINIM's userland, includ
 2. [Compiler Configuration](#2-compiler-configuration)
 3. [XINIM Syscall Adapter](#3-xinim-syscall-adapter)
 4. [Building Userland Programs](#4-building-userland-programs)
-5. [POSIX Compliance Extensions](#5-posix-compliance-extensions)
+5. [POSIX-Oriented Compatibility Extensions](#5-posix-oriented-compatibility-extensions)
 6. [Performance Tuning](#6-performance-tuning)
 7. [Debugging with dietlibc](#7-debugging-with-dietlibc)
 8. [Common Issues](#8-common-issues)
@@ -377,7 +381,7 @@ ls -lh cat
 
 ---
 
-## 5. POSIX Compliance Extensions
+## 5. POSIX-Oriented Compatibility Extensions
 
 ### 5.1 What dietlibc Provides
 
@@ -666,7 +670,7 @@ Before deploying userland with dietlibc:
 **Week 3-4:**
 - Implement `libc-xinim` extensions (message queues, semaphores, locale)
 - Build all 60+ coreutils
-- Run POSIX compliance tests
+- Run staged POSIX-progress tests
 
 **Week 5-8:**
 - Implement 240 missing syscalls in kernel
@@ -687,7 +691,7 @@ Before deploying userland with dietlibc:
 - [XINIM Toolchain Specification](/home/user/XINIM/docs/specs/TOOLCHAIN_SPECIFICATION.md)
 - [XINIM dietlibc vs musl Analysis](/home/user/XINIM/docs/specs/DIETLIBC_VS_MUSL.md)
 - [XINIM Syscall Implementation Guide](/home/user/XINIM/docs/guides/SYSCALL_IMPLEMENTATION_GUIDE.md)
-- [SUSv4 POSIX Compliance Audit](/home/user/XINIM/docs/SUSV4_POSIX_2017_COMPLIANCE_AUDIT.md)
+- [SUSv4 POSIX Coverage Audit](/home/user/XINIM/docs/SUSV4_POSIX_2017_COMPLIANCE_AUDIT.md)
 
 ---
 

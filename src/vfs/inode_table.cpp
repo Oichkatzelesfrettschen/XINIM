@@ -8,6 +8,7 @@
  */
 
 #include "bare_vfs.hpp"
+#include "vnode_table.hpp"
 #include <cstring>
 
 // sizeof(RawInode) is 80 bytes with the current field layout
@@ -95,6 +96,7 @@ uint32_t inode_alloc() {
 void inode_free(uint32_t ino) {
     if (ino == 0 || ino >= MAX_INODES) return;
     if (!bitmap_test(ino)) return; // double-free guard
+    vnode_forget(ino);
     bitmap_clear(ino);
     __builtin_memset(&g_inodes[ino], 0, sizeof(RawInode));
 }

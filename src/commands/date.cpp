@@ -104,8 +104,10 @@ void setSystemTime(std::string_view time_str) {
         throw std::runtime_error("The specified time is not representable.");
     }
 
-    // Use stime() to set the time.
-    if (stime(&t) != 0) {
+    timeval tv{};
+    tv.tv_sec = t;
+    tv.tv_usec = 0;
+    if (settimeofday(&tv, nullptr) != 0) {
         throw std::system_error(errno, std::system_category(), "Failed to set system time");
     }
 }

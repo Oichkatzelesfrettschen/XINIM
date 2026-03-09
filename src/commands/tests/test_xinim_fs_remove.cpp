@@ -134,7 +134,7 @@ struct RemoveTestCase {
     bool expect_success;
     std::optional<std::errc> expected_ec_val_on_error;
     std::function<void(TempTestEntity&)> setup_action = nullptr;
-    std::filesystem::path symlink_target_path_for_setup; // Used if entity_type is Symlink for setup
+    std::filesystem::path symlink_target_path_for_setup{}; // Used if entity_type is Symlink for setup
 
     void run(int& failures) const { // fs_ops removed, will call free functions
         std::print(std::cout, "Test Case: {} (Op: {}, Mode: {})... ",

@@ -1,6 +1,6 @@
 /**
  * @file parser.cpp
- * @brief Command line parser for xinim-sh
+ * @brief Command line parser for xash
  *
  * Simple command parser supporting:
  * - Tokenization by whitespace

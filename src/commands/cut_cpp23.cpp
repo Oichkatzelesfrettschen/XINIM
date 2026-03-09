@@ -241,7 +241,8 @@ int main(int argc, char* argv[]) {
     std::vector<std::string> files;
     
     // Parse arguments using C++23 span
-    std::span<char*> args(argv + 1, argc - 1);
+    const auto arg_count = argc > 1 ? static_cast<std::size_t>(argc - 1) : 0U;
+    std::span<char*> args(argv + 1, arg_count);
     
     for (size_t i = 0; i < args.size(); ++i) {
         std::string_view arg(args[i]);

@@ -9,6 +9,7 @@
 
 #include "../src/vfs/bare_vfs.hpp"
 #include "../src/vfs/inode_table.hpp"
+#include "../src/vfs/vnode_table.hpp"
 #include "../src/vfs/dirent.hpp"
 #include "../src/vfs/fd_table.hpp"
 #include "../src/vfs/path_walk.hpp"
@@ -26,6 +27,7 @@
 
 static void test_vfs_init() {
     inode_table_init();
+    vnode_table_init();
     dirent_table_init();
     fd_table_init();
     cache_init();

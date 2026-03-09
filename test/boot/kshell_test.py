@@ -20,7 +20,19 @@ import os
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_ROOT = os.path.dirname(os.path.dirname(SCRIPT_DIR))
 
-KERNEL_IMAGE = os.path.join(PROJECT_ROOT, "build", "Debug", "xinim")
+XINIM_STATE_ROOT = os.environ.get(
+    "XINIM_STATE_ROOT", os.path.join(PROJECT_ROOT, "build", "_state")
+)
+XINIM_BUILD_ROOT = os.environ.get(
+    "XINIM_BUILD_ROOT", os.path.join(PROJECT_ROOT, "build", "x86_64", "Debug")
+)
+XINIM_IMAGE_ROOT = os.environ.get(
+    "XINIM_IMAGE_ROOT", os.path.join(XINIM_BUILD_ROOT, "images")
+)
+BOOT_IMAGE = os.environ.get(
+    "XINIM_QEMU_BOOT_IMAGE",
+    os.path.join(XINIM_IMAGE_ROOT, "x86_64", "xinim-x86_64.iso"),
+)
 QEMU_BIN = "qemu-system-x86_64"
 KSHELL_PORT = 4555
 BOOT_TIMEOUT = 15  # seconds to wait for QEMU to boot
@@ -28,19 +40,20 @@ CMD_TIMEOUT = 5    # seconds to wait for command response
 
 
 def start_qemu():
-    """Start QEMU with dual serial and debug_shell cmdline."""
+    """Start QEMU with dual serial using a preconfigured boot image."""
     cmd = [
         QEMU_BIN,
         "-machine", "q35",
         "-cpu", "qemu64",
         "-m", "512M",
         "-smp", "1",
-        "-kernel", KERNEL_IMAGE,
+        "-cdrom", BOOT_IMAGE,
+        "-boot", "d",
         "-serial", "file:/dev/null",  # COM1: discard logs
         "-serial", f"tcp::{KSHELL_PORT},server,nowait",  # COM2: kshell
         "-nographic",
+        "-monitor", "none",
         "-no-reboot",
-        "-append", "debug_shell",
     ]
     return subprocess.Popen(
         cmd,
@@ -66,7 +79,7 @@ def connect_kshell(retries=10, delay=1.0):
 
 
 def recv_until_prompt(sock, timeout=CMD_TIMEOUT):
-    """Read from socket until we see 'xinim> ' prompt or timeout."""
+    """Read from socket until we see a kernel-shell prompt or timeout."""
     data = b""
     end_time = time.time() + timeout
     while time.time() < end_time:
@@ -75,7 +88,7 @@ def recv_until_prompt(sock, timeout=CMD_TIMEOUT):
             if not chunk:
                 break
             data += chunk
-            if b"xinim> " in data:
+            if b"xinim> " in data or b"xinim-kernel-dbg> " in data:
                 return data.decode("utf-8", errors="replace")
         except socket.timeout:
             break
@@ -154,12 +167,12 @@ def test_unknown(sock):
 
 
 def main():
-    if not os.path.isfile(KERNEL_IMAGE):
-        print(f"SKIP: Kernel image not found: {KERNEL_IMAGE}")
-        print("Build with: cmake --build --preset debug")
-        sys.exit(0)  # Skip, not fail
+    if not os.path.isfile(BOOT_IMAGE):
+        print(f"SKIP: Boot image not found: {BOOT_IMAGE}")
+        print("Set XINIM_QEMU_BOOT_IMAGE to a bootable image that already enables the debug shell.")
+        sys.exit(77)
 
-    print(f"Starting QEMU (kernel: {KERNEL_IMAGE})")
+    print(f"Starting QEMU (boot image: {BOOT_IMAGE})")
     qemu = start_qemu()
 
     try:
@@ -167,12 +180,16 @@ def main():
         print(f"Connecting to kshell on TCP port {KSHELL_PORT}...")
         sock = connect_kshell(retries=BOOT_TIMEOUT)
 
-        # Wait for initial prompt
+        # Wait for initial prompt. If we attached after boot and missed the
+        # first banner/prompt, send a blank line to force a redraw.
         initial = recv_until_prompt(sock, timeout=BOOT_TIMEOUT)
         if "xinim>" not in initial and "xinim-kernel-dbg>" not in initial:
-            print(f"FAIL: Did not receive kshell prompt")
-            print(f"  Received: {initial!r}")
-            sys.exit(1)
+            sock.sendall(b"\r")
+            initial = recv_until_prompt(sock, timeout=CMD_TIMEOUT)
+            if "xinim>" not in initial and "xinim-kernel-dbg>" not in initial:
+                print(f"FAIL: Did not receive kshell prompt")
+                print(f"  Received: {initial!r}")
+                sys.exit(1)
 
         print("Connected to kshell.")
 

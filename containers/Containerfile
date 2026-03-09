@@ -73,7 +73,7 @@ ENV PATH="/opt/venv/bin:${PATH}"
 WORKDIR /xinim
 
 # Default build command
-CMD ["cmake", "--build", "build/Debug"]
+CMD ["bash", "-lc", "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug"]
 
 # =============================================================================
 # Stage 3: Test Environment (includes QEMU for kernel testing)
@@ -101,7 +101,7 @@ RUN /opt/venv/bin/pip install --no-cache-dir \
     lizard
 
 # Default test command
-CMD ["ctest", "--output-on-failure", "--test-dir", "build/Debug", "-L", "unit"]
+CMD ["bash", "-lc", "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug && ctest --preset x86_64-debug -L unit"]
 
 # =============================================================================
 # Stage 4: Debug Environment (full debugging support)
@@ -157,7 +157,7 @@ ENV CI=true
 ENV XINIM_CI=1
 
 # Default CI command
-CMD ["bash", "-c", "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"]
+CMD ["bash", "-lc", "conan install . -pr:h=conan/profiles/clang-x86_64 -s build_type=Debug -o '&:lane=x86_64' -of build/x86_64/Debug --build=missing && cmake --preset x86_64-debug && cmake --build --preset x86_64-debug && ctest --preset x86_64-debug -L unit"]
 
 # =============================================================================
 # Stage 6: Minimal Runtime (for deployment/distribution)
@@ -177,7 +177,7 @@ WORKDIR /xinim
 # in the build context at image build time. Build the kernel first, then
 # copy it to the repo root before building this stage:
 #   ./containers/container.sh build
-#   cp build/Debug/xinim ./xinim
+#   cp build/x86_64/Debug/xinim ./xinim
 #   docker build --target runtime -t xinim-runtime -f containers/Containerfile .
 COPY xinim /xinim/xinim
 

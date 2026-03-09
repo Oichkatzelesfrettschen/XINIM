@@ -94,6 +94,9 @@ extern "C" int64_t syscall_dispatch(uint64_t syscall_num,
                                      uint64_t arg3, uint64_t arg4,
                                      uint64_t arg5, uint64_t arg6);
 
+uint64_t get_total_syscall_count();
+uint64_t get_syscall_count(uint64_t syscall_num);
+
 // ============================================================================
 // Error Codes (negative return values)
 // ============================================================================

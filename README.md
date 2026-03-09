@@ -19,7 +19,8 @@ XINIM is an advanced C++23 reimplementation of MINIX that extends the classic mi
 - **SIMD Optimization**: AVX2/AVX512 vectorization for high-performance operations
 - **Runtime CPU Detection**: Automatic selection of optimal code paths
 - **Platform Primitives**: Unified interface for memory barriers, prefetch, atomics
-- **QEMU Support**: Full support for x86_64 QEMU virtualization
+- **QEMU Bring-Up**: Image-oriented QEMU validation is active for x86_64 and
+  32-bit x86 bring-up; broader device/graphics validation is still in progress
 
 ### Post-Quantum Security
 - **ML-KEM (Kyber)**: NIST-standardized lattice-based key encapsulation
@@ -52,13 +53,13 @@ XINIM/
 │   └── servers/          # Userland-style server stubs (Ring 0 for now)
 ├── test/                  # Host-side unit tests + QEMU integration tests
 │   └── boot/             # Smoke test and kshell integration scripts
-├── userland/shell/       # Shell (mksh integration skeleton)
+├── userland/shell/       # Native C++ hosted shell and future xinim-tools lane
 ├── docs/                  # Documentation (see docs/README.md)
 │   ├── adr/              # Architecture Decision Records
 │   ├── specs/            # Technical specifications
 │   ├── testing/          # Test strategy and coverage matrix
 │   └── analysis/         # Audit reports and claims analysis
-├── scripts/               # Build, QEMU, and development scripts
+├── scripts/               # QEMU launchers and development utilities
 ├── conan/profiles/       # Conan compiler profiles
 ├── cmake/                # CMake helper modules
 ├── archive/legacy/       # Archived historical docs and code
@@ -70,13 +71,14 @@ XINIM/
 
 ## 🏗️ Build System
 
-XINIM uses **CMake + Conan** as the primary build system, providing:
+XINIM uses a pure **Conan + CMake** build system, providing:
 
 - **C++23 Standardization**: Consistent feature detection and enforcement
 - **Primary Platform**: Linux (CachyOS/Arch); other platforms not tested
-- **Multi-target**: Debug and Release presets via CMake
-- **Dependency Management**: Conan packages and generated toolchains
+- **Per-lane Build Trees**: One CPU lane per build tree under `build/<lane>/<config>`
+- **Dependency Management**: Conan-generated toolchains and dependency files
 - **Compiler**: Clang 21+ (primary); GCC/MSVC not supported
+- **Optional 32-bit ELF Cross Lane**: `i386-elf` or `i686-elf` for freestanding 32-bit guest trees
 
 ### Quick Start
 
@@ -85,30 +87,71 @@ XINIM uses **CMake + Conan** as the primary build system, providing:
 git clone https://github.com/Oichkatzelesfrettschen/XINIM.git
 cd XINIM
 
-# Install dependencies and configure toolchain
-scripts/conan_install.sh build Debug
+# Install Conan toolchain files for the default x86_64 debug lane
+conan install . \
+  -pr:h=conan/profiles/clang-x86_64 \
+  -s build_type=Debug \
+  -o '&:lane=x86_64' \
+  -o '&:vfs_profile=default' \
+  -of build/x86_64/Debug \
+  --build=missing
 
-# Build with CMake presets
-cmake --preset debug
-cmake --build --preset debug
+# Configure, build, and test with repo-owned presets
+cmake --preset x86_64-debug
+cmake --build --preset x86_64-debug
+ctest --preset x86_64-debug
 ```
 
 ### Development Setup
 
 ```bash
-# Full development environment
-scripts/conan_install.sh build Debug
-cmake --preset debug
-cmake --build --preset debug
-ctest --output-on-failure --test-dir build
+# 32-bit lane example
+conan install . \
+  -pr:h=conan/profiles/clang-x86_32 \
+  -s build_type=Debug \
+  -o '&:lane=i486' \
+  -o '&:vfs_profile=auto' \
+  -of build/i486/Debug \
+  --build=missing
+
+cmake --preset i486-debug
+cmake --build --preset i486-debug
+ctest --preset i486-debug
 ```
+
+Optional 32-bit ELF cross lane example:
+
+```bash
+conan install . \
+  -pr:h=conan/profiles/clang-x86_64 \
+  -s build_type=Debug \
+  -o '&:lane=i486' \
+  -o '&:x86_32_toolchain_mode=cross-elf' \
+  -o '&:x86_elf_toolchain_triple=i386-elf' \
+  -o '&:vfs_profile=tiny' \
+  -of build/i486-cross/Debug \
+  --build=missing
+
+cmake --preset i486-cross-debug
+cmake --build --preset i486-cross-debug
+ctest --preset i486-cross-debug
+```
+
+Notes:
+- The default 32-bit path is still Clang with `-m32`.
+- The optional cross lane is intended for freestanding 32-bit guest builds only.
+- The low-RAM VFS lane is selectable via Conan with
+  `-o '&:vfs_profile=auto|default|tiny'`.
+- `auto` favors `tiny` on x86_32 and `default` on x86_64.
+- `i486` and `i586` default to `i386-elf`; `i686` and the higher 32-bit lanes default to `i686-elf`.
 
 ## 🧪 Testing & Quality Assurance
 
 ### Comprehensive Test Coverage
 - **Unit Tests**: Individual component testing
 - **Integration Tests**: System-level verification
-- **POSIX Compliance**: Official test suite validation
+- **POSIX Progress Tracking**: staged shell and syscall behavior validation; no
+  broad POSIX conformance claim yet
 - **Performance Benchmarks**: Continuous optimization
 - **Contract Suites**: Service contract invariant tests (`test/contract/`)
 - **Chaos Harnesses**: Deterministic chaos runner (`python3 scripts/testing/chaos_runner.py`) and resilience tests (`test/chaos/`)
@@ -205,7 +248,7 @@ Comprehensive documentation is available in multiple formats:
 
 - **API Reference**: Doxygen-generated HTML
 - **Architecture Guide**: Sphinx-based documentation
-- **POSIX Compliance**: Detailed implementation notes
+- **POSIX Progress**: Detailed implementation notes and staged evidence
 - **Performance Analysis**: Benchmark results and optimization guides
 
 ```bash
@@ -228,7 +271,7 @@ We welcome contributions! Please see our [contributing guide](CONTRIBUTING.md) f
 
 ### Code Standards
 - **C++23**: Use modern language features
-- **POSIX Compliance**: Follow UNIX conventions
+- **POSIX Progress**: Follow UNIX conventions while keeping claims evidence-backed
 - **Documentation**: Doxygen comments required
 - **Testing**: 100% test coverage expected
 

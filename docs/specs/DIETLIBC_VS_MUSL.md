@@ -18,7 +18,7 @@ XINIM will use **dietlibc 0.34** instead of musl libc as its C standard library 
 |-----------|----------|------|--------|
 | **Size (source)** | ~250 KB | ~650 KB | ✅ dietlibc |
 | **Size (static lib)** | ~200-300 KB | ~1 MB | ✅ dietlibc |
-| **POSIX Compliance** | Partial (core APIs) | Full POSIX.1-2017 | ⚠️ musl |
+| **POSIX Coverage** | Partial (core APIs) | Broad POSIX.1-2017 coverage | ⚠️ musl |
 | **Compilation Speed** | Very fast | Fast | ✅ dietlibc |
 | **Memory Footprint** | Minimal (~50-100 KB) | Small (~200-300 KB) | ✅ dietlibc |
 | **Startup Time** | Fastest | Fast | ✅ dietlibc |
@@ -154,7 +154,7 @@ musl:     ~10 minutes
 
 ---
 
-## POSIX Compliance Trade-offs
+## POSIX Coverage Trade-offs
 
 ### What dietlibc Provides (Core POSIX)
 
@@ -210,7 +210,7 @@ size_t mbstowcs(wchar_t* dest, const char* src, size_t n);
 
 **Result:** Best of both worlds
 - dietlibc's size and speed
-- POSIX compliance where needed
+- POSIX-oriented compatibility where needed
 - Custom extensions for XINIM
 
 ---
@@ -298,7 +298,7 @@ musl:
 
 ## Migration Path
 
-If XINIM later needs full POSIX compliance beyond dietlibc:
+If XINIM later needs broader staged POSIX coverage beyond dietlibc:
 
 ### Option 1: Extend dietlibc
 ```
@@ -405,7 +405,7 @@ Result: dietlibc 2.4x faster startup
 |--------|--------|----------------|------------|--------|
 | Size | 30% | 10/10 | 6/10 | dietlibc +1.2 |
 | Speed | 25% | 10/10 | 7/10 | dietlibc +0.75 |
-| POSIX Compliance | 20% | 6/10 | 10/10 | musl -0.8 |
+| POSIX Coverage | 20% | 6/10 | 10/10 | musl -0.8 |
 | Embedded Focus | 15% | 10/10 | 7/10 | dietlibc +0.45 |
 | Code Quality | 10% | 8/10 | 10/10 | musl -0.2 |
 

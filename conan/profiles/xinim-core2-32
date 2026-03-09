@@ -1,0 +1,12 @@
+[settings]
+os=Linux
+arch=x86
+compiler=clang
+compiler.version=21
+compiler.libcxx=libc++
+compiler.cppstd=23
+build_type=Debug
+
+[conf]
+tools.build:compiler_executables={"c":"clang","cpp":"clang++"}
+tools.cmake:cmake_toolchain_file=cmake/x86_32_core2.cmake

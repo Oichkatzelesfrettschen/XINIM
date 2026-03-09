@@ -1,3 +1,7 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 /**
  * @file xinim_syscalls.c
  * @brief XINIM system call interface for mksh
@@ -13,6 +17,7 @@
 #include <errno.h>
 #include <signal.h>
 #include <string.h>
+#include <sys/syscall.h>
 
 /* XINIM syscall numbers - must match kernel syscall table */
 #define XINIM_SYS_FORK      1
@@ -92,11 +97,11 @@ int xinim_open(const char *pathname, int flags, mode_t mode) {
 }
 
 ssize_t xinim_read(int fd, void *buf, size_t count) {
-    return (ssize_t)xinim_syscall(XINIM_SYS_READ, fd, (long)buf, count, 0, 0);
+    return (ssize_t)xinim_syscall(XINIM_SYS_READ, fd, (long)buf, (long)count, 0, 0);
 }
 
 ssize_t xinim_write(int fd, const void *buf, size_t count) {
-    return (ssize_t)xinim_syscall(XINIM_SYS_WRITE, fd, (long)buf, count, 0, 0);
+    return (ssize_t)xinim_syscall(XINIM_SYS_WRITE, fd, (long)buf, (long)count, 0, 0);
 }
 
 int xinim_close(int fd) {

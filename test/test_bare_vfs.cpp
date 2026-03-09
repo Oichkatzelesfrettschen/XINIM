@@ -13,6 +13,7 @@
 
 #include "../src/vfs/bare_vfs.hpp"
 #include "../src/vfs/inode_table.hpp"
+#include "../src/vfs/vnode_table.hpp"
 #include "../src/vfs/dirent.hpp"
 #include "../src/vfs/fd_table.hpp"
 #include "../src/vfs/path_walk.hpp"
@@ -30,6 +31,7 @@
 
 static void test_vfs_init() {
     inode_table_init();
+    vnode_table_init();
     dirent_table_init();
     fd_table_init();
     cache_init();
@@ -256,7 +258,54 @@ static int test_unlink() {
     return 0;
 }
 
-// Test 12: fd_allocate / fd_get / fd_release cycle
+// Test 12: negative cache entry is invalidated when the name is created later
+static int test_negative_cache_invalidate_on_add() {
+    test_vfs_init();
+    CHECK(path_walk("/late") == 0);
+
+    uint32_t ino = inode_alloc();
+    CHECK(ino != 0);
+    RawInode* inode = inode_get(ino);
+    CHECK(inode != nullptr);
+    inode->mode = static_cast<uint16_t>(S_IFREG | 0x01B4u);
+    inode->iflags = INODE_IS_USED;
+    inode->nlink = 1;
+
+    CHECK(dirent_add(1, ino, DT_REG, "late", 4) == 0);
+    CHECK(path_walk("/late") == ino);
+    return 0;
+}
+
+// Test 13: positive cache entry is invalidated when the same name is replaced
+static int test_positive_cache_invalidate_on_replace() {
+    test_vfs_init();
+
+    uint32_t old_ino = inode_alloc();
+    CHECK(old_ino != 0);
+    RawInode* old_inode = inode_get(old_ino);
+    CHECK(old_inode != nullptr);
+    old_inode->mode = static_cast<uint16_t>(S_IFREG | 0x01B4u);
+    old_inode->iflags = INODE_IS_USED;
+    old_inode->nlink = 1;
+    CHECK(dirent_add(1, old_ino, DT_REG, "flip", 4) == 0);
+    CHECK(path_walk("/flip") == old_ino);
+
+    CHECK(dirent_remove(1, "flip", 4) == 0);
+    inode_free(old_ino);
+
+    uint32_t new_ino = inode_alloc();
+    CHECK(new_ino != 0);
+    RawInode* new_inode = inode_get(new_ino);
+    CHECK(new_inode != nullptr);
+    new_inode->mode = static_cast<uint16_t>(S_IFREG | 0x01B4u);
+    new_inode->iflags = INODE_IS_USED;
+    new_inode->nlink = 1;
+    CHECK(dirent_add(1, new_ino, DT_REG, "flip", 4) == 0);
+    CHECK(path_walk("/flip") == new_ino);
+    return 0;
+}
+
+// Test 14: fd_allocate / fd_get / fd_release cycle
 static int test_fd_lifecycle() {
     test_vfs_init();
     uint32_t ino = inode_alloc();
@@ -276,7 +325,7 @@ static int test_fd_lifecycle() {
     return 0;
 }
 
-// Test 13: mount_resolve returns correct entry for "/" and subdirs
+// Test 15: mount_resolve returns correct entry for "/" and subdirs
 static int test_mount_resolve() {
     test_vfs_init();
     const MountEntry* m = mount_resolve("/");
@@ -288,6 +337,57 @@ static int test_mount_resolve() {
     const MountEntry* m2 = mount_resolve("/bin/foo");
     CHECK(m2 != nullptr);
     CHECK(m2->root_ino == 1);
+    return 0;
+}
+
+// Test 16: directories grow past the first 32-entry block
+static int test_directory_chain_growth() {
+    test_vfs_init();
+    CHECK(ramfs_ops.mkdir(1, "wide", 4, 0x1EDu) == 0);
+    const uint32_t wide_ino = dirent_lookup(1, "wide", 4);
+    CHECK(wide_ino != 0);
+
+    char name[16];
+    for (uint32_t index = 0; index < 40; ++index) {
+        const uint32_t child_ino = inode_alloc();
+        CHECK(child_ino != 0);
+        RawInode* child = inode_get(child_ino);
+        CHECK(child != nullptr);
+        child->mode = static_cast<uint16_t>(S_IFREG | 0x01B4u);
+        child->iflags = INODE_IS_USED;
+        child->nlink = 1;
+        child->parent_ino = wide_ino;
+        std::snprintf(name, sizeof(name), "f%02u", index);
+        CHECK(dirent_add(wide_ino,
+                         child_ino,
+                         DT_REG,
+                         name,
+                         static_cast<uint8_t>(std::strlen(name))) == 0);
+    }
+
+    CHECK(dirent_lookup(wide_ino, "f39", 3) != 0);
+    DirEntry entries[48]{};
+    const int count = dirent_readdir(wide_ino, entries, 48);
+    CHECK(count >= 40);
+    return 0;
+}
+
+// Test 17: vnode handles are bounded and reclaimable
+static int test_vnode_reclaimable_cache() {
+    test_vfs_init();
+    VnodeHandle* vnode = vnode_acquire(1);
+    CHECK(vnode != nullptr);
+    const uint16_t generation = vnode->generation;
+    vnode_release(1);
+
+    CHECK(vnode_lookup(1) != nullptr);
+    vnode_forget(1);
+    CHECK(vnode_lookup(1) == nullptr);
+
+    VnodeHandle* reacquired = vnode_acquire(1);
+    CHECK(reacquired != nullptr);
+    CHECK(reacquired->generation != generation);
+    vnode_release(1);
     return 0;
 }
 
@@ -307,8 +407,12 @@ int main() {
     run_test("path_walk_root",        test_path_walk_root);
     run_test("path_walk_dir",         test_path_walk_dir);
     run_test("unlink",                test_unlink);
+    run_test("negative_cache_add",    test_negative_cache_invalidate_on_add);
+    run_test("positive_cache_replace", test_positive_cache_invalidate_on_replace);
     run_test("fd_lifecycle",          test_fd_lifecycle);
     run_test("mount_resolve",         test_mount_resolve);
+    run_test("directory_chain_growth", test_directory_chain_growth);
+    run_test("vnode_reclaimable_cache", test_vnode_reclaimable_cache);
 
     printf("\n%d passed, %d failed\n", passed, failed);
     return failed == 0 ? 0 : 1;

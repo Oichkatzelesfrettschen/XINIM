@@ -16,9 +16,19 @@ ApicCalibResult calibrate_apic_with_hpet(xinim::hal::x86_64::Lapic& lapic,
     lapic.setup_timer(32, trial_initial, r.divider_pow2, false /*one-shot*/);
 
     uint64_t start = hpet.counter();
+    uint64_t last = start;
+    uint32_t stalled_reads = 0;
     // Busy wait until sample_ns elapses
     for (;;) {
         uint64_t now = hpet.counter();
+        if (now == last) {
+            if (++stalled_reads > 1'000'000U) {
+                break;
+            }
+        } else {
+            stalled_reads = 0;
+            last = now;
+        }
         __uint128_t ns = ((__uint128_t)(now - start) * (__uint128_t)period_fs) / 1000000ULL;
         if (ns >= sample_ns) break;
     }

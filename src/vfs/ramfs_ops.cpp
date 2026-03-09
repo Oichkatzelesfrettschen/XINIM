@@ -14,6 +14,7 @@
 #include "inode_table.hpp"
 #include "dirent.hpp"
 #include "fd_table.hpp"
+#include "vnode_table.hpp"
 #include <cstring>
 #include <xinim/ipc/message_types.h>
 
@@ -36,9 +37,13 @@ static int ramfs_open(uint32_t ino, uint32_t flags, int* out_fd) {
     if (!out_fd) return -IPC_EINVAL;
     RawInode* inode = inode_get(ino);
     if (!inode) return -IPC_ENOENT;
+    if (!vnode_acquire(ino)) return -IPC_ENFILE;
 
     int fd = fd_allocate(ino, flags);
-    if (fd < 0) return -IPC_EMFILE;
+    if (fd < 0) {
+        vnode_release(ino);
+        return -IPC_EMFILE;
+    }
 
     // O_TRUNC: zero file size and reclaim any arena allocation
     if ((flags & O_TRUNC) && !(inode->iflags & INODE_IS_DIR)) {
@@ -166,6 +171,7 @@ static int ramfs_close(int fd) {
             inode_free(ino);
         }
     }
+    vnode_release(ino);
     return ret;
 }
 
@@ -177,6 +183,8 @@ static int ramfs_stat(uint32_t ino, KStat* out) {
     if (!out) return -IPC_EINVAL;
     RawInode* inode = inode_get(ino);
     if (!inode) return -IPC_ENOENT;
+    VnodeHandle* vnode = vnode_acquire(ino);
+    if (!vnode) return -IPC_ENFILE;
 
     out->st_dev    = 1; // ramfs device id
     out->st_ino    = ino;
@@ -191,6 +199,7 @@ static int ramfs_stat(uint32_t ino, KStat* out) {
     out->st_atime  = inode->mtime; // no separate atime in v1.3.0
     out->st_mtime  = inode->mtime;
     out->st_ctime  = inode->ctime;
+    vnode_release(ino);
     return 0;
 }
 

@@ -1,3 +1,7 @@
+#ifndef _GNU_SOURCE
+#define _GNU_SOURCE
+#endif
+
 /**
  * @file xinim_job_control.c
  * @brief POSIX job control implementation for mksh on XINIM
@@ -13,6 +17,7 @@
 #include <errno.h>
 #include <termios.h>
 #include <sys/ioctl.h>
+#include <sys/syscall.h>
 #include <syscall.h>
 #include <stdio.h>
 
@@ -24,14 +29,14 @@
 int xinim_setpgid(pid_t pid, pid_t pgid) {
     /* XINIM syscall for setpgid */
     /* Syscall number would be defined in syscall table */
-    return syscall(__NR_setpgid, pid, pgid);
+    return (int)syscall(__NR_setpgid, pid, pgid);
 }
 
 /**
  * @brief Get process group ID
  */
 pid_t xinim_getpgid(pid_t pid) {
-    return syscall(__NR_getpgid, pid);
+    return (pid_t)syscall(__NR_getpgid, pid);
 }
 
 /**
@@ -66,14 +71,14 @@ pid_t xinim_tcgetpgrp(int fd) {
  * @brief Create a new session
  */
 pid_t xinim_setsid(void) {
-    return syscall(__NR_setsid);
+    return (pid_t)syscall(__NR_setsid);
 }
 
 /**
  * @brief Get session ID
  */
 pid_t xinim_getsid(pid_t pid) {
-    return syscall(__NR_getsid, pid);
+    return (pid_t)syscall(__NR_getsid, pid);
 }
 
 /* Job control operations */

@@ -1,6 +1,7 @@
 #include "serial_16550.hpp"
 #include <cstring>
 #include <cstddef>
+#include <xinim/boot/bootinfo.hpp>
 
 // Pull in proc table definition and constants for ps/mem commands.
 // These are only used in the shell() method which runs in kernel context.
@@ -45,6 +46,10 @@ const char* fmt_int(int val) {
         return buf;
     }
     return fmt_uint(static_cast<std::size_t>(val));
+}
+
+const char* fmt_bool(bool value) {
+    return value ? "yes" : "no";
 }
 
 } // anonymous namespace
@@ -100,12 +105,17 @@ char Serial16550::read_char() {
     return static_cast<char>(inb(base_));
 }
 
-void Serial16550::shell() {
+[[gnu::no_stack_protector]]
+bool Serial16550::shell(const xinim::boot::BootInfo* boot_info, bool allow_continue) {
     char buf[128];
     int pos = 0;
 
-    write("\nxinim kshell (type 'help' for commands)\n");
-    write("xinim> ");
+    write("\nxinim kernel debug shell (COM2)\n");
+    if (allow_continue) {
+        write("Type 'continue' to resume kernel boot.\n");
+    }
+    write("Type 'help' for commands.\n");
+    write("xinim-kernel-dbg> ");
 
     while (true) {
         char c = read_char();
@@ -113,9 +123,61 @@ void Serial16550::shell() {
             buf[pos] = '\0';
             write("\n");
             if (::strcmp(buf, "help") == 0) {
-                write("Commands: help, info, ps, mem, panic, reboot, halt\n");
+                write("Commands: help, info, boot, cmdline, ps, mem, panic, reboot, halt");
+                if (allow_continue) {
+                    write(", continue");
+                }
+                write("\n");
             } else if (::strcmp(buf, "info") == 0) {
-                write("XINIM Kernel v1.0.0 (x86_64, C++23)\n");
+                write("XINIM Kernel debug shell (x86_64, ring0 emergency lane)\n");
+            } else if (::strcmp(buf, "boot") == 0) {
+                if (boot_info == nullptr) {
+                    write("Boot info unavailable\n");
+                } else {
+                    write("protocol: ");
+                    switch (boot_info->protocol) {
+                    case xinim::boot::BootProtocol::Limine:
+                        write("limine");
+                        break;
+                    case xinim::boot::BootProtocol::Multiboot2:
+                        write("multiboot2");
+                        break;
+                    default:
+                        write("unknown");
+                        break;
+                    }
+                    write("\nmodules: ");
+                    write(fmt_uint(boot_info->modules_count));
+                    if (boot_info->modules != nullptr && boot_info->modules_count > 0) {
+                        for (std::size_t index = 0; index < boot_info->modules_count; ++index) {
+                            const auto& module = boot_info->modules[index];
+                            if (!module.valid() || module.string == nullptr) {
+                                continue;
+                            }
+                            write("\nmodule[");
+                            write(fmt_uint(index));
+                            write("]: ");
+                            write(module.string);
+                        }
+                    }
+                    write("\nframebuffer: ");
+                    write(fmt_bool(boot_info->has_framebuffer()));
+                    write("\nhhdm: ");
+                    write(fmt_uint(static_cast<std::size_t>(boot_info->hhdm_offset)));
+                    write("\nfpu: ");
+                    write(fmt_bool(boot_info->cpu.has_fpu));
+                    write("\ncpuid: ");
+                    write(fmt_bool(boot_info->cpu.has_cpuid));
+                    write("\n");
+                }
+            } else if (::strcmp(buf, "cmdline") == 0) {
+                if (boot_info == nullptr || boot_info->cmdline == nullptr ||
+                    boot_info->cmdline[0] == '\0') {
+                    write("(none)\n");
+                } else {
+                    write(boot_info->cmdline);
+                    write("\n");
+                }
             } else if (::strcmp(buf, "ps") == 0) {
                 // List active process slots from the MINIX-heritage proc table.
                 write("PID  PRI  FLAGS  STATE\n");
@@ -174,13 +236,16 @@ void Serial16550::shell() {
             } else if (::strcmp(buf, "halt") == 0) {
                 write("Halting...\n");
                 ::halt();
+            } else if (allow_continue && ::strcmp(buf, "continue") == 0) {
+                write("Resuming kernel boot...\n");
+                return true;
             } else if (pos > 0) {
                 write("Unknown command: ");
                 write(buf);
                 write("\n");
             }
             pos = 0;
-            write("xinim> ");
+            write("xinim-kernel-dbg> ");
         } else if (c == '\b' || c == 127) {
             if (pos > 0) {
                 pos--;

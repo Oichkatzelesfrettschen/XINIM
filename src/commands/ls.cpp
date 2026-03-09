@@ -809,8 +809,7 @@ class DirectoryLister final {
                 return has_flag(flags_, ListingFlags::ReverseSort) ? !result : result;
             };
             if (use_parallel)
-                std::sort(std::execution::par_unseq, sort_indices_.begin(), sort_indices_.end(),
-                          time_comparator);
+                std::sort(sort_indices_.begin(), sort_indices_.end(), time_comparator);
             else
                 std::ranges::sort(sort_indices_, time_comparator);
         } else {
@@ -827,8 +826,7 @@ class DirectoryLister final {
                 return has_flag(flags_, ListingFlags::ReverseSort) ? !result : result;
             };
             if (use_parallel)
-                std::sort(std::execution::par_unseq, sort_indices_.begin(), sort_indices_.end(),
-                          name_comparator);
+                std::sort(sort_indices_.begin(), sort_indices_.end(), name_comparator);
             else
                 std::ranges::sort(sort_indices_, name_comparator);
         }

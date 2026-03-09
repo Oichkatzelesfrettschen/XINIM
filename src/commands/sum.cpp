@@ -1,133 +1,80 @@
-/*<<< WORK-IN-PROGRESS MODERNIZATION HEADER
-  This repository is a work in progress to reproduce the
-  original MINIX simplicity on modern 32-bit and 64-bit
-  ARM and x86/x86_64 hardware using C++23.
->>>*/
+#include <cstdint>
+#include <fstream>
+#include <iostream>
+#include <span>
+#include <string_view>
+#include <vector>
 
-/* sum - checksum a file		Author: Martin C. Atkins */
+namespace {
 
-/*
- *	This program was written by:
- *		Martin C. Atkins,
- *		University of York,
- *		Heslington,
- *		York. Y01 5DD
- *		England
- *	and is released into the public domain, on the condition
- *	that this comment is always included without alteration.
- */
+constexpr std::size_t k_block_size = 512;
 
-#include <cstdlib>  // exit
-#include <cstring>  // strcmp
-#include <fcntl.h>  // open
-#include <unistd.h> // read, close
+struct checksum_result {
+    std::uint16_t checksum{0};
+    std::size_t size{0};
+};
 
-// Size of the buffer used when reading files
-constexpr int kBufSize = 512;
+checksum_result compute_sum(std::istream& input) {
+    checksum_result result{};
+    char byte = '\0';
+    while (input.get(byte)) {
+        const auto rotated = static_cast<std::uint16_t>(
+            static_cast<std::uint16_t>(result.checksum >> 1U) |
+            ((result.checksum & 1U) != 0U ? 0x8000U : 0U));
+        result.checksum = static_cast<std::uint16_t>(
+            (rotated + static_cast<unsigned char>(byte)) & 0xffffU);
+        ++result.size;
+    }
+    return result;
+}
 
-static void error(const char *s, const char *f);
-static void sum(int fd, const char *fname);
-static void putd(int number, int fw, int zeros);
-
-// Return code from main
-int rc = 0;
-
-// Default argument when no file is specified
-char *defargv[] = {"-", nullptr};
-
-// Program entry point
-/**
- * @brief Entry point for the sum utility.
- * @param argc Number of command-line arguments as per C++23 [basic.start.main].
- * @param argv Array of command-line argument strings.
- * @return Exit status as specified by C++23 [basic.start.main].
- */
-int main(int argc, char *argv[]) {
-    int fd;
-
-    if (*++argv == 0)
-        argv = defargv;
-    for (; *argv; ++argv) {
-        if (argv[0][0] == '-' && argv[0][1] == '\0') {
-            fd = 0; // read from stdin
-        } else {
-            fd = open(*argv, O_RDONLY);
+bool emit_sum(std::istream& input, std::string_view label) {
+    const checksum_result result = compute_sum(input);
+    if (!input.eof() && input.fail()) {
+        std::cerr << "sum: read error";
+        if (!label.empty()) {
+            std::cerr << " on " << label;
         }
+        std::cerr << '\n';
+        return false;
+    }
 
-        if (fd == -1) {
-            error("can't open ", *argv);
-            rc = 1;
+    const std::size_t blocks = (result.size + k_block_size - 1U) / k_block_size;
+    std::cout << result.checksum << ' ' << blocks;
+    if (!label.empty()) {
+        std::cout << ' ' << label;
+    }
+    std::cout << '\n';
+    return true;
+}
+
+} // namespace
+
+int main(int argc, char* argv[]) {
+    const auto arg_count = argc > 1 ? static_cast<std::size_t>(argc - 1) : 0U;
+    std::span<char*> args(argv + 1, arg_count);
+
+    if (args.empty()) {
+        return emit_sum(std::cin, {}) ? 0 : 1;
+    }
+
+    bool all_ok = true;
+    for (char* arg : args) {
+        const std::string_view path(arg);
+        if (path == "-") {
+            all_ok = emit_sum(std::cin, {}) && all_ok;
             continue;
         }
-        sum(fd, (argc > 2) ? *argv : nullptr);
-        if (fd != 0) {
-            close(fd);
+
+        std::ifstream input(arg, std::ios::binary);
+        if (!input) {
+            std::cerr << "sum: cannot open " << path << '\n';
+            all_ok = false;
+            continue;
         }
-    }
-    exit(rc);
-}
 
-static void error(const char *s, const char *f) {
-    std_err("sum: ");
-    std_err(s);
-
-    if (f) {
-        std_err(f);
-    }
-    std_err("\n");
-}
-
-static void sum(int fd, const char *fname) {
-    char buf[kBufSize];
-    int i;
-    int n;
-    int size = 0;
-    unsigned crc = 0;
-    unsigned tmp;
-
-    while ((n = read(fd, buf, kBufSize)) > 0) {
-        for (i = 0; i < n; i++) {
-            crc = (crc >> 1) + ((crc & 1) ? 0x8000 : 0);
-            tmp = buf[i] & 0377;
-            crc += tmp;
-            crc &= 0xffff;
-            size++;
-        }
+        all_ok = emit_sum(input, path) && all_ok;
     }
 
-    if (n < 0) {
-        if (fname) {
-            error("read error on ", fname);
-        } else {
-            error("read error", nullptr);
-        }
-        rc = 1;
-        return;
-    }
-    putd(crc, 5, 1);
-    putd((size + kBufSize - 1) / kBufSize, 6, 0);
-    if (fname) {
-        prints(" %s", fname);
-    }
-    prints("\n");
-}
-
-static void putd(int number, int fw, int zeros) {
-    /* Put a decimal number, in a field width, to stdout. */
-
-    char buf[10];
-    int n;
-    unsigned num;
-
-    num = static_cast<unsigned>(number);
-    for (n = 0; n < fw; ++n) {
-        if (num || n == 0) {
-            buf[fw - n - 1] = '0' + num % 10;
-            num /= 10;
-        } else {
-            buf[fw - n - 1] = zeros ? '0' : ' ';
-        }
-    }
-    buf[fw] = 0;
-    prints("%s", buf);
+    return all_ok ? 0 : 1;
 }

@@ -1,6 +1,6 @@
 /**
  * @file job_control.cpp
- * @brief Job control implementation for xinim-sh
+ * @brief Job control implementation for xash
  *
  * Implements job management, foreground/background control,
  * and job status tracking.
@@ -47,7 +47,7 @@ int add_job(pid_t pid, pid_t pgid, const char* command, bool foreground) {
     }
 
     if (job_id == -1) {
-        fprintf(stderr, "xinim-sh: job table full\n");
+        fprintf(stderr, "xash: job table full\n");
         return -1;
     }
 

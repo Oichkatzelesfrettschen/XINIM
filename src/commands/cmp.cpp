@@ -155,8 +155,9 @@ int FileComparer::compare() {
         std::streamsize limit = std::min(bytes_read1, bytes_read2);
 
         for (std::streamsize i = 0; i < limit; ++i) {
+            const auto index = static_cast<std::size_t>(i);
             byte_count++;
-            if (buffer1[i] != buffer2[i]) {
+            if (buffer1[index] != buffer2[index]) {
                 files_differ = true;
                 if (m_opts.silent) {
                     return 1;
@@ -164,9 +165,9 @@ int FileComparer::compare() {
                 if (m_opts.list_all_diffs) {
                     std::cout << std::setw(8) << byte_count << " " << std::oct << std::setw(3)
                               << std::setfill('0')
-                              << static_cast<int>(static_cast<unsigned char>(buffer1[i])) << " "
+                              << static_cast<int>(static_cast<unsigned char>(buffer1[index])) << " "
                               << std::oct << std::setw(3) << std::setfill('0')
-                              << static_cast<int>(static_cast<unsigned char>(buffer2[i]))
+                              << static_cast<int>(static_cast<unsigned char>(buffer2[index]))
                               << std::dec << std::endl;
                 } else {
                     std::cout << m_opts.file1_path.string() << " " << m_opts.file2_path.string()
@@ -175,7 +176,7 @@ int FileComparer::compare() {
                     return 1;
                 }
             }
-            if (buffer1[i] == '\n') {
+            if (buffer1[index] == '\n') {
                 line_count++;
             }
         }

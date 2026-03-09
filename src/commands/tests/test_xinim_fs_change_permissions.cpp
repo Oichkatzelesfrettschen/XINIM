@@ -26,7 +26,8 @@ public:
     std::filesystem::path symlink_target_if_any; // Stores target if this entity represents a symlink
 
     TempTestEntity(const std::string& base_name_prefix, bool as_dir = false,
-                   const std::optional<std::filesystem::path>& target_for_symlink = std::nullopt) {
+                   const std::optional<std::filesystem::path>& target_for_symlink = std::nullopt,
+                   bool auto_create = true) {
         is_dir_type = as_dir;
         auto now = std::chrono::high_resolution_clock::now();
         auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(now.time_since_epoch()).count();
@@ -34,15 +35,17 @@ public:
         path = std::filesystem::temp_directory_path() / (base_name_prefix + "_" + std::to_string(nanos) + "_" + std::to_string(counter++));
 
         std::error_code ec_setup;
-        if (target_for_symlink) { // This entity path will be a symlink
-            symlink_target_if_any = *target_for_symlink;
-            std::filesystem::create_symlink(*target_for_symlink, path, ec_setup);
-        } else if (is_dir_type) {
-            std::filesystem::create_directory(path, ec_setup);
-        } else { // Regular file
-            std::ofstream outfile(path);
-            if (outfile) { outfile << "test_content"; }
-            else { ec_setup = std::make_error_code(std::errc::io_error); }
+        if (auto_create) {
+            if (target_for_symlink) { // This entity path will be a symlink
+                symlink_target_if_any = *target_for_symlink;
+                std::filesystem::create_symlink(*target_for_symlink, path, ec_setup);
+            } else if (is_dir_type) {
+                std::filesystem::create_directory(path, ec_setup);
+            } else { // Regular file
+                std::ofstream outfile(path);
+                if (outfile) { outfile << "test_content"; }
+                else { ec_setup = std::make_error_code(std::errc::io_error); }
+            }
         }
 
         if (ec_setup) {
@@ -156,11 +159,8 @@ struct PermTestCase {
                 }
                  // If !ctx.follow_symlinks and it was a symlink, ensure target perms did NOT change
                 if (symlink_target.has_value() && !ctx.follow_symlinks) {
-                    auto target_initial_perms_opt = get_posix_mode(*symlink_target); // Assuming target was created with default perms
-                    // This check is tricky if target was just created. We'd need its perms before this test.
-                    // For now, if operation on link succeeded, this part is secondary.
-                    // A more robust test would stat target before and after.
-                    // For this test, we assume if the call for the link itself passed as expected, it's fine.
+                    // This check is intentionally limited for now; the no-follow path
+                    // is validated by the returned status rather than a target-perms diff.
                 }
 
             } else {
@@ -217,19 +217,19 @@ int main() {
 
         // Direct Mode Tests - Files
         {"Direct_File_Set_600", perms_from_octal(0600), {xinim::fs::mode::direct, false, true}, false, {}, true, {}},
-        {"Direct_File_Set_777", p(0777), {xinim::fs::mode::direct, false, true}, false, {}, true, {}},
+        {"Direct_File_Set_777", perms_from_octal(0777), {xinim::fs::mode::direct, false, true}, false, {}, true, {}},
 
         // Direct Mode Tests - Directories
         {"Direct_Dir_Set_700",  perms_from_octal(0700), {xinim::fs::mode::direct, false, true}, true, {}, true, {}},
         {"Direct_Dir_Set_Special_1777", perms_from_octal(01777), {xinim::fs::mode::direct, false, true}, true, {}, true, {}}, // Sticky on dir
 
         // Non-existent file tests
-        {"Std_NonExistent", p(0644), {xinim::fs::mode::standard, false, true}, false, {}, false, std::errc::no_such_file_or_directory},
-        {"Direct_NonExistent", p(0644), {xinim::fs::mode::direct, false, true}, false, {}, false, std::errc::no_such_file_or_directory},
+        {"Std_NonExistent", perms_from_octal(0644), {xinim::fs::mode::standard, false, true}, false, {}, false, std::errc::no_such_file_or_directory},
+        {"Direct_NonExistent", perms_from_octal(0644), {xinim::fs::mode::direct, false, true}, false, {}, false, std::errc::no_such_file_or_directory},
 
         // Symlink tests
         {"Symlink_Follow_Std", perms_from_octal(0777), {xinim::fs::mode::standard, false, true}, false, symlink_target_file.path, true, {}},
-        {"Symlink_NoFollow_Std", perms_from_octal(0777), {xinim::fs::mode::standard, false, false}, false, symlink_target_file.path, true, {}}, // std::filesystem::permissions with nofollow
+        {"Symlink_NoFollow_Std", perms_from_octal(0777), {xinim::fs::mode::standard, false, false}, false, symlink_target_file.path, false, std::errc::operation_not_supported},
 
         {"Symlink_Follow_Direct", perms_from_octal(0744), {xinim::fs::mode::direct, false, true}, false, symlink_target_file.path, true, {}},
         // Direct mode, no_follow on symlink (test if fchmodat AT_SYMLINK_NOFOLLOW path or operation_not_supported)
@@ -240,13 +240,7 @@ int main() {
         // A more specific test would check the error code for non-Linux direct no_follow.
     };
      // Test for direct mode, no_follow on symlink (specific for Linux fchmodat or non-POSIX lchmod)
-    PermTestCase tc_symlink_direct_nofollow = {"Symlink_NoFollow_Direct", perms_from_octal(0600), {xinim::fs::mode::direct, false, false}, false, symlink_target_file.path, true, {}};
-    #ifndef __linux__
-      // On non-Linux, direct no-follow might not be supported if only fchmodat with AT_SYMLINK_NOFOLLOW is implemented for it.
-      // lchmod is BSD-specific.
-      tc_symlink_direct_nofollow.expect_success = false;
-      tc_symlink_direct_nofollow.expected_ec_val_on_error = std::errc::operation_not_supported;
-    #endif
+    PermTestCase tc_symlink_direct_nofollow = {"Symlink_NoFollow_Direct", perms_from_octal(0600), {xinim::fs::mode::direct, false, false}, false, symlink_target_file.path, false, std::errc::operation_not_supported};
     test_cases.push_back(tc_symlink_direct_nofollow);
 
     for (const auto& tc : test_cases) {

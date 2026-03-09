@@ -2,7 +2,7 @@
 # XINIM QEMU Launch Script for x86_64
 # Optimized settings for running XINIM kernel in x86_64 QEMU session
 
-set -e
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "$SCRIPT_DIR")"
@@ -20,7 +20,10 @@ print_error() { echo -e "${RED}[ERROR]${NC} $1"; }
 print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 
 # Default configuration for x86_64
-KERNEL_IMAGE="${PROJECT_ROOT}/build/Debug/xinim"
+BUILD_ROOT="${XINIM_BUILD_ROOT:-${PROJECT_ROOT}/build/x86_64/Debug}"
+IMAGE_ROOT="${XINIM_IMAGE_ROOT:-${BUILD_ROOT}/images}"
+KERNEL_IMAGE="${BUILD_ROOT}/xinim"
+BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-${IMAGE_ROOT}/x86_64/xinim-x86_64.iso}"
 MEMORY="512M"
 CPU_TYPE="qemu64"
 MACHINE="q35"  # Modern PC with PCIe
@@ -38,6 +41,10 @@ while [[ $# -gt 0 ]]; do
     case $1 in
         -k|--kernel)
             KERNEL_IMAGE="$2"
+            shift 2
+            ;;
+        --boot-image)
+            BOOT_IMAGE="$2"
             shift 2
             ;;
         -m|--memory)
@@ -83,7 +90,8 @@ Usage: $0 [OPTIONS]
 XINIM x86_64 QEMU Launch Script
 
 Options:
-  -k, --kernel PATH       Path to kernel image (default: build/xinim)
+  -k, --kernel PATH       Path to kernel ELF (default: external build root)
+  --boot-image PATH       Bootable disk/ISO image for QEMU (recommended)
   -m, --memory SIZE       Memory size (default: 512M)
   --cpu TYPE             CPU type (default: qemu64)
                          Options: qemu64, host, Nehalem, SandyBridge, IvyBridge,
@@ -99,7 +107,10 @@ Options:
   -h, --help             Show this help message
 
 Examples:
-  # Basic boot
+  # Boot from a prebuilt image
+  $0 --boot-image "\$XINIM_IMAGE_ROOT/x86_64/xinim-x86_64.iso"
+
+  # Legacy direct kernel path (only for kernels that QEMU can load directly)
   $0
 
   # Boot with more memory and CPUs
@@ -141,13 +152,6 @@ EOF
     esac
 done
 
-# Check if kernel image exists
-if [[ ! -f "$KERNEL_IMAGE" ]]; then
-    print_error "Kernel image not found: $KERNEL_IMAGE"
-    print_info "Please build the kernel first with: cmake --build --preset debug"
-    exit 1
-fi
-
 # Check for QEMU
 if ! command -v qemu-system-x86_64 &> /dev/null; then
     print_error "qemu-system-x86_64 not found"
@@ -175,9 +179,6 @@ QEMU_ARGS=(
     -m "$MEMORY"
     -smp "$SMP_CPUS"
     
-    # Boot kernel directly (multiboot)
-    -kernel "$KERNEL_IMAGE"
-    
     # Modern PC devices
     -device "ahci,id=ahci"                    # AHCI controller
     -device "e1000,netdev=net0"               # E1000 network card
@@ -189,10 +190,38 @@ QEMU_ARGS=(
     
     # Display
     $DISPLAY
+
+    # Keep stdio free for the selected serial backend.
+    -monitor none
     
     # Exit on reboot for clean termination
     -no-reboot
 )
+
+if [[ -n "${BOOT_IMAGE}" ]]; then
+    if [[ ! -f "${BOOT_IMAGE}" ]]; then
+        print_error "Boot image not found: ${BOOT_IMAGE}"
+        exit 1
+    fi
+    QEMU_ARGS+=(
+        -cdrom "${BOOT_IMAGE}"
+        -boot d
+    )
+else
+    if [[ ! -f "$KERNEL_IMAGE" ]]; then
+        print_error "Kernel image not found: $KERNEL_IMAGE"
+        print_info "Please build the kernel first with: cmake --build --preset x86_64-debug"
+        exit 1
+    fi
+
+    if file "$KERNEL_IMAGE" | grep -q "ELF 64-bit"; then
+        print_error "Direct -kernel boot is not supported for the current Limine-oriented kernel ELF."
+        print_info "Provide a bootable image via --boot-image or XINIM_QEMU_BOOT_IMAGE."
+        exit 1
+    fi
+
+    QEMU_ARGS+=(-kernel "$KERNEL_IMAGE")
+fi
 
 # Add kernel command line if specified
 if [[ -n "$KERNEL_CMDLINE" ]]; then
@@ -216,6 +245,9 @@ fi
 print_info "Starting XINIM in QEMU (x86_64)"
 print_info "================================"
 print_info "Kernel:       $KERNEL_IMAGE"
+if [[ -n "${BOOT_IMAGE}" ]]; then
+    print_info "Boot Image:   ${BOOT_IMAGE}"
+fi
 print_info "Memory:       $MEMORY"
 print_info "CPUs:         $SMP_CPUS"
 print_info "CPU Type:     $CPU_TYPE"

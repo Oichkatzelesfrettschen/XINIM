@@ -1,106 +1,97 @@
 # TODO/FIXME Triage Tracker
 
-Phase 5 baseline: 2026-02-26. Total in src/ (non-legacy): 125 items.
-v1.2.0 update: 2026-03-05. Phase 6 REMOVED count below reflects resolved items.
-v1.4.0 update: 2026-03-06. VFS bare-metal files (src/vfs/bare_*.cpp etc.) have zero TODOs.
-Legacy VFS files (src/vfs/vfs.cpp, tmpfs.cpp, etc.) are not in the kernel build target;
-their TODOs are catalogued below as DEFERRED.
+Date: 2026-03-08
+Status: Active
 
-## Triage Categories
+This tracker is for live work only. Historical wrapper-script and external
+sysroot references have been removed from the active plan and should be treated
+as archival context, not current engineering work.
 
-- **PHASE6**: Requires microkernel boundary work (IPC, server activation)
-- **PHASE7**: Requires feature implementation (VFS, ELF, signals, drivers)
-- **DEFERRED**: Valid future work, not blocking current phases
-- **REMOVED**: Completed or obsolete; deleted from source
+Primary sequencing reference:
+- [ROADMAP_100_STEP.md](/home/eirikr/Github/XINIM/docs/analysis/ROADMAP_100_STEP.md)
 
-## Kernel (30 TODOs)
+## Active Build and Boot Work
 
-| File | Line | Text | Category |
-|------|------|------|----------|
-| elf_loader.cpp | 191 | Map segment_buf to phdr->p_vaddr in user address space | PHASE7 |
-| elf_loader.cpp | 192 | Implement proper VMA and page table management | PHASE7 |
-| uaccess.cpp | 59 | Check if pages are actually mapped in process page table | PHASE7 |
-| uaccess.cpp | 87 | Set up exception handler to catch page faults | PHASE7 |
-| uaccess.cpp | 112 | Set up exception handler to catch page faults | PHASE7 |
-| clock.cpp | 54 | implement alarm list with tick-based expiration | PHASE6 |
-| irq.cpp | 100 | Detect and initialize APIC/IOAPIC if available | DEFERRED |
-| irq.cpp | 245 | Support multiple handlers via linked list | DEFERRED |
-| irq.cpp | 298 | For APIC/IOAPIC, configure IOAPIC redirection entry | DEFERRED |
-| irq.cpp | 320 | For APIC/IOAPIC, mask IOAPIC redirection entry | DEFERRED |
-| irq.cpp | 393 | For APIC, write to Local APIC EOI register | DEFERRED |
-| irq.cpp | 477 | Track unhandled interrupts | DEFERRED |
-| irq.cpp | 527 | Implement IRQ dump for debugging | DEFERRED |
-| syscalls/file_ops.cpp | 82 | Check permissions based on access mode | PHASE7 |
-| syscalls/file_ops.cpp | 241 | Free pipe when both ends are closed | PHASE7 |
-| syscalls/file_ops.cpp | 244 | Call VFS close on inode (decrement ref count) | PHASE7 |
-| syscalls/exec.cpp | 277 | Free old user memory pages | PHASE7 |
-| syscalls/exec.cpp | 278 | Implement proper VMA cleanup and page table updates | PHASE7 |
-| syscalls/signal.cpp | 81 | Check permissions | PHASE7 |
-| adaptive_mutex.hpp | 310 | Add proper initialization check | DEFERRED |
-| sys/dispatch.cpp | 43 | return actual cur_proc from proc.cpp | REMOVED (v1.2.0 Phase 2: g_unified_scheduler.current_pid()) |
-| sys/dispatch.cpp | 69 | terminate current process, free PCB, notify parent | REMOVED (v1.2.0 Phase 4: process_exit()) |
-| sys/dispatch.cpp | 79 | Caller PID -- derive from cur_proc | REMOVED (v1.2.0 Phase 2: g_unified_scheduler.current_pid()) |
-| ipc_test.cpp | 52 | Actually send IPC message when lattice_send is available | PHASE6 |
-| fd_table.cpp | 227 | Call VFS close on inode | PHASE7 |
-| fd_table.cpp | 272 | Increment inode reference count | PHASE7 |
-| signal.cpp | 418 | Implement proper process lookup | PHASE7 |
-| exec_stack.cpp | 201 | Map stack_buffer to stack_ptr in user address space | PHASE7 |
-| exec_stack.cpp | 202 | Implement proper user stack page allocation | PHASE7 |
-| server_spawn.cpp | 216 | Implement full IPC registration in lattice_ipc.cpp | PHASE6 |
+- Expand guest validation across the full 32-bit lane matrix:
+  - `i586`
+  - `i686`
+  - `x86_32_core2`
+  - `x86_32_athlon`
+  - `x86_32_phenom`
+- Keep the repo-local GRUB and Limine bootstrap paths deterministic and
+  documented.
+- Continue burning down warning debt so `-Wconversion` and
+  `-Wsign-conversion` can return to full `-Werror`.
 
-## Memory Manager (8 TODOs)
+## x86_64 Guest Work
 
-| File | Line | Text | Category |
-|------|------|------|----------|
-| mm/dma_allocator.cpp | 202 | Use proper MMU translation when available | PHASE7 |
-| mm/dma_allocator.cpp | 208 | Use proper MMU translation when available | PHASE7 |
-| mm/dma.cpp | 108 | Implement cache operations based on architecture | PHASE7 |
+- Keep the Limine ISO path healthy and covered by real guest tests.
+- Continue shell reachability and boot-log validation on the image-based flow.
 
-(Remaining 5 in mm/ are driver-adjacent DEFERRED items.)
+## 32-bit Userland Work
 
-## Crypto (2 TODOs + 3 resolved in v1.4.0)
+- Grow the bootstrap user ABI beyond the current shell baseline.
+- Add more POSIX.1-2008 behavior coverage to `xash`.
+- Keep the low-end 486-safe baseline intact while adding later CPU lanes.
 
-| File | Line | Text | Category |
-|------|------|------|----------|
-| crypto/kyber.cpp | 50 | Implement proper AEAD (ChaCha20-Poly1305 or AES-GCM) | PHASE7 |
-| crypto/kyber.cpp | 76 | Implement proper AEAD decryption | PHASE7 |
-| crypto/kyber_impl/kem.cpp | - | Kyber768 KEM enc/dec roundtrip | REMOVED (v1.4.0 Phase A: indcpa_keypair_derand + poly_compress fixed, 5/5 tests pass) |
-| crypto/aes_hw.cpp | - | AES-128 AES-NI acceleration | REMOVED (v1.4.0 Phase E: sw+hw dispatch, NIST test vectors pass) |
-| crypto/sha2_hw.cpp | - | SHA-256 SHA-NI acceleration | REMOVED (v1.4.0 Phase E: sw+hw dispatch, NIST test vectors pass) |
+## Native Tools Work
 
-## Drivers (20+ TODOs)
+- Keep rebuilding hosted tools in native C++.
+- Build out `xinim::tools::core` so shell and command work shares one support
+  layer.
+- Use Heirloom and related shells as behavior references only.
+- Keep promoting only commands that survive warnings-as-errors cleanly and have
+  at least smoke-level validation.
+- keep this command inventory synchronized with `xinim_commands_hosted` and
+  `src/commands/tests` after each wiring batch
+- keep `docs/analysis/HOSTED_COMMAND_INVENTORY.md` list aligned with each
+  command retirement wave and explicit archive moves
 
-All in src/drivers/ and src/block/ -- DEFERRED pending driver implementation phases.
+## Immediate Tranche
 
-## Commands / Tools (15 TODOs)
+- keep shrinking `src/commands` with small standalone tools
+- keep modernizing remaining fs regressions off the old `filesystem_ops` path
+- keep correcting overstated POSIX/QEMU/build claims in the active docs
+- keep burning down total unwired files across `src`, `test`, and `userland`
+- keep `userland` at zero unwired files now that the hosted sample and mksh
+  reference lane are in the graph
+- prioritize low-dependency promotions or clear quarantine decisions over
+  leaving stale half-wired files in place
+- keep the deferred command-candidate queue explicit (currently zero pending in
+  `src/commands`, with retired items tracked under
+  `archive/legacy/commands/`)
+- keep the archival command queue explicit in `archive/legacy/commands/` with
+  a reversible path back to active review if a command is later promoted
+- keep the build graph audit current after each wiring batch
+- keep the POSIX-language verifier passing after each doc update
+- keep historical placeholder evidence under `archive/legacy/` instead of the
+  active source/test tree
+- keep relabeling lingering active-doc compliance language so it matches the
+  archived-placeholder split
+- keep classifying kernel/mm parallel stories like `fd_table` versus VFS FD
+  tables while keeping the reconciled DMA compatibility layer aligned with the
+  active allocator backend
+- keep the 486 DMA lane honest by preserving the below-16MiB plus single-64KiB
+  ISA DMA window rule in both freestanding and hosted validation paths
+- completed the next 25-file kernel/mm triage wave:
+  - retired 13 MM legacy `.cpp` units and one kernel legacy floppy path to
+    `archive/legacy/mm/retired` and `archive/legacy/kernel/retired`
+  - kept active MM lane focused on `alloc/dma_allocator/dma/pmm/memory/meminfo`
+  - re-scanned `src/mm/*`/`src/kernel/*` against the active CMake flow
+- continue mining old MM-server files for semantics, but classify remaining
+  candidates (`src/mm/signal.cpp`, `src/mm/putc.cpp`, `src/mm/syscall.cpp`,
+  `src/kernel/wormhole.cpp`) explicitly instead of leaving them in a gray area
+- keep the next 25-file kernel/mm triage wave focused, with active watchlist
+  updated in `docs/analysis/BUILD_GRAPH_RECONCILIATION.md`
 
-Lower priority; not in kernel build path. DEFERRED.
+## Future Architecture Track
 
-## New bare-metal VFS source files (src/vfs/bare_*.cpp, inode_table.cpp, etc.)
+- Evaluate future serialization choices through
+  [ADR 0010](/home/eirikr/Github/XINIM/docs/adr/0010-serialization-track-msgpack-vs-capnp.md)
+  instead of making ad hoc dependency decisions.
 
-Zero active TODOs in the following v1.3.0/v1.4.0 files (as of 2026-03-06):
-bare_vfs.hpp, inode_table.cpp, dirent.cpp, path_walk.cpp, ramfs_ops.cpp,
-mount_table.cpp, fd_table.cpp (vfs/), buffer_cache.cpp, vfs_server.cpp.
+## Historical Notes
 
-Legacy VFS files (src/vfs/vfs.cpp, tmpfs.cpp, filesystem.cpp, mount.cpp,
-ramfs.hpp, ext2.cpp, path_util.hpp, vfs_enhanced.cpp, vfs_security.cpp)
-contain ~25 TODO items but are NOT in the kernel build target. Catalogued
-as DEFERRED pending legacy cleanup or deletion.
-
-## Summary
-
-| Category | Count |
-|----------|-------|
-| PHASE6   | 3     |
-| PHASE7   | 20    |
-| DEFERRED | 99 + 25 (legacy VFS files) |
-| REMOVED  | 6 (3 v1.2.0 + 3 v1.4.0) |
-| **Total** | **125 active + 25 legacy-only** |
-
-## Removal Policy
-
-Only remove a TODO when:
-1. The work is actually implemented, OR
-2. The comment is demonstrably wrong/obsolete and the code is correct as-is.
-
-Do NOT remove TODOs that represent genuine future work, even if deferred.
+- Generated analysis snapshots under `docs/analysis/tooling/` and
+  `docs/analysis/ast_dependency_*.json` may still contain legacy paths because
+  they are recorded artifacts, not active guidance.

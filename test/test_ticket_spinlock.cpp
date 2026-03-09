@@ -114,21 +114,23 @@ static void test_mutual_exclusion() {
  */
 static void test_fifo_fairness() {
     TicketSpinlock lock;
-    std::vector<int> order;
-    std::mutex order_mutex;
-
     constexpr int NUM_THREADS = 4;
+    std::vector<int> acquisition_order;
+    std::vector<int> request_order(NUM_THREADS, -1);
+    std::mutex order_mutex;
+    std::atomic<int> next_request{0};
 
     // Pre-acquire the lock to ensure all threads queue up
     lock.lock();
 
     auto worker = [&](int id) {
+        request_order[id] = next_request.fetch_add(1, std::memory_order_relaxed);
         lock.lock();
 
         // Record acquisition order
         {
             std::lock_guard<std::mutex> guard(order_mutex);
-            order.push_back(id);
+            acquisition_order.push_back(request_order[id]);
         }
 
         lock.unlock();
@@ -139,8 +141,15 @@ static void test_fifo_fairness() {
         threads.emplace_back(worker, i);
     }
 
-    // Small delay to ensure all threads have taken tickets
-    std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    // Wait until every thread has requested the lock before releasing it.
+    const auto deadline =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(250);
+    while (next_request.load(std::memory_order_relaxed) != NUM_THREADS &&
+           std::chrono::steady_clock::now() < deadline) {
+        std::this_thread::yield();
+    }
+
+    assert(next_request.load(std::memory_order_relaxed) == NUM_THREADS);
 
     // Release the lock - threads should acquire in order
     lock.unlock();
@@ -149,10 +158,10 @@ static void test_fifo_fairness() {
         t.join();
     }
 
-    // Verify FIFO order (0, 1, 2, 3)
-    assert(order.size() == NUM_THREADS);
+    // Verify FIFO order by request sequence, not thread creation order.
+    assert(acquisition_order.size() == NUM_THREADS);
     for (int i = 0; i < NUM_THREADS; i++) {
-        assert(order[i] == i);
+        assert(acquisition_order[i] == i);
     }
 }
 

@@ -1,7 +1,7 @@
 # Claims Audit
 
-Date: 2026-02-26
-Status: Active (updated from 2025-12-31 draft)
+Date: 2026-03-08
+Status: Active
 
 ## Purpose
 Track public claims in README/docs, map them to testable hypotheses, and
@@ -62,18 +62,19 @@ Evidence (Phase 7 completed):
 Action: Claim upgraded from STUB to VERIFIED (foundation only).
 
 ### 4. "QEMU support with x86_64"
-**Status: VERIFIED (infrastructure)**
-Hypothesis: QEMU boot reaches kernel banner and logs serial output.
-Evidence (Phase 9 completed):
-- qemu_x86_64.sh: Updated with dual serial (COM1 logs, COM2 kshell via TCP).
-- Kernel: COM1 and COM2 initialized in _start(). Interrupt-driven RX with
-  256-byte ring buffer. kshell expanded with ps, mem, panic commands.
-- CTest registration: boot_smoke_test.sh (COM1 log check) and
-  kshell_test.py (COM2 interactive command validation) registered.
-- Boot requires Limine protocol and correct multiboot header; actual boot
-  not yet verified in CI (requires QEMU on CI runner).
-Action: Claim upgraded to VERIFIED (infrastructure). Full boot validation
-requires running the integration tests.
+**Status: VERIFIED (bootstrap lane only)**
+Hypothesis: The repo-generated x86_64 image boots and supports the current
+serial shell flow.
+Evidence:
+- `qemu_x86_64.sh` now uses a real boot-image flow rather than raw `-kernel`.
+- A repo-generated Limine ISO exists and is built from the canonical Conan +
+  CMake flow.
+- `python test/boot/x86_64_shell_test.py` passes on 2026-03-08 and reaches the
+  staged shell over COM2.
+- The current validated command set in that smoke path includes `help`, `pid`,
+  `pwd`, `ls /bin`, `cat /etc/motd`, `env PATH`, `cp`, and `command -v xash`.
+Action: keep the claim narrow. x86_64 graphics, fuller userland parity, and
+broader device validation are still not verified.
 
 ### 5. "Doxygen + Sphinx API docs"
 **Status: VERIFIED (partial)**
@@ -98,6 +99,11 @@ No userland process has executed. The 97.22% figure has no supporting
 test artifacts and is numerically impossible given the implementation state.
 20 CTest unit tests pass (all host-side, testing kernel data structures
 and crypto). 2 integration tests registered but require QEMU boot.
+Additional note as of 2026-03-08: the former placeholder artifacts have now
+been quarantined under `archive/legacy/posix_placeholders/`, including
+`src/tools/verify_posix_cpp23_implementation.cpp` and
+`test/posix_compliance_verification.cpp`. They are not active build-graph
+evidence and must not be treated as proof of utility coverage or conformance.
 Action: Claim marked FALSE. Accurate compliance: 0% (no passing POSIX
 conformance test). See claim #2 for details.
 
@@ -134,7 +140,7 @@ Action: updated in AUDIT_SUMMARY.md.
 | 1 | 100% C++23 core | UNVERIFIED |
 | 2 | POSIX-2024 compliance | FALSE (aspirational) |
 | 3 | Post-quantum crypto (Kyber) | VERIFIED (foundation) |
-| 4 | QEMU x86_64 support | VERIFIED (infrastructure) |
+| 4 | QEMU x86_64 support | VERIFIED (bootstrap lane only) |
 | 5 | Doxygen + Sphinx docs | VERIFIED (partial) |
 | 6 | Formal verification 12/12 | MISLEADING |
 | 7 | 97.22% POSIX compliance | FALSE |
@@ -142,7 +148,7 @@ Action: updated in AUDIT_SUMMARY.md.
 | 9 | All analysis tools installed | VERIFIED (with gaps) |
 | 10 | 65,249 SLOC / 502 files | FALSE (actual: 84,659/613) |
 
-Scorecard: 3 VERIFIED, 3 FALSE, 1 MISLEADING, 1 UNVERIFIED, 1 RESOLVED, 1 partial.
+Scorecard: 4 VERIFIED, 2 FALSE, 1 MISLEADING, 1 UNVERIFIED, 1 RESOLVED, 1 partial.
 
 ## Test Infrastructure Status
 

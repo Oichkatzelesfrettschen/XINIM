@@ -1,6 +1,6 @@
 /**
  * @file shell.hpp
- * @brief XINIM Shell (xinim-sh) - Minimal shell with job control
+ * @brief XASH - Minimal shell with job control
  *
  * A simple POSIX-compliant shell for XINIM supporting:
  * - Command execution (foreground and background)

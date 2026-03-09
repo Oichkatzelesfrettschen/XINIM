@@ -1,69 +1,87 @@
-// Modernized for C++23
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <string_view>
+#include <vector>
 
-/* tee - pipe fitting		Author: Paul Polderman */
+namespace {
 
-#include "blocksiz.hpp"
-#include "signal.hpp"
+struct Options {
+    bool append = false;
+    bool ignore_interrupts = false;
+    std::vector<std::string> paths;
+};
 
-#define MAXFD 18
+void print_usage() {
+    std::cerr << "Usage: tee [-a] [-i] [file ...]\n";
+}
 
-int fd[MAXFD];
-
-// Entry point with modern arguments
-/**
- * @brief Entry point for the tee utility.
- * @param argc Number of command-line arguments as per C++23 [basic.start.main].
- * @param argv Array of command-line argument strings.
- * @return Exit status as specified by C++23 [basic.start.main].
- */
-int main(int argc, char *argv[]) {
-    char iflag = 0, aflag = 0;
-    char buf[BLOCK_SIZE];
-    int i, s, n;
-
-    argv++;
-    --argc;
-    while (argc > 0 && argv[0][0] == '-') {
-        switch (argv[0][1]) {
-        case 'i': /* Interrupt turned off. */
-            iflag++;
-            break;
-        case 'a': /* Append to outputfile(s),
-                   * instead of overwriting them.
-                   */
-            aflag++;
-            break;
-        default:
-            std_err("Usage: tee [-i] [-a] [files].\n");
-            exit(1);
+bool parse_arguments(int argc, char* argv[], Options& options) {
+    for (int i = 1; i < argc; ++i) {
+        const std::string_view arg(argv[i]);
+        if (!arg.empty() && arg[0] == '-' && arg != "-") {
+            if (arg == "-a") {
+                options.append = true;
+            } else if (arg == "-i") {
+                options.ignore_interrupts = true;
+            } else {
+                return false;
+            }
+        } else {
+            options.paths.emplace_back(arg);
         }
-        argv++;
-        --argc;
     }
-    fd[0] = 1; /* Always output to stdout. */
-    for (s = 1; s < MAXFD && argc > 0; --argc, argv++) {
-        if ((fd[s] = open(*argv, 2)) < 0 && (fd[s] = creat(*argv, 0666)) < 0) {
-            std_err("Cannot open output file: ");
-            std_err(*argv);
-            std_err("\n");
-            exit(2);
+    return true;
+}
+
+}
+
+int main(int argc, char* argv[]) {
+    Options options;
+    if (!parse_arguments(argc, argv, options)) {
+        print_usage();
+        return 1;
+    }
+
+    (void)options.ignore_interrupts;
+
+    std::vector<std::ofstream> outputs;
+    outputs.reserve(options.paths.size());
+
+    const auto open_mode = options.append ? (std::ios::out | std::ios::app)
+                                          : (std::ios::out | std::ios::trunc);
+    for (const auto& path : options.paths) {
+        outputs.emplace_back(path, open_mode);
+        if (!outputs.back()) {
+            std::cerr << "tee: cannot open " << path << '\n';
+            return 2;
         }
-        s++;
     }
 
-    if (iflag)
-        signal(SIGINT, SIG_IGN);
-    for (i = 1; i < s; i++) { /* Don't lseek stdout. */
-        if (aflag)
-            lseek(fd[i], 0L, 2);
+    std::string line;
+    bool first = true;
+    while (std::getline(std::cin, line)) {
+        if (!first) {
+            std::cout << '\n';
+            for (auto& out : outputs) {
+                out << '\n';
+            }
+        }
+        first = false;
+
+        std::cout << line;
+        for (auto& out : outputs) {
+            out << line;
+        }
     }
 
-    while ((n = read(0, buf, BLOCK_SIZE)) > 0) {
-        for (i = 0; i < s; i++)
-            write(fd[i], buf, n);
+    if (!std::cin.eof() && std::cin.fail()) {
+        return 1;
     }
 
-    for (i = 0; i < s; i++) /* Close all fd's */
-        close(fd[i]);
+    std::cout.flush();
+    for (auto& out : outputs) {
+        out.flush();
+    }
     return 0;
 }

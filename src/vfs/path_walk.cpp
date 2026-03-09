@@ -15,7 +15,23 @@
 #include "inode_table.hpp"
 #include "dirent.hpp"
 
+namespace {
+
 inline constexpr uint32_t ROOT_INO = 1;
+inline constexpr uint32_t PATH_CACHE_SIZE = VFS_PROFILE_TINY ? 64U : 128U;
+inline constexpr uint8_t PATH_CACHE_VALID = 0x01U;
+inline constexpr uint8_t PATH_CACHE_NEGATIVE = 0x02U;
+
+struct PathCacheEntry {
+    uint32_t parent_ino;
+    uint32_t child_ino;
+    uint16_t hash;
+    uint8_t namelen;
+    uint8_t flags;
+    char name[26];
+};
+
+static PathCacheEntry g_path_cache[PATH_CACHE_SIZE];
 
 // ============================================================================
 // Internal: advance p past '/' chars, return start; fill len with component
@@ -33,6 +49,106 @@ static const char* next_component(const char* p, uint8_t* out_len) {
     }
     *out_len = len;
     return start;
+}
+
+static uint16_t hash_component(const char* name, uint8_t namelen) {
+    uint32_t hash = 2166136261u;
+    for (uint8_t index = 0; index < namelen; ++index) {
+        hash ^= static_cast<uint8_t>(name[index]);
+        hash *= 16777619u;
+    }
+    return static_cast<uint16_t>((hash >> 16) ^ (hash & 0xFFFFu));
+}
+
+static uint32_t cache_slot_for(uint32_t parent_ino, uint16_t hash) {
+    return (parent_ino ^ static_cast<uint32_t>(hash)) % PATH_CACHE_SIZE;
+}
+
+static bool cache_name_matches(const PathCacheEntry& entry,
+                               const char* name,
+                               uint8_t namelen,
+                               uint16_t hash,
+                               uint32_t parent_ino) {
+    return (entry.flags & PATH_CACHE_VALID) != 0U &&
+           entry.parent_ino == parent_ino &&
+           entry.hash == hash &&
+           entry.namelen == namelen &&
+           __builtin_memcmp(entry.name, name, namelen) == 0;
+}
+
+static bool path_cache_lookup(uint32_t parent_ino,
+                              const char* name,
+                              uint8_t namelen,
+                              uint32_t* child_ino,
+                              bool* negative_hit) {
+    if (name == nullptr || child_ino == nullptr || negative_hit == nullptr || namelen == 0U ||
+        namelen > 26U) {
+        return false;
+    }
+
+    const uint16_t hash = hash_component(name, namelen);
+    const PathCacheEntry& entry = g_path_cache[cache_slot_for(parent_ino, hash)];
+    if (!cache_name_matches(entry, name, namelen, hash, parent_ino)) {
+        return false;
+    }
+
+    *child_ino = entry.child_ino;
+    *negative_hit = (entry.flags & PATH_CACHE_NEGATIVE) != 0U;
+    return true;
+}
+
+static void path_cache_store(uint32_t parent_ino,
+                             const char* name,
+                             uint8_t namelen,
+                             uint32_t child_ino,
+                             bool negative) {
+    if (name == nullptr || namelen == 0U || namelen > 26U) {
+        return;
+    }
+
+    const uint16_t hash = hash_component(name, namelen);
+    PathCacheEntry& entry = g_path_cache[cache_slot_for(parent_ino, hash)];
+    entry.parent_ino = parent_ino;
+    entry.child_ino = child_ino;
+    entry.hash = hash;
+    entry.namelen = namelen;
+    entry.flags = static_cast<uint8_t>(PATH_CACHE_VALID | (negative ? PATH_CACHE_NEGATIVE : 0U));
+    __builtin_memset(entry.name, 0, sizeof(entry.name));
+    __builtin_memcpy(entry.name, name, namelen);
+}
+
+static uint32_t resolve_child(uint32_t parent_ino, const char* name, uint8_t namelen) {
+    if (namelen > 26U) {
+        return 0;
+    }
+
+    uint32_t child_ino = 0;
+    bool negative_hit = false;
+    if (path_cache_lookup(parent_ino, name, namelen, &child_ino, &negative_hit)) {
+        return negative_hit ? 0U : child_ino;
+    }
+
+    child_ino = dirent_lookup(parent_ino, name, namelen);
+    path_cache_store(parent_ino, name, namelen, child_ino, child_ino == 0U);
+    return child_ino;
+}
+
+} // namespace
+
+void path_cache_reset() {
+    __builtin_memset(g_path_cache, 0, sizeof(g_path_cache));
+}
+
+void path_cache_invalidate(uint32_t parent_ino, const char* name, uint8_t namelen) {
+    if (name == nullptr || namelen == 0U || namelen > 26U) {
+        return;
+    }
+
+    const uint16_t hash = hash_component(name, namelen);
+    PathCacheEntry& entry = g_path_cache[cache_slot_for(parent_ino, hash)];
+    if (cache_name_matches(entry, name, namelen, hash, parent_ino)) {
+        __builtin_memset(&entry, 0, sizeof(entry));
+    }
 }
 
 // ============================================================================
@@ -67,9 +183,7 @@ uint32_t path_walk(const char* path) {
             continue;
         }
 
-        if (len > 26) return 0; // name too long for this table
-
-        uint32_t child = dirent_lookup(cur_ino, comp, len);
+        uint32_t child = resolve_child(cur_ino, comp, len);
         if (child == 0) return 0; // not found
         cur_ino = child;
     }
@@ -121,8 +235,7 @@ uint32_t path_walk_parent(const char* path,
             cur_ino = (inode->parent_ino != 0) ? inode->parent_ino : ROOT_INO;
             continue;
         }
-        if (len > 26) return 0;
-        uint32_t child = dirent_lookup(cur_ino, comp, len);
+        uint32_t child = resolve_child(cur_ino, comp, len);
         if (child == 0) return 0;
         cur_ino = child;
     }

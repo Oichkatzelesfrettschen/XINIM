@@ -320,8 +320,9 @@ private:
             std::uint64_t remaining = offset;
             
             while (remaining > 0 && stream.good()) {
-                std::streamsize to_read = std::min(remaining, 
-                                                 static_cast<std::uint64_t>(discard_buffer.size()));
+                const auto bytes_to_read = std::min(remaining,
+                                                    static_cast<std::uint64_t>(discard_buffer.size()));
+                const auto to_read = static_cast<std::streamsize>(bytes_to_read);
                 stream.read(discard_buffer.data(), to_read);
                 remaining -= static_cast<std::uint64_t>(stream.gcount());
             }

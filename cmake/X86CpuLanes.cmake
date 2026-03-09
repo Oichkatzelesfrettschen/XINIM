@@ -1,0 +1,428 @@
+include_guard()
+
+function(xinim_get_x86_32_lane_names out_var)
+    set(${out_var}
+        i486
+        i586
+        i686
+        x86_32_core2
+        x86_32_athlon
+        x86_32_phenom
+        PARENT_SCOPE
+    )
+endfunction()
+
+function(xinim_get_all_x86_lane_names out_var)
+    set(${out_var} x86_64)
+    xinim_get_x86_32_lane_names(_x86_32_lanes)
+    list(APPEND ${out_var} ${_x86_32_lanes})
+    set(${out_var} "${${out_var}}" PARENT_SCOPE)
+endfunction()
+
+function(xinim_get_x86_lane_property lane property out_var)
+    if(lane STREQUAL "x86_64")
+        set(_family "x86_64")
+        set(_target_arch "x86_64")
+        set(_cross_elf_triple "")
+        set(_toolchain_processor "x86_64")
+        set(_banner_name "x86_64")
+        set(_artifact_stem "xinim-x86_64")
+        set(_image_dir_name "x86_64")
+        set(_image_name "xinim-x86_64.iso")
+        set(_conan_profile "clang-x86_64")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-x86_64")
+        set(_qemu_machine "q35")
+        set(_qemu_cpu "qemu64")
+        set(_qemu_memory "512M")
+        set(_qemu_vga "none")
+        set(_toolchain_c_flags "")
+        set(_toolchain_cxx_flags "-stdlib=libc++")
+        set(_toolchain_asm_flags "")
+        set(_compile_options "")
+        set(_image_target "xinim_x86_64_image")
+        set(_prepare_test "prepare_x86_64_image")
+        set(_smoke_test "boot_smoke_test")
+        set(_layout_test "")
+        set(_shell_test "kshell_test")
+        set(_launcher_script "scripts/qemu_x86_64.sh")
+    elseif(lane STREQUAL "i486")
+        set(_family "x86_32")
+        set(_target_arch "i486")
+        set(_cross_elf_triple "i386-elf")
+        set(_toolchain_processor "i486")
+        set(_banner_name "i486")
+        set(_artifact_stem "xinim-i486dx")
+        set(_image_dir_name "i486")
+        set(_image_name "xinim-i486dx.iso")
+        set(_conan_profile "clang-x86_32")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-i386")
+        set(_qemu_machine "pc")
+        set(_qemu_cpu "486")
+        set(_qemu_memory "32M")
+        set(_qemu_vga "std")
+        set(_toolchain_c_flags "-m32 -march=i486 -mtune=i486 -mno-mmx -mno-sse")
+        set(_toolchain_cxx_flags "-m32 -march=i486 -mtune=i486 -mno-mmx -mno-sse -stdlib=libc++")
+        set(_toolchain_asm_flags "-m32")
+        set(_compile_options
+            -ffreestanding
+            -fno-pic
+            -fno-pie
+            -fno-stack-protector
+            -m32
+            -march=i486
+            -mtune=i486
+            -mno-mmx
+            -mno-sse
+        )
+        set(_image_target "xinim_i486_image")
+        set(_prepare_test "prepare_i486_image")
+        set(_smoke_test "i486_boot_smoke_test")
+        set(_layout_test "i486_image_layout_test")
+        set(_shell_test "i486_kshell_test")
+        set(_launcher_script "scripts/qemu_i486.sh")
+    elseif(lane STREQUAL "i586")
+        set(_family "x86_32")
+        set(_target_arch "i586")
+        set(_cross_elf_triple "i386-elf")
+        set(_toolchain_processor "i586")
+        set(_banner_name "i586")
+        set(_artifact_stem "xinim-i586")
+        set(_image_dir_name "i586")
+        set(_image_name "xinim-i586.iso")
+        set(_conan_profile "clang-x86_32")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-i386")
+        set(_qemu_machine "pc")
+        set(_qemu_cpu "pentium")
+        set(_qemu_memory "48M")
+        set(_qemu_vga "std")
+        set(_toolchain_c_flags "-m32 -march=pentium -mtune=pentium")
+        set(_toolchain_cxx_flags "-m32 -march=pentium -mtune=pentium -stdlib=libc++")
+        set(_toolchain_asm_flags "-m32")
+        set(_compile_options
+            -ffreestanding
+            -fno-pic
+            -fno-pie
+            -fno-stack-protector
+            -m32
+            -march=pentium
+            -mtune=pentium
+        )
+        set(_image_target "xinim_i586_image")
+        set(_prepare_test "prepare_i586_image")
+        set(_smoke_test "i586_boot_smoke_test")
+        set(_layout_test "i586_image_layout_test")
+        set(_shell_test "i586_kshell_test")
+        set(_launcher_script "scripts/qemu_i486.sh")
+    elseif(lane STREQUAL "i686")
+        set(_family "x86_32")
+        set(_target_arch "i686")
+        set(_cross_elf_triple "i686-elf")
+        set(_toolchain_processor "i686")
+        set(_banner_name "i686")
+        set(_artifact_stem "xinim-i686")
+        set(_image_dir_name "i686")
+        set(_image_name "xinim-i686.iso")
+        set(_conan_profile "clang-x86_32")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-i386")
+        set(_qemu_machine "pc")
+        set(_qemu_cpu "pentium3")
+        set(_qemu_memory "64M")
+        set(_qemu_vga "std")
+        set(_toolchain_c_flags "-m32 -march=i686 -mtune=pentium3")
+        set(_toolchain_cxx_flags "-m32 -march=i686 -mtune=pentium3 -stdlib=libc++")
+        set(_toolchain_asm_flags "-m32")
+        set(_compile_options
+            -ffreestanding
+            -fno-pic
+            -fno-pie
+            -fno-stack-protector
+            -m32
+            -march=i686
+            -mtune=pentium3
+        )
+        set(_image_target "xinim_i686_image")
+        set(_prepare_test "prepare_i686_image")
+        set(_smoke_test "i686_boot_smoke_test")
+        set(_layout_test "i686_image_layout_test")
+        set(_shell_test "i686_kshell_test")
+        set(_launcher_script "scripts/qemu_i486.sh")
+    elseif(lane STREQUAL "x86_32_core2")
+        set(_family "x86_32")
+        set(_target_arch "x86_32_core2")
+        set(_cross_elf_triple "i686-elf")
+        set(_toolchain_processor "i686")
+        set(_banner_name "x86_32_core2")
+        set(_artifact_stem "xinim-x86-32-core2")
+        set(_image_dir_name "x86_32_core2")
+        set(_image_name "xinim-x86-32-core2.iso")
+        set(_conan_profile "clang-x86_32")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-x86_64")
+        set(_qemu_machine "pc")
+        set(_qemu_cpu "core2duo")
+        set(_qemu_memory "96M")
+        set(_qemu_vga "std")
+        set(_toolchain_c_flags "-m32 -march=core2 -mtune=core2 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-ssse3 -msoft-float")
+        set(_toolchain_cxx_flags "-m32 -march=core2 -mtune=core2 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-ssse3 -msoft-float -stdlib=libc++")
+        set(_toolchain_asm_flags "-m32")
+        set(_compile_options
+            -ffreestanding
+            -fno-pic
+            -fno-pie
+            -fno-stack-protector
+            -m32
+            -march=core2
+            -mtune=core2
+            -mno-mmx
+            -mno-sse
+            -mno-sse2
+            -mno-sse3
+            -mno-ssse3
+            -msoft-float
+        )
+        set(_image_target "xinim_x86_32_core2_image")
+        set(_prepare_test "prepare_x86_32_core2_image")
+        set(_smoke_test "x86_32_core2_boot_smoke_test")
+        set(_layout_test "x86_32_core2_image_layout_test")
+        set(_shell_test "x86_32_core2_kshell_test")
+        set(_launcher_script "scripts/qemu_i486.sh")
+    elseif(lane STREQUAL "x86_32_athlon")
+        set(_family "x86_32")
+        set(_target_arch "x86_32_athlon")
+        set(_cross_elf_triple "i686-elf")
+        set(_toolchain_processor "i686")
+        set(_banner_name "x86_32_athlon")
+        set(_artifact_stem "xinim-x86-32-athlon")
+        set(_image_dir_name "x86_32_athlon")
+        set(_image_name "xinim-x86-32-athlon.iso")
+        set(_conan_profile "clang-x86_32")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-x86_64")
+        set(_qemu_machine "pc")
+        set(_qemu_cpu "athlon")
+        set(_qemu_memory "96M")
+        set(_qemu_vga "std")
+        set(_toolchain_c_flags "-m32 -march=athlon -mtune=athlon -mno-mmx -mno-3dnow -mno-sse -msoft-float")
+        set(_toolchain_cxx_flags "-m32 -march=athlon -mtune=athlon -mno-mmx -mno-3dnow -mno-sse -msoft-float -stdlib=libc++")
+        set(_toolchain_asm_flags "-m32")
+        set(_compile_options
+            -ffreestanding
+            -fno-pic
+            -fno-pie
+            -fno-stack-protector
+            -m32
+            -march=athlon
+            -mtune=athlon
+            -mno-mmx
+            -mno-3dnow
+            -mno-sse
+            -msoft-float
+        )
+        set(_image_target "xinim_x86_32_athlon_image")
+        set(_prepare_test "prepare_x86_32_athlon_image")
+        set(_smoke_test "x86_32_athlon_boot_smoke_test")
+        set(_layout_test "x86_32_athlon_image_layout_test")
+        set(_shell_test "x86_32_athlon_kshell_test")
+        set(_launcher_script "scripts/qemu_i486.sh")
+    elseif(lane STREQUAL "x86_32_phenom")
+        set(_family "x86_32")
+        set(_target_arch "x86_32_phenom")
+        set(_cross_elf_triple "i686-elf")
+        set(_toolchain_processor "i686")
+        set(_banner_name "x86_32_phenom")
+        set(_artifact_stem "xinim-x86-32-phenom")
+        set(_image_dir_name "x86_32_phenom")
+        set(_image_name "xinim-x86-32-phenom.iso")
+        set(_conan_profile "clang-x86_32")
+        set(_toolchain_file "")
+        set(_qemu_bin "qemu-system-x86_64")
+        set(_qemu_machine "pc")
+        set(_qemu_cpu "phenom")
+        set(_qemu_memory "128M")
+        set(_qemu_vga "std")
+        set(_toolchain_c_flags "-m32 -march=amdfam10 -mtune=amdfam10 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-sse4a -msoft-float")
+        set(_toolchain_cxx_flags "-m32 -march=amdfam10 -mtune=amdfam10 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-sse4a -msoft-float -stdlib=libc++")
+        set(_toolchain_asm_flags "-m32")
+        set(_compile_options
+            -ffreestanding
+            -fno-pic
+            -fno-pie
+            -fno-stack-protector
+            -m32
+            -march=amdfam10
+            -mtune=amdfam10
+            -mno-mmx
+            -mno-sse
+            -mno-sse2
+            -mno-sse3
+            -mno-sse4a
+            -msoft-float
+        )
+        set(_image_target "xinim_x86_32_phenom_image")
+        set(_prepare_test "prepare_x86_32_phenom_image")
+        set(_smoke_test "x86_32_phenom_boot_smoke_test")
+        set(_layout_test "x86_32_phenom_image_layout_test")
+        set(_shell_test "x86_32_phenom_kshell_test")
+        set(_launcher_script "scripts/qemu_i486.sh")
+    else()
+        message(FATAL_ERROR "Unknown XINIM x86 lane: ${lane}")
+    endif()
+
+    if(property STREQUAL "family")
+        set(_value "${_family}")
+    elseif(property STREQUAL "target_arch")
+        set(_value "${_target_arch}")
+    elseif(property STREQUAL "cross_elf_triple")
+        set(_value "${_cross_elf_triple}")
+    elseif(property STREQUAL "toolchain_processor")
+        set(_value "${_toolchain_processor}")
+    elseif(property STREQUAL "banner_name")
+        set(_value "${_banner_name}")
+    elseif(property STREQUAL "artifact_stem")
+        set(_value "${_artifact_stem}")
+    elseif(property STREQUAL "image_dir_name")
+        set(_value "${_image_dir_name}")
+    elseif(property STREQUAL "image_name")
+        set(_value "${_image_name}")
+    elseif(property STREQUAL "conan_profile")
+        set(_value "${_conan_profile}")
+    elseif(property STREQUAL "toolchain_file")
+        set(_value "${_toolchain_file}")
+    elseif(property STREQUAL "qemu_bin")
+        set(_value "${_qemu_bin}")
+    elseif(property STREQUAL "qemu_machine")
+        set(_value "${_qemu_machine}")
+    elseif(property STREQUAL "qemu_cpu")
+        set(_value "${_qemu_cpu}")
+    elseif(property STREQUAL "qemu_memory")
+        set(_value "${_qemu_memory}")
+    elseif(property STREQUAL "qemu_vga")
+        set(_value "${_qemu_vga}")
+    elseif(property STREQUAL "toolchain_c_flags")
+        set(_value "${_toolchain_c_flags}")
+    elseif(property STREQUAL "toolchain_cxx_flags")
+        set(_value "${_toolchain_cxx_flags}")
+    elseif(property STREQUAL "toolchain_asm_flags")
+        set(_value "${_toolchain_asm_flags}")
+    elseif(property STREQUAL "compile_options")
+        set(_value "${_compile_options}")
+    elseif(property STREQUAL "image_target")
+        set(_value "${_image_target}")
+    elseif(property STREQUAL "prepare_test")
+        set(_value "${_prepare_test}")
+    elseif(property STREQUAL "smoke_test")
+        set(_value "${_smoke_test}")
+    elseif(property STREQUAL "layout_test")
+        set(_value "${_layout_test}")
+    elseif(property STREQUAL "shell_test")
+        set(_value "${_shell_test}")
+    elseif(property STREQUAL "launcher_script")
+        set(_value "${_launcher_script}")
+    else()
+        message(FATAL_ERROR "Unknown XINIM x86 lane property: ${property}")
+    endif()
+
+    set(${out_var} "${_value}" PARENT_SCOPE)
+endfunction()
+
+function(xinim_configure_x86_32_toolchain lane)
+    xinim_get_x86_lane_property(${lane} toolchain_processor _processor)
+    xinim_get_x86_lane_property(${lane} toolchain_c_flags _c_flags)
+    xinim_get_x86_lane_property(${lane} toolchain_cxx_flags _cxx_flags)
+    xinim_get_x86_lane_property(${lane} toolchain_asm_flags _asm_flags)
+
+    set(CMAKE_SYSTEM_NAME Generic PARENT_SCOPE)
+    set(CMAKE_SYSTEM_PROCESSOR "${_processor}" PARENT_SCOPE)
+    set(CMAKE_C_COMPILER clang PARENT_SCOPE)
+    set(CMAKE_CXX_COMPILER clang++ PARENT_SCOPE)
+    set(CMAKE_ASM_COMPILER clang PARENT_SCOPE)
+    set(CMAKE_C_FLAGS_INIT "${_c_flags}" PARENT_SCOPE)
+    set(CMAKE_CXX_FLAGS_INIT "${_cxx_flags}" PARENT_SCOPE)
+    set(CMAKE_ASM_FLAGS_INIT "${_asm_flags}" PARENT_SCOPE)
+endfunction()
+
+function(xinim_append_json_lane_array output_var lane property)
+    xinim_get_x86_lane_property(${lane} ${property} _list_value)
+    set(_json "[")
+    set(_first TRUE)
+    foreach(_item IN LISTS _list_value)
+        if(NOT _first)
+            string(APPEND _json ", ")
+        endif()
+        string(APPEND _json "\"${_item}\"")
+        set(_first FALSE)
+    endforeach()
+    string(APPEND _json "]")
+    set(${output_var} "${_json}" PARENT_SCOPE)
+endfunction()
+
+function(xinim_write_x86_lane_manifest output_path)
+    set(_lane_names "${ARGN}")
+    if(NOT _lane_names)
+        xinim_get_all_x86_lane_names(_lane_names)
+    endif()
+    get_filename_component(_manifest_dir "${output_path}" DIRECTORY)
+    file(MAKE_DIRECTORY "${_manifest_dir}")
+    file(WRITE "${output_path}" "{\n  \"lanes\": {\n")
+
+    list(LENGTH _lane_names _lane_count)
+    math(EXPR _last_index "${_lane_count} - 1")
+    set(_index 0)
+    foreach(_lane IN LISTS _lane_names)
+        xinim_get_x86_lane_property(${_lane} family _family)
+        xinim_get_x86_lane_property(${_lane} target_arch _target_arch)
+        xinim_get_x86_lane_property(${_lane} banner_name _banner_name)
+        xinim_get_x86_lane_property(${_lane} artifact_stem _artifact_stem)
+        xinim_get_x86_lane_property(${_lane} image_dir_name _image_dir_name)
+        xinim_get_x86_lane_property(${_lane} image_name _image_name)
+        xinim_get_x86_lane_property(${_lane} conan_profile _conan_profile)
+        xinim_get_x86_lane_property(${_lane} toolchain_file _toolchain_file)
+        xinim_get_x86_lane_property(${_lane} qemu_bin _qemu_bin)
+        xinim_get_x86_lane_property(${_lane} qemu_machine _qemu_machine)
+        xinim_get_x86_lane_property(${_lane} qemu_cpu _qemu_cpu)
+        xinim_get_x86_lane_property(${_lane} qemu_memory _qemu_memory)
+        xinim_get_x86_lane_property(${_lane} qemu_vga _qemu_vga)
+        xinim_get_x86_lane_property(${_lane} image_target _image_target)
+        xinim_get_x86_lane_property(${_lane} prepare_test _prepare_test)
+        xinim_get_x86_lane_property(${_lane} smoke_test _smoke_test)
+        xinim_get_x86_lane_property(${_lane} layout_test _layout_test)
+        xinim_get_x86_lane_property(${_lane} shell_test _shell_test)
+        xinim_get_x86_lane_property(${_lane} launcher_script _launcher_script)
+        xinim_append_json_lane_array(_compile_options_json ${_lane} compile_options)
+
+        file(APPEND "${output_path}" "    \"${_lane}\": {\n")
+        file(APPEND "${output_path}" "      \"family\": \"${_family}\",\n")
+        file(APPEND "${output_path}" "      \"target_arch\": \"${_target_arch}\",\n")
+        file(APPEND "${output_path}" "      \"banner_name\": \"${_banner_name}\",\n")
+        file(APPEND "${output_path}" "      \"artifact_stem\": \"${_artifact_stem}\",\n")
+        file(APPEND "${output_path}" "      \"image_dir_name\": \"${_image_dir_name}\",\n")
+        file(APPEND "${output_path}" "      \"image_name\": \"${_image_name}\",\n")
+        file(APPEND "${output_path}" "      \"image_path\": \"${XINIM_IMAGE_ROOT}/${_image_dir_name}/${_image_name}\",\n")
+        file(APPEND "${output_path}" "      \"conan_profile\": \"${_conan_profile}\",\n")
+        file(APPEND "${output_path}" "      \"toolchain_file\": \"${_toolchain_file}\",\n")
+        file(APPEND "${output_path}" "      \"qemu_bin\": \"${_qemu_bin}\",\n")
+        file(APPEND "${output_path}" "      \"qemu_machine\": \"${_qemu_machine}\",\n")
+        file(APPEND "${output_path}" "      \"qemu_cpu\": \"${_qemu_cpu}\",\n")
+        file(APPEND "${output_path}" "      \"qemu_memory\": \"${_qemu_memory}\",\n")
+        file(APPEND "${output_path}" "      \"qemu_vga\": \"${_qemu_vga}\",\n")
+        file(APPEND "${output_path}" "      \"image_target\": \"${_image_target}\",\n")
+        file(APPEND "${output_path}" "      \"prepare_test\": \"${_prepare_test}\",\n")
+        file(APPEND "${output_path}" "      \"smoke_test\": \"${_smoke_test}\",\n")
+        file(APPEND "${output_path}" "      \"layout_test\": \"${_layout_test}\",\n")
+        file(APPEND "${output_path}" "      \"shell_test\": \"${_shell_test}\",\n")
+        file(APPEND "${output_path}" "      \"launcher_script\": \"${CMAKE_SOURCE_DIR}/${_launcher_script}\",\n")
+        file(APPEND "${output_path}" "      \"compile_options\": ${_compile_options_json}\n")
+        file(APPEND "${output_path}" "    }")
+        if(NOT _index EQUAL _last_index)
+            file(APPEND "${output_path}" ",")
+        endif()
+        file(APPEND "${output_path}" "\n")
+        math(EXPR _index "${_index} + 1")
+    endforeach()
+
+    file(APPEND "${output_path}" "  }\n}\n")
+endfunction()

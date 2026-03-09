@@ -32,6 +32,7 @@
 #include "fd_table.hpp"   // Week 9 Phase 1: File descriptor tables
 #include "vfs_interface.hpp"  // Week 9 Phase 1: VFS interface
 #include "signal.hpp"     // Week 10 Phase 3: Signal state initialization
+#include "x86_64/staged_xash.hpp"
 #include "early/serial_16550.hpp"
 #include "../include/xinim/ipc/message_types.h"
 #include <cstring>
@@ -364,6 +365,9 @@ int initialize_system_servers() {
 // Minimal init process: halts in a loop waiting for interrupts.
 // Phase 6 (P6-T04/T05) will implement fork/exec for real init.
 static void init_process_main() {
+#ifdef XINIM_ARCH_X86_64
+    xinim::kernel::x86_64::run_staged_xash_init();
+#endif
     while (true) {
         asm volatile("hlt");
     }
@@ -402,6 +406,11 @@ int spawn_init_process(const char* init_path) {
     uint64_t entry = reinterpret_cast<uint64_t>(init_process_main);
     uint64_t sp = reinterpret_cast<uint64_t>(stack_top);
     pcb->context.initialize(entry, sp, 0); // Ring 0 for now
+#ifdef XINIM_ARCH_X86_64
+    // The staged x86_64 init shell polls COM2 directly while the richer
+    // interrupt/scheduler handoff is still being wired.
+    pcb->context.rflags = 0x2;
+#endif
 
     scheduler_add_process(pcb);
 

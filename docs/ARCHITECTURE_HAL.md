@@ -30,7 +30,9 @@ This document outlines the architecture for XINIM kernel in C++23, with a well-d
 
 ## POSIX & libc Strategy
 - Provide C ABI (`extern "C"`) implemented in C++23, compiled with `-fno-exceptions -fno-rtti` for kernel
-- Conformance plan (SUSv5/POSIX 2024): phase 1 (process, files, time), phase 2 (signals, sockets), phase 3 (threads, aio)
+- Conformance roadmap (POSIX.1-2008 shell behavior near-term; Issue 8 /
+  POSIX.1-2024 long-term): phase 1 (process, files, time), phase 2 (signals,
+  sockets), phase 3 (threads, aio)
 - Map syscalls to C wrappers in a `libc` tree
 
 ## Next Steps

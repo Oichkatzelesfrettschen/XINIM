@@ -41,9 +41,10 @@ public:
 
         while (in) {
             in.read(reinterpret_cast<char*>(inbuf.data()), inbuf.size());
-            std::streamsize n = in.gcount();
+            const auto n = in.gcount();
             for (std::streamsize i = 0; i < n; ++i) {
-                unsigned char c = inbuf[i];
+                const auto index = static_cast<std::size_t>(i);
+                const unsigned char c = inbuf[index];
                 if (options.delete_mode && in_set[c])
                     continue;
                 unsigned char mapped = translation[c];
@@ -52,13 +53,15 @@ public:
                 outbuf[outpos++] = mapped;
                 last_output = mapped;
                 if (outpos == outbuf.size()) {
-                    out.write(reinterpret_cast<const char*>(outbuf.data()), outpos);
+                    out.write(reinterpret_cast<const char*>(outbuf.data()),
+                              static_cast<std::streamsize>(outpos));
                     outpos = 0;
                 }
             }
         }
         if (outpos > 0)
-            out.write(reinterpret_cast<const char*>(outbuf.data()), outpos);
+            out.write(reinterpret_cast<const char*>(outbuf.data()),
+                      static_cast<std::streamsize>(outpos));
     }
 
 private:
@@ -86,8 +89,8 @@ private:
                 }
             } else if (i + 2 < str.size() && str[i+1] == '-' && str[i] != '\\' && str[i+2] != '\0') {
                 // Range: a-z
-                unsigned char start = str[i];
-                unsigned char end = str[i+2];
+                unsigned char start = static_cast<unsigned char>(str[i]);
+                unsigned char end = static_cast<unsigned char>(str[i + 2]);
                 if (start > end)
                     throw std::runtime_error("Invalid range in set");
                 for (unsigned char c = start; c <= end; ++c)

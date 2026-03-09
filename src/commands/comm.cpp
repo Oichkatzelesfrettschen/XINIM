@@ -21,6 +21,7 @@
 #include <iostream>
 #include <string>
 #include <string_view>
+#include <memory>
 #include <system_error>
 #include <vector>
 
@@ -139,7 +140,7 @@ class FileComparer {
      * @return A unique
      * pointer owning the resulting input stream.
      */
-    std::unique_ptr<std::istream> get_stream(const std::filesystem::path &path);
+    std::istream &get_stream(const std::filesystem::path &path, std::ifstream &owned_stream);
 
     /**
      * @brief Output a line to the specified column if it is not suppressed.
@@ -201,15 +202,16 @@ FileComparer::FileComparer(const CommOptions &options) : m_opts(options) {
  *
  * @return std::unique_ptr<std::istream> Owning pointer to the input stream.
  */
-std::unique_ptr<std::istream> FileComparer::get_stream(const std::filesystem::path &path) {
+std::istream &FileComparer::get_stream(const std::filesystem::path &path,
+                                       std::ifstream &owned_stream) {
     if (path == "-") {
-        return std::unique_ptr<std::istream>(&std::cin, [](void *) {});
+        return std::cin;
     }
-    auto file_stream = std::make_unique<std::ifstream>(path);
-    if (!*file_stream) {
+    owned_stream.open(path);
+    if (!owned_stream) {
         throw std::runtime_error("Cannot open file: " + path.string());
     }
-    return file_stream;
+    return owned_stream;
 }
 
 /**
@@ -254,32 +256,34 @@ void FileComparer::output(int col, const std::string &line) {
  * are exhausted.
  */
 void FileComparer::run() {
-    auto in1 = get_stream(m_opts.file1_path);
-    auto in2 = get_stream(m_opts.file2_path);
+    std::ifstream file1;
+    std::ifstream file2;
+    std::istream &in1 = get_stream(m_opts.file1_path, file1);
+    std::istream &in2 = get_stream(m_opts.file2_path, file2);
 
     std::string line1, line2;
-    bool eof1 = !std::getline(*in1, line1);
-    bool eof2 = !std::getline(*in2, line2);
+    bool eof1 = !std::getline(in1, line1);
+    bool eof2 = !std::getline(in2, line2);
 
     while (!eof1 || !eof2) {
         if (eof1) {
             output(2, line2);
-            eof2 = !std::getline(*in2, line2);
+            eof2 = !std::getline(in2, line2);
         } else if (eof2) {
             output(1, line1);
-            eof1 = !std::getline(*in1, line1);
+            eof1 = !std::getline(in1, line1);
         } else {
             int cmp = line1.compare(line2);
             if (cmp < 0) {
                 output(1, line1);
-                eof1 = !std::getline(*in1, line1);
+                eof1 = !std::getline(in1, line1);
             } else if (cmp > 0) {
                 output(2, line2);
-                eof2 = !std::getline(*in2, line2);
+                eof2 = !std::getline(in2, line2);
             } else {
                 output(3, line1);
-                eof1 = !std::getline(*in1, line1);
-                eof2 = !std::getline(*in2, line2);
+                eof1 = !std::getline(in1, line1);
+                eof2 = !std::getline(in2, line2);
             }
         }
     }

@@ -1,4 +1,9 @@
 # XINIM Cross-Compiler Toolchain Technical Specification
+Historical note: this specification reflects an older `/opt`-oriented custom
+toolchain plan and is kept as design context, not as the active repo build
+contract. Use `docs/BUILD.md` and `docs/REQUIREMENTS.md` for current build
+truth.
+
 **Version:** 1.0
 **Date:** 2025-11-17
 **Status:** Implementation Ready

@@ -13,20 +13,63 @@
 #include "proc.hpp"
 #include "scheduler.hpp"
 #include "unified_scheduler.hpp"
+#ifdef XINIM_ARCH_X86_64
+#include "arch/x86_64/tss.hpp"
+#endif
 
 extern xinim::early::Serial16550 early_serial;
 
 // From proc.cpp -- still called for MINIX heritage IPC (mini_send/mini_rec)
 extern "C" void pick_proc() noexcept;
+extern "C" [[noreturn]] void load_context(xinim::kernel::CpuContext* context);
+extern "C" [[noreturn]] void load_context_ring3(xinim::kernel::CpuContext* context);
 
 namespace xinim::kernel {
 
 void start_scheduler() {
     early_serial.write("[SCHEDULER] Starting unified scheduler...\n");
-    while (true) {
-        schedule();
-        asm volatile("hlt");
+
+    ProcessControlBlock* next = g_unified_scheduler.pick_next();
+    if (!next) {
+        early_serial.write("[SCHEDULER] No runnable process, idling\n");
+        while (true) {
+            asm volatile("hlt");
+        }
     }
+
+    early_serial.write("[SCHEDULER] First handoff to PID ");
+    char pid_buf[16];
+    int pid = next->pid;
+    int used = 0;
+    if (pid == 0) {
+        pid_buf[used++] = '0';
+    } else {
+        char reverse[16];
+        int reverse_used = 0;
+        while (pid > 0 && reverse_used < static_cast<int>(sizeof(reverse))) {
+            reverse[reverse_used++] = static_cast<char>('0' + (pid % 10));
+            pid /= 10;
+        }
+        while (reverse_used > 0) {
+            pid_buf[used++] = reverse[--reverse_used];
+        }
+    }
+    pid_buf[used] = '\0';
+    early_serial.write(pid_buf);
+    early_serial.write(" (");
+    early_serial.write(next->name != nullptr ? next->name : "unnamed");
+    early_serial.write(")\n");
+
+#ifdef XINIM_ARCH_X86_64
+    if (next->kernel_rsp != 0U) {
+        xinim::kernel::set_kernel_stack(next->kernel_rsp);
+    }
+#endif
+
+    if (next->context.cs == 0x1B || next->context.cs == 0x23) {
+        load_context_ring3(&next->context);
+    }
+    load_context(&next->context);
 }
 
 void schedule() {

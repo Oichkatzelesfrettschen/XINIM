@@ -1,6 +1,17 @@
-# POSIX/SUSv5 Conformance Plan
+# POSIX Conformance Roadmap
 
-This document outlines a staged plan to achieve a POSIX 2024 (SUSv5) compliant C API implemented in C++23 with a stable C ABI.
+This document is a roadmap, not a claim of present conformance.
+
+XINIM's verified state as of 2026-03-08 is a bootstrap shell and syscall path
+that supports targeted guest and hosted validation. That is still far short of
+full POSIX.1-2008 shell behavior or Issue 8 / POSIX.1-2024 Shell and Utilities
+conformance.
+
+The standards target is therefore split into two layers:
+- near-term shell behavior target: POSIX.1-2008 shell command language for
+  `xash`
+- long-term API and utility target: Issue 8 / POSIX.1-2024 conformance where
+  the repository has evidence, tests, and implementation coverage to support it
 
 ## Principles
 - C ABI: all exported symbols use `extern "C"` and C data layouts.
@@ -22,5 +33,6 @@ This document outlines a staged plan to achieve a POSIX 2024 (SUSv5) compliant C
 
 ## Notes
 - Wide‑char, locales, complex math: later milestones.
-- Use mdoc manpages for function contracts; cross‑check with SUSv5.
+- Use mdoc manpages for function contracts; cross-check with the Open Group
+  Issue 8 publications and the POSIX.1-2008 shell language text.
 

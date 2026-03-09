@@ -6,19 +6,23 @@
 # Exit codes:
 #   0 = boot messages found
 #   1 = expected strings missing
-#   2 = kernel image not found
+#   77 = boot image not found
 
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_ROOT="$(dirname "$(dirname "$SCRIPT_DIR")")"
-KERNEL_IMAGE="${PROJECT_ROOT}/build/Debug/xinim"
-TIMEOUT_SEC=10
-LOG_FILE="/tmp/xinim_boot_smoke_$$.log"
 
-if [ ! -f "$KERNEL_IMAGE" ]; then
-    echo "SKIP: Kernel image not found: $KERNEL_IMAGE"
-    exit 0
+BUILD_ROOT="${XINIM_BUILD_ROOT:-${PROJECT_ROOT}/build/x86_64/Debug}"
+IMAGE_ROOT="${XINIM_IMAGE_ROOT:-${BUILD_ROOT}/images}"
+LOG_ROOT="${XINIM_LOG_ROOT:-${BUILD_ROOT}/logs}"
+BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-${IMAGE_ROOT}/x86_64/xinim-x86_64.iso}"
+TIMEOUT_SEC=10
+LOG_FILE="${LOG_ROOT}/x86_64-boot-smoke.log"
+
+if [ ! -f "$BOOT_IMAGE" ]; then
+    echo "SKIP: Boot image not found: $BOOT_IMAGE"
+    exit 77
 fi
 
 echo "Starting QEMU boot smoke test..."
@@ -29,9 +33,11 @@ qemu-system-x86_64 \
     -cpu qemu64 \
     -m 512M \
     -smp 1 \
-    -kernel "$KERNEL_IMAGE" \
+    -cdrom "$BOOT_IMAGE" \
+    -boot d \
     -serial "file:${LOG_FILE}" \
     -nographic \
+    -monitor none \
     -no-reboot &
 QEMU_PID=$!
 
@@ -65,8 +71,6 @@ check_string "IDT"
 
 echo ""
 echo "Results: $PASSED passed, $FAILED failed"
-
-rm -f "$LOG_FILE"
 
 if [ "$FAILED" -gt 0 ]; then
     exit 1

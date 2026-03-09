@@ -95,7 +95,7 @@ int main() {
         {"Symbolic_g-w", "g-w", p(0664), p(0644), true, ""},
         {"Symbolic_o=r", "o=r", p(0666), p(0664), true, ""},
         {"Symbolic_a+r", "a+r", p(0222), p(0666), true, ""},
-        {"Symbolic_ug+x", "ug+x", p(0600), p(0750), true, ""},
+        {"Symbolic_ug+x", "ug+x", p(0600), p(0710), true, ""},
         {"Symbolic_go-rwx", "go-rwx", p(0777), p(0700), true, ""},
         {"Symbolic_u=rwx,g=rx,o=", "u=rwx,g=rx,o=", p(0000), p(0750), true, ""},
         {"Symbolic_u+s_setuid", "u+s", p(0755), p(04755), true, ""},

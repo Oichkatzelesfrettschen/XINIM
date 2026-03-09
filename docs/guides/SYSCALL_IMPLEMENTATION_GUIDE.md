@@ -521,7 +521,8 @@ auto sys_shm_unlink(const char* name) -> int64_t {
 
 ### 5.2 POSIX Message Queues (8 syscalls)
 
-**Fix for existing bug (97.22% → 100% compliance):**
+Historical note: this section reflects an older aspirational compliance model,
+not the current evidence-backed repository state.
 
 ```cpp
 auto sys_mq_receive(mqd_t mqdes, char* msg_ptr, size_t msg_len,
@@ -1010,11 +1011,11 @@ auto sys_readv(int fd, const struct iovec* iov, int iovcnt) -> int64_t {
 - [ ] Implement sigaction, sigprocmask, sigsuspend
 - [ ] Implement openat, mkdirat, linkat, symlinkat
 - [ ] Test with POSIX test suite
-- [ ] Achieve 100% compliance on process management
+- [ ] Expand process-management coverage and record evidence-backed results
 
 ### Week 6 Checklist
 - [ ] Implement shm_open, shm_unlink
-- [ ] Fix mq_receive timeout bug (97.22% → 100%)
+- [ ] Fix mq_receive timeout bug from the old placeholder compliance report
 - [ ] Implement SysV IPC (msgget, semget, shmget families)
 - [ ] Test IPC with multi-process programs
 - [ ] Benchmark IPC performance

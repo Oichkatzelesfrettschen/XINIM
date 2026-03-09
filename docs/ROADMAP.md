@@ -1,41 +1,83 @@
-# Long-Term Roadmap
+# Roadmap
 
-NOTE: The authoritative roadmap is `docs/analysis/ROADMAP_CONSOLIDATED.md`.
-This document provides the high-level direction. The 74-task Hypergranular
-Technical Debt Resolution was completed 2026-02-26 (see
-`docs/IMPLEMENTATION_ROADMAP_TRACKER.md` for summary).
+Date: 2026-03-08
+Status: Active
 
-This document outlines the high level plan for progressing the project toward a modern C++ implementation that targets both QEMU and WebAssembly.
+This roadmap is scoped to the repository as it exists now.
 
-## 1. Stable x86_64 Build (In Progress)
+## Phase 1: Pure Conan + CMake
 
-1. ~~Ensure the entire codebase builds cleanly on modern x86_64 toolchains.~~ DONE (Clang 21, zero warnings)
-2. ~~Provide CMake + Conan scripts that default to C++23.~~ DONE (CMakePresets.json, conan profile)
-3. Validate the kernel boots successfully in QEMU. (Infrastructure done; boot test registered)
-4. Establish a repeatable CI pipeline for continuous testing. (CTest with 22 tests; CI runner pending)
+Status: Landed
 
-## 2. Modernization and POSIX Compliance
+Done:
+- Canonical flow is now `conan install` plus `cmake --preset`.
+- Build trees are lane-specific under `build/<lane>/<config>`.
+- Images, logs, and bootstrapped tools live under the active build tree.
+- The wrapper-script flow is no longer the canonical path.
 
-1. Incrementally replace legacy drivers with permissive, non-GNU alternatives.
-2. Implement the required subset of POSIX.1-2008 for compatibility with modern tooling.
-3. Refactor code to fully embrace C++23 idioms and eliminate unsafe constructs.
-4. Maintain cross‑platform support for both 32‑bit and 64‑bit builds.
-5. Replace remaining C arrays with `std::array` and `constexpr` initialization for compile-time safety.
+Remaining:
+- Remove lingering legacy-script references from secondary and historical docs.
+- Keep CI and helper utilities aligned with the preset-owned build trees.
 
-## 3. Toward WebAssembly
+## Phase 2: Repo-Local Boot Tooling
 
-1. Once the QEMU build is stable, prototype a WASM layer using wasi-sdk and Emscripten.
-2. Identify pieces that can run in a pure WASI environment and those that require browser interaction.
-3. Package the system into a single executable WASM module when practical.
-4. Allow the same codebase to run under QEMU or a browser with minimal changes.
+Status: Landed for current boot lanes
 
-## 4. Branch 2025 and Beyond
+Done:
+- x86_64 image generation bootstraps Limine locally through CMake.
+- 32-bit ISO generation bootstraps a pinned GNU GRUB locally through CMake.
+- `xorriso` is injected explicitly into both image-generation paths.
 
-1. Continue modernizing the codebase toward C++23 and C++27 where supported.
-2. Explore memory-safe extensions without sacrificing performance.
-3. Keep the tooling flexible so users can target everything from embedded boards to browsers.
-4. Document each milestone so that the community can track progress and participate in design discussions.
+Remaining:
+- Keep the local tool cache deterministic and documented.
+- Decide later whether more host tools should also move into repo-local
+  bootstraps.
 
-## 5. Ongoing Debate
+## Phase 3: 32-bit x86 Bring-Up
 
-While there are many approaches for bringing MINIX into the browser, the current focus remains on solidifying the x86_64 QEMU build. WASM support will be explored in parallel once the foundation is stable.
+Status: Active
+
+Done:
+- `i486` boots under QEMU and reaches a Ring 3 `xash` shell.
+- The lane architecture has been extended through `i586`, `i686`,
+  `x86_32_core2`, `x86_32_athlon`, and `x86_32_phenom`.
+- Per-lane prepare, boot, layout, and shell tests now hang off CTest when the
+  image target exists.
+
+Remaining:
+- Expand the guest validation matrix across the full 32-bit lane set on every
+  supported QEMU CPU model.
+- Grow the 32-bit user ABI beyond the current bootstrap shell contract.
+- Continue early-console and framebuffer work without regressing the 486-safe
+  baseline.
+
+## Phase 4: xash and Native Tools
+
+Status: Active
+
+Done:
+- `xash` is the canonical hosted shell output.
+- The guest bootstrap lane now reaches `xash` as PID 1.
+
+Remaining:
+- Drive `xash` toward POSIX.1-2008 behavior.
+- Build out `xinim::tools::core` and the next native C++ tools on top of it.
+- Treat Heirloom, ash, mksh, and bash as behavior references, not shipped
+  implementation sources.
+
+## Phase 5: Future Architecture Decisions
+
+Status: Tracked
+
+Open tracks:
+- serialization direction for future hosted/userland protocols:
+  [ADR 0010](adr/0010-serialization-track-msgpack-vs-capnp.md)
+- remaining warning-debt burn-down
+- deeper x86_64 guest validation and shell reachability
+
+## Canonical References
+
+- [BUILD.md](BUILD.md)
+- [CURRENT_REALITY.md](CURRENT_REALITY.md)
+- [analysis/TODO_TRACKER.md](analysis/TODO_TRACKER.md)
+- [adr/0003-cmake-conan-build-system.md](adr/0003-cmake-conan-build-system.md)

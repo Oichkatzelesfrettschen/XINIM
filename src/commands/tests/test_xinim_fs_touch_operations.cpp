@@ -203,10 +203,13 @@ struct SetTimesTestCase {
                    op_mode_for_ctx == xinim::fs::mode::standard ? "standard" : "direct", follow_symlinks_policy);
 
         std::filesystem::remove_all(full_path);
-        if (create_entity_as_symlink) {
-            std::filesystem::create_symlink(symlink_fixed_target, full_path);
-        } else {
-            std::ofstream f(full_path); f << "time_test";
+        if (expect_success || expected_ec_val_on_error != std::errc::no_such_file_or_directory) {
+            if (create_entity_as_symlink) {
+                std::filesystem::create_symlink(symlink_fixed_target, full_path);
+            } else {
+                std::ofstream f(full_path);
+                f << "time_test";
+            }
         }
         std::this_thread::sleep_for(std::chrono::milliseconds(50));
 

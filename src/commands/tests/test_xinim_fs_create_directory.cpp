@@ -1,11 +1,12 @@
 // commands/tests/test_xinim_fs_create_directory.cpp
 #include "xinim/filesystem.hpp" // For xinim::fs free functions and operation_context
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <string>
 #include <vector>
 #include <cstdlib>      // For EXIT_SUCCESS, EXIT_FAILURE, rand, srand
-#include <ctime>        // For time (for srand)
+#include <ctime>        // For time (for unique names)
 #include <system_error> // For std::error_code constants, std::errc
 #include <fstream>      // For std::ofstream (to create a dummy file)
 #include <cassert>      // For assert
@@ -224,8 +225,6 @@ int main() {
         test_create_direct_fails_no_parent,
         test_create_standard_fails_no_parent
     };
-
-    srand(static_cast<unsigned int>(time(nullptr)));
 
     for (auto& test_func : tests) { // Use auto&
         if (!test_func(test_suite_prefix)) { // Call with new signature

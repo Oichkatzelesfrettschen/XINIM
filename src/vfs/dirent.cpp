@@ -8,8 +8,9 @@
  * parent are found by scanning for matching parent_ino.
  *
  * A directory block is allocated via dirent_block_alloc() which carves out
- * a contiguous run of DIRENT_BLOCK_SIZE slots for one directory. This avoids
- * fragmentation and keeps lookups O(DIRENT_BLOCK_SIZE).
+ * a contiguous run of DIRENT_BLOCK_SIZE slots for one directory. Additional
+ * blocks are chained on demand, so small directories stay compact while larger
+ * ones do not hit a hard 32-entry ceiling.
  *
  * DIRENT_BLOCK_SIZE = 32 entries per directory (1 KB per dir block).
  * A directory can be extended by chaining not needed for v1.3.0 scope.
@@ -17,9 +18,12 @@
 
 #include "bare_vfs.hpp"
 #include "inode_table.hpp"
+#include "path_walk.hpp"
 #include <cstring>
 
 inline constexpr uint32_t DIRENT_BLOCK_SIZE = 32; // entries per directory block
+inline constexpr uint32_t DIRENT_BLOCK_COUNT = MAX_DIRENTS / DIRENT_BLOCK_SIZE;
+inline constexpr uint32_t DIRENT_BLOCK_NONE = MAX_DIRENTS;
 
 // ============================================================================
 // Global arena
@@ -27,6 +31,7 @@ inline constexpr uint32_t DIRENT_BLOCK_SIZE = 32; // entries per directory block
 
 static DirEntry g_dirent_arena[MAX_DIRENTS];
 static uint32_t g_dirent_used; // next unallocated arena index
+static uint32_t g_dirent_next_block[DIRENT_BLOCK_COUNT];
 
 // ============================================================================
 // Helpers
@@ -39,13 +44,35 @@ static inline bool name_eq(const char* name, uint8_t namelen,
     return (__builtin_memcmp(name, e->name, namelen) == 0);
 }
 
+static inline uint32_t block_index_for(uint32_t start) {
+    return start / DIRENT_BLOCK_SIZE;
+}
+
+static inline uint32_t block_next(uint32_t start) {
+    if (start >= MAX_DIRENTS) {
+        return DIRENT_BLOCK_NONE;
+    }
+    return g_dirent_next_block[block_index_for(start)];
+}
+
+static inline void block_link(uint32_t start, uint32_t next_start) {
+    if (start >= MAX_DIRENTS) {
+        return;
+    }
+    g_dirent_next_block[block_index_for(start)] = next_start;
+}
+
 // ============================================================================
 // Public API
 // ============================================================================
 
 void dirent_table_init() {
     __builtin_memset(g_dirent_arena, 0, sizeof(g_dirent_arena));
+    for (uint32_t index = 0; index < DIRENT_BLOCK_COUNT; ++index) {
+        g_dirent_next_block[index] = DIRENT_BLOCK_NONE;
+    }
     g_dirent_used = 0;
+    path_cache_reset();
 }
 
 // Allocate DIRENT_BLOCK_SIZE slots for a new directory.
@@ -54,6 +81,7 @@ uint32_t dirent_block_alloc() {
     if (g_dirent_used + DIRENT_BLOCK_SIZE > MAX_DIRENTS) return MAX_DIRENTS;
     uint32_t start = g_dirent_used;
     g_dirent_used += DIRENT_BLOCK_SIZE;
+    g_dirent_next_block[block_index_for(start)] = DIRENT_BLOCK_NONE;
     return start;
 }
 
@@ -70,20 +98,35 @@ int dirent_add(uint32_t parent_ino, uint32_t child_ino,
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
     if (start >= MAX_DIRENTS) return -1;
 
-    // Scan the block for a free slot (child_ino == 0 means unused)
-    uint32_t end = start + DIRENT_BLOCK_SIZE;
-    if (end > MAX_DIRENTS) end = MAX_DIRENTS;
-    for (uint32_t i = start; i < end; ++i) {
-        if (g_dirent_arena[i].child_ino == 0) {
-            g_dirent_arena[i].child_ino  = child_ino;
-            g_dirent_arena[i].type       = type;
-            g_dirent_arena[i].namelen    = namelen;
-            __builtin_memset(g_dirent_arena[i].name, 0, 26);
-            __builtin_memcpy(g_dirent_arena[i].name, name, namelen);
-            return 0;
+    uint32_t block_start = start;
+    for (;;) {
+        uint32_t end = block_start + DIRENT_BLOCK_SIZE;
+        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        for (uint32_t i = block_start; i < end; ++i) {
+            if (g_dirent_arena[i].child_ino == 0) {
+                g_dirent_arena[i].child_ino  = child_ino;
+                g_dirent_arena[i].type       = type;
+                g_dirent_arena[i].namelen    = namelen;
+                __builtin_memset(g_dirent_arena[i].name, 0, 26);
+                __builtin_memcpy(g_dirent_arena[i].name, name, namelen);
+                path_cache_invalidate(parent_ino, name, namelen);
+                return 0;
+            }
         }
+
+        const uint32_t next_block = block_next(block_start);
+        if (next_block != DIRENT_BLOCK_NONE) {
+            block_start = next_block;
+            continue;
+        }
+
+        const uint32_t new_block = dirent_block_alloc();
+        if (new_block >= MAX_DIRENTS) {
+            return -1;
+        }
+        block_link(block_start, new_block);
+        block_start = new_block;
     }
-    return -1; // block full
 }
 
 // Look up child inode by name in parent directory.
@@ -95,12 +138,20 @@ uint32_t dirent_lookup(uint32_t parent_ino, const char* name, uint8_t namelen) {
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
     if (start >= MAX_DIRENTS) return 0;
 
-    uint32_t end = start + DIRENT_BLOCK_SIZE;
-    if (end > MAX_DIRENTS) end = MAX_DIRENTS;
-    for (uint32_t i = start; i < end; ++i) {
-        const DirEntry* e = &g_dirent_arena[i];
-        if (e->child_ino == 0) continue;
-        if (name_eq(name, namelen, e)) return e->child_ino;
+    uint32_t block_start = start;
+    while (block_start < MAX_DIRENTS) {
+        uint32_t end = block_start + DIRENT_BLOCK_SIZE;
+        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        for (uint32_t i = block_start; i < end; ++i) {
+            const DirEntry* e = &g_dirent_arena[i];
+            if (e->child_ino == 0) continue;
+            if (name_eq(name, namelen, e)) return e->child_ino;
+        }
+        const uint32_t next_block = block_next(block_start);
+        if (next_block == DIRENT_BLOCK_NONE) {
+            break;
+        }
+        block_start = next_block;
     }
     return 0; // not found
 }
@@ -113,15 +164,24 @@ int dirent_remove(uint32_t parent_ino, const char* name, uint8_t namelen) {
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
     if (start >= MAX_DIRENTS) return -1;
 
-    uint32_t end = start + DIRENT_BLOCK_SIZE;
-    if (end > MAX_DIRENTS) end = MAX_DIRENTS;
-    for (uint32_t i = start; i < end; ++i) {
-        DirEntry* e = &g_dirent_arena[i];
-        if (e->child_ino == 0) continue;
-        if (name_eq(name, namelen, e)) {
-            __builtin_memset(e, 0, sizeof(DirEntry));
-            return 0;
+    uint32_t block_start = start;
+    while (block_start < MAX_DIRENTS) {
+        uint32_t end = block_start + DIRENT_BLOCK_SIZE;
+        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        for (uint32_t i = block_start; i < end; ++i) {
+            DirEntry* e = &g_dirent_arena[i];
+            if (e->child_ino == 0) continue;
+            if (name_eq(name, namelen, e)) {
+                __builtin_memset(e, 0, sizeof(DirEntry));
+                path_cache_invalidate(parent_ino, name, namelen);
+                return 0;
+            }
         }
+        const uint32_t next_block = block_next(block_start);
+        if (next_block == DIRENT_BLOCK_NONE) {
+            break;
+        }
+        block_start = next_block;
     }
     return -1; // not found
 }
@@ -135,14 +195,23 @@ int dirent_readdir(uint32_t parent_ino, DirEntry* buf, int max_entries) {
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
     if (start >= MAX_DIRENTS) return 0;
 
-    uint32_t end = start + DIRENT_BLOCK_SIZE;
-    if (end > MAX_DIRENTS) end = MAX_DIRENTS;
-
     int count = 0;
-    for (uint32_t i = start; i < end && count < max_entries; ++i) {
-        const DirEntry* e = &g_dirent_arena[i];
-        if (e->child_ino == 0) continue;
-        buf[count++] = *e;
+    uint32_t block_start = start;
+    while (block_start < MAX_DIRENTS && count < max_entries) {
+        uint32_t end = block_start + DIRENT_BLOCK_SIZE;
+        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+
+        for (uint32_t i = block_start; i < end && count < max_entries; ++i) {
+            const DirEntry* e = &g_dirent_arena[i];
+            if (e->child_ino == 0) continue;
+            buf[count++] = *e;
+        }
+
+        const uint32_t next_block = block_next(block_start);
+        if (next_block == DIRENT_BLOCK_NONE) {
+            break;
+        }
+        block_start = next_block;
     }
     return count;
 }
