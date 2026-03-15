@@ -52,7 +52,7 @@ Total registered: 27 (25 unit + 2 integration).
 | Test Name | Label(s) | Source | Status | Notes |
 |-----------|----------|--------|--------|-------|
 | boot_smoke_test | integration;boot | test/boot/smoke_test.sh | N/A | Requires kernel image + QEMU |
-| kshell_test | integration;kshell | test/boot/kshell_test.py | N/A | Requires kernel image + QEMU TCP:4555 |
+| x86_64_shell_test | integration;kshell | test/boot/x86_64_shell_test.py | N/A | Requires kernel image + QEMU TCP:4555 |
 
 ## Untested Subsystems
 
