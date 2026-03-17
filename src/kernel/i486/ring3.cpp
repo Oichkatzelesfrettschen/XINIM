@@ -1538,7 +1538,8 @@ void apply_service_profile_to_process(Process* process,
     dispatch_process(next);
 }
 
-void block_current_process_until_rescheduled(Process* process,
+// Returns true if woken by a pending signal (caller should return -EINTR)
+bool block_current_process_until_rescheduled(Process* process,
                                              bool waiting_for_console_input,
                                              uint64_t wake_tick) noexcept {
     if (process == nullptr) {
@@ -1558,7 +1559,10 @@ void block_current_process_until_rescheduled(Process* process,
     process->state = ProcessState::Runnable;
     process->waiting_for_console_input = false;
     process->wake_tick = 0U;
+    // Check if we were woken by a signal
+    const bool has_signal = (process->signals.pending & ~process->signals.blocked) != 0U;
     activate_process(process);
+    return has_signal;
 }
 
 [[nodiscard]] SupervisedService* register_optional_support_services(
@@ -1763,7 +1767,10 @@ void block_current_process_until_rescheduled(Process* process,
         while (written < count) {
             char value = '\0';
             if (!console::tty_try_read_char(&value)) {
-                block_current_process_until_rescheduled(process, true, 0U);
+                if (block_current_process_until_rescheduled(process, true, 0U)) {
+                    return written > 0U ? written : kErrnoIntr;
+                }
+                continue;
             }
             buffer[written] = static_cast<uint8_t>(value);
             ++written;
@@ -3158,8 +3165,21 @@ constexpr int16_t kPollNVal = 0x0020;
     const uint64_t ticks = static_cast<uint64_t>(req->seconds) * kTimerHz +
                            static_cast<uint64_t>(req->nanoseconds) / (1000000000U / kTimerHz);
     if (ticks > 0U) {
-        block_current_process_until_rescheduled(process, false,
-                                                g_scheduler_ticks + ticks);
+        const uint64_t target_tick = g_scheduler_ticks + ticks;
+        if (block_current_process_until_rescheduled(process, false, target_tick)) {
+            // Interrupted by signal -- write remaining time if rem provided
+            if (frame->ecx != 0U) {
+                const uint64_t remaining = (target_tick > g_scheduler_ticks)
+                    ? (target_tick - g_scheduler_ticks) : 0U;
+                const TimeSpec32 rem{
+                    static_cast<uint32_t>(remaining / kTimerHz),
+                    static_cast<uint32_t>((remaining % kTimerHz) * (1000000000U / kTimerHz))
+                };
+                static_cast<void>(write_user_bytes(process, frame->ecx, &rem,
+                                                    static_cast<uint32_t>(sizeof(rem))));
+            }
+            return kErrnoIntr;
+        }
     }
     // Write remaining time (0) if rem pointer provided
     if (frame->ecx != 0U) {
