@@ -63,4 +63,6 @@ struct BootInfo {
     }
 };
 
+const BootInfo& get_info();
+
 } // namespace xinim::boot

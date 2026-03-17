@@ -12,7 +12,7 @@ constexpr uint32_t kTagTypeFramebuffer = 8U;
 constexpr uint32_t kTagTypeAcpiOld = 14U;
 constexpr uint32_t kTagTypeAcpiNew = 15U;
 constexpr size_t kMaxMemoryRanges = 64U;
-constexpr size_t kMaxBootModules = 8U;
+constexpr size_t kMaxBootModules = 32U;
 
 struct MultibootInfoHeader {
     uint32_t total_size;

@@ -51,6 +51,7 @@ struct BlockDeviceStats {
  */
 enum class BlockDeviceType {
     UNKNOWN,
+    ATA_PIO,
     AHCI_SATA,
     NVME,
     VIRTIO_BLK,

@@ -16,6 +16,8 @@
 #include <cstdint>
 #include <memory>
 
+#include <xinim/drivers/pci_binding.hpp>
+
 namespace xinim::drivers {
 
 /**
@@ -50,7 +52,7 @@ public:
         static constexpr uint32_t HR       = (1 << 0);   // HBA Reset
         static constexpr uint32_t IE       = (1 << 1);   // Interrupt Enable
         static constexpr uint32_t MRSM     = (1 << 2);   // MSI Revert to Single Message
-        static constexpr uint32_t AE       = (1 << 31);  // AHCI Enable
+        static constexpr uint32_t AE       = (1U << 31); // AHCI Enable
     };
 
     /**
@@ -127,10 +129,10 @@ public:
         static constexpr uint32_t DLAE     = (1 << 25);  // Drive LED on ATAPI Enable
         static constexpr uint32_t ALPE     = (1 << 26);  // Aggressive Link Power Management Enable
         static constexpr uint32_t ASP      = (1 << 27);  // Aggressive Slumber / Partial
-        static constexpr uint32_t ICC_MASK = 0xF << 28;  // Interface Communication Control
-        static constexpr uint32_t ICC_ACTIVE = 0x1 << 28;
-        static constexpr uint32_t ICC_PARTIAL = 0x2 << 28;
-        static constexpr uint32_t ICC_SLUMBER = 0x6 << 28;
+        static constexpr uint32_t ICC_MASK = 0xFU << 28; // Interface Communication Control
+        static constexpr uint32_t ICC_ACTIVE = 0x1U << 28;
+        static constexpr uint32_t ICC_PARTIAL = 0x2U << 28;
+        static constexpr uint32_t ICC_SLUMBER = 0x6U << 28;
     };
 
     /**
@@ -445,7 +447,24 @@ public:
     ~AHCIDriver();
 
     // Controller initialization
+    static bool matches_pci_device(const xinim::pci::PCIDevice& device) noexcept {
+        return device.is_valid() &&
+               device.class_code == xinim::pci::class_code::MASS_STORAGE &&
+               device.subclass == xinim::pci::mass_storage::SATA &&
+               device.prog_if == 0x01;
+    }
     bool probe(uint16_t vendor_id, uint16_t device_id);
+    bool configure_from_pci(const xinim::pci::PCIDevice& device) {
+        pci_binding::MappedBar bar{};
+        if (!pci_binding::bind_mmio_bar(device, 5, bar)) {
+            return false;
+        }
+
+        abar_ = bar.base;
+        abar_phys_ = bar.physical;
+        abar_size_ = static_cast<size_t>(bar.size);
+        return true;
+    }
     bool initialize();
     void shutdown();
 
@@ -461,6 +480,9 @@ public:
     // Status and information
     DeviceSignature get_device_type(uint8_t port) const;
     bool get_drive_info(uint8_t port, uint64_t& sectors, uint32_t& sector_size);
+    [[nodiscard]] uint64_t abar_phys() const noexcept { return abar_phys_; }
+    [[nodiscard]] size_t abar_size() const noexcept { return abar_size_; }
+    [[nodiscard]] const volatile void* abar_base() const noexcept { return abar_; }
     
     // Interrupt handling
     void handle_interrupt();

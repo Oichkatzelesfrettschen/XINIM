@@ -183,6 +183,9 @@ int PartitionTableParser::parse_extended_mbr(std::shared_ptr<BlockDevice> device
     // Extended partitions use a linked list structure
     // TODO: Implement extended partition parsing
     // For now, just log and return 0
+    (void)device;
+    (void)extended_lba;
+    (void)partitions;
     LOG_INFO("Partition: Extended partition parsing not yet implemented");
     return 0;
 }
@@ -251,7 +254,7 @@ int PartitionTableParser::parse_gpt(std::shared_ptr<BlockDevice> device, std::ve
         part.size_blocks = (entry->last_lba - entry->first_lba) + 1;
         memcpy(part.type_guid, entry->partition_type_guid, 16);
         memcpy(part.unique_guid, entry->unique_partition_guid, 16);
-        part.flags = entry->attributes;
+        part.flags = static_cast<uint32_t>(entry->attributes);
         part.bootable = (entry->attributes & 0x4) != 0;  // Legacy BIOS bootable flag
 
         // Convert partition name from UTF-16LE to UTF-8

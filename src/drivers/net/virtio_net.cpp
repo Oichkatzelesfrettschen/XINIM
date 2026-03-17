@@ -23,19 +23,19 @@
 #include <cstddef>
 #include <cstdint>
 #include "../../kernel/early/serial_16550.hpp"
-#include "../../kernel/arch/x86_64/portio.hpp"
+#include <xinim/arch/x86/portio.hpp>
 
 extern xinim::early::Serial16550 early_serial; // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 namespace xinim::drivers::net {
 namespace {
 
-using xinim::arch::x86_64::inb;
-using xinim::arch::x86_64::inw;
-using xinim::arch::x86_64::inl;
-using xinim::arch::x86_64::outb;
-using xinim::arch::x86_64::outw;
-using xinim::arch::x86_64::outl;
+using xinim::arch::x86::inb;
+using xinim::arch::x86::inw;
+using xinim::arch::x86::inl;
+using xinim::arch::x86::outb;
+using xinim::arch::x86::outw;
+using xinim::arch::x86::outl;
 
 // ============================================================================
 // virtio PCI constants (VirtIO Spec v1.2, Appendix A)
@@ -331,4 +331,3 @@ bool virtio_net_recv([[maybe_unused]] void* buf,
 }
 
 } // namespace xinim::drivers::net
-

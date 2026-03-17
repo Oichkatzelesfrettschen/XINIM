@@ -64,7 +64,8 @@ int PartitionedBlockDevice::read_blocks(uint64_t lba, uint32_t count, uint8_t* b
 
     if (result > 0) {
         stats_.read_ops++;
-        stats_.read_bytes += result * get_block_size();
+        stats_.read_bytes += static_cast<uint64_t>(result) *
+                             static_cast<uint64_t>(get_block_size());
     } else if (result < 0) {
         stats_.read_errors++;
     }
@@ -90,7 +91,8 @@ int PartitionedBlockDevice::write_blocks(uint64_t lba, uint32_t count, const uin
 
     if (result > 0) {
         stats_.write_ops++;
-        stats_.write_bytes += result * get_block_size();
+        stats_.write_bytes += static_cast<uint64_t>(result) *
+                              static_cast<uint64_t>(get_block_size());
     } else if (result < 0) {
         stats_.write_errors++;
     }
@@ -146,6 +148,9 @@ std::string BlockDeviceManager::register_device(std::shared_ptr<BlockDevice> dev
         // Generate name based on device type
         const char* prefix = "unk";
         switch (device->get_type()) {
+            case BlockDeviceType::ATA_PIO:
+                prefix = "hd";
+                break;
             case BlockDeviceType::AHCI_SATA:
                 prefix = "sd";
                 break;
@@ -187,6 +192,7 @@ std::string BlockDeviceManager::register_device(std::shared_ptr<BlockDevice> dev
 
     LOG_INFO("Block: Registered device %s (%s, %lu MB, %zu-byte blocks)",
              dev_name.c_str(),
+             device->get_type() == BlockDeviceType::ATA_PIO ? "ATA" :
              device->get_type() == BlockDeviceType::AHCI_SATA ? "SATA" :
              device->get_type() == BlockDeviceType::NVME ? "NVMe" :
              device->get_type() == BlockDeviceType::VIRTIO_BLK ? "VirtIO" : "Unknown",
@@ -234,8 +240,6 @@ int BlockDeviceManager::scan_partitions(std::shared_ptr<BlockDevice> device) {
     if (!device) {
         return -EINVAL;
     }
-
-    std::lock_guard<std::mutex> lock(mutex_);
 
     LOG_INFO("Block: Scanning %s for partitions...", device->get_name().c_str());
 
@@ -288,6 +292,9 @@ void BlockDeviceManager::print_device_table() {
     for (const auto& [name, device] : devices_) {
         std::string type_str;
         switch (device->get_type()) {
+            case BlockDeviceType::ATA_PIO:
+                type_str = "ATA";
+                break;
             case BlockDeviceType::AHCI_SATA:
                 type_str = "SATA";
                 break;
@@ -311,9 +318,11 @@ void BlockDeviceManager::print_device_table() {
         char size_str[32];
         uint64_t size_mb = device->get_size_mb();
         if (size_mb >= 1024) {
-            snprintf(size_str, sizeof(size_str), "%.1f GB", size_mb / 1024.0);
+            snprintf(size_str, sizeof(size_str), "%.1f GB",
+                     static_cast<double>(size_mb) / 1024.0);
         } else {
-            snprintf(size_str, sizeof(size_str), "%lu MB", size_mb);
+            snprintf(size_str, sizeof(size_str), "%llu MB",
+                     static_cast<unsigned long long>(size_mb));
         }
 
         auto caps = device->get_capabilities();

@@ -17,6 +17,8 @@
 #include <cstdint>
 #include <memory>
 
+#include <xinim/drivers/pci_binding.hpp>
+
 namespace xinim::drivers {
 
 /**
@@ -118,7 +120,7 @@ public:
         static constexpr uint32_t RFCE      = (1 << 27);  // RX Flow Control Enable
         static constexpr uint32_t TFCE      = (1 << 28);  // TX Flow Control Enable
         static constexpr uint32_t VME       = (1 << 30);  // VLAN Mode Enable
-        static constexpr uint32_t PHY_RST   = (1 << 31);  // PHY Reset
+        static constexpr uint32_t PHY_RST   = (1U << 31); // PHY Reset
     };
 
     /**
@@ -255,7 +257,39 @@ public:
     ~E1000Driver();
 
     // Device initialization
+    static bool matches_pci_device(const xinim::pci::PCIDevice& device) noexcept {
+        if (!device.is_valid() || device.vendor_id != 0x8086) {
+            return false;
+        }
+
+        switch (static_cast<DeviceID>(device.device_id)) {
+            case DeviceID::E1000_82540EM:
+            case DeviceID::E1000_82545EM:
+            case DeviceID::E1000_82546EB:
+            case DeviceID::E1000_82545GM:
+            case DeviceID::E1000_82566DM:
+            case DeviceID::E1000_82571EB:
+            case DeviceID::E1000_82572EI:
+            case DeviceID::E1000_82573E:
+            case DeviceID::E1000_82574L:
+            case DeviceID::E1000_82583V:
+                return true;
+            default:
+                return false;
+        }
+    }
     bool probe(uint16_t vendor_id, uint16_t device_id);
+    bool configure_from_pci(const xinim::pci::PCIDevice& device) {
+        pci_binding::MappedBar bar{};
+        if (!pci_binding::bind_mmio_bar(device, 0, bar)) {
+            return false;
+        }
+
+        mmio_base_ = bar.base;
+        mmio_phys_ = bar.physical;
+        mmio_size_ = static_cast<size_t>(bar.size);
+        return true;
+    }
     bool initialize();
     void shutdown();
 
@@ -267,6 +301,9 @@ public:
     bool link_up() const;
     void get_mac_address(uint8_t mac[6]) const;
     void set_promiscuous_mode(bool enable);
+    [[nodiscard]] uint64_t mmio_phys() const noexcept { return mmio_phys_; }
+    [[nodiscard]] size_t mmio_size() const noexcept { return mmio_size_; }
+    [[nodiscard]] const volatile void* mmio_base() const noexcept { return mmio_base_; }
     
     // Interrupt handling
     void handle_interrupt();

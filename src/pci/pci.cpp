@@ -4,37 +4,16 @@
 // PCI Subsystem Implementation
 
 #include <xinim/pci/pci.hpp>
+#include <xinim/arch/x86/pci_cfg.hpp>
 #include <cstring>
 
 namespace xinim::pci {
-
-// PCI Configuration Mechanism 1 I/O Ports
-constexpr uint16_t CONFIG_ADDRESS = 0xCF8;
-constexpr uint16_t CONFIG_DATA = 0xCFC;
 
 // Global device list (fixed-size, no STL -- freestanding safe)
 static constexpr size_t MAX_PCI_DEVICES = 64;
 static PCIDevice g_devices[MAX_PCI_DEVICES];
 static size_t g_device_count = 0;
 static bool g_initialized = false;
-
-// Port I/O from centralized header
-#include "../kernel/arch/x86_64/portio.hpp"
-using xinim::arch::x86_64::outl;
-using xinim::arch::x86_64::inl;
-using xinim::arch::x86_64::outw;
-using xinim::arch::x86_64::inw;
-using xinim::arch::x86_64::outb;
-using xinim::arch::x86_64::inb;
-
-// Create PCI config address
-static uint32_t pci_address(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset) {
-    return 0x80000000 |
-           (static_cast<uint32_t>(bus) << 16) |
-           (static_cast<uint32_t>(device) << 11) |
-           (static_cast<uint32_t>(function) << 8) |
-           (offset & 0xFC);
-}
 
 bool PCI::initialize() {
     if (g_initialized) {
@@ -56,43 +35,27 @@ void PCI::shutdown() {
 }
 
 uint8_t PCI::read_config_byte(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset) {
-    uint32_t address = pci_address(bus, device, function, offset);
-    outl(CONFIG_ADDRESS, address);
-
-    // Read byte at offset within the 32-bit value
-    return inb(CONFIG_DATA + (offset & 3));
+    return xinim::arch::x86::pci::read_config_byte(bus, device, function, offset);
 }
 
 uint16_t PCI::read_config_word(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset) {
-    uint32_t address = pci_address(bus, device, function, offset);
-    outl(CONFIG_ADDRESS, address);
-
-    // Read word at offset within the 32-bit value
-    return inw(CONFIG_DATA + (offset & 2));
+    return xinim::arch::x86::pci::read_config_word(bus, device, function, offset);
 }
 
 uint32_t PCI::read_config_dword(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset) {
-    uint32_t address = pci_address(bus, device, function, offset);
-    outl(CONFIG_ADDRESS, address);
-    return inl(CONFIG_DATA);
+    return xinim::arch::x86::pci::read_config_dword(bus, device, function, offset);
 }
 
 void PCI::write_config_byte(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset, uint8_t value) {
-    uint32_t address = pci_address(bus, device, function, offset);
-    outl(CONFIG_ADDRESS, address);
-    outb(CONFIG_DATA + (offset & 3), value);
+    xinim::arch::x86::pci::write_config_byte(bus, device, function, offset, value);
 }
 
 void PCI::write_config_word(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset, uint16_t value) {
-    uint32_t address = pci_address(bus, device, function, offset);
-    outl(CONFIG_ADDRESS, address);
-    outw(CONFIG_DATA + (offset & 2), value);
+    xinim::arch::x86::pci::write_config_word(bus, device, function, offset, value);
 }
 
 void PCI::write_config_dword(uint8_t bus, uint8_t device, uint8_t function, uint16_t offset, uint32_t value) {
-    uint32_t address = pci_address(bus, device, function, offset);
-    outl(CONFIG_ADDRESS, address);
-    outl(CONFIG_DATA, value);
+    xinim::arch::x86::pci::write_config_dword(bus, device, function, offset, value);
 }
 
 static void probe_function(uint8_t bus, uint8_t device, uint8_t function) {
@@ -122,7 +85,7 @@ static void probe_function(uint8_t bus, uint8_t device, uint8_t function) {
     dev.interrupt_pin = PCI::read_config_byte(bus, device, function, config::INTERRUPT_PIN);
 
     // Read BARs
-    for (int i = 0; i < 6; ++i) {
+    for (uint8_t i = 0; i < 6; ++i) {
         PCI::read_bar(dev, i, dev.bars[i]);
     }
 
@@ -259,16 +222,11 @@ void* PCI::map_bar(const BAR& bar) {
         return nullptr;
     }
 
-    // TODO: Use proper MMU mapping when available
-    // For now, return direct physical address + kernel offset
-    constexpr uint64_t KERNEL_VIRTUAL_BASE = 0xFFFFFFFF80000000ULL;
-    return reinterpret_cast<void*>(bar.address + KERNEL_VIRTUAL_BASE);
+    return xinim::arch::x86::pci::map_mmio_physical(bar.address);
 }
 
 void PCI::unmap_bar(void* mapped_address, size_t size) {
-    // TODO: Implement proper unmapping when MMU is fully integrated
-    (void)mapped_address;
-    (void)size;
+    xinim::arch::x86::pci::unmap_mmio(mapped_address, size);
 }
 
 void PCI::enable_bus_master(const PCIDevice& device) {
