@@ -7,6 +7,7 @@
 #include "ide.hpp"
 #include "ring3.hpp"
 #include "shell.hpp"
+#include "dma_pages.hpp"
 #include "../../vfs/bootfs_promote.hpp"
 #include "xinim/boot/multiboot2_shim.hpp"
 #include "xinim/pci/pci.hpp"
@@ -102,6 +103,12 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     xinim::i486::console::write_string("bootfs promoted entries: ");
     xinim::i486::console::write_dec32(static_cast<uint32_t>(promoted_entries < 0 ? 0 : promoted_entries));
     xinim::i486::console::newline();
+    xinim::i486::dma::initialize(info.memory_map, static_cast<uint32_t>(info.memory_map_entries));
+    xinim::i486::console::write_string("DMA allocator: ");
+    xinim::i486::console::write_dec32(xinim::i486::dma::available_bytes() / 1024U);
+    xinim::i486::console::write_string(" KB available");
+    xinim::i486::console::newline();
+
     xinim::i486::ide::initialize();
     if (xinim::pci::PCI::initialize()) {
         xinim::i486::console::write_string("PCI bus enumeration complete");
