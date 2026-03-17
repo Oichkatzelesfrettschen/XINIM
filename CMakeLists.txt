@@ -987,6 +987,7 @@ function(xinim_add_x86_32_lane lane)
         cat echo true pwd env cp rm test basename dirname printf
         wc head tail sort uniq cut tr tee grep sed
         kill sleep uname id touch ln xargs dd
+        seq yes nproc which chmod chown readlink mktemp expr
     )
     set(_posix_util_binaries "")
     set(_posix_util_targets "")
@@ -1355,6 +1356,15 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_ln_binary}:/bin/ln"
             --guest-bin "${_xargs_binary}:/bin/xargs"
             --guest-bin "${_dd_binary}:/bin/dd"
+            --guest-bin "${_seq_binary}:/bin/seq"
+            --guest-bin "${_yes_binary}:/bin/yes"
+            --guest-bin "${_nproc_binary}:/bin/nproc"
+            --guest-bin "${_which_binary}:/bin/which"
+            --guest-bin "${_chmod_binary}:/bin/chmod"
+            --guest-bin "${_chown_binary}:/bin/chown"
+            --guest-bin "${_readlink_binary}:/bin/readlink"
+            --guest-bin "${_mktemp_binary}:/bin/mktemp"
+            --guest-bin "${_expr_binary}:/bin/expr"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py"
             ${_hello_target}
@@ -1419,6 +1429,15 @@ function(xinim_add_x86_32_lane lane)
                 COMMAND ${CMAKE_COMMAND} -E copy "${_ln_binary}" "${_stage_dir}/boot/ln"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_xargs_binary}" "${_stage_dir}/boot/xargs"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_dd_binary}" "${_stage_dir}/boot/dd"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_seq_binary}" "${_stage_dir}/boot/seq"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_yes_binary}" "${_stage_dir}/boot/yes"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_nproc_binary}" "${_stage_dir}/boot/nproc"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_which_binary}" "${_stage_dir}/boot/which"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_chmod_binary}" "${_stage_dir}/boot/chmod"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_chown_binary}" "${_stage_dir}/boot/chown"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_readlink_binary}" "${_stage_dir}/boot/readlink"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_mktemp_binary}" "${_stage_dir}/boot/mktemp"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_expr_binary}" "${_stage_dir}/boot/expr"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/boot/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_shell_target}>" "${_stage_dir}/bin/xash"
             COMMAND ${CMAKE_COMMAND} -E copy "${_mksh_binary}" "${_stage_dir}/bin/sh"
@@ -1466,6 +1485,15 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "${_ln_binary}" "${_stage_dir}/bin/ln"
             COMMAND ${CMAKE_COMMAND} -E copy "${_xargs_binary}" "${_stage_dir}/bin/xargs"
             COMMAND ${CMAKE_COMMAND} -E copy "${_dd_binary}" "${_stage_dir}/bin/dd"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_seq_binary}" "${_stage_dir}/bin/seq"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_yes_binary}" "${_stage_dir}/bin/yes"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_nproc_binary}" "${_stage_dir}/bin/nproc"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_which_binary}" "${_stage_dir}/bin/which"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_chmod_binary}" "${_stage_dir}/bin/chmod"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_chown_binary}" "${_stage_dir}/bin/chown"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_readlink_binary}" "${_stage_dir}/bin/readlink"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_mktemp_binary}" "${_stage_dir}/bin/mktemp"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_expr_binary}" "${_stage_dir}/bin/expr"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/etc/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/grub.cfg" "${_stage_dir}/boot/grub/grub.cfg"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_LOG_ROOT}"
