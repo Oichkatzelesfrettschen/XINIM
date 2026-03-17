@@ -48,6 +48,7 @@ constexpr uint32_t kMapPrivate = 0x02U;
 constexpr uint32_t kMapFixed = 0x10U;
 constexpr uint32_t kMapAnonymous = 0x20U;
 constexpr uint32_t kErrnoNoSys = static_cast<uint32_t>(-38);
+constexpr uint32_t kErrnoIntr = static_cast<uint32_t>(-4);
 constexpr uint32_t kErrnoNoEnt = static_cast<uint32_t>(-2);
 constexpr uint32_t kErrnoAcces = static_cast<uint32_t>(-13);
 constexpr uint32_t kErrnoBadF = static_cast<uint32_t>(-9);
@@ -3605,6 +3606,119 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     case SYS_recvmsg:
     case SYS_socketpair:
         return kErrnoNoSys;
+    // Phase 3 POSIX completeness syscalls
+    case SYS_gettid:
+        return process->pid; // No threads, tid == pid
+    case SYS_sched_yield:
+        process->ticks_remaining = 0U;
+        return 0U;
+    case SYS_lstat:
+        return sys_stat(process, frame); // No symlinks, lstat == stat
+    case SYS_dup3: {
+        const int old_fd = static_cast<int>(frame->ebx);
+        const int new_fd = static_cast<int>(frame->ecx);
+        const uint32_t flags = frame->edx;
+        const int result = bootfs::duplicate(old_fd, new_fd);
+        if (result >= 0 && (flags & 0x80000U) != 0U) { // O_CLOEXEC
+            static_cast<void>(bootfs::set_descriptor_flags(result, 1)); // FD_CLOEXEC
+        }
+        return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
+    }
+    case SYS_pipe2: {
+        int pipe_fds[2] = {-1, -1};
+        const int result = bootfs::make_pipe(pipe_fds);
+        if (result != 0) {
+            return kErrnoNoMem;
+        }
+        const uint32_t flags = frame->ecx;
+        if ((flags & 0x80000U) != 0U) { // O_CLOEXEC
+            static_cast<void>(bootfs::set_descriptor_flags(pipe_fds[0], 1));
+            static_cast<void>(bootfs::set_descriptor_flags(pipe_fds[1], 1));
+        }
+        if (!write_user_u32(process, frame->ebx, static_cast<uint32_t>(pipe_fds[0])) ||
+            !write_user_u32(process, frame->ebx + sizeof(uint32_t), static_cast<uint32_t>(pipe_fds[1]))) {
+            bootfs::close(pipe_fds[0]);
+            bootfs::close(pipe_fds[1]);
+            return kErrnoFault;
+        }
+        return 0U;
+    }
+    case SYS_fsync:
+    case SYS_fdatasync:
+        // No disk cache to flush; succeed silently
+        return bootfs::is_open(static_cast<int>(frame->ebx)) ? 0U : kErrnoBadF;
+    case SYS_flock:
+        // Advisory locks: succeed silently (no actual locking)
+        return bootfs::is_open(static_cast<int>(frame->ebx)) ? 0U : kErrnoBadF;
+    case SYS_set_tid_address:
+        // Store clear_child_tid pointer (simplified: just return pid)
+        return process->pid;
+    case SYS_statfs: {
+        // Return basic filesystem info
+        struct StatFs32 {
+            uint32_t f_type;
+            uint32_t f_bsize;
+            uint32_t f_blocks;
+            uint32_t f_bfree;
+            uint32_t f_bavail;
+            uint32_t f_files;
+            uint32_t f_ffree;
+            uint32_t f_fsid[2];
+            uint32_t f_namelen;
+            uint32_t f_frsize;
+            uint32_t f_flags;
+            uint32_t f_spare[4];
+        };
+        StatFs32 fs{};
+        fs.f_type = 0xEF53U; // EXT2_SUPER_MAGIC
+        fs.f_bsize = 1024U;
+        fs.f_blocks = 15360U;
+        fs.f_bfree = 10000U;
+        fs.f_bavail = 10000U;
+        fs.f_files = 256U;
+        fs.f_ffree = 200U;
+        fs.f_namelen = 255U;
+        fs.f_frsize = 1024U;
+        if (!write_user_bytes(process, frame->ecx, &fs, static_cast<uint32_t>(sizeof(fs)))) {
+            return kErrnoFault;
+        }
+        return 0U;
+    }
+    case SYS_openat: {
+        // AT_FDCWD (-100) means use cwd; otherwise relative to dirfd
+        // Simplified: ignore dirfd, treat path as absolute
+        return sys_open(process, frame);
+    }
+    case SYS_mkdirat:
+        return sys_mkdir(process, frame);
+    case SYS_unlinkat:
+        return sys_unlink(process, frame);
+    case SYS_getdents64:
+        return sys_getdents(process, frame); // Same implementation, struct compat
+    case SYS_sigpending: {
+        const uint32_t pending = process->signals.pending & ~process->signals.blocked;
+        if (frame->ebx != 0U && !write_user_u32(process, frame->ebx, pending)) {
+            return kErrnoFault;
+        }
+        return 0U;
+    }
+    case SYS_sigsuspend: {
+        // Atomically replace signal mask and suspend
+        const uint32_t old_mask = process->signals.blocked;
+        if (frame->ebx != 0U) {
+            uint32_t new_mask = 0U;
+            if (!read_user_u32(process, frame->ebx, &new_mask)) {
+                return kErrnoFault;
+            }
+            process->signals.blocked = new_mask;
+        }
+        // Block until a signal is delivered
+        block_current_process_until_rescheduled(process, false, 0U);
+        process->signals.blocked = old_mask;
+        return kErrnoIntr;
+    }
+    case SYS_procinfo:
+        return kErrnoNoSys; // Placeholder until procfs
     default:
         uint32_t caller = 0U;
         const bool have_caller = read_user_u32(process, process->context.esp, &caller);

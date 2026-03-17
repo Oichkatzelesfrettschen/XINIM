@@ -128,6 +128,25 @@ enum xinim_syscall_no {
   SYS_sendmsg = 93,
   SYS_recvmsg = 94,
   SYS_socketpair = 95,
+
+  // Phase 3 additions: POSIX completeness
+  SYS_sigpending = 96,
+  SYS_sigsuspend = 97,
+  SYS_getdents64 = 98,
+  SYS_dup3 = 99,
+  SYS_procinfo = 100,
+  SYS_flock = 101,
+  SYS_fsync = 102,
+  SYS_fdatasync = 103,
+  SYS_pipe2 = 104,
+  SYS_sched_yield = 105,
+  SYS_gettid = 106,
+  SYS_statfs = 107,
+  SYS_lstat = 108,
+  SYS_openat = 109,
+  SYS_mkdirat = 110,
+  SYS_unlinkat = 111,
+  SYS_set_tid_address = 112,
 };
 
 typedef uint64_t (*xinim_syscall_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);
