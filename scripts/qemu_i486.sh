@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# XINIM QEMU launcher scaffold for the 32-bit bootstrap lanes.
+# XINIM QEMU launcher for the i486 GRUB/Multiboot2 init-shell lane.
 
 set -euo pipefail
 
@@ -18,11 +18,13 @@ print_error() { echo -e "${RED}[QEMU x86_32]${NC} $1"; }
 IMAGE_ROOT="${XINIM_IMAGE_ROOT:-${PROJECT_ROOT}/build/i486/Debug/images}"
 LOG_ROOT="${XINIM_LOG_ROOT:-${PROJECT_ROOT}/build/i486/Debug/logs}"
 BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-${IMAGE_ROOT}/i486/xinim-i486dx.iso}"
+DISK_IMAGE="${XINIM_QEMU_DISK_IMAGE:-}"
 QEMU_BIN="${XINIM_QEMU_SYSTEM_BIN:-qemu-system-i386}"
-MEMORY="32M"
+MEMORY="64M"
 CPU="486"
 MACHINE="pc"
 VGA="std"
+DISPLAY_BACKEND=""
 DEBUG_SHELL_PORT="4555"
 LOG_FILE="${LOG_ROOT}/qemu-i486.log"
 
@@ -31,11 +33,14 @@ show_help() {
 Usage: $0 --boot-image PATH [options]
 
 Options:
-  --boot-image PATH       Bootable disk or ISO image for the 32-bit lane
+  --boot-image PATH       Bootable disk or ISO image for the i486 lane
   --memory SIZE           Guest RAM size (default: 32M)
   --cpu MODEL             QEMU CPU model (default: 486)
   --machine NAME          QEMU machine (default: pc)
+  --disk-image PATH       Attach a raw ATA disk image
   --vga TYPE              VGA model (default: std)
+  --display BACKEND       QEMU display backend (default: QEMU default)
+  --headless              Force headless mode (-display none)
   --log-file PATH         Serial log file (default: $LOG_FILE)
   --debug-shell-port N    COM2 telnet port (default: 4555)
   -h, --help              Show this message
@@ -64,9 +69,21 @@ while [[ $# -gt 0 ]]; do
             MACHINE="${2:?missing machine name for --machine}"
             shift 2
             ;;
+        --disk-image)
+            DISK_IMAGE="${2:?missing path for --disk-image}"
+            shift 2
+            ;;
         --vga)
             VGA="${2:?missing VGA type for --vga}"
             shift 2
+            ;;
+        --display)
+            DISPLAY_BACKEND="${2:?missing backend for --display}"
+            shift 2
+            ;;
+        --headless)
+            DISPLAY_BACKEND="none"
+            shift
             ;;
         --log-file)
             LOG_FILE="${2:?missing path for --log-file}"
@@ -105,19 +122,40 @@ print_info "Machine: ${MACHINE}"
 print_info "CPU: ${CPU}"
 print_info "Memory: ${MEMORY}"
 print_info "VGA: ${VGA}"
+if [[ -n "${DISK_IMAGE}" ]]; then
+    print_info "Disk: ${DISK_IMAGE}"
+fi
+if [[ -n "${DISPLAY_BACKEND}" ]]; then
+    print_info "Display: ${DISPLAY_BACKEND}"
+else
+    print_info "Display: QEMU default"
+fi
 print_info "Boot image: ${BOOT_IMAGE}"
 print_info "COM1 log: ${LOG_FILE}"
 print_info "COM2 telnet: localhost:${DEBUG_SHELL_PORT}"
 
-exec "${QEMU_BIN}" \
-    -machine "${MACHINE}" \
-    -cpu "${CPU}" \
-    -m "${MEMORY}" \
-    -boot d \
-    -cdrom "${BOOT_IMAGE}" \
-    -vga "${VGA}" \
-    -serial "file:${LOG_FILE}" \
-    -serial "telnet:127.0.0.1:${DEBUG_SHELL_PORT},server,nowait" \
-    -monitor none \
-    -no-reboot \
+QEMU_ARGS=(
+    -machine "${MACHINE}"
+    -cpu "${CPU}"
+    -m "${MEMORY}"
+    -boot d
+    -cdrom "${BOOT_IMAGE}"
+    -vga "${VGA}"
+    -serial "file:${LOG_FILE}"
+    -serial "telnet:127.0.0.1:${DEBUG_SHELL_PORT},server,nowait"
+    -monitor none
+    -no-reboot
     -no-shutdown
+    -netdev user,id=net0
+    -device virtio-net-pci,netdev=net0
+)
+
+if [[ -n "${DISPLAY_BACKEND}" ]]; then
+    QEMU_ARGS+=(-display "${DISPLAY_BACKEND}")
+fi
+
+if [[ -n "${DISK_IMAGE}" ]]; then
+    QEMU_ARGS+=(-drive "file=${DISK_IMAGE},format=raw,index=0,media=disk")
+fi
+
+exec "${QEMU_BIN}" "${QEMU_ARGS[@]}"

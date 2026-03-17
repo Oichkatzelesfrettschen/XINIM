@@ -3,10 +3,13 @@
 
 #include "console.hpp"
 #include "bootfs.hpp"
+#include "ext2_reader.hpp"
+#include "ide.hpp"
 #include "ring3.hpp"
 #include "shell.hpp"
 #include "../../vfs/bootfs_promote.hpp"
 #include "xinim/boot/multiboot2_shim.hpp"
+#include "xinim/pci/pci.hpp"
 
 #ifndef XINIM_BOOT_LANE_NAME
 #define XINIM_BOOT_LANE_NAME "i486"
@@ -99,12 +102,20 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     xinim::i486::console::write_string("bootfs promoted entries: ");
     xinim::i486::console::write_dec32(static_cast<uint32_t>(promoted_entries < 0 ? 0 : promoted_entries));
     xinim::i486::console::newline();
+    xinim::i486::ide::initialize();
+    if (xinim::pci::PCI::initialize()) {
+        xinim::i486::console::write_string("PCI bus enumeration complete");
+        xinim::i486::console::newline();
+    }
+    xinim::i486::ext2_reader::probe();
+    (void)xinim::i486::ext2_reader::register_bootfs_mount();
 
-    xinim::i486::console::write_string("XINIM " XINIM_BOOT_LANE_NAME " bootstrap ready");
+    xinim::i486::console::write_string("XINIM " XINIM_BOOT_LANE_NAME " supervised-init lane ready");
     xinim::i486::console::newline();
 
-    if (!xinim::i486::ring3::launch_xash(info)) {
-        xinim::i486::console::write_string("Ring 3 launch failed; starting rescue shell on COM2...");
+    if (!xinim::i486::ring3::launch_init_shell(info)) {
+        xinim::i486::console::write_string(
+            "Supervised Ring 3 init service launch failed; starting rescue shell on COM2...");
         xinim::i486::console::newline();
         xinim::i486::shell::run(info);
     }
