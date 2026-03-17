@@ -39,6 +39,7 @@ constexpr uint32_t kMaxExecArgs = 16U;
 constexpr uint32_t kMaxExecEnvs = 16U;
 constexpr uint32_t kMaxExecStringBytes = 512U;
 constexpr uint32_t kWaitNoHang = 1U;
+constexpr uint32_t kWaitUntraced = 2U;
 constexpr int32_t kWaitPidAny = -1;
 constexpr uint32_t kHeapGuardBytes = 64U * 1024U;
 constexpr uint32_t kAuxvTagNull = 0U;
@@ -261,6 +262,7 @@ enum class ProcessState : uint8_t {
     Runnable = 1,
     Waiting = 2,
     Exited = 3,
+    Stopped = 4,
 };
 
 struct Process {
@@ -865,7 +867,9 @@ void destroy_process(Process* process) noexcept {
     return false;
 }
 
-[[nodiscard]] Process* find_waiting_child(Process* parent, int32_t requested_pid) noexcept {
+[[nodiscard]] Process* find_waiting_child(Process* parent,
+                                          int32_t requested_pid,
+                                          bool include_stopped = false) noexcept {
     if (parent == nullptr) {
         return nullptr;
     }
@@ -873,7 +877,9 @@ void destroy_process(Process* process) noexcept {
         if (!process.in_use || process.ppid != parent->pid) {
             continue;
         }
-        if (process.state != ProcessState::Exited) {
+        const bool match = (process.state == ProcessState::Exited) ||
+                           (include_stopped && process.state == ProcessState::Stopped);
+        if (!match) {
             continue;
         }
         if (requested_pid == kWaitPidAny || static_cast<int32_t>(process.pid) == requested_pid) {
@@ -2120,6 +2126,7 @@ void block_current_process_until_rescheduled(Process* process,
     }
 
     const bool no_hang = (options & kWaitNoHang) != 0U;
+    const bool wuntraced = (options & kWaitUntraced) != 0U;
 
     if (!has_child(process)) {
         return kErrnoChild;
@@ -2129,7 +2136,7 @@ void block_current_process_until_rescheduled(Process* process,
         return kErrnoChild;
     }
 
-    Process* child = find_waiting_child(process, requested_pid);
+    Process* child = find_waiting_child(process, requested_pid, wuntraced);
     if (child == nullptr) {
         if (no_hang) {
             return 0U;
@@ -2146,7 +2153,7 @@ void block_current_process_until_rescheduled(Process* process,
         process->state = ProcessState::Runnable;
         activate_process(process);
 
-        child = find_waiting_child(process, requested_pid);
+        child = find_waiting_child(process, requested_pid, wuntraced);
         if (child == nullptr) {
             return kErrnoChild;
         }
@@ -2159,19 +2166,28 @@ void block_current_process_until_rescheduled(Process* process,
         clear_saved_kernel_stack(process);
         process->state = ProcessState::Runnable;
         activate_process(process);
-        child = find_waiting_child(process, requested_pid);
+        child = find_waiting_child(process, requested_pid, wuntraced);
         if (child == nullptr) {
             return kErrnoChild;
         }
     }
 
     if (frame->ecx != 0U) {
-        if (!write_user_u32(process, frame->ecx, wait_status_for_exit(child->exit_status))) {
+        uint32_t status = 0U;
+        if (child->state == ProcessState::Stopped) {
+            status = child->exit_status; // Already encoded as (sig << 8) | 0x7F
+        } else {
+            status = wait_status_for_exit(child->exit_status);
+        }
+        if (!write_user_u32(process, frame->ecx, status)) {
             return kErrnoFault;
         }
     }
     const uint32_t pid = child->pid;
-    destroy_process(child);
+    if (child->state == ProcessState::Exited) {
+        destroy_process(child);
+    }
+    // Stopped children are NOT destroyed -- they can be continued with SIGCONT
     return pid;
 }
 
@@ -3239,8 +3255,22 @@ bool deliver_one_signal(Process* process) noexcept {
             return false;
         }
         if (signum == kSigStop || signum == kSigTstp) {
-            // Stop the process (simplified: just make it wait)
-            process->state = ProcessState::Waiting;
+            process->state = ProcessState::Stopped;
+            process->exit_status = (signum << 8U) | 0x7FU; // WIFSTOPPED encoding
+            // Notify parent of stopped child
+            Process* parent = find_process(process->ppid);
+            if (parent != nullptr) {
+                send_signal_to_process(parent, kSigChld);
+                if (parent->state == ProcessState::Waiting) {
+                    resume_waiting_parent(parent);
+                }
+            }
+            return true; // Context modified (process stopped)
+        }
+        if (signum == kSigCont) {
+            if (process->state == ProcessState::Stopped) {
+                process->state = ProcessState::Runnable;
+            }
             return false;
         }
         if (is_default_terminate(signum)) {
