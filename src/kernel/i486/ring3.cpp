@@ -283,6 +283,7 @@ struct Process {
     uint32_t ticks_remaining;
     uint32_t pgid;
     uint64_t alarm_tick; // Scheduler tick when SIGALRM should fire (0 = disabled)
+    char cwd[256]; // Current working directory (absolute path)
     SignalState32 signals;
     UserMapping mappings[kMaxUserMappings];
     UserContext context;
@@ -800,6 +801,8 @@ void activate_process(Process* process) noexcept {
             process.state = ProcessState::Runnable;
             process.file_creation_mask = 0022U;
             process.pgid = process.pid;
+            process.cwd[0] = '/';
+            process.cwd[1] = '\0';
             process.segment_base = compute_segment_base(process);
             init_signal_state(&process);
             apply_scheduler_profile(
@@ -1981,21 +1984,35 @@ void block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_chdir(Process* process, RegisterFrame* frame) noexcept {
-    char path[64]{};
+    char path[256]{};
     if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
-    return string_equals(path, "/") ? 0U : kErrnoNoEnt;
+    // Validate directory exists in bootfs or ext2
+    if (string_equals(path, "/") || string_equals(path, ".")) {
+        // Stay at current directory
+        if (string_equals(path, "/")) {
+            process->cwd[0] = '/';
+            process->cwd[1] = '\0';
+        }
+        return 0U;
+    }
+    if (bootfs::is_directory(path)) {
+        copy_c_string(process->cwd, static_cast<uint32_t>(sizeof(process->cwd)), path);
+        return 0U;
+    }
+    return kErrnoNoEnt;
 }
 
 [[nodiscard]] uint32_t sys_getcwd(Process* process, RegisterFrame* frame) noexcept {
+    const uint32_t cwd_len = string_length(process->cwd);
     uint8_t* buffer = nullptr;
-    if (!translate_user_region(process, frame->ebx, frame->ecx, &buffer) || frame->ecx < 2U) {
+    if (!translate_user_region(process, frame->ebx, frame->ecx, &buffer) ||
+        frame->ecx < cwd_len + 1U) {
         return kErrnoFault;
     }
-    buffer[0] = '/';
-    buffer[1] = '\0';
-    return 1U;
+    copy_region(buffer, reinterpret_cast<const uint8_t*>(process->cwd), cwd_len + 1U);
+    return cwd_len;
 }
 
 [[nodiscard]] uint32_t sys_fork(Process* process, RegisterFrame* frame) noexcept {
@@ -2019,6 +2036,7 @@ void block_current_process_until_rescheduled(Process* process,
                 reinterpret_cast<const uint8_t*>(process->signals.handlers),
                 static_cast<uint32_t>(sizeof(process->signals.handlers)));
     child->pgid = process->pgid;
+    copy_c_string(child->cwd, static_cast<uint32_t>(sizeof(child->cwd)), process->cwd);
     child->context = capture_user_context(frame);
     child->context.eax = 0U;
     return child->pid;
@@ -3744,8 +3762,41 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
         process->signals.blocked = old_mask;
         return kErrnoIntr;
     }
-    case SYS_procinfo:
-        return kErrnoNoSys; // Placeholder until procfs
+    case SYS_procinfo: {
+        // Dump process table to user buffer
+        // ebx = user buffer, ecx = buffer size
+        // Each entry: pid(4), ppid(4), pgid(4), state(1), pad(3) = 16 bytes
+        struct ProcInfoEntry {
+            uint32_t pid;
+            uint32_t ppid;
+            uint32_t pgid;
+            uint8_t state; // 0=empty, 1=runnable, 2=waiting, 3=exited
+            uint8_t pad[3];
+        };
+        const uint32_t buf_addr = frame->ebx;
+        const uint32_t buf_size = frame->ecx;
+        if (buf_addr == 0U || buf_size < sizeof(ProcInfoEntry)) {
+            return kErrnoInvalid;
+        }
+        uint32_t offset = 0U;
+        uint32_t count = 0U;
+        for (const auto& proc : g_processes) {
+            if (!proc.in_use) continue;
+            if (offset + sizeof(ProcInfoEntry) > buf_size) break;
+            ProcInfoEntry entry{};
+            entry.pid = proc.pid;
+            entry.ppid = proc.ppid;
+            entry.pgid = proc.pgid;
+            entry.state = static_cast<uint8_t>(proc.state);
+            if (!write_user_bytes(process, buf_addr + offset, &entry,
+                                  static_cast<uint32_t>(sizeof(entry)))) {
+                break;
+            }
+            offset += static_cast<uint32_t>(sizeof(entry));
+            ++count;
+        }
+        return count;
+    }
     default:
         uint32_t caller = 0U;
         const bool have_caller = read_user_u32(process, process->context.esp, &caller);

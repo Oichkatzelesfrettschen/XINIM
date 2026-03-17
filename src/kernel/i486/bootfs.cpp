@@ -1206,10 +1206,13 @@ int read(int fd, void* buffer, uint32_t count) noexcept {
             return -1;
         }
         if (pipe->count == 0U && pipe->writers == 0U) {
-            return 0;
+            return 0; // EOF: no writers left
         }
         if (pipe->count == 0U) {
-            return 0;
+            if ((file.status_flags & kFileFlagO_NONBLOCK) != 0U) {
+                return -11; // -EAGAIN
+            }
+            return 0; // Would block but no blocking impl yet
         }
         return static_cast<int>(read_pipe_buffer(*pipe,
                                                 static_cast<uint8_t*>(buffer),
@@ -1316,7 +1319,7 @@ int write(int fd, const void* buffer, uint32_t count) noexcept {
     if (file.is_pipe) {
         Pipe* pipe = get_pipe(file.pipe_id);
         if (pipe == nullptr || pipe->readers == 0U) {
-            return -1;
+            return -13; // -EPIPE (broken pipe, no readers)
         }
         if ((file.access & kFileFlagO_ACCMODE) == kFileFlagO_RDONLY) {
             return -1;
@@ -1324,7 +1327,10 @@ int write(int fd, const void* buffer, uint32_t count) noexcept {
         const auto* input = static_cast<const uint8_t*>(buffer);
         const uint32_t written = write_pipe_buffer(*pipe, input, count);
         if (written == 0U && count > 0U) {
-            return 0;
+            if ((file.status_flags & kFileFlagO_NONBLOCK) != 0U) {
+                return -11; // -EAGAIN
+            }
+            return 0; // Would block
         }
         return static_cast<int>(written);
     }
