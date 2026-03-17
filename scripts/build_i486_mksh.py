@@ -8,7 +8,7 @@ import subprocess
 
 
 MKSH_OVERRIDES = {
-    "HAVE_FLOCK": "0",
+    "HAVE_FLOCK": "1",
     "HAVE_FTRUNCATE": "1",
     "HAVE_GETSID": "1",
     "HAVE_KILLPG": "0",
