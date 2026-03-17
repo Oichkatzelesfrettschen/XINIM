@@ -988,6 +988,7 @@ function(xinim_add_x86_32_lane lane)
         wc head tail sort uniq cut tr tee grep sed
         kill sleep uname id touch ln xargs dd
         seq yes nproc which chmod chown readlink mktemp expr
+        hexdump du date df
     )
     set(_posix_util_binaries "")
     set(_posix_util_targets "")
@@ -1365,6 +1366,10 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_readlink_binary}:/bin/readlink"
             --guest-bin "${_mktemp_binary}:/bin/mktemp"
             --guest-bin "${_expr_binary}:/bin/expr"
+            --guest-bin "${_hexdump_binary}:/bin/hexdump"
+            --guest-bin "${_du_binary}:/bin/du"
+            --guest-bin "${_date_binary}:/bin/date"
+            --guest-bin "${_df_binary}:/bin/df"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py"
             ${_hello_target}
@@ -1438,6 +1443,10 @@ function(xinim_add_x86_32_lane lane)
                 COMMAND ${CMAKE_COMMAND} -E copy "${_readlink_binary}" "${_stage_dir}/boot/readlink"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_mktemp_binary}" "${_stage_dir}/boot/mktemp"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_expr_binary}" "${_stage_dir}/boot/expr"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_hexdump_binary}" "${_stage_dir}/boot/hexdump"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_du_binary}" "${_stage_dir}/boot/du"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_date_binary}" "${_stage_dir}/boot/date"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_df_binary}" "${_stage_dir}/boot/df"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/boot/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_shell_target}>" "${_stage_dir}/bin/xash"
             COMMAND ${CMAKE_COMMAND} -E copy "${_mksh_binary}" "${_stage_dir}/bin/sh"
@@ -1494,6 +1503,10 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "${_readlink_binary}" "${_stage_dir}/bin/readlink"
             COMMAND ${CMAKE_COMMAND} -E copy "${_mktemp_binary}" "${_stage_dir}/bin/mktemp"
             COMMAND ${CMAKE_COMMAND} -E copy "${_expr_binary}" "${_stage_dir}/bin/expr"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_hexdump_binary}" "${_stage_dir}/bin/hexdump"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_du_binary}" "${_stage_dir}/bin/du"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_date_binary}" "${_stage_dir}/bin/date"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_df_binary}" "${_stage_dir}/bin/df"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/etc/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/grub.cfg" "${_stage_dir}/boot/grub/grub.cfg"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_LOG_ROOT}"
