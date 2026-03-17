@@ -126,6 +126,31 @@ def main() -> int:
         "bin-i386/dietlibc.a",
     ]
     run(make_cmd, tree_dir)
+
+    # Compile and add libshell (fnmatch, glob) and libregex (rx) to archive
+    extra_sources = []
+    for subdir in ["libshell", "libregex"]:
+        src_dir = tree_dir / subdir
+        if not src_dir.exists():
+            continue
+        for src in sorted(src_dir.glob("*.c")):
+            obj = tree_dir / "bin-i386" / f"{src.stem}.o"
+            compile_cmd = cc + [
+                "-I" + str(tree_dir),
+                "-isystem", str(tree_dir / "include"),
+                "-pipe", "-nostdinc", "-D_REENTRANT",
+                "-Werror", "-fno-stack-protector", "-fno-pie", "-fno-pic",
+                "-O2", "-fomit-frame-pointer",
+                "-c", str(src), "-o", str(obj),
+                "-D__dietlibc__",
+            ]
+            run(compile_cmd, tree_dir)
+            extra_sources.append(str(obj))
+
+    if extra_sources:
+        ar_cmd = ["ar", "rcs", "bin-i386/dietlibc.a"] + extra_sources
+        run(ar_cmd, tree_dir)
+
     return 0
 
 
