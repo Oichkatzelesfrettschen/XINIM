@@ -699,6 +699,7 @@ set(XINIM_X86_32_KERNEL_SOURCES
     src/kernel/i486/ext2_reader.cpp
     src/kernel/i486/ide.cpp
     src/kernel/i486/dma_pages.cpp
+    src/kernel/i486/virtio_net_i486.cpp
     src/kernel/i486/main.cpp
     src/kernel/i486/console.cpp
     src/kernel/i486/ring3.cpp
