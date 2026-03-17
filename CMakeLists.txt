@@ -988,7 +988,7 @@ function(xinim_add_x86_32_lane lane)
         wc head tail sort uniq cut tr tee grep sed
         kill sleep uname id touch ln xargs dd
         seq yes nproc which chmod chown readlink mktemp expr
-        hexdump du date df md5sum tar find ps
+        hexdump du date df md5sum tar find ps awk diff patch
     )
     set(_posix_util_binaries "")
     set(_posix_util_targets "")
@@ -1374,6 +1374,9 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_tar_binary}:/bin/tar"
             --guest-bin "${_find_binary}:/bin/find"
             --guest-bin "${_ps_binary}:/bin/ps"
+            --guest-bin "${_awk_binary}:/bin/awk"
+            --guest-bin "${_diff_binary}:/bin/diff"
+            --guest-bin "${_patch_binary}:/bin/patch"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py"
             ${_hello_target}
@@ -1455,6 +1458,9 @@ function(xinim_add_x86_32_lane lane)
                 COMMAND ${CMAKE_COMMAND} -E copy "${_tar_binary}" "${_stage_dir}/boot/tar"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_find_binary}" "${_stage_dir}/boot/find"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_ps_binary}" "${_stage_dir}/boot/ps"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_awk_binary}" "${_stage_dir}/boot/awk"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_diff_binary}" "${_stage_dir}/boot/diff"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_patch_binary}" "${_stage_dir}/boot/patch"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/boot/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_shell_target}>" "${_stage_dir}/bin/xash"
             COMMAND ${CMAKE_COMMAND} -E copy "${_mksh_binary}" "${_stage_dir}/bin/sh"
@@ -1519,6 +1525,9 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "${_tar_binary}" "${_stage_dir}/bin/tar"
             COMMAND ${CMAKE_COMMAND} -E copy "${_find_binary}" "${_stage_dir}/bin/find"
             COMMAND ${CMAKE_COMMAND} -E copy "${_ps_binary}" "${_stage_dir}/bin/ps"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_awk_binary}" "${_stage_dir}/bin/awk"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_diff_binary}" "${_stage_dir}/bin/diff"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_patch_binary}" "${_stage_dir}/bin/patch"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/etc/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/grub.cfg" "${_stage_dir}/boot/grub/grub.cfg"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_LOG_ROOT}"
