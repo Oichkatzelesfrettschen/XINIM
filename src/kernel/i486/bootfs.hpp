@@ -16,6 +16,7 @@ inline constexpr uint32_t O_CREAT = 0x0040U;
 inline constexpr uint32_t O_EXCL = 0x0080U;
 inline constexpr uint32_t O_TRUNC = 0x0200U;
 inline constexpr int kReadWouldBlock = -2;
+inline constexpr int kWriteWouldBlock = -3;
 
 using UserspaceStat = ::xinim::userland::UserspaceStat;
 
@@ -65,6 +66,15 @@ int set_status_flags(int fd, int flags) noexcept;
 [[nodiscard]] bool is_directory(const char* path) noexcept;
 void close_cloexec_fds() noexcept;
 [[nodiscard]] const char* directory_path_for_fd(int fd) noexcept;
+
+[[nodiscard]] int foreground_pgrp() noexcept;
+
+// Refcount management for per-process fd table support
+void increment_slot_refcount(int slot) noexcept;
+void decrement_slot_refcount(int slot) noexcept;
+[[nodiscard]] int descriptor_flags_for_slot(int slot) noexcept;
+// Increment pipe reader/writer count when duplicating a pipe fd
+void increment_pipe_users(int slot) noexcept;
 
 } // namespace xinim::kernel::bootfs
 

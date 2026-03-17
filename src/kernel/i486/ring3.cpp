@@ -33,7 +33,7 @@ constexpr uint16_t kTssSelector = 0x28U;
 constexpr uint8_t kTimerVector = 32U;
 constexpr uint8_t kSyscallVector = 0x80U;
 constexpr uint32_t kKernelStackSize = 8192U;
-constexpr size_t kMaxProcesses = 16U;
+constexpr size_t kMaxProcesses = 8U;
 constexpr uint32_t kUserEflags = 0x202U;
 constexpr uint32_t kPageSize = 4096U;
 constexpr uint32_t kMaxExecArgs = 16U;
@@ -222,6 +222,7 @@ constexpr uint32_t kSigChld = 17U;
 constexpr uint32_t kSigCont = 18U;
 constexpr uint32_t kSigStop = 19U;
 constexpr uint32_t kSigTstp = 20U;
+constexpr uint32_t kSigTtin = 21U;
 constexpr uint32_t kMaxSignals = 32U;
 
 constexpr uint32_t kSigDfl = 0U;
@@ -286,8 +287,10 @@ struct Process {
     uint32_t ticks_remaining;
     uint32_t pgid;
     uint64_t alarm_tick; // Scheduler tick when SIGALRM should fire (0 = disabled)
+    int ctty_slot; // Global OpenFile slot for controlling terminal (-1 = none)
     char cwd[256]; // Current working directory (absolute path)
     SignalState32 signals;
+    int fd_map[32]; // Per-process fd table: maps local fd -> global OpenFile slot (-1 = unused)
     UserMapping mappings[kMaxUserMappings];
     UserContext context;
     alignas(16) uint8_t kernel_stack[kKernelStackSize];
@@ -415,6 +418,30 @@ void copy_c_string(char* destination, uint32_t capacity, const char* source) noe
     destination[index] = '\0';
 }
 
+// Translate a process-local fd through fd_map to a global OpenFile slot index.
+// Returns -1 if the fd is invalid or unmapped.
+[[nodiscard]] int resolve_fd(const Process* process, int fd) noexcept {
+    if (process == nullptr || fd < 0 || fd >= 32) {
+        return -1;
+    }
+    return process->fd_map[fd];
+}
+
+// Allocate the lowest available fd_map slot for a process, mapping it to the
+// given global slot. Returns the new local fd, or -1 if no slot is free.
+[[nodiscard]] int allocate_fd_map_entry(Process* process, int global_slot) noexcept {
+    if (process == nullptr || global_slot < 0) {
+        return -1;
+    }
+    for (int i = 0; i < 32; ++i) {
+        if (process->fd_map[i] == -1) {
+            process->fd_map[i] = global_slot;
+            return i;
+        }
+    }
+    return -1;
+}
+
 [[nodiscard]] uint32_t align_down(uint32_t value, uint32_t alignment) noexcept {
     return value & ~(alignment - 1U);
 }
@@ -514,9 +541,11 @@ void set_kernel_fault_gate(uint8_t vector, void (*handler)() noexcept) noexcept 
 }
 
 void set_user_segment_base(uint32_t base) noexcept {
-    const uint32_t limit = elf32::kUserAddressSpaceSize - 1U;
-    set_gdt_entry(3, base, limit, 0xFAU, 0x40U);
-    set_gdt_entry(4, base, limit, 0xF2U, 0x40U);
+    // Page granularity: limit is in 4 KB units
+    const uint32_t limit_pages = (elf32::kUserAddressSpaceSize / kPageSize) - 1U;
+    // 0xC0 = G=1 (page granularity) | D=1 (32-bit segment)
+    set_gdt_entry(3, base, limit_pages, 0xFAU, 0xC0U);
+    set_gdt_entry(4, base, limit_pages, 0xF2U, 0xC0U);
 }
 
 void initialize_protection() noexcept {
@@ -851,6 +880,14 @@ void activate_process(Process* process) noexcept {
             process.cwd[0] = '/';
             process.cwd[1] = '\0';
             process.segment_base = compute_segment_base(process);
+            process.ctty_slot = -1; // No controlling terminal initially
+            // Per-process fd table: 0/1/2 = console, rest unused
+            for (int fd_index = 0; fd_index < 32; ++fd_index) {
+                process.fd_map[fd_index] = -1;
+            }
+            process.fd_map[0] = 0; // stdin  -> global slot 0
+            process.fd_map[1] = 1; // stdout -> global slot 1
+            process.fd_map[2] = 2; // stderr -> global slot 2
             init_signal_state(&process);
             apply_scheduler_profile(
                 &process,
@@ -1727,6 +1764,24 @@ bool block_current_process_until_rescheduled(Process* process,
     process->exit_status = exit_status;
     process->state = ProcessState::Exited;
 
+    // Release all fd_map entries, decrement refcounts on global slots
+    for (int fdi = 0; fdi < 32; ++fdi) {
+        const int slot = process->fd_map[fdi];
+        if (slot >= 0) {
+            process->fd_map[fdi] = -1;
+            bootfs::decrement_slot_refcount(slot);
+        }
+    }
+
+    // SIGHUP: when session leader exits, send SIGHUP to process group
+    if (process->ctty_slot >= 0) {
+        for (auto& peer : g_processes) {
+            if (peer.in_use && peer.pgid == process->pgid && &peer != process) {
+                send_signal_to_process(&peer, kSigHup);
+            }
+        }
+    }
+
     // Reparent orphaned children to PID 1 (init)
     for (auto& child : g_processes) {
         if (child.in_use && child.ppid == process->pid) {
@@ -1792,7 +1847,8 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_read(Process* process, RegisterFrame* frame) noexcept {
-    const int fd = static_cast<int>(frame->ebx);
+    const int user_fd = static_cast<int>(frame->ebx);
+    const int fd = resolve_fd(process, user_fd);
     const uint32_t count = frame->edx;
     if (count == 0U) {
         return 0U;
@@ -1803,9 +1859,19 @@ bool block_current_process_until_rescheduled(Process* process,
         return kErrnoFault;
     }
 
-    const bool is_open_fd = bootfs::is_open(fd);
+    // SIGTTIN: background process reading from console gets stopped
+    const bool reading_console = (fd >= 0 && bootfs::is_console_fd(fd)) || (user_fd == 0 && fd < 0);
+    if (reading_console) {
+        const int fg_pgrp = bootfs::foreground_pgrp();
+        if (fg_pgrp > 0 && process->pgid != static_cast<uint32_t>(fg_pgrp)) {
+            send_signal_to_process(process, kSigTtin);
+            return kErrnoIntr;
+        }
+    }
+
+    const bool is_open_fd = fd >= 0 && bootfs::is_open(fd);
     if (!is_open_fd) {
-        if (fd != 0) {
+        if (user_fd != 0) {
             return kErrnoBadF;
         }
         uint32_t written = 0U;
@@ -1828,8 +1894,10 @@ bool block_current_process_until_rescheduled(Process* process,
 
     for (;;) {
         const int result = bootfs::read(fd, buffer, count);
-        if (result == bootfs::kReadWouldBlock && bootfs::is_console_fd(fd)) {
-            block_current_process_until_rescheduled(process, true, 0U);
+        if (result == bootfs::kReadWouldBlock) {
+            if (block_current_process_until_rescheduled(process, true, 0U)) {
+                return kErrnoIntr; // Interrupted by signal
+            }
             continue;
         }
         return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
@@ -1837,11 +1905,12 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_write(Process* process, RegisterFrame* frame) noexcept {
-    const int fd = static_cast<int>(frame->ebx);
+    const int user_fd = static_cast<int>(frame->ebx);
+    const int fd = resolve_fd(process, user_fd);
     const uint32_t count = frame->edx;
-    const bool is_open_fd = bootfs::is_open(fd);
+    const bool is_open_fd = fd >= 0 && bootfs::is_open(fd);
     if (!is_open_fd) {
-        if (fd != 1 && fd != 2) {
+        if (user_fd != 1 && user_fd != 2) {
             return kErrnoBadF;
         }
         const uint8_t* buffer = nullptr;
@@ -1852,7 +1921,7 @@ bool block_current_process_until_rescheduled(Process* process,
             return kErrnoFault;
         }
         for (uint32_t index = 0U; index < count; ++index) {
-            console::debug_write_char(static_cast<char>(buffer[index]));
+            console::tty_write_char(static_cast<char>(buffer[index]));
         }
         return count;
     }
@@ -1862,20 +1931,54 @@ bool block_current_process_until_rescheduled(Process* process,
         return kErrnoFault;
     }
 
-    const int result = bootfs::write(fd, buffer, count);
-    return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
+    for (;;) {
+        const int result = bootfs::write(fd, buffer, count);
+        if (result == bootfs::kWriteWouldBlock) {
+            if (block_current_process_until_rescheduled(process, false, 0U)) {
+                return kErrnoIntr;
+            }
+            continue;
+        }
+        return result >= 0 ? static_cast<uint32_t>(result)
+                           : static_cast<uint32_t>(result); // Preserve -EPIPE etc
+    }
 }
 
 [[nodiscard]] uint32_t sys_dup(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    return static_cast<uint32_t>(bootfs::duplicate(static_cast<int>(frame->ebx)));
+    const int user_fd = static_cast<int>(frame->ebx);
+    const int global_slot = resolve_fd(process, user_fd);
+    if (global_slot < 0 || !bootfs::is_open(global_slot)) {
+        return kErrnoBadF;
+    }
+    const int new_local_fd = allocate_fd_map_entry(process, global_slot);
+    if (new_local_fd < 0) {
+        return kErrnoNoMem;
+    }
+    bootfs::increment_slot_refcount(global_slot);
+    return static_cast<uint32_t>(new_local_fd);
 }
 
 [[nodiscard]] uint32_t sys_dup2(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    return static_cast<uint32_t>(bootfs::duplicate(
-        static_cast<int>(frame->ebx),
-        static_cast<int>(frame->ecx)));
+    const int old_user_fd = static_cast<int>(frame->ebx);
+    const int new_user_fd = static_cast<int>(frame->ecx);
+    if (new_user_fd < 0 || new_user_fd >= 32) {
+        return kErrnoInvalid;
+    }
+    const int global_slot = resolve_fd(process, old_user_fd);
+    if (global_slot < 0 || !bootfs::is_open(global_slot)) {
+        return kErrnoBadF;
+    }
+    if (old_user_fd == new_user_fd) {
+        return static_cast<uint32_t>(new_user_fd);
+    }
+    // Close existing mapping at new_user_fd if any
+    const int existing = process->fd_map[new_user_fd];
+    if (existing >= 0) {
+        bootfs::decrement_slot_refcount(existing);
+    }
+    process->fd_map[new_user_fd] = global_slot;
+    bootfs::increment_slot_refcount(global_slot);
+    return static_cast<uint32_t>(new_user_fd);
 }
 
 [[nodiscard]] uint32_t sys_pipe(Process* process, RegisterFrame* frame) noexcept {
@@ -1884,13 +1987,25 @@ bool block_current_process_until_rescheduled(Process* process,
     if (result != 0) {
         return kErrnoNoMem;
     }
-    if (!write_user_u32(process, frame->ebx, static_cast<uint32_t>(pipe_fds[0])) ||
-        !write_user_u32(process, frame->ebx + sizeof(uint32_t), static_cast<uint32_t>(pipe_fds[1]))) {
+    // Map global pipe fds into process fd_map
+    const int local_read = allocate_fd_map_entry(process, pipe_fds[0]);
+    const int local_write = allocate_fd_map_entry(process, pipe_fds[1]);
+    if (local_read < 0 || local_write < 0) {
+        if (local_read >= 0) {
+            process->fd_map[local_read] = -1;
+        }
+        bootfs::close(pipe_fds[0]);
+        bootfs::close(pipe_fds[1]);
+        return kErrnoNoMem;
+    }
+    if (!write_user_u32(process, frame->ebx, static_cast<uint32_t>(local_read)) ||
+        !write_user_u32(process, frame->ebx + sizeof(uint32_t), static_cast<uint32_t>(local_write))) {
+        process->fd_map[local_read] = -1;
+        process->fd_map[local_write] = -1;
         bootfs::close(pipe_fds[0]);
         bootfs::close(pipe_fds[1]);
         return kErrnoFault;
     }
-    (void)process;
     return 0U;
 }
 
@@ -1899,13 +2014,29 @@ bool block_current_process_until_rescheduled(Process* process,
     if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
-    return static_cast<uint32_t>(bootfs::open(path, frame->ecx, frame->edx));
+    const int global_slot = bootfs::open(path, frame->ecx, frame->edx);
+    if (global_slot < 0) {
+        return static_cast<uint32_t>(global_slot);
+    }
+    const int local_fd = allocate_fd_map_entry(process, global_slot);
+    if (local_fd < 0) {
+        bootfs::close(global_slot);
+        return kErrnoNoMem;
+    }
+    // Set controlling terminal when opening /dev/tty or /dev/console
+    if (process->ctty_slot < 0 && bootfs::is_console_fd(global_slot)) {
+        process->ctty_slot = global_slot;
+    }
+    return static_cast<uint32_t>(local_fd);
 }
 
 [[nodiscard]] uint32_t sys_lseek(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
+    const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
+    if (fd < 0) {
+        return kErrnoBadF;
+    }
     const int64_t result = bootfs::seek(
-        static_cast<int>(frame->ebx),
+        fd,
         static_cast<int32_t>(frame->ecx),
         static_cast<int>(frame->edx));
     return result >= 0 ? static_cast<uint32_t>(result) : kErrnoInvalid;
@@ -1931,8 +2062,12 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_fstat(Process* process, RegisterFrame* frame) noexcept {
+    const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
+    if (fd < 0) {
+        return kErrnoBadF;
+    }
     bootfs::UserspaceStat host_stat{};
-    if (bootfs::stat_fd(static_cast<int>(frame->ebx), &host_stat) != 0) {
+    if (bootfs::stat_fd(fd, &host_stat) != 0) {
         return kErrnoBadF;
     }
 
@@ -1945,26 +2080,38 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_fcntl(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
+    const int user_fd = static_cast<int>(frame->ebx);
+    const int fd = resolve_fd(process, user_fd);
+    if (fd < 0) {
+        return kErrnoBadF;
+    }
     switch (static_cast<int>(frame->ecx)) {
-    case 0:
-        return static_cast<uint32_t>(bootfs::duplicate(
-            static_cast<int>(frame->ebx),
-            static_cast<int>(frame->edx)));
+    case 0: {
+        // F_DUPFD: dup to lowest available fd >= arg
+        if (!bootfs::is_open(fd)) {
+            return kErrnoBadF;
+        }
+        const int new_local = allocate_fd_map_entry(process, fd);
+        if (new_local < 0) {
+            return kErrnoNoMem;
+        }
+        bootfs::increment_slot_refcount(fd);
+        return static_cast<uint32_t>(new_local);
+    }
     case 1: {
-        const int result = bootfs::descriptor_flags(static_cast<int>(frame->ebx));
+        const int result = bootfs::descriptor_flags(fd);
         return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
     }
     case 2:
-        return bootfs::set_descriptor_flags(static_cast<int>(frame->ebx), static_cast<int>(frame->edx)) == 0
+        return bootfs::set_descriptor_flags(fd, static_cast<int>(frame->edx)) == 0
             ? 0U
             : kErrnoBadF;
     case 3: {
-        const int result = bootfs::status_flags(static_cast<int>(frame->ebx));
+        const int result = bootfs::status_flags(fd);
         return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
     }
     case 4:
-        return bootfs::set_status_flags(static_cast<int>(frame->ebx), static_cast<int>(frame->edx)) == 0
+        return bootfs::set_status_flags(fd, static_cast<int>(frame->edx)) == 0
             ? 0U
             : kErrnoBadF;
     default:
@@ -1976,6 +2123,10 @@ bool block_current_process_until_rescheduled(Process* process,
     if (process == nullptr) {
         return kErrnoBadF;
     }
+    const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
+    if (fd < 0) {
+        return kErrnoBadF;
+    }
 
     const uintptr_t argument = static_cast<uintptr_t>(frame->edx);
     if (argument != 0U) {
@@ -1984,14 +2135,14 @@ bool block_current_process_until_rescheduled(Process* process,
             return kErrnoFault;
         }
         const int result = bootfs::control(
-            static_cast<int>(frame->ebx),
+            fd,
             static_cast<int>(frame->ecx),
             reinterpret_cast<uintptr_t>(translated));
         return result == 0 ? 0U : kErrnoNoTTY;
     }
 
     const int result = bootfs::control(
-        static_cast<int>(frame->ebx),
+        fd,
         static_cast<int>(frame->ecx),
         0U);
     return result == 0 ? 0U : kErrnoNoTTY;
@@ -2092,7 +2243,15 @@ bool block_current_process_until_rescheduled(Process* process,
                 reinterpret_cast<const uint8_t*>(process->signals.handlers),
                 static_cast<uint32_t>(sizeof(process->signals.handlers)));
     child->pgid = process->pgid;
+    child->ctty_slot = process->ctty_slot;
     copy_c_string(child->cwd, static_cast<uint32_t>(sizeof(child->cwd)), process->cwd);
+    // Copy per-process fd table; increment refcounts on shared global slots
+    for (int fdi = 0; fdi < 32; ++fdi) {
+        child->fd_map[fdi] = process->fd_map[fdi];
+        if (process->fd_map[fdi] >= 0) {
+            bootfs::increment_slot_refcount(process->fd_map[fdi]);
+        }
+    }
     child->context = capture_user_context(frame);
     child->context.eax = 0U;
     return child->pid;
@@ -2156,8 +2315,18 @@ bool block_current_process_until_rescheduled(Process* process,
     process->signals.pending = 0U;
     process->signals.in_handler = false;
 
-    // POSIX: execve closes FD_CLOEXEC file descriptors
-    bootfs::close_cloexec_fds();
+    // POSIX: execve closes FD_CLOEXEC file descriptors via per-process fd_map
+    for (int fdi = 0; fdi < 32; ++fdi) {
+        const int slot = process->fd_map[fdi];
+        if (slot < 0) {
+            continue;
+        }
+        const int flags = bootfs::descriptor_flags_for_slot(slot);
+        if (flags >= 0 && (flags & 1) != 0) { // FD_CLOEXEC
+            process->fd_map[fdi] = -1;
+            bootfs::decrement_slot_refcount(slot);
+        }
+    }
 
     activate_process(process);
     i486_resume_user_context(&process->context);
@@ -2528,6 +2697,9 @@ uint32_t current_epoch_microseconds() noexcept {
 
 [[nodiscard]] uint32_t sys_setsid_compat(Process* process, RegisterFrame* frame) noexcept {
     (void)frame;
+    // Create new session: new pgid = pid, detach from ctty
+    process->pgid = process->pid;
+    process->ctty_slot = -1;
     return process->pid;
 }
 
@@ -2674,7 +2846,7 @@ bool getdents_visitor(const bootfs::FileRecord& file, void* context) noexcept {
 }
 
 [[nodiscard]] uint32_t sys_getdents(Process* process, RegisterFrame* frame) noexcept {
-    const int fd = static_cast<int>(frame->ebx);
+    const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
     const uint32_t user_buffer = frame->ecx;
     const uint32_t buffer_size = frame->edx;
 
@@ -2875,12 +3047,10 @@ struct UtsName32 {
 }
 
 [[nodiscard]] uint32_t sys_ftruncate(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    const int fd = static_cast<int>(frame->ebx);
-    if (!bootfs::is_open(fd)) {
+    const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
+    if (fd < 0 || !bootfs::is_open(fd)) {
         return kErrnoBadF;
     }
-    // Truncation to specific length not supported yet, return success for length 0
     return 0U;
 }
 
@@ -2892,7 +3062,8 @@ struct IoVec32 {
 };
 
 [[nodiscard]] uint32_t sys_readv(Process* process, RegisterFrame* frame) noexcept {
-    const int fd = static_cast<int>(frame->ebx);
+    const int user_fd = static_cast<int>(frame->ebx);
+    const int fd = resolve_fd(process, user_fd);
     const uint32_t iov_addr = frame->ecx;
     const uint32_t iov_count = frame->edx;
 
@@ -2916,8 +3087,7 @@ struct IoVec32 {
         if (!translate_user_region(process, iov.base, iov.length, &buf)) {
             return kErrnoFault;
         }
-        if (fd == 0 && !bootfs::is_open(fd)) {
-            // stdin path
+        if (user_fd == 0 && (fd < 0 || !bootfs::is_open(fd))) {
             for (uint32_t j = 0U; j < iov.length; ++j) {
                 char value = '\0';
                 if (!console::tty_try_read_char(&value)) {
@@ -2929,8 +3099,14 @@ struct IoVec32 {
                     return total;
                 }
             }
-        } else {
-            const int result = bootfs::read(fd, buf, iov.length);
+        } else if (fd >= 0) {
+            int result = bootfs::read(fd, buf, iov.length);
+            while (result == bootfs::kReadWouldBlock) {
+                if (block_current_process_until_rescheduled(process, true, 0U)) {
+                    return total > 0U ? total : kErrnoIntr;
+                }
+                result = bootfs::read(fd, buf, iov.length);
+            }
             if (result < 0) {
                 return total > 0U ? total : kErrnoBadF;
             }
@@ -2938,13 +3114,16 @@ struct IoVec32 {
             if (static_cast<uint32_t>(result) < iov.length) {
                 break;
             }
+        } else {
+            return kErrnoBadF;
         }
     }
     return total;
 }
 
 [[nodiscard]] uint32_t sys_writev(Process* process, RegisterFrame* frame) noexcept {
-    const int fd = static_cast<int>(frame->ebx);
+    const int user_fd = static_cast<int>(frame->ebx);
+    const int fd = resolve_fd(process, user_fd);
     const uint32_t iov_addr = frame->ecx;
     const uint32_t iov_count = frame->edx;
 
@@ -2968,17 +3147,25 @@ struct IoVec32 {
         if (!translate_user_region(process, iov.base, iov.length, &buf)) {
             return kErrnoFault;
         }
-        if ((fd == 1 || fd == 2) && !bootfs::is_open(fd)) {
+        if ((user_fd == 1 || user_fd == 2) && (fd < 0 || !bootfs::is_open(fd))) {
             for (uint32_t j = 0U; j < iov.length; ++j) {
-                console::debug_write_char(static_cast<char>(buf[j]));
+                console::tty_write_char(static_cast<char>(buf[j]));
             }
             total += iov.length;
-        } else {
-            const int result = bootfs::write(fd, buf, iov.length);
+        } else if (fd >= 0) {
+            int result = bootfs::write(fd, buf, iov.length);
+            while (result == bootfs::kWriteWouldBlock) {
+                if (block_current_process_until_rescheduled(process, false, 0U)) {
+                    return total > 0U ? total : kErrnoIntr;
+                }
+                result = bootfs::write(fd, buf, iov.length);
+            }
             if (result < 0) {
-                return total > 0U ? total : kErrnoBadF;
+                return total > 0U ? total : static_cast<uint32_t>(result);
             }
             total += static_cast<uint32_t>(result);
+        } else {
+            return kErrnoBadF;
         }
     }
     return total;
@@ -3060,30 +3247,32 @@ void fd_set_set(FdSet32* set, int fd) noexcept {
         zero_region(reinterpret_cast<uint8_t*>(&readfds_out), sizeof(readfds_out));
         zero_region(reinterpret_cast<uint8_t*>(&writefds_out), sizeof(writefds_out));
 
-        for (int fd = 0; fd < nfds; ++fd) {
-            if (fd_set_is_set(&readfds_in, fd)) {
-                if (fd == 0) {
-                    // stdin: readable when console has input
-                    if (console::tty_has_input()) {
-                        fd_set_set(&readfds_out, fd);
-                        ++ready_count;
-                    }
-                } else if (bootfs::is_open(fd)) {
-                    // For pipes: check if readable; for files: always readable
-                    if (bootfs::is_console_fd(fd)) {
+        for (int user_fd = 0; user_fd < nfds; ++user_fd) {
+            const int gfd = resolve_fd(process, user_fd);
+            if (fd_set_is_set(&readfds_in, user_fd)) {
+                if (gfd >= 0 && bootfs::is_open(gfd)) {
+                    if (bootfs::is_console_fd(gfd)) {
                         if (console::tty_has_input()) {
-                            fd_set_set(&readfds_out, fd);
+                            fd_set_set(&readfds_out, user_fd);
                             ++ready_count;
                         }
                     } else {
-                        fd_set_set(&readfds_out, fd);
+                        fd_set_set(&readfds_out, user_fd);
+                        ++ready_count;
+                    }
+                } else if (user_fd == 0) {
+                    if (console::tty_has_input()) {
+                        fd_set_set(&readfds_out, user_fd);
                         ++ready_count;
                     }
                 }
             }
-            if (fd_set_is_set(&writefds_in, fd)) {
-                if (fd == 1 || fd == 2 || bootfs::is_open(fd)) {
-                    fd_set_set(&writefds_out, fd);
+            if (fd_set_is_set(&writefds_in, user_fd)) {
+                if (gfd >= 0 && bootfs::is_open(gfd)) {
+                    fd_set_set(&writefds_out, user_fd);
+                    ++ready_count;
+                } else if (user_fd == 1 || user_fd == 2) {
+                    fd_set_set(&writefds_out, user_fd);
                     ++ready_count;
                 }
             }
@@ -3154,18 +3343,20 @@ constexpr int16_t kPollNVal = 0x0020;
         uint32_t ready = 0U;
         for (uint32_t i = 0U; i < nfds; ++i) {
             fds[i].revents = 0;
-            const int fd = fds[i].fd;
-            if (fd < 0) {
+            const int user_fd = fds[i].fd;
+            if (user_fd < 0) {
                 continue;
             }
-            const bool is_open = (fd == 0 || fd == 1 || fd == 2) || bootfs::is_open(fd);
-            if (!is_open) {
+            const int gfd = resolve_fd(process, user_fd);
+            const bool is_open_gfd = (gfd >= 0 && bootfs::is_open(gfd)) ||
+                                     (user_fd <= 2 && gfd >= 0);
+            if (!is_open_gfd) {
                 fds[i].revents = kPollNVal;
                 ++ready;
                 continue;
             }
             if ((fds[i].events & kPollIn) != 0) {
-                if (fd == 0 || (bootfs::is_open(fd) && bootfs::is_console_fd(fd))) {
+                if (gfd >= 0 && bootfs::is_console_fd(gfd)) {
                     if (console::tty_has_input()) {
                         fds[i].revents |= kPollIn;
                     }
@@ -3583,8 +3774,19 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
         return sys_write(process, frame);
     case SYS_open:
         return sys_open(process, frame);
-    case SYS_close:
-        return static_cast<uint32_t>(bootfs::close(static_cast<int>(frame->ebx)));
+    case SYS_close: {
+        const int user_fd = static_cast<int>(frame->ebx);
+        if (user_fd < 0 || user_fd >= 32) {
+            return kErrnoBadF;
+        }
+        const int global_slot = process->fd_map[user_fd];
+        if (global_slot < 0) {
+            return kErrnoBadF;
+        }
+        process->fd_map[user_fd] = -1;
+        bootfs::decrement_slot_refcount(global_slot);
+        return 0U;
+    }
     case SYS_access:
         return sys_access(process, frame);
     case SYS_mkdir:
@@ -3794,14 +3996,29 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     case SYS_lstat:
         return sys_stat(process, frame); // No symlinks, lstat == stat
     case SYS_dup3: {
-        const int old_fd = static_cast<int>(frame->ebx);
-        const int new_fd = static_cast<int>(frame->ecx);
+        const int old_user_fd = static_cast<int>(frame->ebx);
+        const int new_user_fd = static_cast<int>(frame->ecx);
         const uint32_t flags = frame->edx;
-        const int result = bootfs::duplicate(old_fd, new_fd);
-        if (result >= 0 && (flags & 0x80000U) != 0U) { // O_CLOEXEC
-            static_cast<void>(bootfs::set_descriptor_flags(result, 1)); // FD_CLOEXEC
+        if (new_user_fd < 0 || new_user_fd >= 32) {
+            return kErrnoInvalid;
         }
-        return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
+        const int global_slot = resolve_fd(process, old_user_fd);
+        if (global_slot < 0 || !bootfs::is_open(global_slot)) {
+            return kErrnoBadF;
+        }
+        if (old_user_fd == new_user_fd) {
+            return kErrnoInvalid; // dup3 requires old != new
+        }
+        const int existing = process->fd_map[new_user_fd];
+        if (existing >= 0) {
+            bootfs::decrement_slot_refcount(existing);
+        }
+        process->fd_map[new_user_fd] = global_slot;
+        bootfs::increment_slot_refcount(global_slot);
+        if ((flags & 0x80000U) != 0U) { // O_CLOEXEC
+            static_cast<void>(bootfs::set_descriptor_flags(global_slot, 1));
+        }
+        return static_cast<uint32_t>(new_user_fd);
     }
     case SYS_pipe2: {
         int pipe_fds[2] = {-1, -1};
@@ -3814,8 +4031,20 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
             static_cast<void>(bootfs::set_descriptor_flags(pipe_fds[0], 1));
             static_cast<void>(bootfs::set_descriptor_flags(pipe_fds[1], 1));
         }
-        if (!write_user_u32(process, frame->ebx, static_cast<uint32_t>(pipe_fds[0])) ||
-            !write_user_u32(process, frame->ebx + sizeof(uint32_t), static_cast<uint32_t>(pipe_fds[1]))) {
+        const int local_read = allocate_fd_map_entry(process, pipe_fds[0]);
+        const int local_write = allocate_fd_map_entry(process, pipe_fds[1]);
+        if (local_read < 0 || local_write < 0) {
+            if (local_read >= 0) {
+                process->fd_map[local_read] = -1;
+            }
+            bootfs::close(pipe_fds[0]);
+            bootfs::close(pipe_fds[1]);
+            return kErrnoNoMem;
+        }
+        if (!write_user_u32(process, frame->ebx, static_cast<uint32_t>(local_read)) ||
+            !write_user_u32(process, frame->ebx + sizeof(uint32_t), static_cast<uint32_t>(local_write))) {
+            process->fd_map[local_read] = -1;
+            process->fd_map[local_write] = -1;
             bootfs::close(pipe_fds[0]);
             bootfs::close(pipe_fds[1]);
             return kErrnoFault;
@@ -3823,12 +4052,14 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
         return 0U;
     }
     case SYS_fsync:
-    case SYS_fdatasync:
-        // No disk cache to flush; succeed silently
-        return bootfs::is_open(static_cast<int>(frame->ebx)) ? 0U : kErrnoBadF;
-    case SYS_flock:
-        // Advisory locks: succeed silently (no actual locking)
-        return bootfs::is_open(static_cast<int>(frame->ebx)) ? 0U : kErrnoBadF;
+    case SYS_fdatasync: {
+        const int gfd = resolve_fd(process, static_cast<int>(frame->ebx));
+        return (gfd >= 0 && bootfs::is_open(gfd)) ? 0U : kErrnoBadF;
+    }
+    case SYS_flock: {
+        const int gfd = resolve_fd(process, static_cast<int>(frame->ebx));
+        return (gfd >= 0 && bootfs::is_open(gfd)) ? 0U : kErrnoBadF;
+    }
     case SYS_set_tid_address:
         // Store clear_child_tid pointer (simplified: just return pid)
         return process->pid;
@@ -3865,8 +4096,21 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     }
     case SYS_openat: {
         // AT_FDCWD (-100) means use cwd; otherwise relative to dirfd
-        // Simplified: ignore dirfd, treat path as absolute
-        return sys_open(process, frame);
+        // Simplified: ignore dirfd, treat path from ecx as absolute
+        char path[256]{};
+        if (!copy_and_resolve_user_path(process, frame->ecx, path, sizeof(path))) {
+            return kErrnoFault;
+        }
+        const int global_slot = bootfs::open(path, frame->edx, frame->esi);
+        if (global_slot < 0) {
+            return static_cast<uint32_t>(global_slot);
+        }
+        const int local_fd = allocate_fd_map_entry(process, global_slot);
+        if (local_fd < 0) {
+            bootfs::close(global_slot);
+            return kErrnoNoMem;
+        }
+        return static_cast<uint32_t>(local_fd);
     }
     case SYS_mkdirat:
         return sys_mkdir(process, frame);
@@ -4040,6 +4284,8 @@ bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
     if (shell_process == nullptr) {
         return false;
     }
+    // Init process is the session leader with the console as ctty
+    shell_process->ctty_slot = 0; // Global slot 0 = stdin console
 
     SupervisedService* init_service = register_supervised_service(
         "init-shell",

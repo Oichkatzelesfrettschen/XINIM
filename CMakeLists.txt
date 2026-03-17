@@ -853,6 +853,7 @@ function(xinim_add_x86_32_lane lane)
     set(_stage_dir "${_image_dir}/staging")
     set(_boot_image "${_image_dir}/${_image_name}")
     set(_ata_disk_image "${_image_dir}/xinim-${lane}-ata.img")
+    set(_boot_disk_image "${_image_dir}/xinim-${lane}-boot.img")
     set(_boot_log "${XINIM_LOG_ROOT}/${lane}-smoke.log")
     set(_shell_log "${XINIM_LOG_ROOT}/${lane}-kshell.log")
     set(_compat_report "${XINIM_LOG_ROOT}/${lane}-shell-compat.txt")
@@ -1434,6 +1435,99 @@ function(xinim_add_x86_32_lane lane)
         VERBATIM
     )
 
+    add_custom_command(
+        OUTPUT "${_boot_disk_image}"
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py
+            --output "${_boot_disk_image}"
+            --size-mb 32
+            --kernel "$<TARGET_FILE:${_kernel_target}>"
+            --shell "${_mksh_binary}"
+            --motd "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
+            --no-grub-install
+            --guest-bin "${_cat_binary}:/bin/cat"
+            --guest-bin "${_echo_binary}:/bin/echo"
+            --guest-bin "${_true_binary}:/bin/true"
+            --guest-bin "${_pwd_binary}:/bin/pwd"
+            --guest-bin "${_env_binary}:/bin/env"
+            --guest-bin "${_cp_binary}:/bin/cp"
+            --guest-bin "${_rm_binary}:/bin/rm"
+            --guest-bin "${_test_binary}:/bin/test"
+            --guest-bin "${_basename_binary}:/bin/basename"
+            --guest-bin "${_dirname_binary}:/bin/dirname"
+            --guest-bin "${_printf_binary}:/bin/printf"
+            --guest-bin "${_wc_binary}:/bin/wc"
+            --guest-bin "${_head_binary}:/bin/head"
+            --guest-bin "${_tail_binary}:/bin/tail"
+            --guest-bin "${_sort_binary}:/bin/sort"
+            --guest-bin "${_uniq_binary}:/bin/uniq"
+            --guest-bin "${_cut_binary}:/bin/cut"
+            --guest-bin "${_tr_binary}:/bin/tr"
+            --guest-bin "${_tee_binary}:/bin/tee"
+            --guest-bin "${_grep_binary}:/bin/grep"
+            --guest-bin "${_sed_binary}:/bin/sed"
+            --guest-bin "${_kill_binary}:/bin/kill"
+            --guest-bin "${_sleep_binary}:/bin/sleep"
+            --guest-bin "${_uname_binary}:/bin/uname"
+            --guest-bin "${_id_binary}:/bin/id"
+            --guest-bin "${_touch_binary}:/bin/touch"
+            --guest-bin "${_ln_binary}:/bin/ln"
+            --guest-bin "${_xargs_binary}:/bin/xargs"
+            --guest-bin "${_dd_binary}:/bin/dd"
+            --guest-bin "${_seq_binary}:/bin/seq"
+            --guest-bin "${_yes_binary}:/bin/yes"
+            --guest-bin "${_nproc_binary}:/bin/nproc"
+            --guest-bin "${_which_binary}:/bin/which"
+            --guest-bin "${_chmod_binary}:/bin/chmod"
+            --guest-bin "${_chown_binary}:/bin/chown"
+            --guest-bin "${_readlink_binary}:/bin/readlink"
+            --guest-bin "${_mktemp_binary}:/bin/mktemp"
+            --guest-bin "${_expr_binary}:/bin/expr"
+            --guest-bin "${_hexdump_binary}:/bin/hexdump"
+            --guest-bin "${_du_binary}:/bin/du"
+            --guest-bin "${_date_binary}:/bin/date"
+            --guest-bin "${_df_binary}:/bin/df"
+            --guest-bin "${_md5sum_binary}:/bin/md5sum"
+            --guest-bin "${_tar_binary}:/bin/tar"
+            --guest-bin "${_find_binary}:/bin/find"
+            --guest-bin "${_ps_binary}:/bin/ps"
+            --guest-bin "${_awk_binary}:/bin/awk"
+            --guest-bin "${_diff_binary}:/bin/diff"
+            --guest-bin "${_patch_binary}:/bin/patch"
+            --guest-bin "${_pkg_add_binary}:/bin/pkg_add"
+            --guest-bin "${_wget_binary}:/bin/wget"
+            --guest-bin "${_whoami_binary}:/bin/whoami"
+            --guest-bin "${_hostname_binary}:/bin/hostname"
+            --guest-bin "${_clear_binary}:/bin/clear"
+            --guest-bin "${_tty_binary}:/bin/tty"
+            --guest-bin "${_printenv_binary}:/bin/printenv"
+            --guest-bin "${_logname_binary}:/bin/logname"
+            --guest-bin "${_tac_binary}:/bin/tac"
+            --guest-bin "${_cksum_binary}:/bin/cksum"
+            --guest-bin "${_paste_binary}:/bin/paste"
+            --guest-bin "${_nl_binary}:/bin/nl"
+            --guest-bin "${_split_binary}:/bin/split"
+            --guest-bin "${_nohup_binary}:/bin/nohup"
+            --guest-bin "${_strings_binary}:/bin/strings"
+            --guest-bin "${_join_binary}:/bin/join"
+            --guest-bin "${_fold_binary}:/bin/fold"
+            --guest-bin "${_expand_binary}:/bin/expand"
+            --guest-bin "${_time_binary}:/bin/time"
+            --guest-bin "${_nice_binary}:/bin/nice"
+            --guest-bin "${_cmp_binary}:/bin/cmp"
+            --guest-bin "${_file_binary}:/bin/file"
+            --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
+        DEPENDS
+            "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
+            ${_kernel_target}
+            ${_mksh_target}
+            ${_ls_target}
+            ${_posix_util_targets}
+        COMMENT "Generating bootable disk image for ${lane}"
+        VERBATIM
+    )
+
+    add_custom_target(${lane}_boot_disk DEPENDS "${_boot_disk_image}")
+
     if(XINIM_XORRISO_EXECUTABLE)
         add_custom_command(
             OUTPUT "${_boot_image}"
@@ -1681,7 +1775,7 @@ function(xinim_add_x86_32_lane lane)
             VERBATIM
         )
 
-        add_custom_target(${_image_target} DEPENDS "${_boot_image}" "${_ata_disk_image}")
+        add_custom_target(${_image_target} DEPENDS "${_boot_image}" "${_ata_disk_image}" "${_boot_disk_image}")
         add_custom_target(run_qemu_${lane}
             COMMAND "${CMAKE_SOURCE_DIR}/scripts/qemu_matrix.py" --build-dir "${CMAKE_BINARY_DIR}" --lane "${lane}" --launch
             DEPENDS ${_image_target}

@@ -5,7 +5,7 @@
 namespace xinim::i486::elf32 {
 
 inline constexpr uint32_t kUserVirtualBase = 0x00400000U;
-inline constexpr uint32_t kUserAddressSpaceSize = 0x00100000U;
+inline constexpr uint32_t kUserAddressSpaceSize = 0x00400000U; // 4 MB per process
 
 struct UserImage {
     uint32_t entry_point;

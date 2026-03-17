@@ -206,10 +206,10 @@
 #define __NR_getresgid                          -1
 #define __NR_prctl                              -1
 #define __NR_rt_sigreturn                       80
-#define __NR_rt_sigpending                      -1
+#define __NR_rt_sigpending                      96
 #define __NR_rt_sigtimedwait                    -1
 #define __NR_rt_sigqueueinfo                    -1
-#define __NR_rt_sigsuspend                      -1
+#define __NR_rt_sigsuspend                      97
 #define __NR_pread                              -1
 #define __NR_pwrite                             -1
 #define __NR_capget                             -1

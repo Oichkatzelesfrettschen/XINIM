@@ -62,6 +62,12 @@ struct WindowSize {
     uint16_t ws_ypixel;
 };
 
+enum class DeviceType : uint8_t {
+    None = 0,
+    DevNull = 1,
+    DevZero = 2,
+};
+
 struct OpenFile {
     bool in_use;
     FileRecord* file;
@@ -77,6 +83,8 @@ struct OpenFile {
     bool is_ext2;
     bool ext2_is_directory;
     uint32_t ext2_size;
+    uint32_t refcount; // Number of fd_map entries referencing this slot
+    DeviceType device_type;
     char ext2_path[kMaxPathLength];
     bool is_bootfs_directory;
     char dir_path[kMaxPathLength]; // Path of opened directory for getdents
@@ -170,7 +178,8 @@ Pipe* get_pipe(uint32_t pipe_id) noexcept {
 bool is_open_file_valid(size_t slot) noexcept {
     return slot < kMaxOpenFiles && g_open_files[slot].in_use &&
            (g_open_files[slot].file != nullptr || g_open_files[slot].is_pipe ||
-            g_open_files[slot].is_console || g_open_files[slot].is_ext2);
+            g_open_files[slot].is_console || g_open_files[slot].is_ext2 ||
+            g_open_files[slot].device_type != DeviceType::None);
 }
 
 bool is_pipe_slot_busy(size_t slot) noexcept {
@@ -250,6 +259,8 @@ void close_open_file_slot(size_t slot) noexcept {
         false,
         false,
         0U,
+        0U, // refcount
+        DeviceType::None,
         {},
         false,
         {},
@@ -651,6 +662,8 @@ void reset() noexcept {
             false,
             false,
             0U,
+            0U, // refcount
+            DeviceType::None,
             {},
             false,
             {},
@@ -812,6 +825,8 @@ int allocate_open_slot() noexcept {
                 false,
                 false,
                 0U,
+                1U, // refcount
+                DeviceType::None,
                 {},
                 false,
                 {},
@@ -843,6 +858,8 @@ void configure_open_file_entry(size_t slot,
     open_file.is_ext2 = false;
     open_file.ext2_is_directory = false;
     open_file.ext2_size = 0U;
+    open_file.refcount = 1U;
+    open_file.device_type = DeviceType::None;
     __builtin_memset(open_file.ext2_path, 0, sizeof(open_file.ext2_path));
     open_file.is_bootfs_directory = false;
     __builtin_memset(open_file.dir_path, 0, sizeof(open_file.dir_path));
@@ -1052,7 +1069,7 @@ int open(const char* path, uint32_t flags, uint32_t mode) noexcept {
         return -1;
     }
 
-    if (string_equals(normalized, "/dev/tty")) {
+    if (string_equals(normalized, "/dev/tty") || string_equals(normalized, "/dev/console")) {
         const int fd = allocate_open_slot();
         if (fd < 0) {
             return -1;
@@ -1065,6 +1082,40 @@ int open(const char* path, uint32_t flags, uint32_t mode) noexcept {
                                   true,
                                   0U,
                                   false);
+        return fd;
+    }
+
+    if (string_equals(normalized, "/dev/null")) {
+        const int fd = allocate_open_slot();
+        if (fd < 0) {
+            return -1;
+        }
+        configure_open_file_entry(fd_to_slot(fd),
+                                  nullptr,
+                                  flags & kFileFlagO_ACCMODE,
+                                  false,
+                                  false,
+                                  false,
+                                  0U,
+                                  false);
+        g_open_files[fd_to_slot(fd)].device_type = DeviceType::DevNull;
+        return fd;
+    }
+
+    if (string_equals(normalized, "/dev/zero")) {
+        const int fd = allocate_open_slot();
+        if (fd < 0) {
+            return -1;
+        }
+        configure_open_file_entry(fd_to_slot(fd),
+                                  nullptr,
+                                  flags & kFileFlagO_ACCMODE,
+                                  false,
+                                  false,
+                                  false,
+                                  0U,
+                                  false);
+        g_open_files[fd_to_slot(fd)].device_type = DeviceType::DevZero;
         return fd;
     }
 
@@ -1201,6 +1252,18 @@ int read(int fd, void* buffer, uint32_t count) noexcept {
     }
     const OpenFile& file = g_open_files[slot];
 
+    if (file.device_type == DeviceType::DevNull) {
+        return 0; // EOF
+    }
+
+    if (file.device_type == DeviceType::DevZero) {
+        auto* output = static_cast<uint8_t*>(buffer);
+        for (uint32_t index = 0U; index < count; ++index) {
+            output[index] = 0U;
+        }
+        return static_cast<int>(count);
+    }
+
     if (file.is_console) {
         if ((file.access & kFileFlagO_ACCMODE) == kFileFlagO_WRONLY) {
             return -1;
@@ -1231,7 +1294,7 @@ int read(int fd, void* buffer, uint32_t count) noexcept {
             if ((file.status_flags & kFileFlagO_NONBLOCK) != 0U) {
                 return -11; // -EAGAIN
             }
-            return 0; // Would block but no blocking impl yet
+            return kReadWouldBlock; // Caller must block and retry
         }
         return static_cast<int>(read_pipe_buffer(*pipe,
                                                 static_cast<uint8_t*>(buffer),
@@ -1325,6 +1388,15 @@ int write(int fd, const void* buffer, uint32_t count) noexcept {
     }
 
     OpenFile& file = g_open_files[slot];
+
+    if (file.device_type == DeviceType::DevNull) {
+        return static_cast<int>(count); // Discard
+    }
+
+    if (file.device_type == DeviceType::DevZero) {
+        return static_cast<int>(count); // Discard
+    }
+
     if (file.is_console) {
         if ((file.access & kFileFlagO_ACCMODE) == kFileFlagO_RDONLY) {
             return -1;
@@ -1349,7 +1421,7 @@ int write(int fd, const void* buffer, uint32_t count) noexcept {
             if ((file.status_flags & kFileFlagO_NONBLOCK) != 0U) {
                 return -11; // -EAGAIN
             }
-            return 0; // Would block
+            return kWriteWouldBlock; // Caller must block and retry
         }
         return static_cast<int>(written);
     }
@@ -1436,6 +1508,62 @@ bool is_console_fd(int fd) noexcept {
     }
     const size_t slot = fd_to_slot(fd);
     return is_open_file_valid(slot) && g_open_files[slot].is_console;
+}
+
+int foreground_pgrp() noexcept {
+    return g_foreground_pgrp;
+}
+
+void increment_slot_refcount(int slot) noexcept {
+    if (slot < 0 || static_cast<size_t>(slot) >= kMaxOpenFiles) {
+        return;
+    }
+    if (g_open_files[slot].in_use) {
+        ++g_open_files[slot].refcount;
+    }
+}
+
+void decrement_slot_refcount(int slot) noexcept {
+    if (slot < 0 || static_cast<size_t>(slot) >= kMaxOpenFiles) {
+        return;
+    }
+    if (!g_open_files[slot].in_use) {
+        return;
+    }
+    if (g_open_files[slot].refcount > 1U) {
+        --g_open_files[slot].refcount;
+        return;
+    }
+    // refcount reached 0: release the slot
+    close_open_file_slot(static_cast<size_t>(slot));
+}
+
+int descriptor_flags_for_slot(int slot) noexcept {
+    if (slot < 0 || static_cast<size_t>(slot) >= kMaxOpenFiles) {
+        return -1;
+    }
+    if (!g_open_files[slot].in_use) {
+        return -1;
+    }
+    return g_open_files[slot].descriptor_flags;
+}
+
+void increment_pipe_users(int slot) noexcept {
+    if (slot < 0 || static_cast<size_t>(slot) >= kMaxOpenFiles) {
+        return;
+    }
+    if (!g_open_files[slot].in_use || !g_open_files[slot].is_pipe) {
+        return;
+    }
+    Pipe* pipe = get_pipe(g_open_files[slot].pipe_id);
+    if (pipe == nullptr) {
+        return;
+    }
+    if (g_open_files[slot].is_pipe_writer) {
+        ++pipe->writers;
+    } else {
+        ++pipe->readers;
+    }
 }
 
 int mkdir(const char* path, uint32_t mode) noexcept {
@@ -1585,7 +1713,10 @@ int access(const char* path) noexcept {
     if (!normalize_path(path, normalized, static_cast<uint32_t>(sizeof(normalized)))) {
         return -1;
     }
-    if (string_equals(normalized, "/dev/tty")) {
+    if (string_equals(normalized, "/dev/tty") ||
+        string_equals(normalized, "/dev/console") ||
+        string_equals(normalized, "/dev/null") ||
+        string_equals(normalized, "/dev/zero")) {
         return 0;
     }
     ext2_reader::NodeInfo ext2_info{};
@@ -1701,7 +1832,10 @@ int stat_path(const char* path, UserspaceStat* buffer) noexcept {
     if (buffer == nullptr) {
         return -1;
     }
-    if (path != nullptr && string_equals(path, "/dev/tty")) {
+    if (path != nullptr && (string_equals(path, "/dev/tty") ||
+                            string_equals(path, "/dev/console") ||
+                            string_equals(path, "/dev/null") ||
+                            string_equals(path, "/dev/zero"))) {
         fill_device_stat_record(buffer);
         return 0;
     }
