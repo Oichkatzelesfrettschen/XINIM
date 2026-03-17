@@ -9,6 +9,7 @@
 
 #include "netstack.hpp"
 #include "virtio_net_i486.hpp"
+#include "socket_i486.hpp"
 #include "console.hpp"
 
 namespace xinim::i486::net {
@@ -215,11 +216,51 @@ void handle_ipv4(const uint8_t* frame, uint32_t length) noexcept {
     case IP_PROTO_ICMP:
         handle_icmp(ip, payload, payload_len);
         break;
-    case IP_PROTO_UDP:
-        // Handle DHCP and DNS responses (TODO: dispatch to socket layer)
+    case IP_PROTO_UDP: {
+        if (payload_len < sizeof(UdpHeader)) break;
+        const auto* udp = reinterpret_cast<const UdpHeader*>(payload);
+        uint16_t src_port = ntohs(udp->src_port);
+        uint16_t dst_port = ntohs(udp->dst_port);
+        uint32_t udp_data_len = ntohs(udp->length);
+        if (udp_data_len < sizeof(UdpHeader)) break;
+        udp_data_len -= sizeof(UdpHeader);
+        const uint8_t* udp_data = payload + sizeof(UdpHeader);
+
+        // DHCP response (from port 67 to port 68)
+        if (src_port == 67U && dst_port == 68U && udp_data_len >= sizeof(DhcpPacket)) {
+            const auto* dhcp = reinterpret_cast<const DhcpPacket*>(udp_data);
+            if (ntohl(dhcp->magic_cookie) == DHCP_MAGIC && dhcp->op == 2U) {
+                // DHCP Offer or ACK: extract assigned IP
+                copy4(g_config.ip, dhcp->yiaddr);
+                // Parse options for subnet, gateway, DNS
+                const uint8_t* opt = udp_data + sizeof(DhcpPacket);
+                const uint8_t* opt_end = udp_data + udp_data_len;
+                while (opt < opt_end && *opt != 255U) {
+                    uint8_t opt_type = *opt++;
+                    if (opt >= opt_end) break;
+                    uint8_t opt_len = *opt++;
+                    if (opt + opt_len > opt_end) break;
+                    if (opt_type == 1U && opt_len == 4U) copy4(g_config.netmask, opt);
+                    if (opt_type == 3U && opt_len >= 4U) copy4(g_config.gateway, opt);
+                    if (opt_type == 6U && opt_len >= 4U) copy4(g_config.dns, opt);
+                    opt += opt_len;
+                }
+                g_config.configured = true;
+                console::write_string("DHCP: acquired ");
+                for (int i = 0; i < 4; ++i) {
+                    if (i > 0) console::write_char('.');
+                    console::write_dec32(g_config.ip[i]);
+                }
+                console::newline();
+            }
+        }
+
+        // Dispatch to socket layer
+        ksocket::deliver_udp(ip->src_ip, src_port, dst_port, udp_data, udp_data_len);
         break;
+    }
     case IP_PROTO_TCP:
-        // Handle TCP (TODO: dispatch to socket layer)
+        // TCP dispatch (future)
         break;
     default:
         break;

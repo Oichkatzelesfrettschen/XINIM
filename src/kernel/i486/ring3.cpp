@@ -7,6 +7,7 @@
 #include "../scheduler_policy.hpp"
 #include "../recovery/recovery_dag.hpp"
 #include "shell.hpp"
+#include "socket_i486.hpp"
 #include "../recovery/service_node.hpp"
 #include "xinim/sys/syscalls.h"
 
@@ -3726,15 +3727,56 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
         return sys_poll(process, frame);
     case SYS_rt_sigreturn:
         return sys_rt_sigreturn_impl(process, frame);
-    // Phase 4 socket stubs
+    // Phase 4 socket syscalls
     case SYS_socket:
-    case SYS_bind:
+        return static_cast<uint32_t>(ksocket::sys_socket(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx),
+            static_cast<int>(frame->edx)));
+    case SYS_bind: {
+        uint8_t* addr_raw = nullptr;
+        if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw))
+            return kErrnoFault;
+        return static_cast<uint32_t>(ksocket::sys_bind(
+            static_cast<int>(frame->ebx),
+            reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw)));
+    }
+    case SYS_connect: {
+        uint8_t* addr_raw = nullptr;
+        if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw))
+            return kErrnoFault;
+        return static_cast<uint32_t>(ksocket::sys_connect(
+            static_cast<int>(frame->ebx),
+            reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw)));
+    }
     case SYS_listen:
+        return static_cast<uint32_t>(ksocket::sys_listen(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx)));
     case SYS_accept:
-    case SYS_connect:
-    case SYS_sendto:
-    case SYS_recvfrom:
+        return static_cast<uint32_t>(ksocket::sys_accept(
+            static_cast<int>(frame->ebx), nullptr));
+    case SYS_sendto: {
+        uint8_t* buf_raw = nullptr;
+        if (!translate_user_region(process, frame->ecx, frame->edx, &buf_raw))
+            return kErrnoFault;
+        uint8_t* addr_raw = nullptr;
+        if (frame->edi != 0U) static_cast<void>(translate_user_region(process, frame->edi, 16U, &addr_raw));
+        return static_cast<uint32_t>(ksocket::sys_sendto(
+            static_cast<int>(frame->ebx), buf_raw, frame->edx,
+            reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw)));
+    }
+    case SYS_recvfrom: {
+        uint8_t* buf_raw = nullptr;
+        if (!translate_user_region(process, frame->ecx, frame->edx, &buf_raw))
+            return kErrnoFault;
+        return static_cast<uint32_t>(ksocket::sys_recvfrom(
+            static_cast<int>(frame->ebx), buf_raw, frame->edx, nullptr));
+    }
     case SYS_shutdown:
+        return static_cast<uint32_t>(ksocket::sys_shutdown(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx)));
     case SYS_setsockopt:
     case SYS_getsockopt:
     case SYS_getsockname:
@@ -3742,7 +3784,7 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     case SYS_sendmsg:
     case SYS_recvmsg:
     case SYS_socketpair:
-        return kErrnoNoSys;
+        return kErrnoNoSys; // Not yet implemented
     // Phase 3 POSIX completeness syscalls
     case SYS_gettid:
         return process->pid; // No threads, tid == pid
