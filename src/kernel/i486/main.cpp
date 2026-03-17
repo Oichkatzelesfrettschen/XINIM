@@ -9,6 +9,7 @@
 #include "shell.hpp"
 #include "dma_pages.hpp"
 #include "virtio_net_i486.hpp"
+#include "netstack.hpp"
 #include "../../vfs/bootfs_promote.hpp"
 #include "xinim/boot/multiboot2_shim.hpp"
 #include "xinim/pci/pci.hpp"
@@ -114,7 +115,10 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     if (xinim::pci::PCI::initialize()) {
         xinim::i486::console::write_string("PCI bus enumeration complete");
         xinim::i486::console::newline();
-        xinim::i486::virtio_net::initialize();
+        if (xinim::i486::virtio_net::initialize()) {
+            xinim::i486::net::initialize();
+            xinim::i486::net::dhcp_discover();
+        }
     }
     xinim::i486::ext2_reader::probe();
     (void)xinim::i486::ext2_reader::register_bootfs_mount();
