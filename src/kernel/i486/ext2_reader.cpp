@@ -7,7 +7,18 @@
 #include <stdint.h>
 
 namespace xinim::i486::ext2_reader {
+
+static uint32_t (*g_timestamp_fn)() noexcept = nullptr;
+
+void set_timestamp_provider(uint32_t (*fn)() noexcept) noexcept {
+    g_timestamp_fn = fn;
+}
+
 namespace {
+
+uint32_t now_timestamp() noexcept {
+    return g_timestamp_fn != nullptr ? g_timestamp_fn() : 0U;
+}
 
 constexpr uint32_t kSectorSize = 512U;
 constexpr uint16_t kExt2Magic = 0xEF53U;
@@ -1311,6 +1322,10 @@ bool create_node(const char* path, uint16_t mode, bool directory) noexcept {
     inode.size = 0U;
     inode.blocks = 0U;
     inode.dir_acl = 0U;
+    const uint32_t now = now_timestamp();
+    inode.atime = now;
+    inode.ctime = now;
+    inode.mtime = now;
 
     if (directory) {
         uint32_t block_number = 0U;
@@ -2197,9 +2212,10 @@ int write_runtime_file(const char* path,
     if (end_offset > inode.size) {
         inode.size = end_offset;
         inode.dir_acl = end_offset;
-        if (!write_inode(inode_number, inode)) {
-            return bytes_written == 0U ? -1 : static_cast<int>(bytes_written);
-        }
+    }
+    inode.mtime = now_timestamp();
+    if (!write_inode(inode_number, inode)) {
+        return bytes_written == 0U ? -1 : static_cast<int>(bytes_written);
     }
 
     g_executable_valid = false;

@@ -1409,8 +1409,11 @@ void set_service_state(SupervisedService* service,
     zero_region(reinterpret_cast<uint8_t*>(argv), static_cast<uint32_t>(sizeof(*argv)));
     zero_region(reinterpret_cast<uint8_t*>(envp), static_cast<uint32_t>(sizeof(*envp)));
     return append_exec_string(argv, service->path) &&
-           append_exec_string(envp, "PATH=/bin") &&
-           append_exec_string(envp, "PS1=mksh$ ") &&
+           append_exec_string(envp, "PATH=/bin:/usr/bin") &&
+           append_exec_string(envp, "HOME=/") &&
+           append_exec_string(envp, "TERM=vt100") &&
+           append_exec_string(envp, "ENV=/etc/mkshrc") &&
+           append_exec_string(envp, "PS1=$ ") &&
            append_exec_string(envp, service->env);
 }
 
@@ -3936,6 +3939,7 @@ bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
     initialize_legacy_pic();
     initialize_pit(kTimerHz);
     initialize_realtime_clock();
+    ext2_reader::set_timestamp_provider(current_epoch_seconds);
 
     console::write_string("Launching supervised Ring 3 services under timer scheduler");
     console::newline();

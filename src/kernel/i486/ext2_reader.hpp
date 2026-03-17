@@ -12,6 +12,7 @@ struct NodeInfo {
 };
 
 void probe() noexcept;
+void set_timestamp_provider(uint32_t (*fn)() noexcept) noexcept;
 bool register_bootfs_mount() noexcept;
 bool query_runtime_path(const char* path, NodeInfo& info) noexcept;
 bool query_persist_path(const char* path, NodeInfo& info) noexcept;
