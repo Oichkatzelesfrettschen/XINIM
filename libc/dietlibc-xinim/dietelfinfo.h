@@ -16,5 +16,5 @@ typedef uint32_t	__diet_elf_addr_t;
 #endif
 
 __diet_elf_addr_t const *	__get_elf_aux_value(unsigned int tag)
-	__attribute__((__visibility__("hidden"),__const__)) __pure;
+	__attribute__((__visibility__("hidden"),__const__));
 #endif

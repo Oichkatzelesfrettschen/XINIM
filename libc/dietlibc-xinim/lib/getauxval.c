@@ -1,3 +1,4 @@
+#include "../dietelfinfo.h"
 #include <stdio.h>
 #include <sys/auxv.h>
 
@@ -25,4 +26,3 @@ static long* _auxvec;
 unsigned long getauxval(unsigned long type) {
   return (long)find_in_auxvec(_auxvec,type);
 }
-

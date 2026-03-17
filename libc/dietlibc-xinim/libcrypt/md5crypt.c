@@ -24,14 +24,7 @@ static char rcsid[] = "$OpenBSD: md5crypt.c,v 1.9 1997/07/23 20:58:27 kstailey E
 static unsigned char itoa64[] =		/* 0 ... 63 => ascii - 64 */
 	"./0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz";
 
-static void to64 (char *, uint32_t, int);
-
-static void
-to64(s, v, n)
-	char *s;
-	uint32_t v;
-	int n;
-{
+static void to64(char *s, uint32_t v, int n) {
 	while (--n >= 0) {
 		*s++ = itoa64[v&0x3f];
 		v >>= 6;
@@ -44,11 +37,7 @@ to64(s, v, n)
  * Use MD5 for what it is best at...
  */
 
-char *
-md5crypt(pw, salt)
-	register const char *pw;
-	register const char *salt;
-{
+char *md5crypt(register const char *pw, register const char *salt) {
 	/*
 	 * This string is magic for this algorithm.  Having
 	 * it this way, we can get get better later on
@@ -154,4 +143,3 @@ md5crypt(pw, salt)
 
 	return passwd;
 }
-

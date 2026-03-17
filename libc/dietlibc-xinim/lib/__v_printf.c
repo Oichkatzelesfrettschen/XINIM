@@ -19,7 +19,7 @@ static inline unsigned long skip_to(const char *format) {
 #define A_WRITE(fn,buf,sz)	((fn)->put((void*)(buf),(sz),(fn)->data))
 #define B_WRITE(fn,buf,sz)	{ if ((unsigned long)(sz) > (((unsigned long)(int)(-1))>>1) || len+(int)(sz)<len) return -1; A_WRITE(fn,buf,sz); } while (0)
 
-static const char pad_line[2][16]= { "                ", "0000000000000000", };
+static const char pad_line[2][17]= { "                ", "0000000000000000", };
 static int write_pad(unsigned int* dlen,struct arg_printf* fn, unsigned int len, int padwith) {
   int nr=0;
   if ((int)len<=0) return 0;
@@ -423,5 +423,3 @@ num_printf:
   }
   return len;
 }
-
-link_warning("__v_printf","warning: the printf functions add several kilobytes of bloat.")

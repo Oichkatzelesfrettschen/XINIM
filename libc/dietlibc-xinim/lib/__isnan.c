@@ -1,5 +1,7 @@
 #include <math.h>
 
+int __isnan(double d);
+
 int isnan(double d) {
   union {
     unsigned long long l;
@@ -8,7 +10,10 @@ int isnan(double d) {
   u.d=d;
   return (u.l==0x7FF8000000000000ll || u.l==0x7FF0000000000000ll || u.l==0xfff8000000000000ll);
 }
-int __isnan(double d) __attribute__((alias("isnan")));
+
+int __isnan(double d) {
+  return isnan(d);
+}
 
 #if 0
 TestFromIeeeExtended("7FFF0000000000000000");   /* +infinity */

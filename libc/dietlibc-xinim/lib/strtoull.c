@@ -4,6 +4,8 @@
 #include <limits.h>
 #include <inttypes.h>
 
+unsigned long long int strtouq(const char *nptr, char **endptr, int base);
+
 unsigned long long int strtoull(const char *ptr, char **endptr, int base)
 {
   int neg = 0, overflow = 0;
@@ -57,8 +59,9 @@ skip0x:
 }
 
 /* die, BSD, die!!! */
-unsigned long long int strtouq(const char *nptr, char **endptr, int base)
-	__attribute__((alias("strtoull")));
+unsigned long long int strtouq(const char *nptr, char **endptr, int base) {
+  return strtoull(nptr, endptr, base);
+}
 
 uintmax_t strtoumax(const char *nptr, char **endptr, int base)
 	__attribute__((alias("strtoull")));

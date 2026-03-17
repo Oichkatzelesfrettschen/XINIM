@@ -5,7 +5,8 @@
 #include "../dietelfinfo.h"
 #include "../dietpagesize.h"
 
-int __libc_getpagesize(void);
+int getpagesize(void);
+
 int __libc_getpagesize(void) {
 #ifdef WANT_DYN_PAGESIZE
   static size_t	pgsz;
@@ -21,4 +22,6 @@ int __libc_getpagesize(void) {
 #endif
 }
 
-int getpagesize(void)       __attribute__((weak,alias("__libc_getpagesize")));
+int getpagesize(void) {
+  return __libc_getpagesize();
+}

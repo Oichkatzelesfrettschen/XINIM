@@ -1,5 +1,6 @@
 
 #include <dietfeatures.h>
+#include "syscalls.h"
 
 #ifdef WANT_SYSENTER
 .data
@@ -26,11 +27,11 @@ _exit:
 .global _Exit
 .type	_Exit,@function
 _Exit:
-	movb	$1,%al
+	movl	$__NR_exit,%eax
 .global __unified_syscall
 .type	__unified_syscall,@function
 __unified_syscall:
-.size _exit,__unified_syscall-_exit
+	.size _exit,__unified_syscall-_exit
 	movzbl	%al, %eax
 .L1:
 	push	%edi

@@ -1,4 +1,5 @@
 #include <dietstdio.h>
+#include <unistd.h>
 
 static char __stdin_buf[BUFSIZE];
 static FILE __stdin = {

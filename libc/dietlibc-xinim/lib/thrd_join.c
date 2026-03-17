@@ -1,4 +1,6 @@
+#ifndef _REENTRANT
 #define _REENTRANT
+#endif
 #include <threads.h>
 #include <sys/futex.h>
 #include <sys/mman.h>
@@ -35,4 +37,3 @@ int thrd_join(thrd_t thr, int* res) {
   }
   return thrd_success;
 }
-

@@ -1,4 +1,6 @@
+#ifndef _REENTRANT
 #define _REENTRANT
+#endif
 #define _LINUX_SOURCE
 #include <threads.h>
 #include <unistd.h>
