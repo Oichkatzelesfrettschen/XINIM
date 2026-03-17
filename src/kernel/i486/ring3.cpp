@@ -229,6 +229,7 @@ constexpr uint32_t kSigIgn = 1U;
 constexpr uint32_t kSaRestart = 0x10000000U;
 constexpr uint32_t kSaNodefer = 0x40000000U;
 constexpr uint32_t kSaResethand = 0x80000000U;
+constexpr uint32_t kSaNocldwait = 0x00000002U;
 
 
 struct SignalHandler32 {
@@ -281,6 +282,7 @@ struct Process {
     uint64_t wake_tick;
     uint32_t ticks_remaining;
     uint32_t pgid;
+    uint64_t alarm_tick; // Scheduler tick when SIGALRM should fire (0 = disabled)
     SignalState32 signals;
     UserMapping mappings[kMaxUserMappings];
     UserContext context;
@@ -720,6 +722,14 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     const uint32_t tty_signal = console::consume_pending_tty_signal();
     if (tty_signal != 0U && current != nullptr && current->in_use) {
         send_signal_to_process(current, tty_signal);
+    }
+
+    // Check alarm timers for all processes
+    for (auto& proc : g_processes) {
+        if (proc.in_use && proc.alarm_tick != 0U && proc.alarm_tick <= g_scheduler_ticks) {
+            proc.alarm_tick = 0U;
+            send_signal_to_process(&proc, kSigAlrm);
+        }
     }
 
     wake_ready_waiters();
@@ -1666,6 +1676,12 @@ void block_current_process_until_rescheduled(Process* process,
     Process* parent = find_process(process->ppid);
     if (parent != nullptr) {
         send_signal_to_process(parent, kSigChld);
+        // SA_NOCLDWAIT: auto-reap child without zombie state
+        const SignalHandler32& chld_handler = parent->signals.handlers[kSigChld];
+        if ((chld_handler.flags & kSaNocldwait) != 0U) {
+            destroy_process(process);
+            dispatch_next_runnable("child auto-reaped via SA_NOCLDWAIT");
+        }
         if (parent->state == ProcessState::Waiting) {
             resume_waiting_parent(parent);
         }
@@ -2382,9 +2398,20 @@ uint32_t current_epoch_microseconds() noexcept {
 }
 
 [[nodiscard]] uint32_t sys_alarm_compat(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    (void)frame;
-    return 0U;
+    const uint32_t seconds = frame->ebx;
+    // Compute remaining time from previous alarm
+    uint32_t remaining = 0U;
+    if (process->alarm_tick > g_scheduler_ticks) {
+        remaining = static_cast<uint32_t>(
+            (process->alarm_tick - g_scheduler_ticks + kTimerHz - 1U) / kTimerHz);
+    }
+    // Set new alarm (0 = cancel)
+    if (seconds == 0U) {
+        process->alarm_tick = 0U;
+    } else {
+        process->alarm_tick = g_scheduler_ticks + static_cast<uint64_t>(seconds) * kTimerHz;
+    }
+    return remaining;
 }
 
 [[nodiscard]] uint32_t sys_getrlimit_compat(Process* process, RegisterFrame* frame) noexcept {
