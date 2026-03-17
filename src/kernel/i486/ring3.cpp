@@ -2598,13 +2598,13 @@ bool getdents_visitor(const bootfs::FileRecord& file, void* context) noexcept {
         return kErrnoInvalid;
     }
 
-    // Determine directory path from open fd
-    // For now we only support "/" as a listable directory via bootfs
-    // TODO: Track per-fd directory path in fd table
-    const char* dir_path = "/";
-    if (!bootfs::is_open(fd)) {
-        // Try stdin/stdout/stderr -- those aren't directories
-        return kErrnoBadF;
+    // Get directory path from open fd
+    const char* dir_path = bootfs::directory_path_for_fd(fd);
+    if (dir_path == nullptr) {
+        if (!bootfs::is_open(fd)) {
+            return kErrnoBadF;
+        }
+        return kErrnoInvalid; // fd is not a directory
     }
 
     GetdentsContext ctx{};

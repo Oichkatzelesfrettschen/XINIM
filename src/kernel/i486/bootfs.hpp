@@ -64,6 +64,7 @@ int status_flags(int fd) noexcept;
 int set_status_flags(int fd, int flags) noexcept;
 [[nodiscard]] bool is_directory(const char* path) noexcept;
 void close_cloexec_fds() noexcept;
+[[nodiscard]] const char* directory_path_for_fd(int fd) noexcept;
 
 } // namespace xinim::kernel::bootfs
 

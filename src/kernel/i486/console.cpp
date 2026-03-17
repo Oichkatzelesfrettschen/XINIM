@@ -9,12 +9,25 @@ constexpr uint16_t kKeyboardDataPort = 0x60U;
 constexpr uint16_t kKeyboardStatusPort = 0x64U;
 constexpr uint16_t kVgaWidth = 80U;
 constexpr uint16_t kVgaHeight = 25U;
-constexpr uint8_t kVgaColor = 0x0FU;
+constexpr uint8_t kVgaDefaultColor = 0x0FU;
 constexpr uint32_t kTtyRxBufferSize = 256U;
 
 volatile uint16_t* const g_vga = reinterpret_cast<volatile uint16_t*>(0xB8000U);
 uint16_t g_cursor_x = 0U;
 uint16_t g_cursor_y = 0U;
+uint8_t g_vga_color = kVgaDefaultColor;
+
+// ANSI escape sequence parser state machine
+enum class AnsiState : uint8_t {
+    Normal = 0,
+    GotEsc = 1,     // Received ESC (0x1B)
+    InCSI = 2,      // Received ESC[, collecting parameters
+};
+AnsiState g_ansi_state = AnsiState::Normal;
+uint32_t g_ansi_params[8]{};
+uint32_t g_ansi_param_count = 0U;
+uint32_t g_ansi_current_param = 0U;
+bool g_ansi_has_digit = false;
 bool g_keyboard_shift = false;
 bool g_keyboard_ctrl = false;
 bool g_keyboard_caps_lock = false;
@@ -123,7 +136,7 @@ void update_cursor() noexcept {
 
 void clear_row(uint16_t row) noexcept {
     for (uint16_t column = 0U; column < kVgaWidth; ++column) {
-        g_vga[row * kVgaWidth + column] = static_cast<uint16_t>((kVgaColor << 8U) | ' ');
+        g_vga[row * kVgaWidth + column] = static_cast<uint16_t>((g_vga_color << 8U) | ' ');
     }
 }
 
@@ -142,29 +155,207 @@ void scroll_if_needed() noexcept {
     clear_row(g_cursor_y);
 }
 
+// Map ANSI color code (30-37) to VGA color attribute
+uint8_t ansi_to_vga_fg(uint32_t code) noexcept {
+    // ANSI: 30=black 31=red 32=green 33=yellow 34=blue 35=magenta 36=cyan 37=white
+    // VGA:  0=black 4=red 2=green 6=brown  1=blue 5=magenta  3=cyan  7=lgray
+    static constexpr uint8_t kMap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+    if (code >= 30U && code <= 37U) return kMap[code - 30U];
+    return 7U;
+}
+
+uint8_t ansi_to_vga_bg(uint32_t code) noexcept {
+    static constexpr uint8_t kMap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
+    if (code >= 40U && code <= 47U) return kMap[code - 40U];
+    return 0U;
+}
+
+void ansi_push_param() noexcept {
+    if (g_ansi_param_count < 8U) {
+        g_ansi_params[g_ansi_param_count++] = g_ansi_current_param;
+    }
+    g_ansi_current_param = 0U;
+    g_ansi_has_digit = false;
+}
+
+uint32_t ansi_param(uint32_t index, uint32_t fallback) noexcept {
+    return (index < g_ansi_param_count) ? g_ansi_params[index] : fallback;
+}
+
+void execute_csi(char final_char) noexcept {
+    // Push last parameter if digits were seen
+    if (g_ansi_has_digit || g_ansi_param_count == 0U) {
+        ansi_push_param();
+    }
+
+    switch (final_char) {
+    case 'A': { // Cursor up
+        uint32_t n = ansi_param(0U, 1U);
+        g_cursor_y = (g_cursor_y >= n) ? static_cast<uint16_t>(g_cursor_y - n) : 0U;
+        break;
+    }
+    case 'B': { // Cursor down
+        uint32_t n = ansi_param(0U, 1U);
+        uint16_t ny = static_cast<uint16_t>(g_cursor_y + n);
+        g_cursor_y = (ny < kVgaHeight) ? ny : static_cast<uint16_t>(kVgaHeight - 1U);
+        break;
+    }
+    case 'C': { // Cursor forward
+        uint32_t n = ansi_param(0U, 1U);
+        uint16_t nx = static_cast<uint16_t>(g_cursor_x + n);
+        g_cursor_x = (nx < kVgaWidth) ? nx : static_cast<uint16_t>(kVgaWidth - 1U);
+        break;
+    }
+    case 'D': { // Cursor backward
+        uint32_t n = ansi_param(0U, 1U);
+        g_cursor_x = (g_cursor_x >= n) ? static_cast<uint16_t>(g_cursor_x - n) : 0U;
+        break;
+    }
+    case 'H':
+    case 'f': { // Cursor position (row;col, 1-based)
+        uint32_t row = ansi_param(0U, 1U);
+        uint32_t col = (g_ansi_param_count >= 2U) ? g_ansi_params[1] : 1U;
+        if (row > 0U) --row;
+        if (col > 0U) --col;
+        g_cursor_y = (row < kVgaHeight) ? static_cast<uint16_t>(row) : static_cast<uint16_t>(kVgaHeight - 1U);
+        g_cursor_x = (col < kVgaWidth) ? static_cast<uint16_t>(col) : static_cast<uint16_t>(kVgaWidth - 1U);
+        break;
+    }
+    case 'J': { // Erase in display
+        uint32_t mode = ansi_param(0U, 0U);
+        if (mode == 2U) {
+            // Clear entire screen
+            for (uint16_t r = 0U; r < kVgaHeight; ++r) clear_row(r);
+            g_cursor_x = 0U;
+            g_cursor_y = 0U;
+        } else if (mode == 0U) {
+            // Clear from cursor to end
+            for (uint16_t col = g_cursor_x; col < kVgaWidth; ++col) {
+                g_vga[g_cursor_y * kVgaWidth + col] = static_cast<uint16_t>((g_vga_color << 8U) | ' ');
+            }
+            for (uint16_t r = static_cast<uint16_t>(g_cursor_y + 1U); r < kVgaHeight; ++r) clear_row(r);
+        }
+        break;
+    }
+    case 'K': { // Erase in line
+        uint32_t mode = ansi_param(0U, 0U);
+        if (mode == 0U) {
+            // Clear from cursor to end of line
+            for (uint16_t col = g_cursor_x; col < kVgaWidth; ++col) {
+                g_vga[g_cursor_y * kVgaWidth + col] = static_cast<uint16_t>((g_vga_color << 8U) | ' ');
+            }
+        } else if (mode == 2U) {
+            // Clear entire line
+            clear_row(g_cursor_y);
+        }
+        break;
+    }
+    case 'm': { // SGR (Select Graphic Rendition)
+        for (uint32_t i = 0U; i < g_ansi_param_count; ++i) {
+            uint32_t p = g_ansi_params[i];
+            if (p == 0U) {
+                g_vga_color = kVgaDefaultColor; // Reset
+            } else if (p == 1U) {
+                g_vga_color |= 0x08U; // Bold (bright foreground)
+            } else if (p >= 30U && p <= 37U) {
+                g_vga_color = static_cast<uint8_t>((g_vga_color & 0xF8U) | ansi_to_vga_fg(p));
+            } else if (p >= 40U && p <= 47U) {
+                g_vga_color = static_cast<uint8_t>((g_vga_color & 0x0FU) | (ansi_to_vga_bg(p) << 4U));
+            } else if (p == 7U) {
+                // Reverse video
+                uint8_t fg = g_vga_color & 0x0FU;
+                uint8_t bg = (g_vga_color >> 4U) & 0x0FU;
+                g_vga_color = static_cast<uint8_t>((fg << 4U) | bg);
+            }
+        }
+        if (g_ansi_param_count == 0U) {
+            g_vga_color = kVgaDefaultColor; // ESC[m = reset
+        }
+        break;
+    }
+    default:
+        break; // Unknown CSI sequence, ignore
+    }
+    update_cursor();
+}
+
 void vga_write(char c) noexcept {
-    if (c == '\n') {
-        g_cursor_x = 0U;
-        ++g_cursor_y;
+    switch (g_ansi_state) {
+    case AnsiState::Normal:
+        if (c == '\x1B') {
+            g_ansi_state = AnsiState::GotEsc;
+            return;
+        }
+        if (c == '\n') {
+            g_cursor_x = 0U;
+            ++g_cursor_y;
+            scroll_if_needed();
+            update_cursor();
+            return;
+        }
+        if (c == '\r') {
+            g_cursor_x = 0U;
+            update_cursor();
+            return;
+        }
+        if (c == '\b' || c == 127) {
+            if (g_cursor_x > 0U) {
+                --g_cursor_x;
+                g_vga[g_cursor_y * kVgaWidth + g_cursor_x] =
+                    static_cast<uint16_t>((g_vga_color << 8U) | ' ');
+                update_cursor();
+            }
+            return;
+        }
+        if (c == '\t') {
+            uint16_t next = static_cast<uint16_t>((g_cursor_x + 8U) & ~7U);
+            g_cursor_x = (next < kVgaWidth) ? next : static_cast<uint16_t>(kVgaWidth - 1U);
+            update_cursor();
+            return;
+        }
+        g_vga[g_cursor_y * kVgaWidth + g_cursor_x] =
+            static_cast<uint16_t>((g_vga_color << 8U) | static_cast<uint8_t>(c));
+        ++g_cursor_x;
+        if (g_cursor_x >= kVgaWidth) {
+            g_cursor_x = 0U;
+            ++g_cursor_y;
+        }
         scroll_if_needed();
         update_cursor();
         return;
-    }
 
-    if (c == '\r') {
-        g_cursor_x = 0U;
-        update_cursor();
+    case AnsiState::GotEsc:
+        if (c == '[') {
+            g_ansi_state = AnsiState::InCSI;
+            g_ansi_param_count = 0U;
+            g_ansi_current_param = 0U;
+            g_ansi_has_digit = false;
+            return;
+        }
+        // Not a CSI sequence, emit the ESC and the char
+        g_ansi_state = AnsiState::Normal;
+        return;
+
+    case AnsiState::InCSI:
+        if (c >= '0' && c <= '9') {
+            g_ansi_current_param = g_ansi_current_param * 10U + static_cast<uint32_t>(c - '0');
+            g_ansi_has_digit = true;
+            return;
+        }
+        if (c == ';') {
+            ansi_push_param();
+            return;
+        }
+        if (c >= 0x40 && c <= 0x7E) {
+            // Final byte -- execute the CSI command
+            execute_csi(c);
+            g_ansi_state = AnsiState::Normal;
+            return;
+        }
+        // Unknown intermediate byte, reset
+        g_ansi_state = AnsiState::Normal;
         return;
     }
-
-    g_vga[g_cursor_y * kVgaWidth + g_cursor_x] = static_cast<uint16_t>((kVgaColor << 8U) | static_cast<uint8_t>(c));
-    ++g_cursor_x;
-    if (g_cursor_x >= kVgaWidth) {
-        g_cursor_x = 0U;
-        ++g_cursor_y;
-    }
-    scroll_if_needed();
-    update_cursor();
 }
 
 [[nodiscard]] bool keyboard_has_data() noexcept {

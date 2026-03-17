@@ -78,6 +78,8 @@ struct OpenFile {
     bool ext2_is_directory;
     uint32_t ext2_size;
     char ext2_path[kMaxPathLength];
+    bool is_bootfs_directory;
+    char dir_path[kMaxPathLength]; // Path of opened directory for getdents
 };
 
 struct Pipe {
@@ -595,6 +597,11 @@ void configure_ext2_open_file(size_t slot,
             break;
         }
     }
+    if (is_directory) {
+        copy_c_string(open_file.dir_path,
+                       static_cast<uint32_t>(sizeof(open_file.dir_path)),
+                       path);
+    }
 }
 
 void reset() noexcept {
@@ -1001,6 +1008,25 @@ void close_cloexec_fds() noexcept {
     }
 }
 
+const char* directory_path_for_fd(int fd) noexcept {
+    if (!is_valid_fd(fd)) return nullptr;
+    const size_t slot = fd_to_slot(fd);
+    if (!g_open_files[slot].in_use) return nullptr;
+    // Check ext2 directory
+    if (g_open_files[slot].is_ext2 && g_open_files[slot].ext2_is_directory) {
+        return g_open_files[slot].ext2_path;
+    }
+    // Check bootfs directory
+    if (g_open_files[slot].is_bootfs_directory && g_open_files[slot].dir_path[0] != '\0') {
+        return g_open_files[slot].dir_path;
+    }
+    // Legacy: if it's a bootfs FileRecord directory
+    if (g_open_files[slot].file != nullptr && g_open_files[slot].file->is_directory) {
+        return g_open_files[slot].file->path;
+    }
+    return nullptr;
+}
+
 int open(const char* path, uint32_t flags, uint32_t mode) noexcept {
     char normalized[kMaxPathLength]{};
     if (!normalize_path(path, normalized, static_cast<uint32_t>(sizeof(normalized)))) {
@@ -1121,6 +1147,10 @@ int open(const char* path, uint32_t flags, uint32_t mode) noexcept {
 
     if (file->is_directory) {
         configure_open_file_entry(slot, file, kFileFlagO_RDONLY, false, false, false, 0U, false);
+        g_open_files[slot].is_bootfs_directory = true;
+        copy_c_string(g_open_files[slot].dir_path,
+                       static_cast<uint32_t>(sizeof(g_open_files[slot].dir_path)),
+                       normalized);
         return fd;
     }
     if ((flags & kFileFlagO_TRUNC) != 0U && !file->read_only) {
