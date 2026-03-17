@@ -1,0 +1,30 @@
+{
+  "source": {
+    "name": "yanix",
+    "repository": "https://github.com/RobbeDGreef/yanix",
+    "owner": "RobbeDGreef",
+    "default_branch": "master",
+    "snapshot_commit": "f20a34e9d086404188eeade8ef2f094cbe732149",
+    "retrieved_utc_date": "2026-03-11"
+  },
+  "artifacts": [
+    {
+      "path": "data/external/yanix/README_master.md",
+      "url": "https://raw.githubusercontent.com/RobbeDGreef/yanix/master/README.md",
+      "sha256": "9bfe69a56e8d832214001a48fa8c564ed49ac93a3c1c74fa9bd047a8b8069ce8",
+      "size_bytes": 4778
+    },
+    {
+      "path": "data/external/yanix/TODO_master.md",
+      "url": "https://raw.githubusercontent.com/RobbeDGreef/yanix/master/TODO.md",
+      "sha256": "5cbb59120be18534671112375a60a3d2adb8a1a36d60c6c31847a69d4ba87ae9",
+      "size_bytes": 1820
+    },
+    {
+      "path": "data/external/yanix/repo_api.json",
+      "url": "https://api.github.com/repos/RobbeDGreef/yanix",
+      "sha256": "6944e55fcac0dd9df60d6033ecb051b43901bb121e6800ebf2fc7b28e12c4379",
+      "size_bytes": 5814
+    }
+  ]
+}
