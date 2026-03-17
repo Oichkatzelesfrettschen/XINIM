@@ -52,6 +52,29 @@ uint16_t ip_checksum(const void* data, uint32_t length) noexcept {
     return static_cast<uint16_t>(~sum);
 }
 
+// --- DHCP packet structure (needed before handle_ipv4) ---
+
+struct [[gnu::packed]] DhcpPacket {
+    uint8_t op;
+    uint8_t htype;
+    uint8_t hlen;
+    uint8_t hops;
+    uint32_t xid;
+    uint16_t secs;
+    uint16_t flags;
+    uint8_t ciaddr[4];
+    uint8_t yiaddr[4];
+    uint8_t siaddr[4];
+    uint8_t giaddr[4];
+    uint8_t chaddr[16];
+    uint8_t sname[64];
+    uint8_t file[128];
+    uint32_t magic_cookie;
+};
+
+constexpr uint32_t DHCP_MAGIC = 0x63825363U;
+uint32_t g_dhcp_xid = 0x12345678U;
+
 // --- ARP ---
 
 void arp_cache_add(const uint8_t* ip, const uint8_t* mac) noexcept {
@@ -268,28 +291,6 @@ void handle_ipv4(const uint8_t* frame, uint32_t length) noexcept {
 }
 
 // --- DHCP ---
-
-struct [[gnu::packed]] DhcpPacket {
-    uint8_t op;            // 1=request, 2=reply
-    uint8_t htype;         // 1=Ethernet
-    uint8_t hlen;          // 6
-    uint8_t hops;
-    uint32_t xid;          // Transaction ID
-    uint16_t secs;
-    uint16_t flags;
-    uint8_t ciaddr[4];     // Client IP
-    uint8_t yiaddr[4];     // Your (assigned) IP
-    uint8_t siaddr[4];     // Server IP
-    uint8_t giaddr[4];     // Gateway IP
-    uint8_t chaddr[16];    // Client MAC + padding
-    uint8_t sname[64];
-    uint8_t file[128];
-    uint32_t magic_cookie; // 0x63825363
-    // Options follow
-};
-
-constexpr uint32_t DHCP_MAGIC = 0x63825363U;
-uint32_t g_dhcp_xid = 0x12345678U;
 
 bool send_dhcp_discover_impl() noexcept {
     uint8_t udp_payload[300]{};

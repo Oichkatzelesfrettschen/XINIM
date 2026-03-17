@@ -700,6 +700,7 @@ set(XINIM_X86_32_KERNEL_SOURCES
     src/kernel/i486/ide.cpp
     src/kernel/i486/dma_pages.cpp
     src/kernel/i486/virtio_net_i486.cpp
+    src/pci/pci.cpp
     src/kernel/i486/netstack.cpp
     src/kernel/i486/socket_i486.cpp
     src/kernel/i486/main.cpp
@@ -880,6 +881,15 @@ function(xinim_add_x86_32_lane lane)
         LINKER:--build-id=none
         ${_lane_link_arch_options}
     )
+    # i486 kernel needs libgcc for 64-bit integer operations (__udivdi3 etc.)
+    execute_process(
+        COMMAND gcc -m32 -print-libgcc-file-name
+        OUTPUT_VARIABLE _libgcc_path
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+    )
+    if(_libgcc_path)
+        target_link_libraries(${_kernel_target} PRIVATE "${_libgcc_path}")
+    endif()
 
     add_executable(${_shell_target} ${XINIM_X86_32_XASH_SOURCES})
     set_target_properties(${_shell_target} PROPERTIES

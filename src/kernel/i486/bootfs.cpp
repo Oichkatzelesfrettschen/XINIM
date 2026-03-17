@@ -251,6 +251,8 @@ void close_open_file_slot(size_t slot) noexcept {
         false,
         0U,
         {},
+        false,
+        {},
     };
 }
 
@@ -277,6 +279,17 @@ void close_open_file_slot(size_t slot) noexcept {
         ++length;
     }
     return length;
+}
+
+void copy_c_string(char* destination, uint32_t capacity, const char* source) noexcept {
+    if (destination == nullptr || capacity == 0U) return;
+    if (source == nullptr) { destination[0] = '\0'; return; }
+    uint32_t index = 0U;
+    while (index + 1U < capacity && source[index] != '\0') {
+        destination[index] = source[index];
+        ++index;
+    }
+    destination[index] = '\0';
 }
 
 uint32_t hash_path(const char* path) noexcept {
@@ -639,6 +652,8 @@ void reset() noexcept {
             false,
             0U,
             {},
+            false,
+            {},
         };
         g_open_files[index].status_flags = kFileFlagO_RDONLY;
         g_open_files[index].descriptor_flags = 0;
@@ -798,6 +813,8 @@ int allocate_open_slot() noexcept {
                 false,
                 0U,
                 {},
+                false,
+                {},
             };
             return static_cast<int>(index);
         }
@@ -827,6 +844,8 @@ void configure_open_file_entry(size_t slot,
     open_file.ext2_is_directory = false;
     open_file.ext2_size = 0U;
     __builtin_memset(open_file.ext2_path, 0, sizeof(open_file.ext2_path));
+    open_file.is_bootfs_directory = false;
+    __builtin_memset(open_file.dir_path, 0, sizeof(open_file.dir_path));
     open_file.offset = append ? ((file != nullptr) ? file->size : 0U) : 0U;
     open_file.append_mode = (!is_pipe) && append;
     if (!is_pipe && append) {
@@ -1000,7 +1019,7 @@ bool is_directory(const char* path) noexcept {
 }
 
 void close_cloexec_fds() noexcept {
-    for (size_t index = kMaxReservedOpenDescriptors; index < kMaxOpenFiles; ++index) {
+    for (size_t index = kReservedOpenDescriptors; index < kMaxOpenFiles; ++index) {
         if (g_open_files[index].in_use &&
             (g_open_files[index].descriptor_flags & kFdCloExec) != 0) {
             g_open_files[index].in_use = false;
@@ -1009,7 +1028,7 @@ void close_cloexec_fds() noexcept {
 }
 
 const char* directory_path_for_fd(int fd) noexcept {
-    if (!is_valid_fd(fd)) return nullptr;
+    if (!is_fd_valid(fd)) return nullptr;
     const size_t slot = fd_to_slot(fd);
     if (!g_open_files[slot].in_use) return nullptr;
     // Check ext2 directory
