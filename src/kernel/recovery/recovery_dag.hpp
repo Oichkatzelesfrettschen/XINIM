@@ -41,6 +41,9 @@ public:
     // Mark service as running.
     void set_running(int idx);
 
+    // Set the service state explicitly.
+    void set_state(int idx, ServiceState state);
+
     // Notify that a service has crashed.
     // Returns the number of services that need restarting.
     // Fills 'restart_order' with indices in topological restart order.

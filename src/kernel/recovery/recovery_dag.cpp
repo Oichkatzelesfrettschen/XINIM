@@ -72,6 +72,12 @@ void RecoveryDag::set_running(int idx) {
     }
 }
 
+void RecoveryDag::set_state(int idx, ServiceState state) {
+    if (idx >= 0 && idx < static_cast<int>(count_)) {
+        services_[idx].state = state;
+    }
+}
+
 int RecoveryDag::notify_crash(int idx, int restart_order[], int max_order) {
     if (idx < 0 || idx >= static_cast<int>(count_)) return 0;
 
@@ -79,6 +85,10 @@ int RecoveryDag::notify_crash(int idx, int restart_order[], int max_order) {
     crashed.state = ServiceState::CRASHED;
     crashed.pid = -1;
     crashed.restart_count++;
+
+    if (crashed.max_restarts != 0 && crashed.restart_count > crashed.max_restarts) {
+        return 0;
+    }
 
     switch (crashed.policy) {
     case RestartPolicy::IGNORE:

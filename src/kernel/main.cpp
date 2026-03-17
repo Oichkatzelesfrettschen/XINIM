@@ -18,6 +18,9 @@
 #include "arch/x86_64/cpu_features.hpp"
 #include "x86_64/staged_xash.hpp"
 #include "bootfs.hpp"
+#include <xinim/arch/x86/mmio.hpp>
+#include <xinim/drivers/ahci.hpp>
+#include <xinim/drivers/e1000.hpp>
 #include <xinim/pci/pci.hpp>
 #include "../drivers/net/virtio_net.hpp"
 #include "../vfs/bootfs_promote.hpp"
@@ -61,9 +64,71 @@ static void kputs_u64(uint64_t value) {
     }
 }
 
+static void kputs_hex_u64(uint64_t value) {
+    static constexpr char kHexDigits[] = "0123456789ABCDEF";
+    kputs("0x");
+
+    bool emitted = false;
+    for (int shift = 60; shift >= 0; shift -= 4) {
+        const uint8_t digit = static_cast<uint8_t>((value >> shift) & 0xFU);
+        if (!emitted && digit == 0U && shift != 0) {
+            continue;
+        }
+        emitted = true;
+        early_serial.write_char(kHexDigits[digit]);
+    }
+}
+
 static int seed_boot_modules_into_vfs(const xinim::boot::BootInfo& boot_info) {
     xinim::kernel::bootfs::initialize(boot_info);
     return vfs_promote_from_bootfs();
+}
+
+static void probe_x86_pci_feature_lanes() {
+    bool found_e1000 = false;
+    bool found_ahci = false;
+
+    for (size_t index = 0; index < xinim::pci::PCI::get_device_count(); ++index) {
+        const xinim::pci::PCIDevice* device = xinim::pci::PCI::get_device(index);
+        if (device == nullptr || !device->is_valid()) {
+            continue;
+        }
+
+        if (!found_e1000 && xinim::drivers::E1000Driver::matches_pci_device(*device)) {
+            xinim::drivers::pci_binding::MappedBar bar{};
+            if (xinim::drivers::pci_binding::bind_mmio_bar(*device, 0, bar)) {
+                kputs("[pci] E1000 lane ready at BAR0 ");
+                kputs_hex_u64(bar.physical);
+                kputs(" size=");
+                kputs_u64(bar.size);
+                kputs("\n");
+                found_e1000 = true;
+            } else {
+                kputs("[pci] E1000 detected but BAR0 MMIO binding failed\n");
+            }
+        }
+
+        if (!found_ahci && xinim::drivers::AHCIDriver::matches_pci_device(*device)) {
+            xinim::drivers::pci_binding::MappedBar bar{};
+            if (xinim::drivers::pci_binding::bind_mmio_bar(*device, 5, bar)) {
+                kputs("[pci] AHCI lane ready at BAR5 ");
+                kputs_hex_u64(bar.physical);
+                kputs(" size=");
+                kputs_u64(bar.size);
+                kputs("\n");
+                found_ahci = true;
+            } else {
+                kputs("[pci] AHCI detected but BAR5 MMIO binding failed\n");
+            }
+        }
+    }
+
+    if (!found_e1000) {
+        kputs("[pci] No supported E1000 lane detected\n");
+    }
+    if (!found_ahci) {
+        kputs("[pci] No AHCI lane detected\n");
+    }
 }
 
 #ifdef XINIM_ARCH_X86_64
@@ -75,17 +140,10 @@ static uint64_t monotonic_from_hpet() {
     return hpet.counter() * 100; // Stub
 }
 
-static uintptr_t map_mmio_hhdm(uint64_t phys_addr) {
-    if (phys_addr == 0) {
-        return 0;
-    }
-    return static_cast<uintptr_t>(phys_addr + g_boot_info.hhdm_offset);
-}
-
 static void setup_x86_64_timers(const xinim::acpi::Discovery& acpi) {
     static xinim::hal::x86_64::Hpet hpet;
-    const uintptr_t lapic_mmio = map_mmio_hhdm(acpi.lapic_mmio);
-    const uintptr_t hpet_mmio = map_mmio_hhdm(acpi.hpet_mmio);
+    const uintptr_t lapic_mmio = xinim::arch::x86::mmio::map_physical(acpi.lapic_mmio);
+    const uintptr_t hpet_mmio = xinim::arch::x86::mmio::map_physical(acpi.hpet_mmio);
 
     if (lapic_mmio == 0) {
         kputs("[boot] No LAPIC MMIO from ACPI, skipping timer init\n");
@@ -202,6 +260,7 @@ extern "C" void _start() {
     // PCI bus enumeration and device init
     kputs("[pci] Enumerating PCI bus...\n");
     xinim::pci::PCI::initialize();
+    probe_x86_pci_feature_lanes();
     xinim::drivers::net::virtio_net_init();
 
     xinim::kernel::initialize_system_servers();

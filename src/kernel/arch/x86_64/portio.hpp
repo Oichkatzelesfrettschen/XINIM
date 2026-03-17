@@ -1,49 +1,19 @@
 /**
  * @file portio.hpp
- * @brief x86_64 port I/O primitives (in/out instructions).
- *
- * Used for legacy device access: PCI config space (0xCF8/0xCFC),
- * serial ports, PIC, PIT, etc.
+ * @brief Backward-compatible x86_64 wrapper for shared x86 port I/O.
  */
 #pragma once
 
-#include <cstdint>
+#include <xinim/arch/x86/portio.hpp>
 
 namespace xinim::arch::x86_64 {
 
-inline uint8_t inb(uint16_t port) noexcept {
-    uint8_t val;
-    asm volatile("inb %1, %0" : "=a"(val) : "Nd"(port));
-    return val;
-}
-
-inline uint16_t inw(uint16_t port) noexcept {
-    uint16_t val;
-    asm volatile("inw %1, %0" : "=a"(val) : "Nd"(port));
-    return val;
-}
-
-inline uint32_t inl(uint16_t port) noexcept {
-    uint32_t val;
-    asm volatile("inl %1, %0" : "=a"(val) : "Nd"(port));
-    return val;
-}
-
-inline void outb(uint16_t port, uint8_t val) noexcept {
-    asm volatile("outb %0, %1" : : "a"(val), "Nd"(port));
-}
-
-inline void outw(uint16_t port, uint16_t val) noexcept {
-    asm volatile("outw %0, %1" : : "a"(val), "Nd"(port));
-}
-
-inline void outl(uint16_t port, uint32_t val) noexcept {
-    asm volatile("outl %0, %1" : : "a"(val), "Nd"(port));
-}
-
-// I/O delay (read from unused port 0x80 to waste ~1us)
-inline void io_wait() noexcept {
-    asm volatile("outb %%al, $0x80" : : "a"(static_cast<uint8_t>(0)));
-}
+using xinim::arch::x86::inb;
+using xinim::arch::x86::inw;
+using xinim::arch::x86::inl;
+using xinim::arch::x86::outb;
+using xinim::arch::x86::outw;
+using xinim::arch::x86::outl;
+using xinim::arch::x86::io_wait;
 
 } // namespace xinim::arch::x86_64

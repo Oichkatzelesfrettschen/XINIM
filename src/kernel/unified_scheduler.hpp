@@ -19,6 +19,7 @@
 
 #include "../include/sys/type.hpp"
 #include "pcb.hpp"
+#include "scheduler_policy.hpp"
 #include "wait_graph.hpp"
 #include <cstdint>
 
@@ -27,25 +28,25 @@ namespace xinim::kernel {
 /**
  * @brief Number of priority levels (fits in one 64-bit bitmap).
  */
-inline constexpr int NUM_PRIORITIES = 64;
+inline constexpr int NUM_PRIORITIES = sched_policy::NUM_PRIORITIES;
 
 /**
  * @brief Priority level constants.
  */
-inline constexpr uint32_t PRIO_INTERRUPT  = 0;
-inline constexpr uint32_t PRIO_SYSTEM_LO  = 1;
-inline constexpr uint32_t PRIO_SYSTEM_HI  = 3;
-inline constexpr uint32_t PRIO_SERVER_LO  = 4;
-inline constexpr uint32_t PRIO_SERVER_HI  = 7;
-inline constexpr uint32_t PRIO_USER_HIGH  = 8;
-inline constexpr uint32_t PRIO_USER_NORM  = 16;
-inline constexpr uint32_t PRIO_USER_LOW   = 32;
-inline constexpr uint32_t PRIO_IDLE       = 48;
+inline constexpr uint32_t PRIO_INTERRUPT = sched_policy::PRIO_INTERRUPT;
+inline constexpr uint32_t PRIO_SYSTEM_LO = sched_policy::PRIO_SYSTEM_LO;
+inline constexpr uint32_t PRIO_SYSTEM_HI = sched_policy::PRIO_SYSTEM_HI;
+inline constexpr uint32_t PRIO_SERVER_LO = sched_policy::PRIO_SERVER_LO;
+inline constexpr uint32_t PRIO_SERVER_HI = sched_policy::PRIO_SERVER_HI;
+inline constexpr uint32_t PRIO_USER_HIGH = sched_policy::PRIO_USER_HIGH;
+inline constexpr uint32_t PRIO_USER_NORM = sched_policy::PRIO_USER_NORM;
+inline constexpr uint32_t PRIO_USER_LOW = sched_policy::PRIO_USER_LOW;
+inline constexpr uint32_t PRIO_IDLE = sched_policy::PRIO_IDLE;
 
 /**
  * @brief Maximum number of processes tracked by the scheduler.
  */
-inline constexpr int MAX_PROCESSES = 64;
+inline constexpr int MAX_PROCESSES = sched_policy::MAX_PROCESSES;
 
 /**
  * @brief Per-priority time quantum (in timer ticks).
@@ -53,14 +54,12 @@ inline constexpr int MAX_PROCESSES = 64;
  * System tasks (0-3) get unlimited quanta.
  * Lower priority = shorter slice.
  */
-inline constexpr uint32_t quantum_for_priority(uint32_t prio) {
-    if (prio <= 3)  return 0;    // Unlimited (system tasks)
-    if (prio <= 7)  return 20;   // Servers
-    if (prio <= 15) return 10;   // High-priority user
-    if (prio <= 31) return 8;    // Normal user
-    if (prio <= 47) return 4;    // Background
-    return 1;                    // Idle
+inline constexpr uint32_t quantum_for_priority(uint32_t priority) {
+    return sched_policy::quantum_for_priority(priority);
 }
+
+inline constexpr uint64_t PRIORITY_REBALANCE_PERIOD_TICKS =
+    sched_policy::PRIORITY_REBALANCE_PERIOD_TICKS;
 
 /**
  * @brief O(1) bitmap-based unified scheduler.
@@ -146,6 +145,9 @@ class UnifiedScheduler {
     const lattice::WaitForGraph& wait_graph() const { return wait_graph_; }
 
   private:
+    uint32_t effective_quantum(const ProcessControlBlock* pcb) const;
+    void rebalance_priorities();
+
     // Per-priority doubly-linked list heads and tails
     ProcessControlBlock* run_queue_head_[NUM_PRIORITIES]{};
     ProcessControlBlock* run_queue_tail_[NUM_PRIORITIES]{};

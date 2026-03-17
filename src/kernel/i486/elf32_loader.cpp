@@ -12,6 +12,7 @@ constexpr uint8_t kElfDataLittle = 1U;
 constexpr uint16_t kElfTypeExec = 2U;
 constexpr uint16_t kElfMachine386 = 3U;
 constexpr uint32_t kProgramTypeLoad = 1U;
+constexpr uint32_t kPageSize = 4096U;
 
 struct Elf32Header {
     uint8_t ident[16];
@@ -80,7 +81,64 @@ void copy_region(uint8_t* out, const uint8_t* in, uint32_t size) noexcept {
     }
 }
 
+[[nodiscard]] uint32_t align_up(uint32_t value, uint32_t alignment) noexcept {
+    return (value + alignment - 1U) & ~(alignment - 1U);
+}
+
 } // namespace
+
+bool inspect_static_image(const uint8_t* image,
+                          uint32_t size,
+                          UserImage* out) noexcept {
+    if (image == nullptr || out == nullptr) {
+        return false;
+    }
+
+    const auto* header = reinterpret_cast<const Elf32Header*>(image);
+    if (!validate_header(*header, size)) {
+        return false;
+    }
+
+    const auto* program_headers =
+        reinterpret_cast<const Elf32ProgramHeader*>(image + header->phoff);
+    uint32_t highest_end = kUserVirtualBase;
+    bool saw_loadable_segment = false;
+
+    for (uint16_t index = 0U; index < header->phnum; ++index) {
+        const Elf32ProgramHeader& program = program_headers[index];
+        if (program.type != kProgramTypeLoad) {
+            continue;
+        }
+        if (program.memsz == 0U && program.filesz == 0U) {
+            continue;
+        }
+        saw_loadable_segment = true;
+        if (program.memsz < program.filesz || program.offset > size ||
+            program.filesz > (size - program.offset)) {
+            return false;
+        }
+        if (program.vaddr < kUserVirtualBase) {
+            return false;
+        }
+        const uint32_t region_offset = program.vaddr - kUserVirtualBase;
+        if (region_offset > kUserAddressSpaceSize ||
+            program.memsz > (kUserAddressSpaceSize - region_offset)) {
+            return false;
+        }
+        const uint32_t segment_end = program.vaddr + program.memsz;
+        if (segment_end > highest_end) {
+            highest_end = segment_end;
+        }
+    }
+    if (!saw_loadable_segment) {
+        return false;
+    }
+
+    out->entry_point = header->entry;
+    out->brk_start = align_up(highest_end, kPageSize);
+    out->stack_top = kUserVirtualBase + kUserAddressSpaceSize - 16U;
+    return true;
+}
 
 bool load_static_image(const uint8_t* image,
                        uint32_t size,
@@ -94,11 +152,12 @@ bool load_static_image(const uint8_t* image,
         return false;
     }
 
-    const auto* header = reinterpret_cast<const Elf32Header*>(image);
-    if (!validate_header(*header, size)) {
+    UserImage image_layout{};
+    if (!inspect_static_image(image, size, &image_layout)) {
         return false;
     }
 
+    const auto* header = reinterpret_cast<const Elf32Header*>(image);
     const auto* program_headers =
         reinterpret_cast<const Elf32ProgramHeader*>(image + header->phoff);
 
@@ -110,15 +169,9 @@ bool load_static_image(const uint8_t* image,
         if (program.memsz == 0U && program.filesz == 0U) {
             continue;
         }
-        if (program.memsz < program.filesz || program.offset > size ||
-            program.filesz > (size - program.offset)) {
-            return false;
-        }
-        if (program.vaddr < kUserVirtualBase) {
-            return false;
-        }
         const uint32_t region_offset = program.vaddr - kUserVirtualBase;
-        if (region_offset > address_space_size || program.memsz > (address_space_size - region_offset)) {
+        if (region_offset > address_space_size ||
+            program.memsz > (address_space_size - region_offset)) {
             return false;
         }
 
@@ -127,7 +180,8 @@ bool load_static_image(const uint8_t* image,
         copy_region(destination, image + program.offset, program.filesz);
     }
 
-    out->entry_point = header->entry;
+    out->entry_point = image_layout.entry_point;
+    out->brk_start = image_layout.brk_start;
     out->stack_top = kUserVirtualBase + address_space_size - 16U;
     return true;
 }

@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <cstdarg>
 #include "early/serial_16550.hpp"
+#include "scheduler.hpp"
+#include "unified_scheduler.hpp"
 
 // Include message type before C stubs to avoid redefinition conflicts.
 // sys/type.hpp defines the message struct used by lattice IPC.
@@ -147,7 +149,8 @@ char* strstr(const char* haystack, const char* needle) {
 
 // Timer and interrupt C handler stubs (assembly calls these)
 void timer_interrupt_c_handler() {
-    // Phase 5 (P5-T02): will call do_clocktick()
+    xinim::kernel::g_unified_scheduler.timer_tick();
+    xinim::kernel::schedule();
 }
 
 void handle_unhandled_interrupt() {

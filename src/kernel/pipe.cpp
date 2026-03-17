@@ -51,8 +51,7 @@ ssize_t Pipe::write(const void* data, size_t len) {
         ProcessControlBlock* current = get_current_process();
         if (!current) return -ESRCH;
 
-        current->state = ProcessState::BLOCKED;
-        current->blocked_on = BlockReason::IO;
+        block_current_process(BlockReason::IO);
 
         // Add to writers list
         current->next = writers_head;
@@ -82,9 +81,8 @@ ssize_t Pipe::write(const void* data, size_t len) {
     while (readers_head) {
         ProcessControlBlock* reader = readers_head;
         readers_head = reader->next;
-        reader->state = ProcessState::READY;
-        reader->blocked_on = BlockReason::NONE;
         reader->next = nullptr;
+        unblock_process(reader);
     }
 
     return (ssize_t)bytes_written;
@@ -116,8 +114,7 @@ ssize_t Pipe::read(void* data, size_t len) {
         ProcessControlBlock* current = get_current_process();
         if (!current) return -ESRCH;
 
-        current->state = ProcessState::BLOCKED;
-        current->blocked_on = BlockReason::IO;
+        block_current_process(BlockReason::IO);
 
         // Add to readers list
         current->next = readers_head;
@@ -148,9 +145,8 @@ ssize_t Pipe::read(void* data, size_t len) {
     while (writers_head) {
         ProcessControlBlock* writer = writers_head;
         writers_head = writer->next;
-        writer->state = ProcessState::READY;
-        writer->blocked_on = BlockReason::NONE;
         writer->next = nullptr;
+        unblock_process(writer);
     }
 
     return (ssize_t)bytes_read;
@@ -172,9 +168,8 @@ void Pipe::close_read_end() {
     while (writers_head) {
         ProcessControlBlock* writer = writers_head;
         writers_head = writer->next;
-        writer->state = ProcessState::READY;
-        writer->blocked_on = BlockReason::NONE;
         writer->next = nullptr;
+        unblock_process(writer);
     }
 }
 
@@ -190,9 +185,8 @@ void Pipe::close_write_end() {
     while (readers_head) {
         ProcessControlBlock* reader = readers_head;
         readers_head = reader->next;
-        reader->state = ProcessState::READY;
-        reader->blocked_on = BlockReason::NONE;
         reader->next = nullptr;
+        unblock_process(reader);
     }
 }
 

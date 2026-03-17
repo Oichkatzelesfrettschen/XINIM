@@ -100,7 +100,10 @@ struct ProcessControlBlock {
     // ========================================
 
     ProcessState state;             ///< Current state (READY, RUNNING, etc.)
-    uint32_t priority;              ///< Scheduling priority (0-31, higher = more important)
+    uint32_t priority;              ///< Current effective scheduling priority
+    uint32_t base_priority;         ///< Baseline priority before runtime penalties/boosts
+    uint32_t quantum_ticks;         ///< Explicit quantum override (0 = policy default)
+    uint16_t scheduler_domain;      ///< Scheduling domain / partition identifier
 
     // ========================================
     // Memory Allocation

@@ -9,8 +9,13 @@ inline constexpr uint32_t kUserAddressSpaceSize = 0x00100000U;
 
 struct UserImage {
     uint32_t entry_point;
+    uint32_t brk_start;
     uint32_t stack_top;
 };
+
+bool inspect_static_image(const uint8_t* image,
+                          uint32_t size,
+                          UserImage* out) noexcept;
 
 bool load_static_image(const uint8_t* image,
                        uint32_t size,

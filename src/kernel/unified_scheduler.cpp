@@ -21,10 +21,25 @@ UnifiedScheduler::UnifiedScheduler() {
     }
 }
 
+uint32_t UnifiedScheduler::effective_quantum(const ProcessControlBlock* pcb) const {
+    if (!pcb) return 0;
+    if (pcb->quantum_ticks != 0) {
+        return pcb->quantum_ticks;
+    }
+    return sched_policy::quantum_for_priority(pcb->priority);
+}
+
 void UnifiedScheduler::add_process(ProcessControlBlock* pcb) {
     if (!pcb) return;
     int idx = pcb->pid;
     if (idx < 0 || idx >= MAX_PROCESSES) return;
+
+    if (pcb->base_priority == 0U && pcb->priority != 0U) {
+        pcb->base_priority = pcb->priority;
+    }
+    if (pcb->scheduler_domain == 0U) {
+        pcb->scheduler_domain = 1U;
+    }
 
     proc_table_[idx] = pcb;
 
@@ -36,10 +51,7 @@ void UnifiedScheduler::add_process(ProcessControlBlock* pcb) {
 void UnifiedScheduler::enqueue(ProcessControlBlock* pcb) {
     if (!pcb) return;
 
-    uint32_t prio = pcb->priority;
-    if (prio >= static_cast<uint32_t>(NUM_PRIORITIES)) {
-        prio = static_cast<uint32_t>(NUM_PRIORITIES) - 1;
-    }
+    uint32_t prio = sched_policy::clamp_priority(pcb->priority);
 
     pcb->state = ProcessState::READY;
     pcb->next = nullptr;
@@ -58,10 +70,7 @@ void UnifiedScheduler::enqueue(ProcessControlBlock* pcb) {
 void UnifiedScheduler::dequeue(ProcessControlBlock* pcb) {
     if (!pcb) return;
 
-    uint32_t prio = pcb->priority;
-    if (prio >= static_cast<uint32_t>(NUM_PRIORITIES)) {
-        prio = static_cast<uint32_t>(NUM_PRIORITIES) - 1;
-    }
+    uint32_t prio = sched_policy::clamp_priority(pcb->priority);
 
     // Unlink from doubly-linked list
     if (pcb->prev) {
@@ -97,9 +106,7 @@ ProcessControlBlock* UnifiedScheduler::pick_next() {
         next->state = ProcessState::RUNNING;
         current_ = next;
 
-        // Set quantum based on priority
-        uint32_t q = quantum_for_priority(static_cast<uint32_t>(prio));
-        ticks_remaining_ = q;
+        ticks_remaining_ = effective_quantum(next);
     }
 
     return next;
@@ -180,18 +187,45 @@ void UnifiedScheduler::yield_to(xinim::pid_t pid) {
 
     target->state = ProcessState::RUNNING;
     current_ = target;
-    ticks_remaining_ = quantum_for_priority(target->priority);
+    ticks_remaining_ = effective_quantum(target);
+}
+
+void UnifiedScheduler::rebalance_priorities() {
+    for (int index = 0; index < MAX_PROCESSES; ++index) {
+        ProcessControlBlock* pcb = proc_table_[index];
+        if (!pcb) continue;
+        if (pcb->priority <= pcb->base_priority) continue;
+
+        const uint32_t old_priority = pcb->priority;
+        if (pcb->state == ProcessState::READY) {
+            dequeue(pcb);
+        }
+
+        pcb->priority = sched_policy::rebalance_toward_base(pcb->priority, pcb->base_priority);
+
+        if (pcb->state == ProcessState::READY) {
+            enqueue(pcb);
+        } else if (pcb == current_ && ticks_remaining_ > effective_quantum(pcb)) {
+            ticks_remaining_ = effective_quantum(pcb);
+        }
+
+        (void)old_priority;
+    }
 }
 
 void UnifiedScheduler::timer_tick() {
     tick_count_++;
+
+    if ((tick_count_ % PRIORITY_REBALANCE_PERIOD_TICKS) == 0U) {
+        rebalance_priorities();
+    }
 
     if (!current_) return;
 
     current_->total_ticks++;
 
     // System tasks (quantum=0) are not preempted
-    uint32_t q = quantum_for_priority(current_->priority);
+    uint32_t q = effective_quantum(current_);
     if (q == 0) return;
 
     if (ticks_remaining_ > 0) {
@@ -199,6 +233,9 @@ void UnifiedScheduler::timer_tick() {
     }
 
     if (ticks_remaining_ == 0) {
+        if (sched_policy::should_demote_on_quantum_expiry(current_->priority)) {
+            current_->priority = sched_policy::demote_priority(current_->priority);
+        }
         yield(); // Quantum expired -- round-robin within priority
     }
 }

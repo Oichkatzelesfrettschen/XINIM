@@ -99,6 +99,7 @@ i486_restore_user_context:
     jmp i486_syscall_return
 
 .extern i486_handle_syscall
+.extern i486_handle_timer_irq
 .extern i486_handle_fault
 .global i486_syscall_entry
 .type i486_syscall_entry, @function
@@ -139,6 +140,34 @@ i486_syscall_return:
     popl %fs
     popl %gs
     iret
+
+.global i486_timer_irq_entry
+.type i486_timer_irq_entry, @function
+i486_timer_irq_entry:
+    pushl %gs
+    pushl %fs
+    pushl %es
+    pushl %ds
+    pushl %ebp
+    pushl %edi
+    pushl %esi
+    pushl %edx
+    pushl %ecx
+    pushl %ebx
+    pushl %eax
+
+    movw $0x10, %ax
+    movw %ax, %ds
+    movw %ax, %es
+    movw %ax, %fs
+    movw %ax, %gs
+
+    pushl %esp
+    call i486_handle_timer_irq
+
+    cli
+    hlt
+    jmp .
 
 .macro XINIM_FAULT_STUB_NOERR name, vector
 .global \name
