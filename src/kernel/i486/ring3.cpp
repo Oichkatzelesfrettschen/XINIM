@@ -422,6 +422,50 @@ void copy_c_string(char* destination, uint32_t capacity, const char* source) noe
     return (value + alignment - 1U) & ~(alignment - 1U);
 }
 
+[[nodiscard]] bool copy_user_string(Process* process, uint32_t user_address,
+                                    char* buffer, uint32_t capacity) noexcept;
+
+// Resolve a relative path against the process's cwd.
+// If path starts with '/', it's already absolute. Otherwise prepend cwd.
+bool resolve_path(const Process* process,
+                  const char* input,
+                  char* output,
+                  uint32_t capacity) noexcept {
+    if (process == nullptr || input == nullptr || output == nullptr || capacity == 0U) {
+        return false;
+    }
+    if (input[0] == '/' || input[0] == '\0') {
+        copy_c_string(output, capacity, input);
+        return true;
+    }
+    // Prepend cwd + "/" + input
+    const uint32_t cwd_len = string_length(process->cwd);
+    const uint32_t input_len = string_length(input);
+    const bool needs_slash = (cwd_len > 0U && process->cwd[cwd_len - 1U] != '/');
+    const uint32_t total = cwd_len + (needs_slash ? 1U : 0U) + input_len + 1U;
+    if (total > capacity) {
+        return false;
+    }
+    uint32_t pos = 0U;
+    for (uint32_t i = 0U; i < cwd_len; ++i) output[pos++] = process->cwd[i];
+    if (needs_slash) output[pos++] = '/';
+    for (uint32_t i = 0U; i < input_len; ++i) output[pos++] = input[i];
+    output[pos] = '\0';
+    return true;
+}
+
+// Copy user path string and resolve against cwd
+bool copy_and_resolve_user_path(Process* process,
+                                uint32_t user_address,
+                                char* buffer,
+                                uint32_t capacity) noexcept {
+    char raw[256]{};
+    if (!copy_user_string(process, user_address, raw, sizeof(raw))) {
+        return false;
+    }
+    return resolve_path(process, raw, buffer, capacity);
+}
+
 void activate_process(Process* process) noexcept;
 void init_signal_state(Process* process) noexcept;
 void send_signal_to_process(Process* target, uint32_t signum) noexcept;
@@ -1850,8 +1894,8 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_open(Process* process, RegisterFrame* frame) noexcept {
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     return static_cast<uint32_t>(bootfs::open(path, frame->ecx, frame->edx));
@@ -1867,8 +1911,8 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_stat(Process* process, RegisterFrame* frame) noexcept {
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
 
@@ -1953,47 +1997,42 @@ bool block_current_process_until_rescheduled(Process* process,
 }
 
 [[nodiscard]] uint32_t sys_access(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     return static_cast<uint32_t>(bootfs::access(path));
 }
 
 [[nodiscard]] uint32_t sys_mkdir(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     return bootfs::mkdir(path, frame->ecx) == 0 ? 0U : kErrnoNoEnt;
 }
 
 [[nodiscard]] uint32_t sys_rmdir(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     return bootfs::rmdir(path) == 0 ? 0U : kErrnoNoEnt;
 }
 
 [[nodiscard]] uint32_t sys_rename(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    char old_path[128]{};
-    char new_path[128]{};
-    if (!copy_user_string(process, frame->ebx, old_path, sizeof(old_path)) ||
-        !copy_user_string(process, frame->ecx, new_path, sizeof(new_path))) {
+    char old_path[256]{};
+    char new_path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, old_path, sizeof(old_path)) ||
+        !copy_and_resolve_user_path(process, frame->ecx, new_path, sizeof(new_path))) {
         return kErrnoFault;
     }
     return bootfs::rename(old_path, new_path) == 0 ? 0U : kErrnoNoEnt;
 }
 
 [[nodiscard]] uint32_t sys_unlink(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     return bootfs::unlink(path) == 0 ? 0U : kErrnoNoEnt;
@@ -2001,7 +2040,7 @@ bool block_current_process_until_rescheduled(Process* process,
 
 [[nodiscard]] uint32_t sys_chdir(Process* process, RegisterFrame* frame) noexcept {
     char path[256]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     // Validate directory exists in bootfs or ext2
@@ -2821,8 +2860,8 @@ struct UtsName32 {
 }
 
 [[nodiscard]] uint32_t sys_truncate(Process* process, RegisterFrame* frame) noexcept {
-    char path[128]{};
-    if (!copy_user_string(process, frame->ebx, path, sizeof(path))) {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
     // Open, truncate via bootfs, close
