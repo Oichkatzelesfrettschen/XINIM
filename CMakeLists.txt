@@ -988,7 +988,7 @@ function(xinim_add_x86_32_lane lane)
         wc head tail sort uniq cut tr tee grep sed
         kill sleep uname id touch ln xargs dd
         seq yes nproc which chmod chown readlink mktemp expr
-        hexdump du date df md5sum tar
+        hexdump du date df md5sum tar find
     )
     set(_posix_util_binaries "")
     set(_posix_util_targets "")
@@ -1372,6 +1372,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_df_binary}:/bin/df"
             --guest-bin "${_md5sum_binary}:/bin/md5sum"
             --guest-bin "${_tar_binary}:/bin/tar"
+            --guest-bin "${_find_binary}:/bin/find"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py"
             ${_hello_target}
@@ -1451,6 +1452,7 @@ function(xinim_add_x86_32_lane lane)
                 COMMAND ${CMAKE_COMMAND} -E copy "${_df_binary}" "${_stage_dir}/boot/df"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_md5sum_binary}" "${_stage_dir}/boot/md5sum"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_tar_binary}" "${_stage_dir}/boot/tar"
+                COMMAND ${CMAKE_COMMAND} -E copy "${_find_binary}" "${_stage_dir}/boot/find"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/boot/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_shell_target}>" "${_stage_dir}/bin/xash"
             COMMAND ${CMAKE_COMMAND} -E copy "${_mksh_binary}" "${_stage_dir}/bin/sh"
@@ -1513,6 +1515,7 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "${_df_binary}" "${_stage_dir}/bin/df"
             COMMAND ${CMAKE_COMMAND} -E copy "${_md5sum_binary}" "${_stage_dir}/bin/md5sum"
             COMMAND ${CMAKE_COMMAND} -E copy "${_tar_binary}" "${_stage_dir}/bin/tar"
+            COMMAND ${CMAKE_COMMAND} -E copy "${_find_binary}" "${_stage_dir}/bin/find"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/etc/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/grub.cfg" "${_stage_dir}/boot/grub/grub.cfg"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_LOG_ROOT}"
