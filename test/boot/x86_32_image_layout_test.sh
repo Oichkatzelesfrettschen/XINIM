@@ -39,6 +39,11 @@ echo "$LISTING" | grep -q "/bin/xash" || {
     exit 1
 }
 
+echo "$LISTING" | grep -q "/bin/mksh" || {
+    echo "FAIL: /bin/mksh not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
 echo "$LISTING" | grep -q "/bin/sh" || {
     echo "FAIL: /bin/sh not present in ${LANE_NAME} ISO"
     exit 1
@@ -49,8 +54,63 @@ echo "$LISTING" | grep -q "/bin/hello" || {
     exit 1
 }
 
+echo "$LISTING" | grep -q "/bin/ls" || {
+    echo "FAIL: /bin/ls not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
 echo "$LISTING" | grep -q "/bin/false" || {
     echo "FAIL: /bin/false not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/mkdir" || {
+    echo "FAIL: /bin/mkdir not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/unlink" || {
+    echo "FAIL: /bin/unlink not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/rmdir" || {
+    echo "FAIL: /bin/rmdir not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/mv" || {
+    echo "FAIL: /bin/mv not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/seekwrite" || {
+    echo "FAIL: /bin/seekwrite not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/holecheck" || {
+    echo "FAIL: /bin/holecheck not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/seekpatch" || {
+    echo "FAIL: /bin/seekpatch not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/gapcheck" || {
+    echo "FAIL: /bin/gapcheck not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/heapprobe" || {
+    echo "FAIL: /bin/heapprobe not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/holdsvc" || {
+    echo "FAIL: /bin/holdsvc not present in ${LANE_NAME} ISO"
     exit 1
 }
 
@@ -59,8 +119,68 @@ echo "$BOOT_LISTING" | grep -q "/boot/hello" || {
     exit 1
 }
 
+echo "$BOOT_LISTING" | grep -q "/boot/ls" || {
+    echo "FAIL: /boot/ls boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
 echo "$BOOT_LISTING" | grep -q "/boot/false" || {
     echo "FAIL: /boot/false boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/heapprobe" || {
+    echo "FAIL: /boot/heapprobe boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/holdsvc" || {
+    echo "FAIL: /boot/holdsvc boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/writefile" || {
+    echo "FAIL: /boot/writefile boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/mkdir" || {
+    echo "FAIL: /boot/mkdir boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/unlink" || {
+    echo "FAIL: /boot/unlink boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/rmdir" || {
+    echo "FAIL: /boot/rmdir boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/mv" || {
+    echo "FAIL: /boot/mv boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/seekwrite" || {
+    echo "FAIL: /boot/seekwrite boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/holecheck" || {
+    echo "FAIL: /boot/holecheck boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/seekpatch" || {
+    echo "FAIL: /boot/seekpatch boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$BOOT_LISTING" | grep -q "/boot/gapcheck" || {
+    echo "FAIL: /boot/gapcheck boot module not present in ${LANE_NAME} ISO"
     exit 1
 }
 
@@ -69,11 +189,41 @@ echo "$BOOT_LISTING" | grep -q "/boot/xash" || {
     exit 1
 }
 
+echo "$BOOT_LISTING" | grep -q "/boot/mksh" || {
+    echo "FAIL: /boot/mksh boot module not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
 MOTD_LISTING="$(xorriso -indev "$BOOT_IMAGE" -find /etc -type f -exec lsdl 2>/dev/null || true)"
 BOOT_MOTD_LISTING="$(xorriso -indev "$BOOT_IMAGE" -find /boot -type f -exec lsdl 2>/dev/null || true)"
 
 echo "$MOTD_LISTING" | grep -q "/etc/motd" || {
     echo "FAIL: /etc/motd not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/writefile" || {
+    echo "FAIL: /bin/writefile not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/mkdir" || {
+    echo "FAIL: /bin/mkdir not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/unlink" || {
+    echo "FAIL: /bin/unlink not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/rmdir" || {
+    echo "FAIL: /bin/rmdir not present in ${LANE_NAME} ISO"
+    exit 1
+}
+
+echo "$LISTING" | grep -q "/bin/mv" || {
+    echo "FAIL: /bin/mv not present in ${LANE_NAME} ISO"
     exit 1
 }
 

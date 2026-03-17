@@ -196,6 +196,22 @@ static void test_restart_count() {
     ASSERT_EQ(dag.get_service(svc)->restart_count, 2);
 }
 
+static void test_restart_limit_stops_restarts() {
+    RecoveryDag dag;
+    int svc = dag.add_service("svc", RestartPolicy::RESTART, 2);
+    dag.set_running(svc);
+
+    int order[4];
+
+    ASSERT_EQ(dag.notify_crash(svc, order, 4), 1);
+    dag.set_running(svc);
+    ASSERT_EQ(dag.notify_crash(svc, order, 4), 1);
+    dag.set_running(svc);
+    ASSERT_EQ(dag.notify_crash(svc, order, 4), 0);
+    ASSERT_EQ(dag.get_service(svc)->restart_count, 3);
+    ASSERT_EQ(dag.get_service(svc)->state, ServiceState::CRASHED);
+}
+
 int main() {
     test_add_and_find();
     test_dependencies();
@@ -207,6 +223,7 @@ int main() {
     test_crash_kill_deps_topo_order();
     test_find_by_pid();
     test_restart_count();
+    test_restart_limit_stops_restarts();
 
     std::printf("test_recovery_dag: %d passed, %d failed\n", g_pass, g_fail);
     return g_fail > 0 ? 1 : 0;

@@ -1,2 +1,2 @@
-Welcome to xash on XINIM i486.
-Bootfs ships xash, sh, hello, and this motd module.
+Welcome to XINIM i486.
+Bootfs ships mksh, sh, hello, and this motd module.

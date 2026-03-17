@@ -57,6 +57,24 @@ ProcessControlBlock* get_current_process() {
 
 void schedule() {}
 
+void block_current_process(BlockReason reason, xinim::pid_t /*wait_source*/) {
+    if (::g_current_process == nullptr) {
+        return;
+    }
+
+    ::g_current_process->state = ProcessState::BLOCKED;
+    ::g_current_process->blocked_on = reason;
+}
+
+void unblock_process(ProcessControlBlock* pcb) {
+    if (pcb == nullptr) {
+        return;
+    }
+
+    pcb->state = ProcessState::READY;
+    pcb->blocked_on = BlockReason::NONE;
+}
+
 int send_signal(ProcessControlBlock* pcb, int signum) {
     ::g_last_signaled_process = pcb;
     ::g_last_signal = signum;

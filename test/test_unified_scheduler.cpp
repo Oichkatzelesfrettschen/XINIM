@@ -18,6 +18,9 @@ static ProcessControlBlock make_pcb(xinim::pid_t pid, uint32_t priority) {
     memset(&pcb, 0, sizeof(pcb));
     pcb.pid = pid;
     pcb.priority = priority;
+    pcb.base_priority = priority;
+    pcb.quantum_ticks = 0;
+    pcb.scheduler_domain = 1;
     pcb.state = ProcessState::READY;
     pcb.next = nullptr;
     pcb.prev = nullptr;
@@ -200,6 +203,7 @@ static void test_timer_tick_quantum_expiry() {
     // 8th tick should cause yield (quantum expired)
     s.timer_tick();
     assert(s.current_pid() == 2); // b is now current
+    assert(a.priority == PRIO_USER_NORM + 1);
 }
 
 static void test_system_task_no_preemption() {
@@ -218,6 +222,44 @@ static void test_system_task_no_preemption() {
         s.timer_tick();
     }
     assert(s.current_pid() == 1); // Still running
+}
+
+static void test_explicit_quantum_override() {
+    UnifiedScheduler s;
+    ProcessControlBlock a = make_pcb(1, PRIO_USER_NORM);
+    ProcessControlBlock b = make_pcb(2, PRIO_USER_NORM);
+    a.quantum_ticks = 3;
+
+    s.add_process(&a);
+    s.add_process(&b);
+
+    s.pick_next();
+    assert(s.current_pid() == 1);
+
+    s.timer_tick();
+    assert(s.current_pid() == 1);
+    s.timer_tick();
+    assert(s.current_pid() == 1);
+    s.timer_tick();
+    assert(s.current_pid() == 2);
+}
+
+static void test_periodic_priority_rebalance() {
+    UnifiedScheduler s;
+    ProcessControlBlock a = make_pcb(1, 20);
+    a.base_priority = 16;
+
+    s.add_process(&a);
+
+    for (uint64_t tick = 0; tick < PRIORITY_REBALANCE_PERIOD_TICKS; ++tick) {
+        s.timer_tick();
+    }
+    assert(a.priority == 19);
+
+    for (uint64_t tick = 0; tick < PRIORITY_REBALANCE_PERIOD_TICKS * 3U; ++tick) {
+        s.timer_tick();
+    }
+    assert(a.priority == 16);
 }
 
 static void test_bitmap_consistency() {
@@ -261,6 +303,8 @@ int main() {
     test_quantum_values();
     test_timer_tick_quantum_expiry();
     test_system_task_no_preemption();
+    test_explicit_quantum_override();
+    test_periodic_priority_rebalance();
     test_bitmap_consistency();
     test_find_by_pid();
     return 0;

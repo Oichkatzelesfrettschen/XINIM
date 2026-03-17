@@ -1,5 +1,5 @@
 #!/bin/sh
-# Generic XINIM 32-bit boot smoke test.
+# Generic XINIM 32-bit supervised-init boot smoke test.
 
 set -eu
 
@@ -45,7 +45,8 @@ esac
 QEMU_CPU="${XINIM_QEMU_CPU:-${DEFAULT_QEMU_CPU}}"
 QEMU_MEMORY="${XINIM_QEMU_MEMORY:-${DEFAULT_QEMU_MEMORY}}"
 QEMU_VGA="${XINIM_QEMU_VGA:-std}"
-TIMEOUT_SEC="${XINIM_QEMU_TIMEOUT_SEC:-8}"
+QEMU_DISK_IMAGE="${XINIM_QEMU_DISK_IMAGE:-}"
+TIMEOUT_SEC="${XINIM_QEMU_TIMEOUT_SEC:-12}"
 LOG_FILE="${XINIM_QEMU_SMOKE_LOG:-${XINIM_LOG_ROOT}/${LANE_NAME}-smoke.log}"
 
 if [ ! -f "$BOOT_IMAGE" ]; then
@@ -55,7 +56,7 @@ fi
 
 rm -f "$LOG_FILE"
 
-"${QEMU_BIN}" \
+set -- \
     -machine "${QEMU_MACHINE}" \
     -cpu "${QEMU_CPU}" \
     -m "${QEMU_MEMORY}" \
@@ -66,7 +67,13 @@ rm -f "$LOG_FILE"
     -serial "file:${LOG_FILE}" \
     -monitor none \
     -no-reboot \
-    -no-shutdown &
+    -no-shutdown
+
+if [ -n "${QEMU_DISK_IMAGE}" ] && [ -f "${QEMU_DISK_IMAGE}" ]; then
+    set -- "$@" -drive "file=${QEMU_DISK_IMAGE},format=raw,index=0,media=disk"
+fi
+
+"${QEMU_BIN}" "$@" &
 QEMU_PID=$!
 
 sleep "$TIMEOUT_SEC"
@@ -88,9 +95,56 @@ grep -q "boot protocol: multiboot2" "$LOG_FILE" || {
     exit 1
 }
 
-grep -q "Launching Ring 3 xash" "$LOG_FILE" || {
-    echo "FAIL: Missing Ring 3 launch marker"
+grep -q "Launching supervised Ring 3 services under timer scheduler" "$LOG_FILE" || {
+    echo "FAIL: Missing timer-scheduled supervised launch marker"
     exit 1
 }
+
+grep -q "Prepared supervised support service hold-service" "$LOG_FILE" || {
+    echo "FAIL: Missing supervised support-service preparation marker"
+    exit 1
+}
+
+if [ -n "${QEMU_DISK_IMAGE}" ] && [ -f "${QEMU_DISK_IMAGE}" ]; then
+    grep -q "ATA primary master: present" "$LOG_FILE" || {
+        echo "FAIL: Missing ATA primary master detection"
+        exit 1
+    }
+
+    grep -q "ATA primary master sector0: XINIMHD0 mbr=yes" "$LOG_FILE" || {
+        echo "FAIL: Missing ATA sector0 evidence marker"
+        exit 1
+    }
+
+    grep -q "ATA primary master partition1: type=0x00000083 start=2048 sectors=30720" "$LOG_FILE" || {
+        echo "FAIL: Missing ATA partition probe evidence"
+        exit 1
+    }
+
+    grep -q "ATA primary master ext2: block_size=1024 blocks=15360 inodes=" "$LOG_FILE" || {
+        echo "FAIL: Missing ext2 superblock probe evidence"
+        exit 1
+    }
+
+    grep -q "ext2 reader: ready" "$LOG_FILE" || {
+        echo "FAIL: Missing ext2 reader ready marker"
+        exit 1
+    }
+
+    grep -q "ext2 /etc/persist.txt" "$LOG_FILE" || {
+        echo "FAIL: Missing ext2 persist file path probe"
+        exit 1
+    }
+
+    grep -q "persistent-root-ok." "$LOG_FILE" || {
+        echo "FAIL: Missing ext2 persist file probe"
+        exit 1
+    }
+
+    grep -q "ext2 mount: ready path=/persist" "$LOG_FILE" || {
+        echo "FAIL: Missing ext2 mount registration evidence"
+        exit 1
+    }
+fi
 
 echo "PASS: ${LANE_NAME} boot smoke test"

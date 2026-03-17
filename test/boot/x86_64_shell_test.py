@@ -36,6 +36,7 @@ BOOT_TIMEOUT = 20
 CMD_TIMEOUT = 5
 DBG_PROMPT = "xinim-kernel-dbg> "
 XASH_PROMPT = "xash$ "
+MOTD_SENTINEL = "XINIM i486"
 
 
 def start_qemu():
@@ -149,7 +150,7 @@ def main():
             require_contains("pwd", send_command(shell, "pwd"), "/"),
             require_contains("check xash", send_command(shell, "check /bin/xash"), "check /bin/xash: ok"),
             require_contains("ls /bin", send_command(shell, "ls /bin"), "xash"),
-            require_contains("cat /etc/motd", send_command(shell, "cat /etc/motd"), "Welcome to xash"),
+            require_contains("cat /etc/motd", send_command(shell, "cat /etc/motd"), MOTD_SENTINEL),
             require_contains("env PATH", send_command(shell, "env"), "PATH=/bin"),
             require_contains("echo vars", send_command(shell, "echo $? $$ $PATH"), "/bin"),
         ]
@@ -159,7 +160,7 @@ def main():
             [
                 require_contains("cp status", send_command(shell, "echo $?"), "0"),
                 require_contains("ls /tmp", send_command(shell, "ls /tmp"), "motd_copy"),
-                require_contains("cat copied motd", send_command(shell, "cat /tmp/motd_copy"), "Welcome to xash"),
+                require_contains("cat copied motd", send_command(shell, "cat /tmp/motd_copy"), MOTD_SENTINEL),
                 require_contains("command -v xash", send_command(shell, "command -v xash"), "/bin/xash"),
                 require_contains("rescue banner", send_command(shell, "rescue"), "xinim-kernel-dbg> "),
                 require_contains("rescue continue", send_command(shell, "continue"), "xash$ "),
