@@ -44,7 +44,8 @@ def find_sources(src_dir: Path) -> list[str]:
     """Find the core TCC sources for i386 target."""
     core = [
         "libtcc.c", "tccpp.c", "tccgen.c", "tccelf.c", "tccasm.c",
-        "tccrun.c", "tcc.c", "i386-gen.c", "i386-link.c", "i386-asm.c",
+        "tcc.c", "i386-gen.c", "i386-link.c", "i386-asm.c",
+        "xinim_stubs.c",
     ]
     found = []
     for name in core:
@@ -89,6 +90,7 @@ def main() -> int:
         "-DONE_SOURCE=0",
         "-DTCC_TARGET_I386",
         "-DCONFIG_TCC_STATIC",
+        "-DCONFIG_TCC_BACKTRACE=0",
         f'-DCONFIG_TCCDIR="/usr/lib/tcc"',
         "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector",
         "-Wno-error",
@@ -104,10 +106,15 @@ def main() -> int:
 
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    linker_script = src_dir.parent.parent / "linker_xash_i486_user.ld"
     link_cmd = [
         "gcc", "-m32", "-nostdlib", "-static", "-no-pie",
-        "-o", str(output),
-    ] + object_files + [
+        "-Wl,--build-id=none",
+    ]
+    if linker_script.exists():
+        link_cmd += [f"-T{linker_script}"]
+    link_cmd += ["-o", str(output)]
+    link_cmd += object_files + [
         str(Path(args.start_o).resolve()),
         str(Path(args.dietlibc_a).resolve()),
         "-lgcc",

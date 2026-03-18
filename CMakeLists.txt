@@ -1520,6 +1520,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_cmp_binary}:/bin/cmp"
             --guest-bin "${_file_binary}:/bin/file"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
+            --guest-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
             ${_kernel_target}
