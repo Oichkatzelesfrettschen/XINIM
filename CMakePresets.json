@@ -187,6 +187,17 @@
       }
     },
     {
+      "name": "i486-standalone",
+      "description": "i486 debug build without Conan (pure CMake)",
+      "inherits": "base",
+      "binaryDir": "${sourceDir}/build/i486/Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
+        "XINIM_CPU_LANE": "i486"
+      }
+    },
+    {
       "name": "debug",
       "inherits": "x86_64-debug"
     },
@@ -196,6 +207,10 @@
     }
   ],
   "buildPresets": [
+    {
+      "name": "i486-standalone",
+      "configurePreset": "i486-standalone"
+    },
     {
       "name": "x86_64-debug",
       "configurePreset": "x86_64-debug"
