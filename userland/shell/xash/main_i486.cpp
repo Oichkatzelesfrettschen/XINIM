@@ -82,6 +82,9 @@ inline uint32_t wait4(int pid, int* status, int options, void* rusage) noexcept 
     return static_cast<uint32_t>(xinim::userland::x86_64::wait4(pid, status, options, rusage));
 }
 }
+#elif defined(__i686__)
+// i686 fast path: SYSENTER stubs in the same xinim::userland::i386 namespace.
+#include "xinim/userland/syscall_i686.hpp"
 #else
 #include "xinim/userland/syscall_i386.hpp"
 #endif

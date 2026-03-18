@@ -6,11 +6,21 @@
 //      available as syscall arguments.  This stub saves them below the
 //      RegisterFrame and recovers them for SYSEXIT after the handler returns.
 //
-// SYSENTER calling convention (set by user-space stub):
+// User-space SYSENTER calling convention (syscall_i686.hpp):
 //   EAX = syscall number
-//   EBX = arg1, ESI = arg2, EDI = arg3, EBP = arg4
-//   ECX = user return EIP   (saved for SYSEXIT, NOT arg2)
-//   EDX = user return ESP   (saved for SYSEXIT, NOT arg3)
+//   EBX = arg0            (same as INT 0x80)
+//   ESI = arg1            (INT 0x80 uses ECX; remapped here)
+//   EDI = arg2            (INT 0x80 uses EDX; remapped here)
+//   EBP = arg3            (INT 0x80 uses ESI;  remapped here)
+//   ECX = user return EIP (saved for SYSEXIT, NOT available as arg)
+//   EDX = user return ESP (saved for SYSEXIT, NOT available as arg)
+//
+// Kernel RegisterFrame layout (struct RegisterFrame in ring3_internal.hpp):
+//   eax  ebx  ecx  edx  esi  edi  ebp  ds  es  fs  gs
+//
+// This stub remaps so the kernel sees the same layout as INT 0x80:
+//   frame.ecx <- ESI (arg1)   frame.edx <- EDI (arg2)
+//   frame.esi <- EBP (arg3)   frame.edi <- 0   frame.ebp <- 0
 //
 // On SYSENTER entry the CPU has:
 //   CS  = SYSENTER_CS (0x08, kernel code, CPL=0)
@@ -30,20 +40,20 @@ i686_sysenter_entry:
 
     // Build RegisterFrame (struct RegisterFrame, 11 uint32_t fields).
     // Push in reverse field order so the struct base (eax) lands at esp.
-    // WHY: ecx/edx slots are zeroed because those registers are unavailable
-    //      as syscall args under the SYSENTER convention; the handler reads
-    //      args from eax, ebx, esi, edi, ebp only.
+    // Remap ESI->ecx_slot, EDI->edx_slot, EBP->esi_slot so the kernel
+    // dispatcher reads the same arg positions as the INT 0x80 path (args 0-3).
+    // frame.edi and frame.ebp are zeroed; SYSENTER supports 4 args max.
     pushl   %gs
     pushl   %fs
     pushl   %es
     pushl   %ds
-    pushl   %ebp
-    pushl   %edi
-    pushl   %esi
-    pushl   $0          // edx frame slot: not a syscall arg
-    pushl   $0          // ecx frame slot: not a syscall arg
-    pushl   %ebx
-    pushl   %eax
+    pushl   $0          // frame.ebp slot: 0 (EBP was consumed for arg3)
+    pushl   $0          // frame.edi slot: 0 (no arg4 in SYSENTER path)
+    pushl   %ebp        // frame.esi slot: EBP = arg3
+    pushl   %edi        // frame.edx slot: EDI = arg2
+    pushl   %esi        // frame.ecx slot: ESI = arg1
+    pushl   %ebx        // frame.ebx slot: EBX = arg0
+    pushl   %eax        // frame.eax slot: EAX = syscall number
 
     // Load kernel data selectors (0x10 = kKernelDataSelector).
     movw    $0x10, %ax
