@@ -8,6 +8,7 @@ void initialize() noexcept;
 void write_char(char c) noexcept;
 void write_string(const char* text) noexcept;
 void tty_write_char(char c) noexcept;
+void vga_write_char(char c) noexcept;
 void tty_write_string(const char* text) noexcept;
 void debug_write_char(char c) noexcept;
 void debug_write_string(const char* text) noexcept;

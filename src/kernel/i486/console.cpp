@@ -697,6 +697,10 @@ bool tty_try_read_char(char* out) noexcept {
     return tty_rx_pop(out);
 }
 
+void vga_write_char(char c) noexcept {
+    vga_write(c);
+}
+
 void write_bool(bool value) noexcept {
     write_string(value ? "yes" : "no");
 }

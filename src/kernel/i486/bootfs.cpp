@@ -1275,6 +1275,14 @@ int read(int fd, void* buffer, uint32_t count) noexcept {
         if (value == '\r') {
             value = '\n';
         }
+        // Kernel-level echo when ECHO is set in termios c_lflag.
+        // Only echo to VGA -- COM2 echo is handled by the shell's line editor.
+        // This prevents double-echo on COM2 while ensuring keyboard users see
+        // their input on the VGA screen.
+        constexpr uint32_t kLflagEcho = 0010U; // ECHO bit in c_lflag (octal 010)
+        if ((g_terminal_state.c_lflag & kLflagEcho) != 0U) {
+            xinim::i486::console::vga_write_char(value);
+        }
         static_cast<uint8_t*>(buffer)[0] = static_cast<uint8_t>(value);
         return 1;
     }
