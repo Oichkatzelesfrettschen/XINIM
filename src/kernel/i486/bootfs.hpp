@@ -69,6 +69,9 @@ void close_cloexec_fds() noexcept;
 
 [[nodiscard]] int foreground_pgrp() noexcept;
 
+// True when a pipe writer count reached 0 -- readers need to be woken
+[[nodiscard]] bool consume_pipe_eof_event() noexcept;
+
 // Refcount management for per-process fd table support
 void increment_slot_refcount(int slot) noexcept;
 void decrement_slot_refcount(int slot) noexcept;

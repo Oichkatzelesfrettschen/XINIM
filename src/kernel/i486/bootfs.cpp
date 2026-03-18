@@ -128,6 +128,7 @@ Pipe g_pipes[kMaxPipes]{};
 MountPoint g_mount_points[kMaxMounts]{};
 uint32_t g_file_count = 0U;
 uint32_t g_next_pipe_id = 0U;
+bool g_pipe_eof_event = false;
 TermiosState g_terminal_state{};
 WindowSize g_window_size{25U, 80U, 0U, 0U};
 int g_foreground_pgrp = 1;
@@ -232,6 +233,9 @@ void close_open_file_slot(size_t slot) noexcept {
             if (g_open_files[slot].is_pipe_writer) {
                 if (pipe->writers > 0U) {
                     --pipe->writers;
+                    if (pipe->writers == 0U) {
+                        g_pipe_eof_event = true;
+                    }
                 }
             } else {
                 if (pipe->readers > 0U) {
@@ -1520,6 +1524,14 @@ bool is_console_fd(int fd) noexcept {
 
 int foreground_pgrp() noexcept {
     return g_foreground_pgrp;
+}
+
+bool consume_pipe_eof_event() noexcept {
+    if (g_pipe_eof_event) {
+        g_pipe_eof_event = false;
+        return true;
+    }
+    return false;
 }
 
 void increment_slot_refcount(int slot) noexcept {

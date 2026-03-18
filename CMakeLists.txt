@@ -1022,6 +1022,8 @@ function(xinim_add_x86_32_lane lane)
             OUTPUT "${_util_binary}"
             COMMAND ${CMAKE_C_COMPILER}
                 -m32
+                -march=i486
+                -mtune=i486
                 -I"${_dietlibc_tree_dir}/include"
                 -I"${CMAKE_SOURCE_DIR}/include"
                 -O2

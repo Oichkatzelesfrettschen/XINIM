@@ -702,18 +702,15 @@ void clear_saved_kernel_stack(Process* process) noexcept {
 
 void wake_ready_waiters() noexcept {
     const bool have_console_input = console::tty_has_input();
+    const bool pipe_eof = bootfs::consume_pipe_eof_event();
     for (auto& process : g_processes) {
         if (!process.in_use || process.state != ProcessState::Waiting) {
             continue;
         }
-        // Wake blocked readers when console input is available OR
-        // periodically (every 50 ticks = 500ms) so pipe readers can
-        // detect EOF when all writers close.
-        if (process.waiting_for_console_input) {
-            if (have_console_input || (g_scheduler_ticks % 50U) == 0U) {
-                process.waiting_for_console_input = false;
-                process.state = ProcessState::Runnable;
-            }
+        if (process.waiting_for_console_input &&
+            (have_console_input || pipe_eof)) {
+            process.waiting_for_console_input = false;
+            process.state = ProcessState::Runnable;
         }
         if (process.wake_tick != 0U && process.wake_tick <= g_scheduler_ticks) {
             process.wake_tick = 0U;
