@@ -904,6 +904,7 @@ function(xinim_add_x86_32_lane lane)
             ${CMAKE_SOURCE_DIR}/src/kernel/i686/sysenter.cpp
             ${CMAKE_SOURCE_DIR}/src/kernel/i686/sysenter_entry.S
             ${CMAKE_SOURCE_DIR}/src/kernel/i686/sse.cpp
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/irq_stubs.S
         )
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_ARCH_I686=1)
     endif()

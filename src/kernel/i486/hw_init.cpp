@@ -6,6 +6,7 @@
 #include "../i686/sysenter.hpp"
 #include "../i686/apic.hpp"
 #include "../i686/ioapic.hpp"
+#include "../i686/irq_stubs.hpp"
 #endif
 
 namespace xinim::i486::ring3 {
@@ -146,6 +147,22 @@ void initialize_i686_extensions() noexcept {
     if (feat.has_sysenter) {
         xinim::i686::sysenter::initialize_sysenter();
     }
+
+    // Install IDT stubs for APIC-delivered vectors that have no full handler.
+    //
+    // 0xFF -- Spurious APIC interrupt: iret with no EOI (SDM Vol. 3A 10.9).
+    //         Required because the APIC spurious vector is always enabled.
+    //
+    // 0x21 -- IOAPIC IRQ1 (keyboard): EOI stub (keyboard uses polling).
+    // 0x2E -- IOAPIC IRQ14 (IDE):     EOI stub (IDE uses polling).
+    //
+    // Without these, the CPU would see a null IDT gate and triple-fault on
+    // the first spurious APIC interrupt or keypress.
+    set_kernel_fault_gate(0xFFU, xinim::i686::i686_apic_spurious_entry);
+    set_kernel_fault_gate(xinim::i686::ioapic::kVectorKeyboard,
+                          xinim::i686::i686_apic_irq_eoi_entry);
+    set_kernel_fault_gate(xinim::i686::ioapic::kVectorIdePri,
+                          xinim::i686::i686_apic_irq_eoi_entry);
 
     // Fully mask both 8259A PIC chips now that the IOAPIC handles routing.
     // WHY: leaving PIC unmasked after enabling APIC causes spurious IRQ 7/15
