@@ -541,8 +541,12 @@ void set_kernel_fault_gate(uint8_t vector, void (*handler)() noexcept) noexcept 
 }
 
 void set_user_segment_base(uint32_t base) noexcept {
-    // Page granularity: limit is in 4 KB units
-    const uint32_t limit_pages = (elf32::kUserAddressSpaceSize / kPageSize) - 1U;
+    // Segment must cover virtual addresses kUserVirtualBase..kUserVirtualBase+kUserAddressSpaceSize-1.
+    // Segment base = address_space - kUserVirtualBase, so the limit must reach
+    // kUserVirtualBase + kUserAddressSpaceSize - 1 from the base.
+    // Page granularity: limit is in 4 KB units.
+    const uint32_t total_span = elf32::kUserVirtualBase + elf32::kUserAddressSpaceSize;
+    const uint32_t limit_pages = (total_span / kPageSize) - 1U;
     // 0xC0 = G=1 (page granularity) | D=1 (32-bit segment)
     set_gdt_entry(3, base, limit_pages, 0xFAU, 0xC0U);
     set_gdt_entry(4, base, limit_pages, 0xF2U, 0xC0U);
