@@ -345,7 +345,7 @@ const xinim::boot::BootInfo* g_boot_info = nullptr;
 Process* g_current_process = nullptr;
 uint32_t g_next_pid = 1U;
 uint32_t g_next_service_id = 1U;
-uint32_t g_shell_syscall_trace_count = 0U;
+// Syscall trace disabled -- was polluting VGA via console::write_string
 uint64_t g_scheduler_ticks = 0U;
 
 inline void outb(uint16_t port, uint8_t value) noexcept {
@@ -794,6 +794,9 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     }
 
     ++g_scheduler_ticks;
+
+    // Poll keyboard and serial into the TTY rx buffer so blocked readers can wake
+    console::tty_poll_input();
 
     // Check for Ctrl+C / Ctrl+Z from keyboard
     const uint32_t tty_signal = console::consume_pending_tty_signal();
@@ -1704,8 +1707,6 @@ bool block_current_process_until_rescheduled(Process* process,
     if (!prepare_supervised_service_process(service, process)) {
         resume_rescue_shell("Ring 3 supervised service reload failed");
     }
-    g_shell_syscall_trace_count = 0U;
-
     console::write_string(banner);
     console::newline();
 
@@ -3772,16 +3773,6 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
 
 uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     process->context = capture_user_context(frame);
-    if (g_shell_syscall_trace_count < 256U) {
-        console::write_string("[");
-        console::write_dec32(process->pid);
-        console::write_string("] eax=");
-        console::write_dec32(frame->eax);
-        console::write_string(" ebx=");
-        console::write_hex32(frame->ebx);
-        console::newline();
-        ++g_shell_syscall_trace_count;
-    }
 
     switch (frame->eax) {
     case SYS_read:
