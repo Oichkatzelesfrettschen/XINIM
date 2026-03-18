@@ -593,9 +593,70 @@ void write_hex32_digits(uint32_t value) noexcept {
 
 } // namespace
 
+void force_vga_text_mode() noexcept {
+    // Reset Attribute Controller flip-flop by reading Input Status Register 1
+    inb(0x3DAU);
+    // Disable display to reprogram
+    outb(0x3C0U, 0x00U);
+
+    // Miscellaneous Output Register: enable 80-col text, color mode
+    outb(0x3C2U, 0x67U);
+
+    // Sequencer: reset, then configure for text mode
+    outb(0x3C4U, 0x00U); outb(0x3C5U, 0x03U); // Reset: async+sync
+    outb(0x3C4U, 0x01U); outb(0x3C5U, 0x00U); // Clocking: 8-dot chars
+    outb(0x3C4U, 0x02U); outb(0x3C5U, 0x03U); // Map mask: planes 0+1
+    outb(0x3C4U, 0x03U); outb(0x3C5U, 0x00U); // Char map select: 0
+    outb(0x3C4U, 0x04U); outb(0x3C5U, 0x02U); // Memory mode: O/E, !chain4
+
+    // Unlock CRTC registers
+    outb(0x3D4U, 0x11U); outb(0x3D5U, inb(0x3D5U) & 0x7FU);
+
+    // CRTC registers for 80x25 text mode (720x400 @ 70 Hz timings)
+    static constexpr uint8_t crtc_regs[] = {
+        0x5FU, 0x4FU, 0x50U, 0x82U, 0x55U, 0x81U, 0xBFU, 0x1FU,
+        0x00U, 0x4FU, 0x0DU, 0x0EU, 0x00U, 0x00U, 0x00U, 0x00U,
+        0x9CU, 0x8EU, 0x8FU, 0x28U, 0x1FU, 0x96U, 0xB9U, 0xA3U,
+        0xFFU,
+    };
+    for (uint8_t i = 0U; i < sizeof(crtc_regs); ++i) {
+        outb(0x3D4U, i);
+        outb(0x3D5U, crtc_regs[i]);
+    }
+
+    // Graphics Controller: text mode defaults
+    outb(0x3CEU, 0x00U); outb(0x3CFU, 0x00U); // Set/Reset
+    outb(0x3CEU, 0x01U); outb(0x3CFU, 0x00U); // Enable Set/Reset
+    outb(0x3CEU, 0x02U); outb(0x3CFU, 0x00U); // Color Compare
+    outb(0x3CEU, 0x03U); outb(0x3CFU, 0x00U); // Data Rotate
+    outb(0x3CEU, 0x04U); outb(0x3CFU, 0x00U); // Read Map Select
+    outb(0x3CEU, 0x05U); outb(0x3CFU, 0x10U); // Mode: O/E text
+    outb(0x3CEU, 0x06U); outb(0x3CFU, 0x0EU); // Misc: text, B8000
+    outb(0x3CEU, 0x07U); outb(0x3CFU, 0x00U); // Color Don't Care
+    outb(0x3CEU, 0x08U); outb(0x3CFU, 0xFFU); // Bit Mask
+
+    // Attribute Controller: standard text mode palette
+    inb(0x3DAU); // Reset flip-flop
+    static constexpr uint8_t attr_regs[] = {
+        0x00U, 0x01U, 0x02U, 0x03U, 0x04U, 0x05U, 0x14U, 0x07U,
+        0x38U, 0x39U, 0x3AU, 0x3BU, 0x3CU, 0x3DU, 0x3EU, 0x3FU,
+        0x0CU, 0x00U, 0x0FU, 0x08U, 0x00U,
+    };
+    for (uint8_t i = 0U; i < sizeof(attr_regs); ++i) {
+        inb(0x3DAU);
+        outb(0x3C0U, i);
+        outb(0x3C0U, attr_regs[i]);
+    }
+
+    // Re-enable display
+    inb(0x3DAU);
+    outb(0x3C0U, 0x20U);
+}
+
 void initialize() noexcept {
     serial_initialize(kCom1);
     serial_initialize(kCom2);
+    force_vga_text_mode();
     for (uint16_t row = 0U; row < kVgaHeight; ++row) {
         clear_row(row);
     }

@@ -97,7 +97,8 @@ def populate_root_tree(
     # GRUB config -- kernel + essential modules loaded via multiboot2
     with open(os.path.join(grub_dir, "grub.cfg"), "w", encoding="utf-8") as f:
         f.write("set timeout=0\n")
-        f.write("set default=0\n\n")
+        f.write("set default=0\n")
+        f.write("set gfxpayload=text\n\n")
         f.write('menuentry "XINIM i486" {\n')
         f.write("    multiboot2 /boot/xinim\n")
         f.write("    module2 /boot/xash /bin/xash\n")

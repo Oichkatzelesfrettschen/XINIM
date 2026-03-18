@@ -92,10 +92,10 @@ def main() -> int:
         f"-I{src_dir}",
         f"-I{dietlibc_include}",
         "-DHAVE_CONFIG_H",
-        "-DMAKE_NATIVE",
         f"-DBMAKE_PATH_MAX=256",
+        f"-include{src_dir}/xinim_compat.h",
         "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector",
-        "-Wno-error",
+        "-w",
     ]
 
     object_files = []
@@ -108,10 +108,15 @@ def main() -> int:
 
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
+    linker_script = src_dir.parent.parent / "linker_xash_i486_user.ld"
     link_cmd = [
         "gcc", "-m32", "-nostdlib", "-static", "-no-pie",
-        "-o", str(output),
-    ] + object_files + [
+        "-Wl,--build-id=none",
+    ]
+    if linker_script.exists():
+        link_cmd += [f"-T{linker_script}"]
+    link_cmd += ["-o", str(output)]
+    link_cmd += object_files + [
         str(Path(args.start_o).resolve()),
         str(Path(args.dietlibc_a).resolve()),
         "-lgcc",
