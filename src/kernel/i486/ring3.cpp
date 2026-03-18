@@ -3687,7 +3687,7 @@ struct SigAction32User {
 }
 
 // sigreturn: restore context from signal frame on user stack
-[[nodiscard]] uint32_t sys_rt_sigreturn_impl(Process* process, RegisterFrame* frame) noexcept {
+[[noreturn]] void sys_rt_sigreturn_impl(Process* process, RegisterFrame* frame) noexcept {
     (void)frame;
     // The signal frame is at esp (after the trampoline's int $0x80 popped the
     // return address). Walk up to find it.
@@ -3720,10 +3720,11 @@ struct SigAction32User {
     uint8_t* raw = nullptr;
     if (!translate_user_region(process, frame_addr,
                                static_cast<uint32_t>(sizeof(SignalFrame32)), &raw)) {
-        // Can't restore -- kill
+        // Can't restore -- kill process and dispatch next
         process->exit_status = 128U + kSigSegv;
         process->state = ProcessState::Exited;
-        return 0U;
+        dispatch_next_runnable("sigreturn failed to read signal frame");
+        __builtin_unreachable();
     }
 
     const auto* sig_frame = reinterpret_cast<const SignalFrame32*>(raw);
@@ -3733,8 +3734,12 @@ struct SigAction32User {
     process->signals.blocked = sig_frame->saved_mask;
     process->signals.in_handler = false;
 
-    // Return the original eax from the saved context
-    return process->context.eax;
+    // Must resume via the restored context, NOT the normal syscall return.
+    // The normal iret would go back to the trampoline (where int $0x80 was
+    // called), but we need to go back to the original pre-signal location.
+    activate_process(process);
+    i486_resume_user_context(&process->context);
+    __builtin_unreachable();
 }
 
 // signal() syscall (simplified SIG_DFL/SIG_IGN/handler)
@@ -3928,7 +3933,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     case SYS_poll:
         return sys_poll(process, frame);
     case SYS_rt_sigreturn:
-        return sys_rt_sigreturn_impl(process, frame);
+        sys_rt_sigreturn_impl(process, frame);
     // Phase 4 socket syscalls
     case SYS_socket:
         return static_cast<uint32_t>(ksocket::sys_socket(
