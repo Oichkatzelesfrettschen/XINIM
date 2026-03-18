@@ -1808,7 +1808,7 @@ bool register_bootfs_mount() noexcept {
 }
 
 bool query_runtime_path(const char* path, NodeInfo& info) noexcept {
-    info = {false, false, false, 0U};
+    info = {false, false, false, 0U, 0U};
     char ext2_path[kMaxPersistPath]{};
     if (!map_runtime_path(path, ext2_path, sizeof(ext2_path))) {
         return false;
@@ -1823,12 +1823,13 @@ bool query_runtime_path(const char* path, NodeInfo& info) noexcept {
     info.is_directory = (inode.mode & kFileTypeMask) == kDirectoryType;
     info.executable = (inode.mode & 0111U) != 0U;
     info.size = inode.size;
+    info.mode = inode.mode;
     return true;
 }
 
 bool query_persist_path(const char* path, NodeInfo& info) noexcept {
     if (path == nullptr || !starts_with(path, "/persist")) {
-        info = {false, false, false, 0U};
+        info = {false, false, false, 0U, 0U};
         return false;
     }
     return query_runtime_path(path, info);
@@ -2124,6 +2125,21 @@ int read_runtime_file(const char* path,
         return -1;
     }
     return static_cast<int>(bytes_read);
+}
+
+bool chmod_runtime_file(const char* path, uint16_t mode) noexcept {
+    char ext2_path[kMaxPersistPath]{};
+    if (!map_runtime_path(path, ext2_path, sizeof(ext2_path))) {
+        return false;
+    }
+    Ext2Inode inode{};
+    uint32_t inode_number = 0U;
+    if (!resolve_path_with_inode_number(ext2_path, inode, inode_number)) {
+        return false;
+    }
+    // Preserve file type bits, update permission bits
+    inode.mode = static_cast<uint16_t>((inode.mode & kFileTypeMask) | (mode & 0777U));
+    return write_inode(inode_number, inode);
 }
 
 int write_runtime_file(const char* path,

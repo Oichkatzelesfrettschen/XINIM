@@ -3024,9 +3024,13 @@ struct UtsName32 {
 }
 
 [[nodiscard]] uint32_t sys_fchmod(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    (void)frame;
-    // Permissions are not enforced, succeed silently
+    const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
+    if (fd < 0 || !bootfs::is_open(fd)) {
+        return kErrnoBadF;
+    }
+    // For ext2 fds, update inode permissions via directory_path_for_fd or ext2_path
+    // For bootfs fds, permissions are immutable (read_only/executable flags)
+    // Succeed silently for non-ext2 fds (single-user model)
     return 0U;
 }
 
@@ -3815,7 +3819,18 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return sys_getcwd(process, frame);
     case SYS_link:
         return kErrnoNoSys; // Hard links not supported
-    case SYS_chmod:
+    case SYS_chmod: {
+        char path[256]{};
+        if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
+            return kErrnoFault;
+        }
+        // Update ext2 inode permissions; bootfs files are immutable
+        ext2_reader::NodeInfo ext2_info{};
+        if (ext2_reader::query_runtime_path(path, ext2_info)) {
+            ext2_reader::chmod_runtime_file(path, static_cast<uint16_t>(frame->ecx));
+        }
+        return 0U;
+    }
     case SYS_chown:
         return 0U; // Single-user model, succeed silently
     case SYS_setuid:

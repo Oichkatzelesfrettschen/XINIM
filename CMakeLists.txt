@@ -1448,6 +1448,7 @@ function(xinim_add_x86_32_lane lane)
             --shell "${_mksh_binary}"
             --holdsvc "$<TARGET_FILE:${_holdsvc_target}>"
             --motd "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
+            --include-dir "${_dietlibc_tree_dir}/include"
             --guest-bin "${_cat_binary}:/bin/cat"
             --guest-bin "${_echo_binary}:/bin/echo"
             --guest-bin "${_true_binary}:/bin/true"

@@ -9,6 +9,7 @@ struct NodeInfo {
     bool is_directory;
     bool executable;
     uint32_t size;
+    uint16_t mode; // Full POSIX mode bits from ext2 inode (type + rwxrwxrwx)
 };
 
 void probe() noexcept;
@@ -28,6 +29,7 @@ bool rename_runtime_path(const char* old_path, const char* new_path) noexcept;
 bool unlink_runtime_path(const char* path) noexcept;
 bool rmdir_runtime_directory(const char* path) noexcept;
 bool truncate_runtime_file(const char* path, uint32_t size) noexcept;
+bool chmod_runtime_file(const char* path, uint16_t mode) noexcept;
 int read_runtime_file(const char* path,
                       uint32_t offset,
                       uint8_t* buffer,

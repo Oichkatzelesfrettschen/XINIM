@@ -1827,11 +1827,8 @@ void fill_ext2_stat_record(const ext2_reader::NodeInfo& info, UserspaceStat* buf
     }
 
     *buffer = {};
-    buffer->st_mode = static_cast<uint16_t>(info.is_directory ? 0040000U : 0100000U);
-    buffer->st_mode = static_cast<uint16_t>(buffer->st_mode | 0444U);
-    if (info.executable) {
-        buffer->st_mode = static_cast<uint16_t>(buffer->st_mode | 0111U);
-    }
+    // Use real mode bits from ext2 inode
+    buffer->st_mode = info.mode;
     buffer->st_nlink = 1;
     buffer->st_size = info.size;
     buffer->st_blksize = 512U;

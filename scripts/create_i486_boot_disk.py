@@ -66,6 +66,7 @@ def populate_root_tree(
     shell_path: str,
     holdsvc_path: str | None,
     motd_path: str | None,
+    include_dir: str | None,
     guest_bins: Iterable[str],
 ) -> None:
     boot_dir = os.path.join(root_dir, "boot")
@@ -123,6 +124,11 @@ def populate_root_tree(
     else:
         with open(os.path.join(etc_dir, "motd"), "w", encoding="utf-8") as f:
             f.write("XINIM i486\n")
+
+    # Install C headers for TCC
+    if include_dir and os.path.isdir(include_dir):
+        usr_include = os.path.join(root_dir, "usr", "include")
+        shutil.copytree(include_dir, usr_include, dirs_exist_ok=True)
 
     install_guest_binaries(root_dir, guest_bins)
 
@@ -267,6 +273,8 @@ def main() -> int:
     parser.add_argument("--shell", required=True, help="Path to shell binary (mksh)")
     parser.add_argument("--holdsvc", default="", help="Path to holdsvc binary")
     parser.add_argument("--motd", default="", help="Path to /etc/motd")
+    parser.add_argument("--include-dir", default="",
+                        help="Path to C header directory to install at /usr/include")
     parser.add_argument("--grub-platform-dir", default="",
                         help="Path to GRUB i386-pc platform directory")
     parser.add_argument("--guest-bin", action="append", default=[],
@@ -309,6 +317,7 @@ def main() -> int:
             root_dir, args.kernel, args.shell,
             args.holdsvc if args.holdsvc else None,
             args.motd if args.motd else None,
+            args.include_dir if args.include_dir else None,
             args.guest_bin,
         )
         format_ext2_partition(raw_path, partition_sector_count, root_dir)
