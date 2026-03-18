@@ -3546,12 +3546,21 @@ bool deliver_one_signal(Process* process) noexcept {
 
     auto* sig_frame = reinterpret_cast<SignalFrame32*>(frame_dest);
 
-    // Write sigreturn trampoline code:
-    //   movl $SYS_rt_sigreturn, %eax  (0xB8, <number as 32-bit LE>)
-    //   int $0x80                     (0xCD, 0x80)
-    // Pack into two uint32_t words:
-    sig_frame->sigreturn_trampoline[0] = 0xB8U | (static_cast<uint32_t>(SYS_rt_sigreturn) << 8U);
-    sig_frame->sigreturn_trampoline[1] = 0x80CDU;
+    // Write sigreturn trampoline code (7 bytes, padded to 8):
+    //   B8 xx xx xx xx   movl $SYS_rt_sigreturn, %eax  (5 bytes)
+    //   CD 80            int $0x80                      (2 bytes)
+    //   90               nop                            (1 byte padding)
+    {
+        auto* code = reinterpret_cast<uint8_t*>(sig_frame->sigreturn_trampoline);
+        code[0] = 0xB8U; // movl $imm32, %eax
+        code[1] = static_cast<uint8_t>(SYS_rt_sigreturn & 0xFFU);
+        code[2] = static_cast<uint8_t>((SYS_rt_sigreturn >> 8U) & 0xFFU);
+        code[3] = 0U;
+        code[4] = 0U;
+        code[5] = 0xCDU; // int $0x80
+        code[6] = 0x80U;
+        code[7] = 0x90U; // nop
+    }
 
     sig_frame->signum = signum;
     sig_frame->saved_context = process->context;
