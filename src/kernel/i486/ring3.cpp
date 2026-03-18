@@ -3752,20 +3752,7 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     if (frame == nullptr || process == nullptr) {
         return static_cast<uint32_t>(-1);
     }
-    const uint32_t result = dispatch_syscall(process, frame);
-    // Deliver pending signals before returning to userspace.
-    // If a signal handler was set up, we must use resume_user_context
-    // because deliver_one_signal modifies process->context (EIP, ESP)
-    // and the normal syscall return path uses the interrupt frame.
-    if (process->state == ProcessState::Runnable) {
-        process->context.eax = result;
-        if (deliver_one_signal(process)) {
-            // Signal handler was pushed -- resume via context, not iret
-            i486_resume_user_context(&process->context);
-            __builtin_unreachable();
-        }
-    }
-    return result;
+    return dispatch_syscall(process, frame);
 }
 
 uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
