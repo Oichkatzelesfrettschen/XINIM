@@ -541,12 +541,13 @@ void set_kernel_fault_gate(uint8_t vector, void (*handler)() noexcept) noexcept 
 }
 
 void set_user_segment_base(uint32_t base) noexcept {
-    // Segment must cover virtual addresses kUserVirtualBase..kUserVirtualBase+kUserAddressSpaceSize-1.
-    // Segment base = address_space - kUserVirtualBase, so the limit must reach
-    // kUserVirtualBase + kUserAddressSpaceSize - 1 from the base.
-    // Page granularity: limit is in 4 KB units.
-    const uint32_t total_span = elf32::kUserVirtualBase + elf32::kUserAddressSpaceSize;
-    const uint32_t limit_pages = (total_span / kPageSize) - 1U;
+    // Page granularity: limit covers kUserVirtualBase + kUserAddressSpaceSize.
+    // Virtual addresses start at kUserVirtualBase (0x400000) and the segment
+    // base is address_space - kUserVirtualBase, so offset 0x400000 maps to
+    // address_space[0]. The limit must allow access up to offset
+    // kUserVirtualBase + kUserAddressSpaceSize - 1.
+    const uint32_t limit_pages =
+        ((elf32::kUserVirtualBase + elf32::kUserAddressSpaceSize) / kPageSize) - 1U;
     // 0xC0 = G=1 (page granularity) | D=1 (32-bit segment)
     set_gdt_entry(3, base, limit_pages, 0xFAU, 0xC0U);
     set_gdt_entry(4, base, limit_pages, 0xF2U, 0xC0U);
@@ -705,20 +706,14 @@ void wake_ready_waiters() noexcept {
         if (!process.in_use || process.state != ProcessState::Waiting) {
             continue;
         }
-        // Wake console readers when input is available
-        if (process.waiting_for_console_input && have_console_input) {
-            process.waiting_for_console_input = false;
-            process.state = ProcessState::Runnable;
-            continue;
-        }
-        // Wake pipe-blocked processes every 2 ticks so they can recheck
-        // for EOF (pipe->writers==0) or new data. Without this, pipe
-        // readers block forever after all writers close.
-        if (process.waiting_for_console_input &&
-            (g_scheduler_ticks % 2U) == 0U) {
-            process.waiting_for_console_input = false;
-            process.state = ProcessState::Runnable;
-            continue;
+        // Wake blocked readers when console input is available OR
+        // periodically (every 50 ticks = 500ms) so pipe readers can
+        // detect EOF when all writers close.
+        if (process.waiting_for_console_input) {
+            if (have_console_input || (g_scheduler_ticks % 50U) == 0U) {
+                process.waiting_for_console_input = false;
+                process.state = ProcessState::Runnable;
+            }
         }
         if (process.wake_tick != 0U && process.wake_tick <= g_scheduler_ticks) {
             process.wake_tick = 0U;
