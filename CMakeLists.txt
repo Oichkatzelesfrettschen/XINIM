@@ -853,7 +853,7 @@ function(xinim_add_x86_32_lane lane)
     set(_stage_dir "${_image_dir}/staging")
     set(_boot_image "${_image_dir}/${_image_name}")
     set(_ata_disk_image "${_image_dir}/xinim-${lane}-ata.img")
-    set(_boot_disk_image "${_image_dir}/xinim-${lane}-boot.img")
+    set(_boot_disk_image "${_image_dir}/xinim-${lane}-boot.qcow2")
     set(_boot_log "${XINIM_LOG_ROOT}/${lane}-smoke.log")
     set(_shell_log "${XINIM_LOG_ROOT}/${lane}-kshell.log")
     set(_compat_report "${XINIM_LOG_ROOT}/${lane}-shell-compat.txt")
@@ -1444,8 +1444,8 @@ function(xinim_add_x86_32_lane lane)
             --size-mb 32
             --kernel "$<TARGET_FILE:${_kernel_target}>"
             --shell "${_mksh_binary}"
+            --holdsvc "$<TARGET_FILE:${_holdsvc_target}>"
             --motd "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
-            --no-grub-install
             --guest-bin "${_cat_binary}:/bin/cat"
             --guest-bin "${_echo_binary}:/bin/echo"
             --guest-bin "${_true_binary}:/bin/true"
@@ -1522,9 +1522,10 @@ function(xinim_add_x86_32_lane lane)
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
             ${_kernel_target}
             ${_mksh_target}
+            ${_holdsvc_target}
             ${_ls_target}
             ${_posix_util_targets}
-        COMMENT "Generating bootable disk image for ${lane}"
+        COMMENT "Generating qcow2 boot disk for ${lane}"
         VERBATIM
     )
 

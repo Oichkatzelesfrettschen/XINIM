@@ -17,8 +17,8 @@ print_error() { echo -e "${RED}[QEMU x86_32]${NC} $1"; }
 
 IMAGE_ROOT="${XINIM_IMAGE_ROOT:-${PROJECT_ROOT}/build/i486/Debug/images}"
 LOG_ROOT="${XINIM_LOG_ROOT:-${PROJECT_ROOT}/build/i486/Debug/logs}"
-BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-${IMAGE_ROOT}/i486/xinim-i486dx.iso}"
-BOOT_DISK=""
+BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-}"
+BOOT_DISK="${XINIM_QEMU_BOOT_DISK:-${IMAGE_ROOT}/i486/xinim-i486-boot.qcow2}"
 DISK_IMAGE="${XINIM_QEMU_DISK_IMAGE:-}"
 QEMU_BIN="${XINIM_QEMU_SYSTEM_BIN:-qemu-system-i386}"
 MEMORY="64M"
@@ -151,7 +151,12 @@ if [[ -n "${BOOT_DISK}" ]]; then
     fi
     print_info "Boot disk: ${BOOT_DISK}"
     QEMU_ARGS+=(-boot c)
-    QEMU_ARGS+=(-drive "file=${BOOT_DISK},format=raw,index=0,media=disk")
+    # Detect format from extension
+    local disk_fmt="raw"
+    if [[ "${BOOT_DISK}" == *.qcow2 ]]; then
+        disk_fmt="qcow2"
+    fi
+    QEMU_ARGS+=(-drive "file=${BOOT_DISK},format=${disk_fmt},index=0,media=disk")
 else
     # Boot from ISO (legacy mode)
     if [[ -z "${BOOT_IMAGE}" || ! -f "${BOOT_IMAGE}" ]]; then
