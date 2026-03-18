@@ -750,9 +750,6 @@ void wake_ready_waiters() noexcept {
     }
     SupervisedService* service = find_supervised_service_by_process(process);
     if (service != nullptr && !service->run_announced) {
-        console::write_string("Dispatching supervised service ");
-        console::write_string(service->name);
-        console::newline();
         service->run_announced = true;
     }
     activate_process(process);
