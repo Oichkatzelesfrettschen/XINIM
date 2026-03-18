@@ -23,6 +23,7 @@ include_guard()
 function(xinim_add_vbox_targets lane build_dir project_root)
     set(_py "${project_root}/scripts/vbox_i486.py")
     set(_args
+        --lane "${lane}"
         --build-dir "${build_dir}"
         --project-root "${project_root}"
     )

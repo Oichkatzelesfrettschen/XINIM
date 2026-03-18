@@ -14,7 +14,14 @@ void set_user_segment_base(uint32_t base) noexcept;
 void initialize_protection() noexcept;
 void initialize_legacy_pic() noexcept;
 void initialize_pit(uint32_t frequency_hz) noexcept;
+// Send end-of-interrupt to whichever interrupt controller is active.
+// On i486: 8259A PIC EOI.  On i686: Local APIC EOI.
 void send_timer_eoi() noexcept;
+#ifdef XINIM_ARCH_I686
+// Enable CPUID-detected i686 features (SSE, SYSENTER, APIC, IOAPIC) and
+// fully mask the legacy 8259A PIC.  Call after initialize_protection().
+void initialize_i686_extensions() noexcept;
+#endif
 void initialize_realtime_clock() noexcept;
 [[nodiscard]] uint32_t current_epoch_seconds() noexcept;
 [[nodiscard]] uint32_t current_epoch_microseconds() noexcept;

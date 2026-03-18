@@ -3385,8 +3385,12 @@ bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
         return false;
     }
 
+#ifdef XINIM_ARCH_I686
+    initialize_i686_extensions();
+#else
     initialize_legacy_pic();
     initialize_pit(kTimerHz);
+#endif
     initialize_realtime_clock();
     ext2_reader::set_timestamp_provider(current_epoch_seconds);
 

@@ -833,6 +833,7 @@ function(xinim_add_x86_32_lane lane)
     xinim_get_x86_lane_property(${lane} image_dir_name _image_dir_name)
     xinim_get_x86_lane_property(${lane} image_name _image_name)
     xinim_get_x86_lane_property(${lane} compile_options _compile_options)
+    xinim_get_x86_lane_property(${lane} util_arch_flags _util_arch_flags)
     xinim_get_x86_lane_property(${lane} qemu_cpu _qemu_cpu)
     xinim_get_x86_lane_property(${lane} qemu_bin _qemu_bin)
     xinim_get_x86_lane_property(${lane} qemu_machine _qemu_machine)
@@ -892,6 +893,20 @@ function(xinim_add_x86_32_lane lane)
         OUTPUT_NAME "${_artifact_stem}"
         XINIM_TARGET_ARCH "${_target_arch}"
     )
+    # i686 lane: add APIC/IOAPIC/SYSENTER/SSE/CPUID sources and the
+    # XINIM_ARCH_I686 preprocessor guard so hw_init.cpp, sched.cpp, and
+    # process.cpp compile the i686 code paths.
+    if(lane STREQUAL "i686")
+        target_sources(${_kernel_target} PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/cpuid.cpp
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/apic.cpp
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/ioapic.cpp
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/sysenter.cpp
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/sysenter_entry.S
+            ${CMAKE_SOURCE_DIR}/src/kernel/i686/sse.cpp
+        )
+        target_compile_definitions(${_kernel_target} PRIVATE XINIM_ARCH_I686=1)
+    endif()
     xinim_apply_target_defaults(${_kernel_target})
     xinim_set_warnings(${_kernel_target})
     target_compile_options(${_kernel_target} PRIVATE ${_lane_compile_options})
@@ -958,7 +973,7 @@ function(xinim_add_x86_32_lane lane)
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
             --source-dir "${_mksh_source_dir}"
             --build-dir "${_mksh_build_dir}"
-            --cc "gcc -m32 -march=i486 -mtune=i486 -mno-mmx -mno-sse"
+            --cc "gcc -m32 ${_util_arch_flags}"
             --start-o "${_dietlibc_start}"
             --dietlibc-a "${_dietlibc_archive}"
             --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
@@ -984,7 +999,7 @@ function(xinim_add_x86_32_lane lane)
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i386_dietlibc.py
             --source-dir "${_dietlibc_source_dir}"
             --build-dir "${_dietlibc_build_dir}"
-            --cc "gcc -m32 -march=i486 -mtune=i486 -mno-mmx -mno-sse"
+            --cc "gcc -m32 ${_util_arch_flags}"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/build_i386_dietlibc.py"
             "${_dietlibc_source_dir}/Makefile"
@@ -1061,12 +1076,13 @@ function(xinim_add_x86_32_lane lane)
             set(_util_lang_flags "")
             set(_util_lang_label "C")
         endif()
+        # Split _util_arch_flags (a space-separated string) into list for COMMAND
+        separate_arguments(_util_arch_list UNIX_COMMAND "${_util_arch_flags}")
         add_custom_command(
             OUTPUT "${_util_binary}"
             COMMAND ${_util_compiler}
                 -m32
-                -march=i486
-                -mtune=i486
+                ${_util_arch_list}
                 ${_util_lang_flags}
                 -I"${_dietlibc_tree_dir}/include"
                 -I"${CMAKE_SOURCE_DIR}/include"

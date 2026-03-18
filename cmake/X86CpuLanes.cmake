@@ -76,6 +76,8 @@ function(xinim_get_x86_lane_property lane property out_var)
             -mno-mmx
             -mno-sse
         )
+        # Arch flags for userland utilities and external build tools (gcc -m32 ...)
+        set(_util_arch_flags "-march=i486 -mtune=i486 -mno-mmx -mno-sse")
         set(_image_target "xinim_i486_image")
         set(_prepare_test "prepare_i486_image")
         set(_smoke_test "i486_boot_smoke_test")
@@ -110,6 +112,7 @@ function(xinim_get_x86_lane_property lane property out_var)
             -march=pentium
             -mtune=pentium
         )
+        set(_util_arch_flags "-march=pentium -mtune=pentium")
         set(_image_target "xinim_i586_image")
         set(_prepare_test "prepare_i586_image")
         set(_smoke_test "i586_boot_smoke_test")
@@ -144,6 +147,7 @@ function(xinim_get_x86_lane_property lane property out_var)
             -march=i686
             -mtune=pentium3
         )
+        set(_util_arch_flags "-march=i686 -mtune=pentium3")
         set(_image_target "xinim_i686_image")
         set(_prepare_test "prepare_i686_image")
         set(_smoke_test "i686_boot_smoke_test")
@@ -184,6 +188,7 @@ function(xinim_get_x86_lane_property lane property out_var)
             -mno-ssse3
             -msoft-float
         )
+        set(_util_arch_flags "-march=core2 -mtune=core2 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-ssse3 -msoft-float")
         set(_image_target "xinim_x86_32_core2_image")
         set(_prepare_test "prepare_x86_32_core2_image")
         set(_smoke_test "x86_32_core2_boot_smoke_test")
@@ -222,6 +227,7 @@ function(xinim_get_x86_lane_property lane property out_var)
             -mno-sse
             -msoft-float
         )
+        set(_util_arch_flags "-march=athlon -mtune=athlon -mno-mmx -mno-3dnow -mno-sse -msoft-float")
         set(_image_target "xinim_x86_32_athlon_image")
         set(_prepare_test "prepare_x86_32_athlon_image")
         set(_smoke_test "x86_32_athlon_boot_smoke_test")
@@ -262,6 +268,7 @@ function(xinim_get_x86_lane_property lane property out_var)
             -mno-sse4a
             -msoft-float
         )
+        set(_util_arch_flags "-march=amdfam10 -mtune=amdfam10 -mno-mmx -mno-sse -mno-sse2 -mno-sse3 -mno-sse4a -msoft-float")
         set(_image_target "xinim_x86_32_phenom_image")
         set(_prepare_test "prepare_x86_32_phenom_image")
         set(_smoke_test "x86_32_phenom_boot_smoke_test")
@@ -322,6 +329,8 @@ function(xinim_get_x86_lane_property lane property out_var)
         set(_value "${_shell_test}")
     elseif(property STREQUAL "launcher_script")
         set(_value "${_launcher_script}")
+    elseif(property STREQUAL "util_arch_flags")
+        set(_value "${_util_arch_flags}")
     else()
         message(FATAL_ERROR "Unknown XINIM x86 lane property: ${property}")
     endif()

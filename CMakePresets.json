@@ -84,14 +84,43 @@
       }
     },
     {
-      "name": "i686-standalone",
-      "description": "i686 debug build",
+      "name": "i686-base",
+      "hidden": true,
       "inherits": "base",
-      "binaryDir": "${sourceDir}/build/i686/Debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
         "XINIM_CPU_LANE": "i686"
+      }
+    },
+    {
+      "name": "i686-standalone",
+      "description": "i686 debug build",
+      "inherits": "i686-base",
+      "binaryDir": "${sourceDir}/build/i686/Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "i686-release",
+      "description": "i686 release build with -O3 and Thin LTO",
+      "inherits": "i686-base",
+      "binaryDir": "${sourceDir}/build/i686/Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "XINIM_PGO_MODE": "none"
+      }
+    },
+    {
+      "name": "i686-pgo-generate",
+      "description": "i686 PGO phase 1: instrumented build for profile collection",
+      "inherits": "i686-base",
+      "binaryDir": "${sourceDir}/build/i686/PgoGenerate",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "XINIM_PGO_MODE": "generate"
       }
     }
   ],
@@ -119,6 +148,14 @@
     {
       "name": "i686-standalone",
       "configurePreset": "i686-standalone"
+    },
+    {
+      "name": "i686-release",
+      "configurePreset": "i686-release"
+    },
+    {
+      "name": "i686-pgo-generate",
+      "configurePreset": "i686-pgo-generate"
     }
   ],
   "testPresets": [
@@ -139,6 +176,13 @@
         "include": {
           "label": "vbox"
         }
+      }
+    },
+    {
+      "name": "i686-standalone",
+      "configurePreset": "i686-standalone",
+      "output": {
+        "outputOnFailure": true
       }
     }
   ]

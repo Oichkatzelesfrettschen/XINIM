@@ -1,11 +1,16 @@
 #include "sched.hpp"
 
 #include "console.hpp"
+#include "hw_init.hpp"
 #include "kutil.hpp"
 #include "process.hpp"
 #include "signal.hpp"
 #include "tcp.hpp"
 #include "tty.hpp"
+
+#ifdef XINIM_ARCH_I686
+#include "../i686/sse.hpp"
+#endif
 
 namespace xinim::i486::ring3 {
 
@@ -127,6 +132,10 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     if (process->ticks_remaining == 0U) {
         process->ticks_remaining = effective_quantum(process);
     }
+#ifdef XINIM_ARCH_I686
+    // Restore this process's FPU/SSE state before returning to user space.
+    xinim::i686::sse::fpu_restore_context(process->fxsave_buf);
+#endif
     i486_resume_user_context(&process->context);
     for (;;) {
         asm volatile("cli; hlt");
@@ -171,6 +180,10 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     Process* current = g_current_process;
     if (current != nullptr && current->in_use) {
         current->context = capture_user_context(frame);
+#ifdef XINIM_ARCH_I686
+        // Save FPU/SSE state before this process is preempted.
+        xinim::i686::sse::fpu_save_context(current->fxsave_buf);
+#endif
     }
 
     ++g_scheduler_ticks;
@@ -251,7 +264,7 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     }
 
     Process* next = select_next_runnable(preferred);
-    outb(kPic1CommandPort, kPicEoi);
+    send_timer_eoi();
     if (next == nullptr) {
         resume_rescue_shell("timer interrupt found no runnable i486 process");
     }

@@ -7,6 +7,11 @@
 #include "signal.hpp"
 #include "sched.hpp"
 
+#ifdef XINIM_ARCH_I686
+#include "../i686/sse.hpp"
+#include "../i686/sysenter.hpp"
+#endif
+
 namespace xinim::i486::ring3 {
 
 uint32_t compute_segment_base(const Process& process) noexcept {
@@ -20,8 +25,14 @@ void activate_process(Process* process) noexcept {
     }
     g_current_process = process;
     set_user_segment_base(process->segment_base);
-    g_tss.esp0 = static_cast<uint32_t>(
+    const uint32_t kstack_top = static_cast<uint32_t>(
         reinterpret_cast<uintptr_t>(process->kernel_stack + sizeof(process->kernel_stack)));
+    g_tss.esp0 = kstack_top;
+#ifdef XINIM_ARCH_I686
+    // Keep SYSENTER_ESP (MSR 0x175) in sync with the current kernel stack so
+    // SYSENTER lands on the right stack for this process.
+    xinim::i686::sysenter::update_sysenter_esp(kstack_top);
+#endif
 }
 
 void initialize_context(Process* process,
@@ -66,6 +77,11 @@ Process* allocate_process(uint32_t parent_pid) noexcept {
             bootfs::increment_slot_refcount(1);
             bootfs::increment_slot_refcount(2);
             init_signal_state(&process);
+#ifdef XINIM_ARCH_I686
+            // Initialise FPU/SSE state image so the new process starts with
+            // a clean x87 + MXCSR context (all exceptions masked, round-to-nearest).
+            xinim::i686::sse::fpu_init_context(process.fxsave_buf);
+#endif
             apply_scheduler_profile(
                 &process,
                 kInitServicePriority,

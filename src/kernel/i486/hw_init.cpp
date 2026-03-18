@@ -1,5 +1,13 @@
 #include "hw_init.hpp"
 
+#ifdef XINIM_ARCH_I686
+#include "../i686/cpuid.hpp"
+#include "../i686/sse.hpp"
+#include "../i686/sysenter.hpp"
+#include "../i686/apic.hpp"
+#include "../i686/ioapic.hpp"
+#endif
+
 namespace xinim::i486::ring3 {
 
 void set_gdt_entry(int index,
@@ -108,8 +116,44 @@ void initialize_pit(uint32_t frequency_hz) noexcept {
 }
 
 void send_timer_eoi() noexcept {
+#ifdef XINIM_ARCH_I686
+    xinim::i686::apic::send_apic_eoi();
+#else
     outb(kPic1CommandPort, kPicEoi);
+#endif
 }
+
+#ifdef XINIM_ARCH_I686
+void initialize_i686_extensions() noexcept {
+    // CPUID: detect available hardware features.
+    xinim::i686::initialize_cpuid();
+    const auto& feat = xinim::i686::cpu_features();
+
+    // SSE: enable OSFXSR + OSXMMEXCPT in CR4 so FXSAVE/FXRESTORE work.
+    if (feat.has_fxsr) {
+        xinim::i686::sse::initialize_sse();
+    }
+
+    // APIC: enable local APIC and calibrate APIC timer to 100 Hz.
+    // Must come before IOAPIC so the local APIC is ready to receive IRQs.
+    xinim::i686::apic::initialize_apic();
+    xinim::i686::apic::initialize_apic_timer();
+
+    // IOAPIC: route IRQ1 (keyboard) and IRQ14 (IDE); mask everything else.
+    xinim::i686::ioapic::initialize_ioapic();
+
+    // SYSENTER: program MSRs 0x174/0x175/0x176 for fast syscall path.
+    if (feat.has_sysenter) {
+        xinim::i686::sysenter::initialize_sysenter();
+    }
+
+    // Fully mask both 8259A PIC chips now that the IOAPIC handles routing.
+    // WHY: leaving PIC unmasked after enabling APIC causes spurious IRQ 7/15
+    // on some chipsets where both sources deliver to the CPU simultaneously.
+    outb(kPic1DataPort, 0xFFU);
+    outb(kPic2DataPort, 0xFFU);
+}
+#endif
 
 // -- RTC and time support --------------------------------------------------
 

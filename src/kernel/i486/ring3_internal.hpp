@@ -331,6 +331,11 @@ struct Process {
     UserContext context;
     alignas(16) uint8_t kernel_stack[kKernelStackSize];
     alignas(16) uint8_t address_space[elf32::kUserAddressSpaceSize];
+#ifdef XINIM_ARCH_I686
+    // 512-byte FXSAVE image; must be 16-byte aligned.  Saves x87+MMX+SSE state
+    // on every context switch so processes do not corrupt each other's FPU regs.
+    alignas(16) uint8_t fxsave_buf[512];
+#endif
 };
 
 template <uint32_t Count>

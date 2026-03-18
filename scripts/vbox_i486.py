@@ -36,9 +36,13 @@ import time
 from pathlib import Path
 
 
-VM_NAME = "XINIM-i486"
 BOOT_WAIT_S = 20          # seconds to wait after startvm before issuing commands
 PGO_TIMEOUT_S = 300       # maximum seconds to wait for XNPGO_END after boot
+
+
+def vm_name(lane: str) -> str:
+    """Derive the VirtualBox VM name from the CPU lane."""
+    return f"XINIM-{lane}"
 
 
 def vbm(*args: str, check: bool = True, capture: bool = False) -> str:
@@ -51,18 +55,18 @@ def vbm(*args: str, check: bool = True, capture: bool = False) -> str:
     return ""
 
 
-def vm_exists() -> bool:
+def vm_exists(name: str) -> bool:
     try:
-        out = vbm("showvminfo", VM_NAME, "--machinereadable",
+        out = vbm("showvminfo", name, "--machinereadable",
                   check=False, capture=True)
         return "VMState=" in out
     except Exception:
         return False
 
 
-def vm_running() -> bool:
+def vm_running(name: str) -> bool:
     try:
-        out = vbm("showvminfo", VM_NAME, "--machinereadable",
+        out = vbm("showvminfo", name, "--machinereadable",
                   check=False, capture=True)
         return 'VMState="running"' in out
     except Exception:
@@ -87,20 +91,21 @@ def cmd_setup(args: argparse.Namespace) -> None:
     require_vboxmanage()
     require_qemu_img()
 
-    imgdir = Path(args.build_dir) / "images" / "i486"
+    name = vm_name(args.lane)
+    imgdir = Path(args.build_dir) / "images" / args.lane
     logdir = Path(args.build_dir) / "logs"
-    qcow2 = imgdir / "xinim-i486-boot.qcow2"
-    vdi = imgdir / f"{VM_NAME}.vdi"
+    qcow2 = imgdir / f"xinim-{args.lane}-boot.qcow2"
+    vdi = imgdir / f"{name}.vdi"
     com1_log = logdir / "vbox-com1.log"
 
     if not qcow2.is_file():
         sys.exit(f"error: boot image not found: {qcow2}\n"
-                 "       Build the 'xinim_i486_image' CMake target first.")
+                 f"       Build the 'xinim_{args.lane}_image' CMake target first.")
 
     logdir.mkdir(parents=True, exist_ok=True)
 
     # Convert qcow2 -> raw -> VDI
-    raw = imgdir / f"{VM_NAME}-tmp.raw"
+    raw = imgdir / f"{name}-tmp.raw"
     print(f"Converting {qcow2.name} -> VDI ...")
     subprocess.run(["qemu-img", "convert", "-f", "qcow2", "-O", "raw",
                     str(qcow2), str(raw)], check=True)
@@ -110,91 +115,100 @@ def cmd_setup(args: argparse.Namespace) -> None:
     raw.unlink(missing_ok=True)
     print(f"VDI: {vdi}")
 
+    # i686 needs IOAPIC enabled; i486 uses legacy PIC only
+    ioapic_flag = "on" if args.lane == "i686" else "off"
+    memory_mb = "64" if args.lane == "i486" else "128"
+
     # Tear down stale VM if it exists
-    if vm_exists():
-        if vm_running():
-            vbm("controlvm", VM_NAME, "poweroff", check=False)
+    if vm_exists(name):
+        if vm_running(name):
+            vbm("controlvm", name, "poweroff", check=False)
             time.sleep(2)
-        vbm("unregistervm", VM_NAME, "--delete", check=False)
+        vbm("unregistervm", name, "--delete", check=False)
         time.sleep(1)
 
     # Create VM
-    vbm("createvm", "--name", VM_NAME, "--ostype", "Linux",
+    vbm("createvm", "--name", name, "--ostype", "Linux",
         "--register", "--basefolder", str(logdir))
-    vbm("modifyvm", VM_NAME,
+    vbm("modifyvm", name,
         "--cpus", "1",
-        "--memory", "64",
+        "--memory", memory_mb,
         "--vram", "16",
         "--firmware", "bios",
         "--graphicscontroller", "vmsvga",
         "--audio-driver", "none",
         "--usb", "off",
-        "--ioapic", "off",
+        "--ioapic", ioapic_flag,
         "--pae", "off",
         "--uart1", "0x3F8", "4",
         "--uart-mode1", "file", str(com1_log),
         "--nic1", "none")
-    vbm("storagectl", VM_NAME, "--name", "IDE", "--add", "ide",
+    vbm("storagectl", name, "--name", "IDE", "--add", "ide",
         "--controller", "PIIX4")
-    vbm("storageattach", VM_NAME, "--storagectl", "IDE",
+    vbm("storageattach", name, "--storagectl", "IDE",
         "--port", "0", "--device", "0", "--type", "hdd", "--medium", str(vdi))
-    print(f"VM '{VM_NAME}' registered.  COM1 -> {com1_log}")
+    print(f"VM '{name}' registered.  COM1 -> {com1_log}")
 
 
 def cmd_start(args: argparse.Namespace) -> None:
     require_vboxmanage()
-    if not vm_exists():
-        sys.exit(f"error: VM '{VM_NAME}' not found -- run 'setup' first")
-    if vm_running():
-        print(f"VM '{VM_NAME}' is already running")
+    name = vm_name(args.lane)
+    if not vm_exists(name):
+        sys.exit(f"error: VM '{name}' not found -- run 'setup' first")
+    if vm_running(name):
+        print(f"VM '{name}' is already running")
         return
-    vbm("startvm", VM_NAME, "--type", "headless")
-    print(f"VM '{VM_NAME}' started headless.  Waiting {BOOT_WAIT_S}s for boot ...")
+    vbm("startvm", name, "--type", "headless")
+    print(f"VM '{name}' started headless.  Waiting {BOOT_WAIT_S}s for boot ...")
     time.sleep(BOOT_WAIT_S)
 
 
 def cmd_stop(args: argparse.Namespace) -> None:
     require_vboxmanage()
-    if not vm_running():
-        print(f"VM '{VM_NAME}' is not running")
+    name = vm_name(args.lane)
+    if not vm_running(name):
+        print(f"VM '{name}' is not running")
         return
-    vbm("controlvm", VM_NAME, "poweroff", check=False)
+    vbm("controlvm", name, "poweroff", check=False)
     time.sleep(2)
-    print(f"VM '{VM_NAME}' stopped")
+    print(f"VM '{name}' stopped")
 
 
 def cmd_teardown(args: argparse.Namespace) -> None:
     require_vboxmanage()
-    if vm_running():
-        vbm("controlvm", VM_NAME, "poweroff", check=False)
+    name = vm_name(args.lane)
+    if vm_running(name):
+        vbm("controlvm", name, "poweroff", check=False)
         time.sleep(2)
-    if vm_exists():
-        vbm("unregistervm", VM_NAME, "--delete", check=False)
-        print(f"VM '{VM_NAME}' removed")
+    if vm_exists(name):
+        vbm("unregistervm", name, "--delete", check=False)
+        print(f"VM '{name}' removed")
     else:
-        print(f"VM '{VM_NAME}' does not exist")
+        print(f"VM '{name}' does not exist")
 
 
 def cmd_screenshot(args: argparse.Namespace) -> None:
     require_vboxmanage()
+    name = vm_name(args.lane)
     logdir = Path(args.build_dir) / "logs"
     outdir = logdir / "vbox-screenshots"
     outdir.mkdir(parents=True, exist_ok=True)
-    name = args.name or "snapshot"
-    png = outdir / f"{name}.png"
-    vbm("controlvm", VM_NAME, "screenshotpng", str(png))
+    snap_name = args.name or "snapshot"
+    png = outdir / f"{snap_name}.png"
+    vbm("controlvm", name, "screenshotpng", str(png))
     print(f"Screenshot: {png}")
 
 
 def cmd_status(args: argparse.Namespace) -> None:
     require_vboxmanage()
-    if not vm_exists():
-        print(f"VM '{VM_NAME}': not registered")
+    name = vm_name(args.lane)
+    if not vm_exists(name):
+        print(f"VM '{name}': not registered")
         return
-    out = vbm("showvminfo", VM_NAME, "--machinereadable", capture=True)
+    out = vbm("showvminfo", name, "--machinereadable", capture=True)
     for line in out.splitlines():
         if line.startswith("VMState="):
-            print(f"VM '{VM_NAME}': {line}")
+            print(f"VM '{name}': {line}")
             return
 
 
@@ -206,31 +220,33 @@ def cmd_test(args: argparse.Namespace) -> None:
         sys.exit(f"error: test script not found: {script}")
     env = dict(os.environ)
     env["BUILD_DIR"] = str(args.build_dir)
+    env["XINIM_LANE"] = args.lane
     subprocess.run(["bash", str(script)], env=env, check=True)
 
 
 def cmd_pgo_collect(args: argparse.Namespace) -> None:
     """Boot the PGO-instrumented kernel; wait for XNPGO_END in COM1 log."""
     require_vboxmanage()
+    name = vm_name(args.lane)
     logdir = Path(args.build_dir) / "logs"
     com1_log = logdir / "vbox-pgo-com1.log"
 
-    if not vm_exists():
-        sys.exit(f"error: VM '{VM_NAME}' not found -- run 'setup' first with "
+    if not vm_exists(name):
+        sys.exit(f"error: VM '{name}' not found -- run 'setup' first with "
                  "the PGO-instrumented disk image attached")
 
     # Clear old log
     if com1_log.exists():
         com1_log.unlink()
     # Update COM1 log path to PGO-specific file
-    if vm_running():
-        vbm("controlvm", VM_NAME, "poweroff", check=False)
+    if vm_running(name):
+        vbm("controlvm", name, "poweroff", check=False)
         time.sleep(2)
-    vbm("modifyvm", VM_NAME,
+    vbm("modifyvm", name,
         "--uart-mode1", "file", str(com1_log))
 
     print("Starting VM for PGO profile collection ...")
-    vbm("startvm", VM_NAME, "--type", "headless")
+    vbm("startvm", name, "--type", "headless")
 
     deadline = time.monotonic() + PGO_TIMEOUT_S
     print(f"Waiting up to {PGO_TIMEOUT_S}s for XNPGO_END in {com1_log} ...")
@@ -241,7 +257,7 @@ def cmd_pgo_collect(args: argparse.Namespace) -> None:
             if "XNPGO_END" in content:
                 print("XNPGO_END detected -- profile dump complete")
                 time.sleep(2)  # let the last bytes flush
-                vbm("controlvm", VM_NAME, "poweroff", check=False)
+                vbm("controlvm", name, "poweroff", check=False)
                 time.sleep(2)
                 print(f"COM1 log: {com1_log}")
                 print("Next step: python3 scripts/extract_pgo_profile.py "
@@ -249,7 +265,7 @@ def cmd_pgo_collect(args: argparse.Namespace) -> None:
                 return
 
     print("WARNING: timed out waiting for XNPGO_END", file=sys.stderr)
-    vbm("controlvm", VM_NAME, "poweroff", check=False)
+    vbm("controlvm", name, "poweroff", check=False)
     sys.exit(1)
 
 
@@ -259,7 +275,9 @@ def cmd_pgo_collect(args: argparse.Namespace) -> None:
 
 def main() -> int:
     ap = argparse.ArgumentParser(
-        description="VirtualBox VM lifecycle manager for XINIM i486")
+        description="VirtualBox VM lifecycle manager for XINIM x86_32 lanes")
+    ap.add_argument("--lane", default="i486",
+                    help="CPU lane (i486, i686, etc.)  (default: i486)")
     ap.add_argument("--build-dir", default="build/i486/Debug",
                     help="CMake build directory (default: build/i486/Debug)")
     ap.add_argument("--project-root", default=".",
