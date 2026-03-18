@@ -256,7 +256,7 @@ extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
     }
 
     if (argc <= first_path || argv == nullptr || argv[first_path] == nullptr) {
-        return list_path("/", long_format, false);
+        return list_path(".", long_format, false);
     }
 
     int status = 0;
