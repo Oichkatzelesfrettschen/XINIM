@@ -3747,22 +3747,38 @@ struct SigAction32User {
     return old_handler;
 }
 
+uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept;
+
 extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     Process* process = g_current_process;
     if (frame == nullptr || process == nullptr) {
         return static_cast<uint32_t>(-1);
     }
+    const uint32_t result = dispatch_syscall(process, frame);
+    // Deliver pending signals before returning to userspace.
+    // If a signal handler was set up, we must use resume_user_context
+    // because deliver_one_signal modifies process->context (EIP, ESP)
+    // and the normal syscall return path uses the interrupt frame.
+    if (process->state == ProcessState::Runnable) {
+        process->context.eax = result;
+        if (deliver_one_signal(process)) {
+            // Signal handler was pushed -- resume via context, not iret
+            i486_resume_user_context(&process->context);
+            __builtin_unreachable();
+        }
+    }
+    return result;
+}
 
+uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     process->context = capture_user_context(frame);
-    if (process->pid == 1U && g_shell_syscall_trace_count < 128U) {
-        console::write_string("mksh syscall eax=");
+    if (g_shell_syscall_trace_count < 256U) {
+        console::write_string("[");
+        console::write_dec32(process->pid);
+        console::write_string("] eax=");
         console::write_dec32(frame->eax);
         console::write_string(" ebx=");
         console::write_hex32(frame->ebx);
-        console::write_string(" ecx=");
-        console::write_hex32(frame->ecx);
-        console::write_string(" edx=");
-        console::write_hex32(frame->edx);
         console::newline();
         ++g_shell_syscall_trace_count;
     }
@@ -4126,7 +4142,7 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
         return 0U;
     }
     case SYS_sigsuspend: {
-        // Atomically replace signal mask and suspend
+        // Atomically replace signal mask and suspend until a signal arrives
         const uint32_t old_mask = process->signals.blocked;
         if (frame->ebx != 0U) {
             uint32_t new_mask = 0U;
@@ -4135,8 +4151,24 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
             }
             process->signals.blocked = new_mask;
         }
-        // Block until a signal is delivered
-        block_current_process_until_rescheduled(process, false, 0U);
+        // Block until any unblocked signal is pending (even SIG_DFL ones like SIGCHLD)
+        for (;;) {
+            const uint32_t deliverable =
+                process->signals.pending & ~process->signals.blocked;
+            if (deliverable != 0U) {
+                // Clear SIG_DFL-ignore signals (like SIGCHLD) from pending
+                // but still wake -- the process needs to call wait4
+                for (uint32_t sig = 1U; sig < kMaxSignals; ++sig) {
+                    if ((deliverable & (1U << sig)) != 0U &&
+                        process->signals.handlers[sig].handler == kSigDfl &&
+                        is_default_ignore(sig)) {
+                        process->signals.pending &= ~(1U << sig);
+                    }
+                }
+                break;
+            }
+            block_current_process_until_rescheduled(process, false, 0U);
+        }
         process->signals.blocked = old_mask;
         return kErrnoIntr;
     }

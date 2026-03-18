@@ -1032,6 +1032,7 @@ function(xinim_add_x86_32_lane lane)
                 -nostdlib
                 -static
                 -Wl,--build-id=none
+                -T "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
                 -o "${_util_binary}"
                 "${_util_source}"
                 "${_dietlibc_start}"
@@ -1040,6 +1041,7 @@ function(xinim_add_x86_32_lane lane)
             DEPENDS
                 ${_dietlibc_target}
                 "${_util_source}"
+                "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             COMMENT "Building dietlibc-linked ${_util} for ${lane}"
             VERBATIM
         )
