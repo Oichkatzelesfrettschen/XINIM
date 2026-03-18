@@ -705,9 +705,20 @@ void wake_ready_waiters() noexcept {
         if (!process.in_use || process.state != ProcessState::Waiting) {
             continue;
         }
+        // Wake console readers when input is available
         if (process.waiting_for_console_input && have_console_input) {
             process.waiting_for_console_input = false;
             process.state = ProcessState::Runnable;
+            continue;
+        }
+        // Wake pipe-blocked processes every 2 ticks so they can recheck
+        // for EOF (pipe->writers==0) or new data. Without this, pipe
+        // readers block forever after all writers close.
+        if (process.waiting_for_console_input &&
+            (g_scheduler_ticks % 2U) == 0U) {
+            process.waiting_for_console_input = false;
+            process.state = ProcessState::Runnable;
+            continue;
         }
         if (process.wake_tick != 0U && process.wake_tick <= g_scheduler_ticks) {
             process.wake_tick = 0U;
