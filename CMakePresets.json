@@ -21,189 +21,37 @@
       }
     },
     {
-      "name": "x86-elf-cross-base",
-      "hidden": true,
-      "inherits": "base",
-      "cacheVariables": {
-        "XINIM_X86_32_TOOLCHAIN_MODE": "cross-elf"
-      }
-    },
-    {
-      "name": "x86_64-debug",
-      "inherits": "base",
-      "binaryDir": "${sourceDir}/build/x86_64/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_64/Debug/generators/conan_toolchain.cmake",
-        "XINIM_CPU_LANE": "x86_64"
-      }
-    },
-    {
-      "name": "x86_64-release",
-      "inherits": "base",
-      "binaryDir": "${sourceDir}/build/x86_64/Release",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Release",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_64/Release/generators/conan_toolchain.cmake",
-        "XINIM_CPU_LANE": "x86_64"
-      }
-    },
-    {
-      "name": "i486-debug",
+      "name": "i486-standalone",
+      "description": "i486 debug build (pure CMake, no Conan)",
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/i486/Debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/i486/Debug/generators/conan_toolchain.cmake",
         "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
         "XINIM_CPU_LANE": "i486"
       }
     },
     {
-      "name": "i586-debug",
+      "name": "i586-standalone",
+      "description": "i586 debug build (pure CMake, no Conan)",
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/i586/Debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/i586/Debug/generators/conan_toolchain.cmake",
         "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
         "XINIM_CPU_LANE": "i586"
       }
     },
     {
-      "name": "i686-debug",
+      "name": "i686-standalone",
+      "description": "i686 debug build (pure CMake, no Conan)",
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/i686/Debug",
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/i686/Debug/generators/conan_toolchain.cmake",
         "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
         "XINIM_CPU_LANE": "i686"
       }
-    },
-    {
-      "name": "x86_32_core2-debug",
-      "inherits": "base",
-      "binaryDir": "${sourceDir}/build/x86_32_core2/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_32_core2/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "x86_32_core2"
-      }
-    },
-    {
-      "name": "x86_32_athlon-debug",
-      "inherits": "base",
-      "binaryDir": "${sourceDir}/build/x86_32_athlon/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_32_athlon/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "x86_32_athlon"
-      }
-    },
-    {
-      "name": "x86_32_phenom-debug",
-      "inherits": "base",
-      "binaryDir": "${sourceDir}/build/x86_32_phenom/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_32_phenom/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "x86_32_phenom"
-      }
-    },
-    {
-      "name": "i486-cross-debug",
-      "inherits": "x86-elf-cross-base",
-      "binaryDir": "${sourceDir}/build/i486-cross/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/i486-cross/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "i486",
-        "XINIM_X86_ELF_TOOLCHAIN_TRIPLE": "i386-elf"
-      }
-    },
-    {
-      "name": "i586-cross-debug",
-      "inherits": "x86-elf-cross-base",
-      "binaryDir": "${sourceDir}/build/i586-cross/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/i586-cross/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "i586",
-        "XINIM_X86_ELF_TOOLCHAIN_TRIPLE": "i386-elf"
-      }
-    },
-    {
-      "name": "i686-cross-debug",
-      "inherits": "x86-elf-cross-base",
-      "binaryDir": "${sourceDir}/build/i686-cross/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/i686-cross/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "i686",
-        "XINIM_X86_ELF_TOOLCHAIN_TRIPLE": "i686-elf"
-      }
-    },
-    {
-      "name": "x86_32_core2-cross-debug",
-      "inherits": "x86-elf-cross-base",
-      "binaryDir": "${sourceDir}/build/x86_32_core2-cross/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_32_core2-cross/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "x86_32_core2",
-        "XINIM_X86_ELF_TOOLCHAIN_TRIPLE": "i686-elf"
-      }
-    },
-    {
-      "name": "x86_32_athlon-cross-debug",
-      "inherits": "x86-elf-cross-base",
-      "binaryDir": "${sourceDir}/build/x86_32_athlon-cross/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_32_athlon-cross/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "x86_32_athlon",
-        "XINIM_X86_ELF_TOOLCHAIN_TRIPLE": "i686-elf"
-      }
-    },
-    {
-      "name": "x86_32_phenom-cross-debug",
-      "inherits": "x86-elf-cross-base",
-      "binaryDir": "${sourceDir}/build/x86_32_phenom-cross/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TOOLCHAIN_FILE": "${sourceDir}/build/x86_32_phenom-cross/Debug/generators/conan_toolchain.cmake",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "x86_32_phenom",
-        "XINIM_X86_ELF_TOOLCHAIN_TRIPLE": "i686-elf"
-      }
-    },
-    {
-      "name": "i486-standalone",
-      "description": "i486 debug build without Conan (pure CMake)",
-      "inherits": "base",
-      "binaryDir": "${sourceDir}/build/i486/Debug",
-      "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
-        "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
-        "XINIM_CPU_LANE": "i486"
-      }
-    },
-    {
-      "name": "debug",
-      "inherits": "x86_64-debug"
-    },
-    {
-      "name": "release",
-      "inherits": "x86_64-release"
     }
   ],
   "buildPresets": [
@@ -212,176 +60,21 @@
       "configurePreset": "i486-standalone"
     },
     {
-      "name": "x86_64-debug",
-      "configurePreset": "x86_64-debug"
+      "name": "i586-standalone",
+      "configurePreset": "i586-standalone"
     },
     {
-      "name": "x86_64-release",
-      "configurePreset": "x86_64-release"
-    },
-    {
-      "name": "i486-debug",
-      "configurePreset": "i486-debug"
-    },
-    {
-      "name": "i586-debug",
-      "configurePreset": "i586-debug"
-    },
-    {
-      "name": "i686-debug",
-      "configurePreset": "i686-debug"
-    },
-    {
-      "name": "x86_32_core2-debug",
-      "configurePreset": "x86_32_core2-debug"
-    },
-    {
-      "name": "x86_32_athlon-debug",
-      "configurePreset": "x86_32_athlon-debug"
-    },
-    {
-      "name": "x86_32_phenom-debug",
-      "configurePreset": "x86_32_phenom-debug"
-    },
-    {
-      "name": "i486-cross-debug",
-      "configurePreset": "i486-cross-debug"
-    },
-    {
-      "name": "i586-cross-debug",
-      "configurePreset": "i586-cross-debug"
-    },
-    {
-      "name": "i686-cross-debug",
-      "configurePreset": "i686-cross-debug"
-    },
-    {
-      "name": "x86_32_core2-cross-debug",
-      "configurePreset": "x86_32_core2-cross-debug"
-    },
-    {
-      "name": "x86_32_athlon-cross-debug",
-      "configurePreset": "x86_32_athlon-cross-debug"
-    },
-    {
-      "name": "x86_32_phenom-cross-debug",
-      "configurePreset": "x86_32_phenom-cross-debug"
-    },
-    {
-      "name": "debug",
-      "configurePreset": "debug"
-    },
-    {
-      "name": "release",
-      "configurePreset": "release"
+      "name": "i686-standalone",
+      "configurePreset": "i686-standalone"
     }
   ],
   "testPresets": [
     {
-      "name": "x86_64-debug",
-      "configurePreset": "x86_64-debug",
+      "name": "i486-standalone",
+      "configurePreset": "i486-standalone",
       "output": {
         "outputOnFailure": true
       }
-    },
-    {
-      "name": "x86_64-release",
-      "configurePreset": "x86_64-release",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "i486-debug",
-      "configurePreset": "i486-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "i586-debug",
-      "configurePreset": "i586-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "i686-debug",
-      "configurePreset": "i686-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "x86_32_core2-debug",
-      "configurePreset": "x86_32_core2-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "x86_32_athlon-debug",
-      "configurePreset": "x86_32_athlon-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "x86_32_phenom-debug",
-      "configurePreset": "x86_32_phenom-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "i486-cross-debug",
-      "configurePreset": "i486-cross-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "i586-cross-debug",
-      "configurePreset": "i586-cross-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "i686-cross-debug",
-      "configurePreset": "i686-cross-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "x86_32_core2-cross-debug",
-      "configurePreset": "x86_32_core2-cross-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "x86_32_athlon-cross-debug",
-      "configurePreset": "x86_32_athlon-cross-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "x86_32_phenom-cross-debug",
-      "configurePreset": "x86_32_phenom-cross-debug",
-      "output": {
-        "outputOnFailure": true
-      }
-    },
-    {
-      "name": "debug",
-      "inherits": "x86_64-debug"
-    },
-    {
-      "name": "release",
-      "inherits": "x86_64-release"
     }
   ]
 }
