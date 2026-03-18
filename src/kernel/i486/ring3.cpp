@@ -4204,7 +4204,8 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     }
 }
 
-[[noreturn]] void handle_fault(uint32_t vector, uint32_t error_code) noexcept {
+[[noreturn]] void handle_fault(uint32_t vector, uint32_t error_code,
+                              uint32_t fault_eip) noexcept {
     Process* process = g_current_process;
 
     console::write_string("i486 fault vector=");
@@ -4214,7 +4215,11 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     if (process != nullptr) {
         console::write_string(" pid=");
         console::write_dec32(process->pid);
-        console::write_string(" eip=");
+    }
+    console::write_string(" eip=");
+    console::write_hex32(fault_eip);
+    if (process != nullptr) {
+        console::write_string(" ctx.eip=");
         console::write_hex32(process->context.eip);
         console::write_string(" esp=");
         console::write_hex32(process->context.esp);
@@ -4266,8 +4271,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
 }
 
 extern "C" [[noreturn]] void i486_handle_fault(uint32_t vector,
-                                                uint32_t error_code) noexcept {
-    handle_fault(vector, error_code);
+                                                uint32_t error_code,
+                                                uint32_t fault_eip) noexcept {
+    handle_fault(vector, error_code, fault_eip);
 }
 
 } // namespace

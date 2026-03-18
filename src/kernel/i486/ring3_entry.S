@@ -207,8 +207,13 @@ i486_fault_common:
     movw %ax, %fs
     movw %ax, %gs
 
-    movl 44(%esp), %eax
-    movl 48(%esp), %edx
+    // Pass fault EIP from the CPU interrupt frame as 3rd arg.
+    // Stack: [11 regs = 44 bytes][vector][error_code][EIP][CS][EFLAGS][ESP][SS]
+    // fault EIP is at esp + 44 + 4 + 4 = esp + 52
+    movl 52(%esp), %ecx
+    pushl %ecx
+    movl 52(%esp), %edx
+    movl 48(%esp), %eax
     pushl %edx
     pushl %eax
     call i486_handle_fault
