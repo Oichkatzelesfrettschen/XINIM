@@ -5,6 +5,7 @@
 
 #include "socket_i486.hpp"
 #include "netstack.hpp"
+#include "tcp.hpp"
 
 namespace xinim::i486::ksocket {
 namespace {
@@ -101,21 +102,70 @@ int sys_connect(int sockfd, const SockAddrIn* addr) noexcept {
         return 0;
     }
 
-    // TCP: send SYN (simplified -- would need full state machine)
-    s->state = SocketState::Connected;
-    return 0;
+    // TCP: initiate 3-way handshake (async -- caller blocks via scheduler)
+    if (s->state == SocketState::SynSent) {
+        // Woken from TcpConnect wait -- check result
+        const auto state = net::tcp_state(s->tcp_conn_idx);
+        if (state == net::TcpState::Established) {
+            s->state = SocketState::Established;
+            return 0;
+        }
+        // Still connecting or failed
+        if (state == net::TcpState::Closed) {
+            s->state = SocketState::Closed;
+            return -111; // ECONNREFUSED
+        }
+        return -115; // EINPROGRESS (still waiting)
+    }
+    const int tcp_conn = net::tcp_connect(s->remote_addr, s->remote_port, s->local_port);
+    if (tcp_conn < 0) return -12; // ENOMEM
+    s->tcp_conn_idx = tcp_conn;
+    s->state = SocketState::SynSent;
+    return -115; // EINPROGRESS: caller should block and retry
 }
 
 int sys_listen(int sockfd, int /*backlog*/) noexcept {
     Socket* s = get_socket(sockfd);
     if (s == nullptr) return -9;
+    if (s->type != SOCK_STREAM) return -95; // EOPNOTSUPP
+    const int tcp_conn = net::tcp_listen(s->local_port);
+    if (tcp_conn < 0) return -12;
+    s->tcp_conn_idx = tcp_conn;
     s->state = SocketState::Listening;
     return 0;
 }
 
-int sys_accept(int /*sockfd*/, SockAddrIn* /*addr*/) noexcept {
-    // Simplified: not yet implemented
-    return -38; // ENOSYS
+int sys_accept(int sockfd, SockAddrIn* addr) noexcept {
+    Socket* s = get_socket(sockfd);
+    if (s == nullptr) return -9;
+    if (s->state != SocketState::Listening) return -22;
+
+    net::poll();
+    const int tcp_child = net::tcp_accept(s->tcp_conn_idx);
+    if (tcp_child < 0) return -11; // EAGAIN
+
+    int new_fd = allocate_socket();
+    if (new_fd < 0) return -12;
+
+    Socket* child = get_socket(new_fd);
+    if (child == nullptr) return -12;
+    child->type = SOCK_STREAM;
+    child->state = SocketState::Established;
+    child->local_port = s->local_port;
+    child->tcp_conn_idx = tcp_child;
+    // D.3: Fill remote addr from TCP connection
+    uint8_t remote_ip[4]{};
+    uint16_t remote_port = 0U;
+    net::tcp_get_remote(tcp_child, remote_ip, &remote_port);
+    copy4(child->remote_addr, remote_ip);
+    child->remote_port = remote_port;
+    if (addr != nullptr) {
+        *addr = {};
+        addr->family = AF_INET;
+        copy4(addr->addr, remote_ip);
+        addr->port = net::htons(remote_port);
+    }
+    return new_fd;
 }
 
 int sys_sendto(int sockfd, const void* buf, uint32_t len,
@@ -149,7 +199,11 @@ int sys_sendto(int sockfd, const void* buf, uint32_t len,
         return -5; // EIO
     }
 
-    // TCP send would go here
+    // TCP send
+    if (s->type == SOCK_STREAM && s->state == SocketState::Established) {
+        const int tcp_conn = s->tcp_conn_idx;
+        return net::tcp_send(tcp_conn, buf, len);
+    }
     return -38;
 }
 
@@ -162,6 +216,11 @@ int sys_recvfrom(int sockfd, void* buf, uint32_t len,
     // Poll netstack for new frames
     net::poll();
 
+    if (s->type == SOCK_STREAM && s->state == SocketState::Established) {
+        const int tcp_conn = s->tcp_conn_idx;
+        return net::tcp_recv(tcp_conn, buf, len);
+    }
+
     if (rx_available(*s) == 0U) {
         return -11; // EAGAIN (would block)
     }
@@ -173,6 +232,9 @@ int sys_recvfrom(int sockfd, void* buf, uint32_t len,
 int sys_shutdown(int sockfd, int /*how*/) noexcept {
     Socket* s = get_socket(sockfd);
     if (s == nullptr) return -9;
+    if (s->type == SOCK_STREAM && s->state == SocketState::Established) {
+        net::tcp_close(s->tcp_conn_idx);
+    }
     s->state = SocketState::Closed;
     return 0;
 }
@@ -180,7 +242,131 @@ int sys_shutdown(int sockfd, int /*how*/) noexcept {
 int sys_close(int sockfd) noexcept {
     Socket* s = get_socket(sockfd);
     if (s == nullptr) return -9;
+    if (s->type == SOCK_STREAM &&
+        (s->state == SocketState::Established || s->state == SocketState::CloseWait)) {
+        net::tcp_close(s->tcp_conn_idx);
+    }
     s->in_use = false;
+    return 0;
+}
+
+int get_tcp_conn_idx(int sockfd) noexcept {
+    Socket* s = get_socket(sockfd);
+    if (s == nullptr) return -1;
+    return s->tcp_conn_idx;
+}
+
+int sys_setsockopt(int sockfd, int level, int optname,
+                   const void* optval, uint32_t optlen) noexcept {
+    Socket* s = get_socket(sockfd);
+    if (s == nullptr) return -9; // EBADF
+
+    if (level == SOL_SOCKET) {
+        switch (optname) {
+        case SO_REUSEADDR:
+            if (optval != nullptr && optlen >= 4U) {
+                s->so_reuseaddr = (*static_cast<const int*>(optval) != 0);
+            }
+            return 0;
+        case SO_KEEPALIVE:
+            if (optval != nullptr && optlen >= 4U) {
+                s->so_keepalive = (*static_cast<const int*>(optval) != 0);
+            }
+            return 0;
+        case SO_SNDBUF:
+        case SO_RCVBUF:
+            return 0; // Accept but ignore (fixed buffer sizes)
+        default:
+            return 0; // Permissive: accept unknown options
+        }
+    }
+
+    if (level == IPPROTO_TCP) {
+        if (optname == TCP_NODELAY) {
+            if (optval != nullptr && optlen >= 4U && s->type == SOCK_STREAM) {
+                const bool nodelay = (*static_cast<const int*>(optval) != 0);
+                net::tcp_set_nodelay(s->tcp_conn_idx, nodelay);
+            }
+            return 0;
+        }
+        return 0; // Permissive
+    }
+
+    return 0; // Permissive for unknown levels
+}
+
+int sys_getsockopt(int sockfd, int level, int optname,
+                   void* optval, uint32_t* optlen) noexcept {
+    Socket* s = get_socket(sockfd);
+    if (s == nullptr) return -9;
+    if (optval == nullptr || optlen == nullptr || *optlen < 4U) return -14;
+
+    auto* val = static_cast<int*>(optval);
+    *optlen = 4U;
+
+    if (level == SOL_SOCKET) {
+        switch (optname) {
+        case SO_REUSEADDR: *val = s->so_reuseaddr ? 1 : 0; return 0;
+        case SO_KEEPALIVE: *val = s->so_keepalive ? 1 : 0; return 0;
+        case SO_SNDBUF: *val = 4096; return 0;
+        case SO_RCVBUF: *val = 4096; return 0;
+        default: *val = 0; return 0;
+        }
+    }
+    *val = 0;
+    return 0;
+}
+
+int sys_getsockname(int sockfd, SockAddrIn* addr) noexcept {
+    Socket* s = get_socket(sockfd);
+    if (s == nullptr) return -9;
+    if (addr == nullptr) return -14;
+    *addr = {};
+    addr->family = AF_INET;
+    copy4(addr->addr, s->local_addr);
+    addr->port = net::htons(s->local_port);
+    return 0;
+}
+
+int sys_getpeername(int sockfd, SockAddrIn* addr) noexcept {
+    Socket* s = get_socket(sockfd);
+    if (s == nullptr) return -9;
+    if (addr == nullptr) return -14;
+    if (s->state != SocketState::Connected && s->state != SocketState::Established) {
+        return -107; // ENOTCONN
+    }
+    *addr = {};
+    addr->family = AF_INET;
+    copy4(addr->addr, s->remote_addr);
+    addr->port = net::htons(s->remote_port);
+    return 0;
+}
+
+int sys_socketpair(int domain, int /*type*/, int /*protocol*/, int sv[2]) noexcept {
+    if (domain != AF_UNIX) return -97; // EAFNOSUPPORT
+    if (sv == nullptr) return -14;
+
+    int fd0 = allocate_socket();
+    if (fd0 < 0) return -12;
+    int fd1 = allocate_socket();
+    if (fd1 < 0) {
+        get_socket(fd0)->in_use = false;
+        return -12;
+    }
+
+    Socket* s0 = get_socket(fd0);
+    Socket* s1 = get_socket(fd1);
+    s0->type = SOCK_STREAM;
+    s0->state = SocketState::Connected;
+    s1->type = SOCK_STREAM;
+    s1->state = SocketState::Connected;
+    // Cross-link: each socket's "tcp_conn_idx" points to the peer's fd
+    // for socketpair we use negative indices as a sentinel
+    s0->tcp_conn_idx = -(fd1 + 1);
+    s1->tcp_conn_idx = -(fd0 + 1);
+
+    sv[0] = fd0;
+    sv[1] = fd1;
     return 0;
 }
 

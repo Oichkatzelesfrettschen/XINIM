@@ -124,4 +124,13 @@ const NetConfig& config() noexcept;
 // DNS
 bool dns_resolve(const char* hostname, uint8_t* out_ip) noexcept;
 
+// TCP support (used by tcp.cpp)
+bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
+                    const uint8_t* payload, uint32_t payload_len) noexcept;
+uint16_t ip_checksum(const void* data, uint32_t length) noexcept;
+
+// TCP input dispatch: declared in tcp.hpp, called from netstack rx path
+void deliver_tcp_segment(const Ipv4Header* ip,
+                         const uint8_t* tcp_data, uint32_t tcp_len) noexcept;
+
 } // namespace xinim::i486::net

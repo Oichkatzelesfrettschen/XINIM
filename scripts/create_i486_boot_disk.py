@@ -46,12 +46,16 @@ def build_mbr(total_sectors: int) -> bytes:
     return bytes(mbr)
 
 
-def install_guest_binaries(root_dir: str, guest_bins: Iterable[str]) -> None:
+def install_guest_binaries(root_dir: str, guest_bins: Iterable[str],
+                           optional: bool = False) -> None:
     for spec in guest_bins:
         source, separator, target = spec.partition(":")
         if not separator or not source or not target:
             raise SystemExit(f"invalid --guest-bin value: {spec!r}")
         if not os.path.isfile(source):
+            if optional:
+                print(f"INFO: optional binary not found, skipping: {source}")
+                continue
             raise SystemExit(f"guest binary not found: {source}")
         target_path = target if target.startswith("/") else f"/bin/{target}"
         destination = os.path.join(root_dir, target_path.lstrip("/"))
@@ -68,6 +72,7 @@ def populate_root_tree(
     motd_path: str | None,
     include_dir: str | None,
     guest_bins: Iterable[str],
+    optional_bins: Iterable[str] = (),
 ) -> None:
     boot_dir = os.path.join(root_dir, "boot")
     grub_dir = os.path.join(boot_dir, "grub")
@@ -131,6 +136,7 @@ def populate_root_tree(
         shutil.copytree(include_dir, usr_include, dirs_exist_ok=True)
 
     install_guest_binaries(root_dir, guest_bins)
+    install_guest_binaries(root_dir, optional_bins, optional=True)
 
 
 def format_ext2_partition(
@@ -279,6 +285,8 @@ def main() -> int:
                         help="Path to GRUB i386-pc platform directory")
     parser.add_argument("--guest-bin", action="append", default=[],
                         help="Guest binary: SOURCE:TARGET_PATH")
+    parser.add_argument("--optional-bin", action="append", default=[],
+                        help="Optional guest binary (skipped if missing): SOURCE:TARGET_PATH")
     parser.add_argument("--raw-only", action="store_true",
                         help="Output raw image instead of qcow2")
     args = parser.parse_args()
@@ -319,6 +327,7 @@ def main() -> int:
             args.motd if args.motd else None,
             args.include_dir if args.include_dir else None,
             args.guest_bin,
+            args.optional_bin,
         )
         format_ext2_partition(raw_path, partition_sector_count, root_dir)
 

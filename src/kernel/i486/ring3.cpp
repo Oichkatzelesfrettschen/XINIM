@@ -1,18 +1,25 @@
 #include "ring3.hpp"
 
-#include "bootfs.hpp"
+#include "ring3_internal.hpp"
+#include "kutil.hpp"
+#include "process.hpp"
+#include "signal.hpp"
+#include "sched.hpp"
+#include "hw_init.hpp"
 #include "console.hpp"
-#include "elf32_loader.hpp"
 #include "ext2_reader.hpp"
-#include "../scheduler_policy.hpp"
-#include "../recovery/recovery_dag.hpp"
-#include "shell.hpp"
 #include "socket_i486.hpp"
-#include "../recovery/service_node.hpp"
+#include "sysv_ipc.hpp"
+#include "lockf.hpp"
+
+#include "bootfs.hpp"
+#include "elf32_loader.hpp"
+#include "shell.hpp"
 #include "xinim/sys/syscalls.h"
 
 namespace xinim::i486::ring3 {
-namespace {
+
+// -- Compiler runtime ------------------------------------------------------
 
 extern "C" void* memset(void* destination, int value, uint32_t size) noexcept {
     auto* output = static_cast<uint8_t*>(destination);
@@ -25,314 +32,7 @@ extern "C" void* memset(void* destination, int value, uint32_t size) noexcept {
     return destination;
 }
 
-constexpr uint16_t kKernelCodeSelector = 0x08U;
-constexpr uint16_t kKernelDataSelector = 0x10U;
-constexpr uint16_t kUserCodeSelector = 0x1BU;
-constexpr uint16_t kUserDataSelector = 0x23U;
-constexpr uint16_t kTssSelector = 0x28U;
-constexpr uint8_t kTimerVector = 32U;
-constexpr uint8_t kSyscallVector = 0x80U;
-constexpr uint32_t kKernelStackSize = 8192U;
-constexpr size_t kMaxProcesses = 8U;
-constexpr uint32_t kUserEflags = 0x202U;
-constexpr uint32_t kPageSize = 4096U;
-constexpr uint32_t kMaxExecArgs = 16U;
-constexpr uint32_t kMaxExecEnvs = 16U;
-constexpr uint32_t kMaxExecStringBytes = 512U;
-constexpr uint32_t kWaitNoHang = 1U;
-constexpr uint32_t kWaitUntraced = 2U;
-constexpr int32_t kWaitPidAny = -1;
-constexpr uint32_t kHeapGuardBytes = 64U * 1024U;
-constexpr uint32_t kAuxvTagNull = 0U;
-constexpr uint32_t kAuxvTagPageSize = 6U;
-constexpr uint32_t kMaxUserMappings = 16U;
-constexpr uint32_t kMapPrivate = 0x02U;
-constexpr uint32_t kMapFixed = 0x10U;
-constexpr uint32_t kMapAnonymous = 0x20U;
-constexpr uint32_t kErrnoNoSys = static_cast<uint32_t>(-38);
-constexpr uint32_t kErrnoIntr = static_cast<uint32_t>(-4);
-constexpr uint32_t kErrnoNoEnt = static_cast<uint32_t>(-2);
-constexpr uint32_t kErrnoAcces = static_cast<uint32_t>(-13);
-constexpr uint32_t kErrnoBadF = static_cast<uint32_t>(-9);
-constexpr uint32_t kErrnoChild = static_cast<uint32_t>(-10);
-constexpr uint32_t kErrnoNoMem = static_cast<uint32_t>(-12);
-constexpr uint32_t kErrnoFault = static_cast<uint32_t>(-14);
-constexpr uint32_t kErrnoInvalid = static_cast<uint32_t>(-22);
-constexpr uint32_t kErrnoNoTTY = static_cast<uint32_t>(-25);
-constexpr uint16_t kPic1CommandPort = 0x20U;
-constexpr uint16_t kPic1DataPort = 0x21U;
-constexpr uint16_t kPic2CommandPort = 0xA0U;
-constexpr uint16_t kPic2DataPort = 0xA1U;
-constexpr uint16_t kPitChannel0Port = 0x40U;
-constexpr uint16_t kPitModePort = 0x43U;
-constexpr uint8_t kPicInitialize = 0x11U;
-constexpr uint8_t kPic8086Mode = 0x01U;
-constexpr uint8_t kPicEoi = 0x20U;
-constexpr uint32_t kTimerHz = 100U;
-constexpr uint32_t kPitInputHz = 1193182U;
-constexpr size_t kMaxSupervisedServices = 8U;
-constexpr uint8_t kInitServiceMaxRestarts = 16U;
-constexpr uint8_t kHoldServiceMaxRestarts = 4U;
-constexpr uint32_t kInitServicePriority = xinim::kernel::sched_policy::PRIO_USER_NORM;
-constexpr uint32_t kSupportServicePriority = xinim::kernel::sched_policy::PRIO_USER_LOW;
-
-struct TimeVal32 {
-    uint32_t seconds;
-    uint32_t microseconds;
-};
-
-struct TimeSpec32 {
-    uint32_t seconds;
-    uint32_t nanoseconds;
-};
-
-struct RLimit32 {
-    uint32_t current;
-    uint32_t maximum;
-};
-
-struct RUsage32 {
-    TimeVal32 user_time;
-    TimeVal32 system_time;
-    int32_t max_rss;
-    int32_t integral_shared_rss;
-    int32_t integral_unshared_data;
-    int32_t integral_unshared_stack;
-    int32_t minor_faults;
-    int32_t major_faults;
-    int32_t swaps;
-    int32_t block_inputs;
-    int32_t block_outputs;
-    int32_t messages_sent;
-    int32_t messages_received;
-    int32_t signals_received;
-    int32_t voluntary_context_switches;
-    int32_t involuntary_context_switches;
-};
-
-struct UserMapping {
-    bool in_use;
-    uint32_t address;
-    uint32_t size;
-};
-
-struct [[gnu::packed]] GdtEntry {
-    uint16_t limit_low;
-    uint16_t base_low;
-    uint8_t base_middle;
-    uint8_t access;
-    uint8_t granularity;
-    uint8_t base_high;
-};
-
-struct [[gnu::packed]] TssEntry {
-    uint32_t prev_tss;
-    uint32_t esp0;
-    uint32_t ss0;
-    uint32_t esp1;
-    uint32_t ss1;
-    uint32_t esp2;
-    uint32_t ss2;
-    uint32_t cr3;
-    uint32_t eip;
-    uint32_t eflags;
-    uint32_t eax;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t ebx;
-    uint32_t esp;
-    uint32_t ebp;
-    uint32_t esi;
-    uint32_t edi;
-    uint32_t es;
-    uint32_t cs;
-    uint32_t ss;
-    uint32_t ds;
-    uint32_t fs;
-    uint32_t gs;
-    uint32_t ldt_selector;
-    uint16_t trap;
-    uint16_t iomap_base;
-};
-
-struct [[gnu::packed]] GdtDescriptor {
-    uint16_t size;
-    uint32_t offset;
-};
-
-struct [[gnu::packed]] IdtEntry {
-    uint16_t offset_low;
-    uint16_t selector;
-    uint8_t zero;
-    uint8_t type_attr;
-    uint16_t offset_high;
-};
-
-struct [[gnu::packed]] IdtDescriptor {
-    uint16_t size;
-    uint32_t offset;
-};
-
-struct RegisterFrame {
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t esi;
-    uint32_t edi;
-    uint32_t ebp;
-    uint32_t ds;
-    uint32_t es;
-    uint32_t fs;
-    uint32_t gs;
-};
-
-struct UserContext {
-    uint32_t eax;
-    uint32_t ebx;
-    uint32_t ecx;
-    uint32_t edx;
-    uint32_t esi;
-    uint32_t edi;
-    uint32_t ebp;
-    uint32_t ds;
-    uint32_t es;
-    uint32_t fs;
-    uint32_t gs;
-    uint32_t eip;
-    uint32_t cs;
-    uint32_t eflags;
-    uint32_t esp;
-    uint32_t ss;
-};
-
-// -- Signal definitions for i486 (32-bit) ---------------------------------
-
-constexpr uint32_t kSigHup = 1U;
-constexpr uint32_t kSigInt = 2U;
-constexpr uint32_t kSigQuit = 3U;
-constexpr uint32_t kSigIll = 4U;
-constexpr uint32_t kSigAbrt = 6U;
-constexpr uint32_t kSigKill = 9U;
-constexpr uint32_t kSigSegv = 11U;
-constexpr uint32_t kSigPipe = 13U;
-constexpr uint32_t kSigAlrm = 14U;
-constexpr uint32_t kSigTerm = 15U;
-constexpr uint32_t kSigChld = 17U;
-constexpr uint32_t kSigCont = 18U;
-constexpr uint32_t kSigStop = 19U;
-constexpr uint32_t kSigTstp = 20U;
-constexpr uint32_t kSigTtin = 21U;
-constexpr uint32_t kMaxSignals = 32U;
-
-constexpr uint32_t kSigDfl = 0U;
-constexpr uint32_t kSigIgn = 1U;
-
-// SA_* flags (subset matching Linux i386 ABI)
-constexpr uint32_t kSaRestart = 0x10000000U;
-constexpr uint32_t kSaNodefer = 0x40000000U;
-constexpr uint32_t kSaResethand = 0x80000000U;
-constexpr uint32_t kSaNocldwait = 0x00000002U;
-
-
-struct SignalHandler32 {
-    uint32_t handler;   // SIG_DFL(0), SIG_IGN(1), or user function address
-    uint32_t flags;     // SA_* flags
-    uint32_t mask;      // Signals blocked during handler execution
-    uint32_t restorer;  // Signal restorer (sa_restorer)
-};
-
-struct SignalState32 {
-    SignalHandler32 handlers[kMaxSignals]; // indices 0-31, only 1-31 used
-    uint32_t pending;   // Pending signals bitmask
-    uint32_t blocked;   // Blocked signals bitmask
-    bool in_handler;    // Currently executing signal handler
-    uint32_t saved_mask; // Saved signal mask during handler
-};
-
-// Signal frame pushed onto user stack before entering handler.
-// sigreturn reads this back to restore original context.
-struct [[gnu::packed]] SignalFrame32 {
-    uint32_t sigreturn_trampoline[2]; // Code: movl $SYS_rt_sigreturn,%eax; int $0x80
-    uint32_t signum;
-    UserContext saved_context;
-    uint32_t saved_mask;
-};
-
-enum class ProcessState : uint8_t {
-    Empty = 0,
-    Runnable = 1,
-    Waiting = 2,
-    Exited = 3,
-    Stopped = 4,
-};
-
-struct Process {
-    bool in_use;
-    uint32_t pid;
-    uint32_t ppid;
-    ProcessState state;
-    uint32_t exit_status;
-    uint32_t file_creation_mask;
-    uint32_t minimum_break;
-    uint32_t current_break;
-    uint32_t saved_kernel_esp;
-    uint32_t segment_base;
-    uint32_t priority;
-    uint32_t base_priority;
-    uint32_t quantum_ticks;
-    uint16_t scheduler_domain;
-    bool waiting_for_console_input;
-    uint64_t wake_tick;
-    uint32_t ticks_remaining;
-    uint32_t pgid;
-    uint64_t alarm_tick; // Scheduler tick when SIGALRM should fire (0 = disabled)
-    int ctty_slot; // Global OpenFile slot for controlling terminal (-1 = none)
-    char cwd[256]; // Current working directory (absolute path)
-    SignalState32 signals;
-    int fd_map[32]; // Per-process fd table: maps local fd -> global OpenFile slot (-1 = unused)
-    UserMapping mappings[kMaxUserMappings];
-    UserContext context;
-    alignas(16) uint8_t kernel_stack[kKernelStackSize];
-    alignas(16) uint8_t address_space[elf32::kUserAddressSpaceSize];
-};
-
-template <uint32_t Count>
-struct ExecVector {
-    uint32_t count;
-    const char* values[Count];
-    char storage[kMaxExecStringBytes];
-    uint32_t used_bytes;
-};
-
-enum class ServiceLaunchMode : uint8_t {
-    BootOnly = 0,
-    OnDemand = 1,
-};
-
-struct SupervisedService {
-    bool in_use;
-    uint32_t service_id;
-    char name[xinim::kernel::recovery::MAX_SERVICE_NAME];
-    const bootfs::FileRecord* file;
-    const char* path;
-    const char* env;
-    uint32_t pid;
-    xinim::kernel::recovery::RestartPolicy restart_policy;
-    xinim::kernel::recovery::ServiceState state;
-    uint8_t restart_count;
-    uint8_t max_restarts;
-    bool respawn_on_clean_exit;
-    bool critical;
-    uint32_t owner_pid;
-    int dag_index;
-    ServiceLaunchMode launch_mode;
-    uint32_t priority;
-    uint32_t base_priority;
-    uint32_t quantum_ticks;
-    uint16_t scheduler_domain;
-    bool run_announced;
-};
+// -- Global variable definitions -------------------------------------------
 
 alignas(16) GdtEntry g_gdt[7]{};
 alignas(16) TssEntry g_tss{};
@@ -345,616 +45,13 @@ const xinim::boot::BootInfo* g_boot_info = nullptr;
 Process* g_current_process = nullptr;
 uint32_t g_next_pid = 1U;
 uint32_t g_next_service_id = 1U;
-// Syscall trace disabled -- was polluting VGA via console::write_string
 uint64_t g_scheduler_ticks = 0U;
+uint32_t g_boot_epoch_seconds = 0U;
+uint64_t g_boot_epoch_ticks = 0U;
 
-inline void outb(uint16_t port, uint8_t value) noexcept {
-    asm volatile("outb %0, %1" : : "a"(value), "Nd"(port));
-}
+// -- Local helpers (anonymous namespace) -----------------------------------
 
-extern "C" void i486_load_gdt(uint32_t descriptor) noexcept;
-extern "C" void i486_load_idt(uint32_t descriptor) noexcept;
-extern "C" void i486_load_tss(uint16_t selector) noexcept;
-extern "C" void i486_resume_user_context(const UserContext* context) noexcept;
-extern "C" void i486_switch_to_user_context(const UserContext* context,
-                                             uint32_t* saved_kernel_esp) noexcept;
-extern "C" void i486_resume_saved_kernel_stack(uint32_t saved_kernel_esp) noexcept;
-extern "C" void i486_syscall_entry() noexcept;
-extern "C" void i486_timer_irq_entry() noexcept;
-extern "C" void i486_fault_ud_entry() noexcept;
-extern "C" void i486_fault_gp_entry() noexcept;
-extern "C" void i486_fault_pf_entry() noexcept;
-
-[[nodiscard]] bool string_equals(const char* lhs, const char* rhs) noexcept {
-    if (lhs == nullptr || rhs == nullptr) {
-        return lhs == rhs;
-    }
-    while (*lhs != '\0' && *rhs != '\0') {
-        if (*lhs != *rhs) {
-            return false;
-        }
-        ++lhs;
-        ++rhs;
-    }
-    return *lhs == *rhs;
-}
-
-void zero_region(uint8_t* base, uint32_t size) noexcept {
-    for (uint32_t index = 0U; index < size; ++index) {
-        base[index] = 0U;
-    }
-}
-
-void copy_region(uint8_t* out, const uint8_t* in, uint32_t size) noexcept {
-    for (uint32_t index = 0U; index < size; ++index) {
-        out[index] = in[index];
-    }
-}
-
-[[nodiscard]] uint32_t string_length(const char* text) noexcept {
-    if (text == nullptr) {
-        return 0U;
-    }
-    uint32_t length = 0U;
-    while (text[length] != '\0') {
-        ++length;
-    }
-    return length;
-}
-
-void copy_c_string(char* destination, uint32_t capacity, const char* source) noexcept {
-    if (destination == nullptr || capacity == 0U) {
-        return;
-    }
-    if (source == nullptr) {
-        destination[0] = '\0';
-        return;
-    }
-    uint32_t index = 0U;
-    while (index + 1U < capacity && source[index] != '\0') {
-        destination[index] = source[index];
-        ++index;
-    }
-    destination[index] = '\0';
-}
-
-// Translate a process-local fd through fd_map to a global OpenFile slot index.
-// Returns -1 if the fd is invalid or unmapped.
-[[nodiscard]] int resolve_fd(const Process* process, int fd) noexcept {
-    if (process == nullptr || fd < 0 || fd >= 32) {
-        return -1;
-    }
-    return process->fd_map[fd];
-}
-
-// Allocate the lowest available fd_map slot for a process, mapping it to the
-// given global slot. Returns the new local fd, or -1 if no slot is free.
-[[nodiscard]] int allocate_fd_map_entry(Process* process, int global_slot) noexcept {
-    if (process == nullptr || global_slot < 0) {
-        return -1;
-    }
-    for (int i = 0; i < 32; ++i) {
-        if (process->fd_map[i] == -1) {
-            process->fd_map[i] = global_slot;
-            return i;
-        }
-    }
-    return -1;
-}
-
-[[nodiscard]] uint32_t align_down(uint32_t value, uint32_t alignment) noexcept {
-    return value & ~(alignment - 1U);
-}
-
-[[nodiscard]] uint32_t align_up(uint32_t value, uint32_t alignment) noexcept {
-    return (value + alignment - 1U) & ~(alignment - 1U);
-}
-
-[[nodiscard]] bool copy_user_string(Process* process, uint32_t user_address,
-                                    char* buffer, uint32_t capacity) noexcept;
-
-// Resolve a relative path against the process's cwd.
-// If path starts with '/', it's already absolute. Otherwise prepend cwd.
-bool resolve_path(const Process* process,
-                  const char* input,
-                  char* output,
-                  uint32_t capacity) noexcept {
-    if (process == nullptr || input == nullptr || output == nullptr || capacity == 0U) {
-        return false;
-    }
-    if (input[0] == '/' || input[0] == '\0') {
-        copy_c_string(output, capacity, input);
-        return true;
-    }
-    // Prepend cwd + "/" + input
-    const uint32_t cwd_len = string_length(process->cwd);
-    const uint32_t input_len = string_length(input);
-    const bool needs_slash = (cwd_len > 0U && process->cwd[cwd_len - 1U] != '/');
-    const uint32_t total = cwd_len + (needs_slash ? 1U : 0U) + input_len + 1U;
-    if (total > capacity) {
-        return false;
-    }
-    uint32_t pos = 0U;
-    for (uint32_t i = 0U; i < cwd_len; ++i) output[pos++] = process->cwd[i];
-    if (needs_slash) output[pos++] = '/';
-    for (uint32_t i = 0U; i < input_len; ++i) output[pos++] = input[i];
-    output[pos] = '\0';
-    return true;
-}
-
-// Copy user path string and resolve against cwd
-bool copy_and_resolve_user_path(Process* process,
-                                uint32_t user_address,
-                                char* buffer,
-                                uint32_t capacity) noexcept {
-    char raw[256]{};
-    if (!copy_user_string(process, user_address, raw, sizeof(raw))) {
-        return false;
-    }
-    return resolve_path(process, raw, buffer, capacity);
-}
-
-void activate_process(Process* process) noexcept;
-void init_signal_state(Process* process) noexcept;
-void send_signal_to_process(Process* target, uint32_t signum) noexcept;
-bool deliver_one_signal(Process* process) noexcept;
-[[nodiscard]] Process* find_process(uint32_t pid) noexcept;
-[[noreturn]] void resume_waiting_parent(Process* parent) noexcept;
-[[nodiscard]] SupervisedService* find_supervised_service_by_process(
-    const Process* process) noexcept;
-
-void set_gdt_entry(int index,
-                   uint32_t base,
-                   uint32_t limit,
-                   uint8_t access,
-                   uint8_t granularity) noexcept {
-    g_gdt[index].limit_low = static_cast<uint16_t>(limit & 0xFFFFU);
-    g_gdt[index].base_low = static_cast<uint16_t>(base & 0xFFFFU);
-    g_gdt[index].base_middle = static_cast<uint8_t>((base >> 16U) & 0xFFU);
-    g_gdt[index].access = access;
-    g_gdt[index].granularity =
-        static_cast<uint8_t>(((limit >> 16U) & 0x0FU) | (granularity & 0xF0U));
-    g_gdt[index].base_high = static_cast<uint8_t>((base >> 24U) & 0xFFU);
-}
-
-void set_tss_descriptor(int index, uint32_t base, uint32_t limit) noexcept {
-    set_gdt_entry(index, base, limit, 0x89U, 0x00U);
-    g_gdt[index + 1] = {};
-}
-
-void set_idt_gate(uint8_t vector, void (*handler)() noexcept) noexcept {
-    const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(handler));
-    g_idt[vector].offset_low = static_cast<uint16_t>(address & 0xFFFFU);
-    g_idt[vector].selector = kKernelCodeSelector;
-    g_idt[vector].zero = 0U;
-    g_idt[vector].type_attr = 0xEEU;
-    g_idt[vector].offset_high = static_cast<uint16_t>((address >> 16U) & 0xFFFFU);
-}
-
-void set_kernel_fault_gate(uint8_t vector, void (*handler)() noexcept) noexcept {
-    const uint32_t address = static_cast<uint32_t>(reinterpret_cast<uintptr_t>(handler));
-    g_idt[vector].offset_low = static_cast<uint16_t>(address & 0xFFFFU);
-    g_idt[vector].selector = kKernelCodeSelector;
-    g_idt[vector].zero = 0U;
-    g_idt[vector].type_attr = 0x8EU;
-    g_idt[vector].offset_high = static_cast<uint16_t>((address >> 16U) & 0xFFFFU);
-}
-
-void set_user_segment_base(uint32_t base) noexcept {
-    // Page granularity: limit covers kUserVirtualBase + kUserAddressSpaceSize.
-    // Virtual addresses start at kUserVirtualBase (0x400000) and the segment
-    // base is address_space - kUserVirtualBase, so offset 0x400000 maps to
-    // address_space[0]. The limit must allow access up to offset
-    // kUserVirtualBase + kUserAddressSpaceSize - 1.
-    const uint32_t limit_pages =
-        ((elf32::kUserVirtualBase + elf32::kUserAddressSpaceSize) / kPageSize) - 1U;
-    // 0xC0 = G=1 (page granularity) | D=1 (32-bit segment)
-    set_gdt_entry(3, base, limit_pages, 0xFAU, 0xC0U);
-    set_gdt_entry(4, base, limit_pages, 0xF2U, 0xC0U);
-}
-
-void initialize_protection() noexcept {
-    set_gdt_entry(0, 0U, 0U, 0U, 0U);
-    set_gdt_entry(1, 0U, 0x000FFFFFU, 0x9AU, 0xCFU);
-    set_gdt_entry(2, 0U, 0x000FFFFFU, 0x92U, 0xCFU);
-    set_user_segment_base(0U);
-
-    g_tss = {};
-    g_tss.ss0 = kKernelDataSelector;
-    g_tss.esp0 = static_cast<uint32_t>(
-        reinterpret_cast<uintptr_t>(g_bootstrap_kernel_stack + sizeof(g_bootstrap_kernel_stack)));
-    g_tss.iomap_base = sizeof(TssEntry);
-    set_tss_descriptor(5,
-                       static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&g_tss)),
-                       static_cast<uint32_t>(sizeof(TssEntry) - 1U));
-
-    const GdtDescriptor gdt_descriptor{
-        static_cast<uint16_t>(sizeof(g_gdt) - 1U),
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_gdt)),
-    };
-    i486_load_gdt(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&gdt_descriptor)));
-    i486_load_tss(kTssSelector);
-
-    for (auto& entry : g_idt) {
-        entry = {};
-    }
-    set_kernel_fault_gate(kTimerVector, i486_timer_irq_entry);
-    set_idt_gate(kSyscallVector, i486_syscall_entry);
-    set_kernel_fault_gate(6U, i486_fault_ud_entry);
-    set_kernel_fault_gate(13U, i486_fault_gp_entry);
-    set_kernel_fault_gate(14U, i486_fault_pf_entry);
-    const IdtDescriptor idt_descriptor{
-        static_cast<uint16_t>(sizeof(g_idt) - 1U),
-        static_cast<uint32_t>(reinterpret_cast<uintptr_t>(g_idt)),
-    };
-    i486_load_idt(static_cast<uint32_t>(reinterpret_cast<uintptr_t>(&idt_descriptor)));
-}
-
-void initialize_legacy_pic() noexcept {
-    outb(kPic1DataPort, 0xFFU);
-    outb(kPic2DataPort, 0xFFU);
-
-    outb(kPic1CommandPort, kPicInitialize);
-    outb(kPic2CommandPort, kPicInitialize);
-    outb(kPic1DataPort, kTimerVector);
-    outb(kPic2DataPort, static_cast<uint8_t>(kTimerVector + 8U));
-    outb(kPic1DataPort, 0x04U);
-    outb(kPic2DataPort, 0x02U);
-    outb(kPic1DataPort, kPic8086Mode);
-    outb(kPic2DataPort, kPic8086Mode);
-
-    outb(kPic1DataPort, 0xFEU);
-    outb(kPic2DataPort, 0xFFU);
-}
-
-void initialize_pit(uint32_t frequency_hz) noexcept {
-    const uint32_t divisor = frequency_hz == 0U ? 0U : (kPitInputHz / frequency_hz);
-    outb(kPitModePort, 0x36U);
-    outb(kPitChannel0Port, static_cast<uint8_t>(divisor & 0xFFU));
-    outb(kPitChannel0Port, static_cast<uint8_t>((divisor >> 8U) & 0xFFU));
-}
-
-void send_timer_eoi() noexcept {
-    outb(kPic1CommandPort, kPicEoi);
-}
-
-[[noreturn]] void resume_rescue_shell(const char* reason) noexcept {
-    console::write_string(reason);
-    console::newline();
-    console::write_string("Falling back to rescue shell on COM2");
-    console::newline();
-    if (g_boot_info != nullptr) {
-        xinim::i486::shell::run(*g_boot_info);
-    }
-    for (;;) {
-        asm volatile("cli; hlt");
-    }
-}
-
-[[nodiscard]] UserContext capture_user_context(RegisterFrame* frame) noexcept {
-    UserContext context{};
-    if (frame == nullptr) {
-        return context;
-    }
-    const auto* tail = reinterpret_cast<const uint32_t*>(
-        reinterpret_cast<const uint8_t*>(frame) + sizeof(RegisterFrame));
-    context.eax = frame->eax;
-    context.ebx = frame->ebx;
-    context.ecx = frame->ecx;
-    context.edx = frame->edx;
-    context.esi = frame->esi;
-    context.edi = frame->edi;
-    context.ebp = frame->ebp;
-    context.ds = frame->ds;
-    context.es = frame->es;
-    context.fs = frame->fs;
-    context.gs = frame->gs;
-    context.eip = tail[0];
-    context.cs = tail[1];
-    context.eflags = tail[2];
-    context.esp = tail[3];
-    context.ss = tail[4];
-    return context;
-}
-
-[[nodiscard]] uint32_t effective_quantum(const Process* process) noexcept {
-    if (process == nullptr) {
-        return 0U;
-    }
-    if (process->quantum_ticks != 0U) {
-        return process->quantum_ticks;
-    }
-    return xinim::kernel::sched_policy::quantum_for_priority(process->priority);
-}
-
-void apply_scheduler_profile(Process* process,
-                             uint32_t priority,
-                             uint32_t base_priority,
-                             uint32_t quantum_ticks,
-                             uint16_t scheduler_domain) noexcept {
-    if (process == nullptr) {
-        return;
-    }
-    process->priority = xinim::kernel::sched_policy::clamp_priority(priority);
-    process->base_priority = xinim::kernel::sched_policy::clamp_priority(base_priority);
-    process->quantum_ticks = quantum_ticks;
-    process->scheduler_domain = scheduler_domain;
-    process->ticks_remaining = effective_quantum(process);
-}
-
-void clear_saved_kernel_stack(Process* process) noexcept {
-    if (process != nullptr) {
-        process->saved_kernel_esp = 0U;
-    }
-}
-
-[[nodiscard]] int process_slot_index(const Process* process) noexcept {
-    if (process == nullptr) {
-        return -1;
-    }
-    for (size_t index = 0; index < kMaxProcesses; ++index) {
-        if (&g_processes[index] == process) {
-            return static_cast<int>(index);
-        }
-    }
-    return -1;
-}
-
-void wake_ready_waiters() noexcept {
-    const bool have_console_input = console::tty_has_input();
-    const bool pipe_eof = bootfs::consume_pipe_eof_event();
-    for (auto& process : g_processes) {
-        if (!process.in_use || process.state != ProcessState::Waiting) {
-            continue;
-        }
-        if (process.waiting_for_console_input &&
-            (have_console_input || pipe_eof)) {
-            process.waiting_for_console_input = false;
-            process.state = ProcessState::Runnable;
-        }
-        if (process.wake_tick != 0U && process.wake_tick <= g_scheduler_ticks) {
-            process.wake_tick = 0U;
-            process.state = ProcessState::Runnable;
-        }
-    }
-}
-
-[[nodiscard]] Process* select_next_runnable(Process* preferred_current) noexcept {
-    Process* candidate = nullptr;
-    uint32_t best_priority = static_cast<uint32_t>(xinim::kernel::sched_policy::NUM_PRIORITIES);
-    if (preferred_current != nullptr && preferred_current->in_use &&
-        preferred_current->state == ProcessState::Runnable) {
-        candidate = preferred_current;
-        best_priority = preferred_current->priority;
-    }
-    const int preferred_index = process_slot_index(preferred_current);
-
-    for (size_t offset = 1; offset <= kMaxProcesses; ++offset) {
-        const size_t index = static_cast<size_t>(
-            (preferred_index + static_cast<int>(offset) + static_cast<int>(kMaxProcesses)) %
-            static_cast<int>(kMaxProcesses));
-        Process& process = g_processes[index];
-        if (!process.in_use || process.state != ProcessState::Runnable) {
-            continue;
-        }
-        if (&process == preferred_current) {
-            continue;
-        }
-        if (process.priority < best_priority) {
-            candidate = &process;
-            best_priority = process.priority;
-        } else if (process.priority == best_priority && candidate == nullptr) {
-            candidate = &process;
-        }
-    }
-
-    return candidate;
-}
-
-[[noreturn]] void dispatch_process(Process* process) noexcept {
-    if (process == nullptr) {
-        resume_rescue_shell("no runnable i486 process");
-    }
-    SupervisedService* service = find_supervised_service_by_process(process);
-    if (service != nullptr && !service->run_announced) {
-        service->run_announced = true;
-    }
-    activate_process(process);
-    if (process->saved_kernel_esp != 0U) {
-        const uint32_t saved_kernel_esp = process->saved_kernel_esp;
-        process->saved_kernel_esp = 0U;
-        i486_resume_saved_kernel_stack(saved_kernel_esp);
-    }
-    // Deliver pending signals before returning to userspace
-    if (process->state == ProcessState::Runnable) {
-        deliver_one_signal(process);
-        // If signal delivery killed the process, find next runnable
-        if (process->state == ProcessState::Exited) {
-            Process* parent = find_process(process->ppid);
-            if (parent != nullptr && parent->state == ProcessState::Waiting) {
-                resume_waiting_parent(parent);
-            }
-            wake_ready_waiters();
-            Process* next = select_next_runnable(nullptr);
-            if (next != nullptr) {
-                dispatch_process(next);
-            }
-            resume_rescue_shell("signal killed last runnable process");
-        }
-    }
-    if (process->ticks_remaining == 0U) {
-        process->ticks_remaining = effective_quantum(process);
-    }
-    i486_resume_user_context(&process->context);
-    for (;;) {
-        asm volatile("cli; hlt");
-    }
-}
-
-extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcept {
-    Process* current = g_current_process;
-    if (current != nullptr && current->in_use) {
-        current->context = capture_user_context(frame);
-    }
-
-    ++g_scheduler_ticks;
-
-    // Poll keyboard and serial into the TTY rx buffer so blocked readers can wake
-    console::tty_poll_input();
-
-    // Check for Ctrl+C / Ctrl+Z from keyboard
-    const uint32_t tty_signal = console::consume_pending_tty_signal();
-    if (tty_signal != 0U && current != nullptr && current->in_use) {
-        send_signal_to_process(current, tty_signal);
-    }
-
-    // Check alarm timers for all processes
-    for (auto& proc : g_processes) {
-        if (proc.in_use && proc.alarm_tick != 0U && proc.alarm_tick <= g_scheduler_ticks) {
-            proc.alarm_tick = 0U;
-            send_signal_to_process(&proc, kSigAlrm);
-        }
-    }
-
-    wake_ready_waiters();
-
-    Process* preferred = current;
-    if (current != nullptr && current->in_use && current->state == ProcessState::Runnable) {
-        if (current->ticks_remaining > 0U) {
-            --current->ticks_remaining;
-        }
-        if (current->ticks_remaining == 0U) {
-            current->priority =
-                xinim::kernel::sched_policy::demote_priority(current->priority);
-            current->ticks_remaining = effective_quantum(current);
-            preferred = nullptr;
-        }
-    } else {
-        preferred = nullptr;
-    }
-
-    Process* next = select_next_runnable(preferred);
-    send_timer_eoi();
-    if (next == nullptr) {
-        resume_rescue_shell("timer interrupt found no runnable i486 process");
-    }
-    dispatch_process(next);
-}
-
-void initialize_context(Process* process,
-                        const elf32::UserImage& image,
-                        uint32_t eax_value) noexcept {
-    zero_region(reinterpret_cast<uint8_t*>(&process->context),
-                static_cast<uint32_t>(sizeof(process->context)));
-    process->context.eax = eax_value;
-    process->context.ds = kUserDataSelector;
-    process->context.es = kUserDataSelector;
-    process->context.fs = kUserDataSelector;
-    process->context.gs = kUserDataSelector;
-    process->context.eip = image.entry_point;
-    process->context.cs = kUserCodeSelector;
-    process->context.eflags = kUserEflags;
-    process->context.esp = image.stack_top;
-    process->context.ss = kUserDataSelector;
-}
-
-[[nodiscard]] uint32_t compute_segment_base(const Process& process) noexcept {
-    return static_cast<uint32_t>(
-        reinterpret_cast<uintptr_t>(process.address_space) - elf32::kUserVirtualBase);
-}
-
-void activate_process(Process* process) noexcept {
-    if (process == nullptr) {
-        return;
-    }
-    g_current_process = process;
-    set_user_segment_base(process->segment_base);
-    g_tss.esp0 = static_cast<uint32_t>(
-        reinterpret_cast<uintptr_t>(process->kernel_stack + sizeof(process->kernel_stack)));
-}
-
-[[nodiscard]] Process* allocate_process(uint32_t parent_pid) noexcept {
-    for (auto& process : g_processes) {
-        if (!process.in_use) {
-            zero_region(reinterpret_cast<uint8_t*>(&process),
-                        static_cast<uint32_t>(sizeof(process)));
-            process.in_use = true;
-            process.pid = g_next_pid++;
-            process.ppid = parent_pid;
-            process.state = ProcessState::Runnable;
-            process.file_creation_mask = 0022U;
-            process.pgid = process.pid;
-            process.cwd[0] = '/';
-            process.cwd[1] = '\0';
-            process.segment_base = compute_segment_base(process);
-            process.ctty_slot = -1; // No controlling terminal initially
-            // Per-process fd table: 0/1/2 = console, rest unused
-            for (int fd_index = 0; fd_index < 32; ++fd_index) {
-                process.fd_map[fd_index] = -1;
-            }
-            process.fd_map[0] = 0; // stdin  -> global slot 0
-            process.fd_map[1] = 1; // stdout -> global slot 1
-            process.fd_map[2] = 2; // stderr -> global slot 2
-            init_signal_state(&process);
-            apply_scheduler_profile(
-                &process,
-                kInitServicePriority,
-                kInitServicePriority,
-                0U,
-                1U);
-            return &process;
-        }
-    }
-    return nullptr;
-}
-
-void destroy_process(Process* process) noexcept {
-    if (process == nullptr) {
-        return;
-    }
-    process->in_use = false;
-    process->pid = 0U;
-    process->ppid = 0U;
-    process->state = ProcessState::Empty;
-    process->exit_status = 0U;
-    process->saved_kernel_esp = 0U;
-}
-
-[[nodiscard]] Process* find_process(uint32_t pid) noexcept {
-    for (auto& process : g_processes) {
-        if (process.in_use && process.pid == pid) {
-            return &process;
-        }
-    }
-    return nullptr;
-}
-
-[[nodiscard]] Process* find_child(Process* parent, int32_t requested_pid) noexcept {
-    if (parent == nullptr) {
-        return nullptr;
-    }
-    for (auto& process : g_processes) {
-        if (!process.in_use || process.ppid != parent->pid) {
-            continue;
-        }
-        if (requested_pid == -1 || static_cast<int32_t>(process.pid) == requested_pid) {
-            return &process;
-        }
-    }
-    return nullptr;
-}
-
-[[nodiscard]] bool has_child(Process* parent) noexcept {
-    if (parent == nullptr) {
-        return false;
-    }
-    for (auto& process : g_processes) {
-        if (process.in_use && process.ppid == parent->pid) {
-            return true;
-        }
-    }
-    return false;
-}
+namespace {
 
 [[nodiscard]] Process* find_waiting_child(Process* parent,
                                           int32_t requested_pid,
@@ -976,150 +73,6 @@ void destroy_process(Process* process) noexcept {
         }
     }
     return nullptr;
-}
-
-[[nodiscard]] bool translate_user_region(Process* process,
-                                         uint32_t user_address,
-                                         uint32_t size,
-                                         uint8_t** out) noexcept {
-    if (process == nullptr || out == nullptr) {
-        return false;
-    }
-    if (user_address < elf32::kUserVirtualBase) {
-        return false;
-    }
-    const uint32_t offset = user_address - elf32::kUserVirtualBase;
-    if (offset > elf32::kUserAddressSpaceSize) {
-        return false;
-    }
-    if (size > elf32::kUserAddressSpaceSize - offset) {
-        return false;
-    }
-    *out = process->address_space + offset;
-    return true;
-}
-
-[[nodiscard]] bool read_user_u32(Process* process,
-                                 uint32_t user_address,
-                                 uint32_t* out) noexcept {
-    if (out == nullptr) {
-        return false;
-    }
-    uint8_t* raw = nullptr;
-    if (!translate_user_region(process, user_address, sizeof(uint32_t), &raw)) {
-        return false;
-    }
-    *out = *reinterpret_cast<uint32_t*>(raw);
-    return true;
-}
-
-[[nodiscard]] bool copy_user_string(Process* process,
-                                    uint32_t user_address,
-                                    char* buffer,
-                                    uint32_t capacity) noexcept {
-    if (buffer == nullptr || capacity == 0U) {
-        return false;
-    }
-    uint8_t* start = nullptr;
-    if (!translate_user_region(process, user_address, 1U, &start)) {
-        return false;
-    }
-    const uint32_t offset = user_address - elf32::kUserVirtualBase;
-    const uint32_t remaining = elf32::kUserAddressSpaceSize - offset;
-    for (uint32_t index = 0U; index < remaining && index + 1U < capacity; ++index) {
-        buffer[index] = static_cast<char>(start[index]);
-        if (buffer[index] == '\0') {
-            return true;
-        }
-    }
-    buffer[capacity - 1U] = '\0';
-    return false;
-}
-
-template <uint32_t Count>
-[[nodiscard]] bool append_exec_string(ExecVector<Count>* vector,
-                                      const char* text) noexcept {
-    if (vector == nullptr || text == nullptr || vector->count >= Count) {
-        return false;
-    }
-    const uint32_t length = string_length(text) + 1U;
-    if (length > kMaxExecStringBytes - vector->used_bytes) {
-        return false;
-    }
-    char* destination = vector->storage + vector->used_bytes;
-    copy_region(reinterpret_cast<uint8_t*>(destination),
-                reinterpret_cast<const uint8_t*>(text),
-                length);
-    vector->values[vector->count] = destination;
-    ++vector->count;
-    vector->used_bytes += length;
-    return true;
-}
-
-template <uint32_t Count>
-[[nodiscard]] bool copy_exec_vector(Process* process,
-                                    uint32_t user_vector_address,
-                                    ExecVector<Count>* out,
-                                    const char* fallback0 = nullptr) noexcept {
-    if (out == nullptr) {
-        return false;
-    }
-    zero_region(reinterpret_cast<uint8_t*>(out), static_cast<uint32_t>(sizeof(*out)));
-
-    if (user_vector_address == 0U) {
-        if (fallback0 != nullptr) {
-            return append_exec_string(out, fallback0);
-        }
-        return true;
-    }
-
-    for (uint32_t index = 0U; index < Count; ++index) {
-        uint32_t element_address = 0U;
-        if (!read_user_u32(process,
-                           user_vector_address + (index * sizeof(uint32_t)),
-                           &element_address)) {
-            return false;
-        }
-        if (element_address == 0U) {
-            return out->count != 0U || fallback0 == nullptr ||
-                   append_exec_string(out, fallback0);
-        }
-
-        char buffer[128]{};
-        if (!copy_user_string(process, element_address, buffer, sizeof(buffer)) ||
-            !append_exec_string(out, buffer)) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
-[[nodiscard]] bool write_user_bytes(Process* process,
-                                    uint32_t user_address,
-                                    const void* source,
-                                    uint32_t size) noexcept {
-    uint8_t* destination = nullptr;
-    if (!translate_user_region(process, user_address, size, &destination)) {
-        return false;
-    }
-    if (size == 0U) {
-        return true;
-    }
-    copy_region(destination, reinterpret_cast<const uint8_t*>(source), size);
-    return true;
-}
-
-[[nodiscard]] bool write_user_u32(Process* process,
-                                  uint32_t user_address,
-                                  uint32_t value) noexcept {
-    uint8_t* raw = nullptr;
-    if (!translate_user_region(process, user_address, sizeof(uint32_t), &raw)) {
-        return false;
-    }
-    auto* out = reinterpret_cast<uint32_t*>(raw);
-    *out = value;
-    return true;
 }
 
 [[nodiscard]] uint32_t compute_user_stack_limit(Process* process) noexcept {
@@ -1334,6 +287,139 @@ template <uint32_t ArgCount, uint32_t EnvCount>
     process->current_break = image.brk_start;
     return true;
 }
+
+void apply_service_profile_to_process(Process* process,
+                                      const SupervisedService* service) noexcept {
+    if (process == nullptr || service == nullptr) {
+        return;
+    }
+    apply_scheduler_profile(process,
+                            service->priority,
+                            service->base_priority,
+                            service->quantum_ticks,
+                            service->scheduler_domain);
+}
+
+// -- getdents helper structs and functions ---------------------------------
+
+struct LinuxDirent32 {
+    uint32_t d_ino;
+    uint32_t d_off;
+    uint16_t d_reclen;
+    char d_name[1]; // variable-length
+};
+
+struct GetdentsContext {
+    Process* process;
+    uint32_t user_buffer;
+    uint32_t buffer_size;
+    uint32_t offset;
+    uint32_t entry_count;
+    const char* dir_path;
+};
+
+bool starts_with_dir(const char* path, const char* dir) noexcept {
+    if (path == nullptr || dir == nullptr) {
+        return false;
+    }
+    while (*dir != '\0') {
+        if (*path != *dir) {
+            return false;
+        }
+        ++path;
+        ++dir;
+    }
+    return true;
+}
+
+// Extract the immediate child name from a path relative to dir_path.
+// E.g., dir_path="/bin", entry="/bin/sh" -> "sh"
+// Returns false if not an immediate child.
+bool extract_child_name(const char* entry_path,
+                        const char* dir_path,
+                        char* name_out,
+                        uint32_t capacity) noexcept {
+    if (entry_path == nullptr || dir_path == nullptr || name_out == nullptr || capacity == 0U) {
+        return false;
+    }
+    const uint32_t dir_len = string_length(dir_path);
+    if (!starts_with_dir(entry_path, dir_path)) {
+        return false;
+    }
+    const char* rest = entry_path + dir_len;
+    if (*rest == '/') {
+        ++rest;
+    }
+    if (*rest == '\0') {
+        return false; // This IS the directory, not a child
+    }
+    // Check it's an immediate child (no further '/' except trailing)
+    uint32_t len = 0U;
+    while (rest[len] != '\0' && rest[len] != '/') {
+        if (len + 1U >= capacity) {
+            return false;
+        }
+        name_out[len] = rest[len];
+        ++len;
+    }
+    name_out[len] = '\0';
+    // If there's more after the slash, it's a deeper entry
+    if (rest[len] == '/' && rest[len + 1U] != '\0') {
+        return false;
+    }
+    return len > 0U;
+}
+
+bool getdents_visitor(const bootfs::FileRecord& file, void* context) noexcept {
+    auto* ctx = static_cast<GetdentsContext*>(context);
+    if (ctx == nullptr || file.path == nullptr) {
+        return true;
+    }
+
+    char name[64]{};
+    if (!extract_child_name(file.path, ctx->dir_path, name, sizeof(name))) {
+        return true; // Not a child of this directory, skip
+    }
+
+    const uint32_t name_len = string_length(name);
+    const uint32_t reclen = align_up(
+        static_cast<uint32_t>(sizeof(uint32_t) * 2U + sizeof(uint16_t) + name_len + 2U),
+        4U);
+
+    if (ctx->offset + reclen > ctx->buffer_size) {
+        return false; // Buffer full, stop
+    }
+
+    uint8_t* dest = nullptr;
+    if (!translate_user_region(ctx->process, ctx->user_buffer + ctx->offset, reclen, &dest)) {
+        return false;
+    }
+
+    // Write d_ino (use entry_count+2 as fake inode)
+    auto* ino = reinterpret_cast<uint32_t*>(dest);
+    *ino = ctx->entry_count + 2U;
+    // Write d_off (next offset)
+    auto* off = reinterpret_cast<uint32_t*>(dest + 4U);
+    *off = ctx->offset + reclen;
+    // Write d_reclen
+    auto* recl = reinterpret_cast<uint16_t*>(dest + 8U);
+    *recl = static_cast<uint16_t>(reclen);
+    // Write d_name
+    char* name_dest = reinterpret_cast<char*>(dest + 10U);
+    copy_region(reinterpret_cast<uint8_t*>(name_dest),
+                reinterpret_cast<const uint8_t*>(name),
+                name_len + 1U);
+    // Write d_type byte after null terminator
+    dest[10U + name_len + 1U] = file.is_directory ? 4U : 8U; // DT_DIR=4, DT_REG=8
+
+    ctx->offset += reclen;
+    ++ctx->entry_count;
+    return true;
+}
+
+} // anonymous namespace
+
+// -- Supervised service management -----------------------------------------
 
 [[nodiscard]] bool is_compatible_user_image(const bootfs::FileRecord* file) noexcept {
     if (file == nullptr || !file->executable || file->data == nullptr) {
@@ -1567,18 +653,6 @@ void set_service_state(SupervisedService* service,
     return g_service_recovery_dag.add_dependency(dependent->dag_index, dependency->dag_index);
 }
 
-void apply_service_profile_to_process(Process* process,
-                                      const SupervisedService* service) noexcept {
-    if (process == nullptr || service == nullptr) {
-        return;
-    }
-    apply_scheduler_profile(process,
-                            service->priority,
-                            service->base_priority,
-                            service->quantum_ticks,
-                            service->scheduler_domain);
-}
-
 [[nodiscard]] bool prepare_supervised_service_process(SupervisedService* service,
                                                       Process* process) noexcept {
     if (service == nullptr || process == nullptr || service->file == nullptr) {
@@ -1595,7 +669,7 @@ void apply_service_profile_to_process(Process* process,
     process->state = ProcessState::Runnable;
     process->exit_status = 0U;
     process->saved_kernel_esp = 0U;
-    process->waiting_for_console_input = false;
+    process->wait_reason = WaitReason::None;
     process->wake_tick = 0U;
     apply_service_profile_to_process(process, service);
     set_service_state(service,
@@ -1618,40 +692,50 @@ void apply_service_profile_to_process(Process* process,
     return allocate_process(0U);
 }
 
-[[noreturn]] void dispatch_next_runnable(const char* rescue_reason) noexcept {
-    wake_ready_waiters();
-    Process* next = select_next_runnable(g_current_process);
-    if (next == nullptr) {
-        resume_rescue_shell(rescue_reason);
+[[nodiscard]] bool restart_services_in_order(const int restart_order[],
+                                             int restart_count,
+                                             SupervisedService* crashed_service,
+                                             Process* crashed_process) noexcept {
+    if (restart_order == nullptr || restart_count <= 0) {
+        return false;
     }
-    dispatch_process(next);
+
+    for (int index = 0; index < restart_count; ++index) {
+        SupervisedService* service = find_supervised_service_by_dag_index(restart_order[index]);
+        if (service == nullptr) {
+            return false;
+        }
+
+        Process* target_process =
+            (service == crashed_service) ? crashed_process : process_for_service(service, nullptr);
+        if (target_process == nullptr) {
+            return false;
+        }
+
+        set_service_state(service,
+                          xinim::kernel::recovery::ServiceState::RESTARTING,
+                          static_cast<int32_t>(target_process->pid));
+        if (!prepare_supervised_service_process(service, target_process)) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
-// Returns true if woken by a pending signal (caller should return -EINTR)
-bool block_current_process_until_rescheduled(Process* process,
-                                             bool waiting_for_console_input,
-                                             uint64_t wake_tick) noexcept {
-    if (process == nullptr) {
-        resume_rescue_shell("attempted to block missing i486 process");
+[[noreturn]] void resume_supervised_service(SupervisedService* service,
+                                            Process* process,
+                                            const char* banner) noexcept {
+    if (service == nullptr || process == nullptr) {
+        resume_rescue_shell("Ring 3 supervised service reload failed");
     }
-    process->state = ProcessState::Waiting;
-    process->waiting_for_console_input = waiting_for_console_input;
-    process->wake_tick = wake_tick;
-    wake_ready_waiters();
-    Process* next = select_next_runnable(g_current_process);
-    if (next == nullptr) {
-        resume_rescue_shell("no runnable i486 process while current blocked");
+    if (!prepare_supervised_service_process(service, process)) {
+        resume_rescue_shell("Ring 3 supervised service reload failed");
     }
-    activate_process(next);
-    i486_switch_to_user_context(&next->context, &process->saved_kernel_esp);
-    clear_saved_kernel_stack(process);
-    process->state = ProcessState::Runnable;
-    process->waiting_for_console_input = false;
-    process->wake_tick = 0U;
-    // Check if we were woken by a signal
-    const bool has_signal = (process->signals.pending & ~process->signals.blocked) != 0U;
-    activate_process(process);
-    return has_signal;
+    console::write_string(banner);
+    console::newline();
+
+    dispatch_process(process);
 }
 
 [[nodiscard]] SupervisedService* register_optional_support_services(
@@ -1702,61 +786,7 @@ bool block_current_process_until_rescheduled(Process* process,
     return hold_service;
 }
 
-[[noreturn]] void resume_supervised_service(SupervisedService* service,
-                                            Process* process,
-                                            const char* banner) noexcept {
-    if (service == nullptr || process == nullptr) {
-        resume_rescue_shell("Ring 3 supervised service reload failed");
-    }
-    if (!prepare_supervised_service_process(service, process)) {
-        resume_rescue_shell("Ring 3 supervised service reload failed");
-    }
-    console::write_string(banner);
-    console::newline();
-
-    dispatch_process(process);
-}
-
-[[noreturn]] void resume_waiting_parent(Process* parent) noexcept {
-    activate_process(parent);
-    const uint32_t saved_kernel_esp = parent->saved_kernel_esp;
-    clear_saved_kernel_stack(parent);
-    i486_resume_saved_kernel_stack(saved_kernel_esp);
-    for (;;) {
-        asm volatile("cli; hlt");
-    }
-}
-
-[[nodiscard]] bool restart_services_in_order(const int restart_order[],
-                                             int restart_count,
-                                             SupervisedService* crashed_service,
-                                             Process* crashed_process) noexcept {
-    if (restart_order == nullptr || restart_count <= 0) {
-        return false;
-    }
-
-    for (int index = 0; index < restart_count; ++index) {
-        SupervisedService* service = find_supervised_service_by_dag_index(restart_order[index]);
-        if (service == nullptr) {
-            return false;
-        }
-
-        Process* target_process =
-            (service == crashed_service) ? crashed_process : process_for_service(service, nullptr);
-        if (target_process == nullptr) {
-            return false;
-        }
-
-        set_service_state(service,
-                          xinim::kernel::recovery::ServiceState::RESTARTING,
-                          static_cast<int32_t>(target_process->pid));
-        if (!prepare_supervised_service_process(service, target_process)) {
-            return false;
-        }
-    }
-
-    return true;
-}
+// -- Process exit ----------------------------------------------------------
 
 [[noreturn]] void exit_current_process(uint32_t exit_status,
                                        const char* fallback_reason,
@@ -1770,7 +800,7 @@ bool block_current_process_until_rescheduled(Process* process,
     process->state = ProcessState::Exited;
 
     // Release all fd_map entries, decrement refcounts on global slots
-    for (int fdi = 0; fdi < 32; ++fdi) {
+    for (int fdi = 0; fdi < kMaxFds; ++fdi) {
         const int slot = process->fd_map[fdi];
         if (slot >= 0) {
             process->fd_map[fdi] = -1;
@@ -1794,20 +824,8 @@ bool block_current_process_until_rescheduled(Process* process,
         }
     }
 
-    Process* parent = find_process(process->ppid);
-    if (parent != nullptr) {
-        send_signal_to_process(parent, kSigChld);
-        // SA_NOCLDWAIT: auto-reap child without zombie state
-        const SignalHandler32& chld_handler = parent->signals.handlers[kSigChld];
-        if ((chld_handler.flags & kSaNocldwait) != 0U) {
-            destroy_process(process);
-            dispatch_next_runnable("child auto-reaped via SA_NOCLDWAIT");
-        }
-        if (parent->state == ProcessState::Waiting) {
-            resume_waiting_parent(parent);
-        }
-    }
-
+    // Handle supervised service restart BEFORE notifying parent, since
+    // resume_waiting_parent is [[noreturn]] and would skip restart logic.
     SupervisedService* service = find_supervised_service_by_process(process);
     if (service != nullptr) {
         int restart_order[kMaxSupervisedServices]{};
@@ -1839,7 +857,18 @@ bool block_current_process_until_rescheduled(Process* process,
         resume_rescue_shell("supervised service restart limit reached");
     }
 
+    Process* parent = find_process(process->ppid);
     if (parent != nullptr) {
+        send_signal_to_process(parent, kSigChld);
+        // SA_NOCLDWAIT: auto-reap child without zombie state
+        const SignalHandler32& chld_handler = parent->signals.handlers[kSigChld];
+        if ((chld_handler.flags & kSaNocldwait) != 0U) {
+            destroy_process(process);
+            dispatch_next_runnable("child auto-reaped via SA_NOCLDWAIT");
+        }
+        if (parent->state == ProcessState::Waiting) {
+            resume_waiting_parent(parent);
+        }
         dispatch_next_runnable("no runnable i486 process after child exit");
     }
 
@@ -1850,6 +879,8 @@ bool block_current_process_until_rescheduled(Process* process,
 [[nodiscard]] uint32_t wait_status_for_exit(uint32_t exit_status) noexcept {
     return (exit_status & 0xFFU) << 8U;
 }
+
+// -- Syscall implementations -----------------------------------------------
 
 [[nodiscard]] uint32_t sys_read(Process* process, RegisterFrame* frame) noexcept {
     const int user_fd = static_cast<int>(frame->ebx);
@@ -1883,7 +914,7 @@ bool block_current_process_until_rescheduled(Process* process,
         while (written < count) {
             char value = '\0';
             if (!console::tty_try_read_char(&value)) {
-                if (block_current_process_until_rescheduled(process, true, 0U)) {
+                if (block_current_process_until_rescheduled(process, WaitReason::ConsoleInput, 0U)) {
                     return written > 0U ? written : kErrnoIntr;
                 }
                 continue;
@@ -1900,7 +931,7 @@ bool block_current_process_until_rescheduled(Process* process,
     for (;;) {
         const int result = bootfs::read(fd, buffer, count);
         if (result == bootfs::kReadWouldBlock) {
-            if (block_current_process_until_rescheduled(process, true, 0U)) {
+            if (block_current_process_until_rescheduled(process, WaitReason::ConsoleInput, 0U)) {
                 return kErrnoIntr; // Interrupted by signal
             }
             continue;
@@ -1939,7 +970,7 @@ bool block_current_process_until_rescheduled(Process* process,
     for (;;) {
         const int result = bootfs::write(fd, buffer, count);
         if (result == bootfs::kWriteWouldBlock) {
-            if (block_current_process_until_rescheduled(process, false, 0U)) {
+            if (block_current_process_until_rescheduled(process, WaitReason::PipeIO, 0U)) {
                 return kErrnoIntr;
             }
             continue;
@@ -1960,13 +991,14 @@ bool block_current_process_until_rescheduled(Process* process,
         return kErrnoNoMem;
     }
     bootfs::increment_slot_refcount(global_slot);
+    process->fd_flags[new_local_fd] = 0; // dup clears CLOEXEC
     return static_cast<uint32_t>(new_local_fd);
 }
 
 [[nodiscard]] uint32_t sys_dup2(Process* process, RegisterFrame* frame) noexcept {
     const int old_user_fd = static_cast<int>(frame->ebx);
     const int new_user_fd = static_cast<int>(frame->ecx);
-    if (new_user_fd < 0 || new_user_fd >= 32) {
+    if (new_user_fd < 0 || new_user_fd >= kMaxFds) {
         return kErrnoInvalid;
     }
     const int global_slot = resolve_fd(process, old_user_fd);
@@ -1983,6 +1015,7 @@ bool block_current_process_until_rescheduled(Process* process,
     }
     process->fd_map[new_user_fd] = global_slot;
     bootfs::increment_slot_refcount(global_slot);
+    process->fd_flags[new_user_fd] = 0; // dup2 clears CLOEXEC
     return static_cast<uint32_t>(new_user_fd);
 }
 
@@ -2101,16 +1134,14 @@ bool block_current_process_until_rescheduled(Process* process,
             return kErrnoNoMem;
         }
         bootfs::increment_slot_refcount(fd);
+        process->fd_flags[new_local] = 0; // F_DUPFD clears CLOEXEC
         return static_cast<uint32_t>(new_local);
     }
-    case 1: {
-        const int result = bootfs::descriptor_flags(fd);
-        return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
-    }
-    case 2:
-        return bootfs::set_descriptor_flags(fd, static_cast<int>(frame->edx)) == 0
-            ? 0U
-            : kErrnoBadF;
+    case 1: // F_GETFD: per-process descriptor flags
+        return static_cast<uint32_t>(process->fd_flags[user_fd]);
+    case 2: // F_SETFD: per-process descriptor flags
+        process->fd_flags[user_fd] = static_cast<int>(frame->edx) & 1; // FD_CLOEXEC
+        return 0U;
     case 3: {
         const int result = bootfs::status_flags(fd);
         return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
@@ -2119,6 +1150,19 @@ bool block_current_process_until_rescheduled(Process* process,
         return bootfs::set_status_flags(fd, static_cast<int>(frame->edx)) == 0
             ? 0U
             : kErrnoBadF;
+    case 5: // F_GETLK
+    case 6: // F_SETLK
+    case 7: { // F_SETLKW
+        uint8_t* fl_raw = nullptr;
+        if (frame->edx == 0U || !translate_user_region(process, frame->edx,
+                static_cast<uint32_t>(sizeof(lockf::Flock32)), &fl_raw)) {
+            return kErrnoFault;
+        }
+        auto* fl = reinterpret_cast<lockf::Flock32*>(fl_raw);
+        const int rc = lockf::do_fcntl_lock(fd, static_cast<int>(frame->ecx),
+                                             fl, process->pid);
+        return static_cast<uint32_t>(rc);
+    }
     default:
         return kErrnoInvalid;
     }
@@ -2250,9 +1294,10 @@ bool block_current_process_until_rescheduled(Process* process,
     child->pgid = process->pgid;
     child->ctty_slot = process->ctty_slot;
     copy_c_string(child->cwd, static_cast<uint32_t>(sizeof(child->cwd)), process->cwd);
-    // Copy per-process fd table; increment refcounts on shared global slots
-    for (int fdi = 0; fdi < 32; ++fdi) {
+    // Copy per-process fd table and per-fd flags; increment refcounts on shared global slots
+    for (int fdi = 0; fdi < kMaxFds; ++fdi) {
         child->fd_map[fdi] = process->fd_map[fdi];
+        child->fd_flags[fdi] = process->fd_flags[fdi];
         if (process->fd_map[fdi] >= 0) {
             bootfs::increment_slot_refcount(process->fd_map[fdi]);
         }
@@ -2309,6 +1354,15 @@ bool block_current_process_until_rescheduled(Process* process,
         __builtin_unreachable();
     }
 
+    // Record the executable path for /proc/PID/exe
+    {
+        uint32_t pi = 0U;
+        while (path[pi] != '\0' && pi + 1U < sizeof(process->exe_path)) {
+            process->exe_path[pi] = path[pi]; ++pi;
+        }
+        process->exe_path[pi] = '\0';
+    }
+
     // POSIX: execve resets caught signal handlers to SIG_DFL, preserves SIG_IGN
     for (uint32_t sig = 1U; sig < kMaxSignals; ++sig) {
         if (process->signals.handlers[sig].handler != kSigIgn) {
@@ -2320,15 +1374,15 @@ bool block_current_process_until_rescheduled(Process* process,
     process->signals.pending = 0U;
     process->signals.in_handler = false;
 
-    // POSIX: execve closes FD_CLOEXEC file descriptors via per-process fd_map
-    for (int fdi = 0; fdi < 32; ++fdi) {
+    // POSIX: execve closes FD_CLOEXEC file descriptors via per-process fd_flags
+    for (int fdi = 0; fdi < kMaxFds; ++fdi) {
         const int slot = process->fd_map[fdi];
         if (slot < 0) {
             continue;
         }
-        const int flags = bootfs::descriptor_flags_for_slot(slot);
-        if (flags >= 0 && (flags & 1) != 0) { // FD_CLOEXEC
+        if ((process->fd_flags[fdi] & 1) != 0) { // FD_CLOEXEC
             process->fd_map[fdi] = -1;
+            process->fd_flags[fdi] = 0;
             bootfs::decrement_slot_refcount(slot);
         }
     }
@@ -2467,7 +1521,7 @@ bool block_current_process_until_rescheduled(Process* process,
     const uint32_t address = frame->ebx;
     const uint32_t length = align_up(frame->ecx, kPageSize);
     const uint32_t flags = frame->esi;
-    const int32_t fd = static_cast<int32_t>(frame->edi);
+    const int32_t user_fd = static_cast<int32_t>(frame->edi);
     const uint32_t page_offset = frame->ebp;
 
     if (length == 0U) {
@@ -2476,10 +1530,21 @@ bool block_current_process_until_rescheduled(Process* process,
     if ((flags & kMapFixed) != 0U || address != 0U) {
         return kErrnoInvalid;
     }
-    if ((flags & (kMapPrivate | kMapAnonymous)) != (kMapPrivate | kMapAnonymous)) {
+    if ((flags & kMapPrivate) == 0U) {
         return kErrnoInvalid;
     }
-    if (fd != -1 || page_offset != 0U) {
+
+    const bool anonymous = (flags & kMapAnonymous) != 0U;
+    const bool file_backed = !anonymous && user_fd >= 0;
+
+    // Resolve file descriptor for file-backed mapping
+    int global_fd = -1;
+    if (file_backed) {
+        global_fd = resolve_fd(process, user_fd);
+        if (global_fd < 0 || !bootfs::is_open(global_fd)) {
+            return kErrnoBadF;
+        }
+    } else if (!anonymous) {
         return kErrnoInvalid;
     }
 
@@ -2498,6 +1563,20 @@ bool block_current_process_until_rescheduled(Process* process,
         return kErrnoNoMem;
     }
     zero_region(region, length);
+
+    // For file-backed MAP_PRIVATE: read file contents into the mapping
+    if (file_backed) {
+        // Save and restore file position (pread semantics)
+        const uint32_t offset = page_offset;
+        const uint32_t to_read = (length < 65536U) ? length : 65536U;
+        // Read via bootfs pread-style interface
+        const int32_t old_pos = static_cast<int32_t>(bootfs::seek(global_fd, 0, 1)); // SEEK_CUR
+        if (old_pos >= 0) {
+            bootfs::seek(global_fd, static_cast<int32_t>(offset), 0); // SEEK_SET
+            bootfs::read(global_fd, region, to_read);
+            bootfs::seek(global_fd, old_pos, 0); // restore
+        }
+    }
 
     slot->in_use = true;
     slot->address = mapping_base;
@@ -2538,75 +1617,7 @@ bool block_current_process_until_rescheduled(Process* process,
     return 0U;
 }
 
-// -- RTC and time support --------------------------------------------------
-
-inline uint8_t inb_port(uint16_t port) noexcept {
-    uint8_t value = 0U;
-    asm volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
-
-uint8_t read_cmos(uint8_t reg) noexcept {
-    outb(0x70U, reg);
-    return inb_port(0x71U);
-}
-
-uint8_t bcd_to_bin(uint8_t bcd) noexcept {
-    return static_cast<uint8_t>((bcd >> 4U) * 10U + (bcd & 0x0FU));
-}
-
-// Days from year 0 to start of each month (non-leap, cumulative)
-uint32_t days_in_months(uint32_t month, bool leap) noexcept {
-    static constexpr uint16_t kCum[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-    if (month > 11U) month = 11U;
-    uint32_t days = kCum[month];
-    if (leap && month >= 2U) ++days;
-    return days;
-}
-
-uint32_t read_rtc_epoch() noexcept {
-    // Wait for RTC update to complete
-    while ((read_cmos(0x0AU) & 0x80U) != 0U) {}
-    uint8_t sec = bcd_to_bin(read_cmos(0x00U));
-    uint8_t min = bcd_to_bin(read_cmos(0x02U));
-    uint8_t hour = bcd_to_bin(read_cmos(0x04U));
-    uint8_t day = bcd_to_bin(read_cmos(0x07U));
-    uint8_t month = bcd_to_bin(read_cmos(0x08U));
-    uint8_t year_bcd = bcd_to_bin(read_cmos(0x09U));
-    uint32_t year = 2000U + static_cast<uint32_t>(year_bcd);
-
-    // Convert to Unix epoch (seconds since 1970-01-01)
-    uint32_t days = 0U;
-    for (uint32_t y = 1970U; y < year; ++y) {
-        bool leap = (y % 4U == 0U && (y % 100U != 0U || y % 400U == 0U));
-        days += leap ? 366U : 365U;
-    }
-    bool cur_leap = (year % 4U == 0U && (year % 100U != 0U || year % 400U == 0U));
-    if (month > 0U) days += days_in_months(month - 1U, cur_leap);
-    if (day > 0U) days += day - 1U;
-
-    return days * 86400U + static_cast<uint32_t>(hour) * 3600U +
-           static_cast<uint32_t>(min) * 60U + static_cast<uint32_t>(sec);
-}
-
-uint32_t g_boot_epoch_seconds = 0U;
-uint64_t g_boot_epoch_ticks = 0U;
-
-void initialize_realtime_clock() noexcept {
-    g_boot_epoch_seconds = read_rtc_epoch();
-    g_boot_epoch_ticks = g_scheduler_ticks;
-}
-
-uint32_t current_epoch_seconds() noexcept {
-    const uint64_t elapsed_ticks = g_scheduler_ticks - g_boot_epoch_ticks;
-    return g_boot_epoch_seconds + static_cast<uint32_t>(elapsed_ticks / kTimerHz);
-}
-
-uint32_t current_epoch_microseconds() noexcept {
-    const uint64_t elapsed_ticks = g_scheduler_ticks - g_boot_epoch_ticks;
-    const uint32_t sub_second_ticks = static_cast<uint32_t>(elapsed_ticks % kTimerHz);
-    return sub_second_ticks * (1000000U / kTimerHz);
-}
+// -- Time syscalls ---------------------------------------------------------
 
 [[nodiscard]] uint32_t sys_time_compat(Process* process, RegisterFrame* frame) noexcept {
     const uint32_t now = current_epoch_seconds();
@@ -2672,6 +1683,100 @@ uint32_t current_epoch_microseconds() noexcept {
     return remaining;
 }
 
+// -- setitimer / getitimer (POSIX interval timers) -----------------------
+
+struct ITimerVal32 {
+    uint32_t it_interval_sec;
+    uint32_t it_interval_usec;
+    uint32_t it_value_sec;
+    uint32_t it_value_usec;
+};
+
+constexpr int kItimerReal = 0;
+constexpr int kItimerVirtual = 1;
+constexpr int kItimerProf = 2;
+
+Process::IntervalTimer* itimer_for_which(Process* p, int which) noexcept {
+    switch (which) {
+    case kItimerReal: return &p->itimer_real;
+    case kItimerVirtual: return &p->itimer_virtual;
+    case kItimerProf: return &p->itimer_prof;
+    default: return nullptr;
+    }
+}
+
+uint64_t timeval_to_ticks(uint32_t sec, uint32_t usec) noexcept {
+    return static_cast<uint64_t>(sec) * kTimerHz +
+           static_cast<uint64_t>(usec) / (1000000U / kTimerHz);
+}
+
+void ticks_to_timeval(uint64_t ticks, uint32_t& sec, uint32_t& usec) noexcept {
+    sec = static_cast<uint32_t>(ticks / kTimerHz);
+    usec = static_cast<uint32_t>((ticks % kTimerHz) * (1000000U / kTimerHz));
+}
+
+[[nodiscard]] uint32_t sys_setitimer_impl(Process* process, RegisterFrame* frame) noexcept {
+    const int which = static_cast<int>(frame->ebx);
+    Process::IntervalTimer* timer = itimer_for_which(process, which);
+    if (timer == nullptr) return kErrnoInvalid;
+
+    // Old value output (optional, ecx)
+    if (frame->edx != 0U) {
+        ITimerVal32 old_val{};
+        ticks_to_timeval(timer->interval, old_val.it_interval_sec, old_val.it_interval_usec);
+        if (timer->deadline > g_scheduler_ticks) {
+            ticks_to_timeval(timer->deadline - g_scheduler_ticks,
+                             old_val.it_value_sec, old_val.it_value_usec);
+        }
+        if (!write_user_bytes(process, frame->edx, &old_val,
+                              static_cast<uint32_t>(sizeof(old_val)))) {
+            return kErrnoFault;
+        }
+    }
+
+    // New value input (ecx)
+    if (frame->ecx != 0U) {
+        ITimerVal32 new_val{};
+        uint8_t* src = nullptr;
+        if (!translate_user_region(process, frame->ecx,
+                                   static_cast<uint32_t>(sizeof(new_val)), &src)) {
+            return kErrnoFault;
+        }
+        for (uint32_t i = 0U; i < sizeof(new_val); ++i) {
+            reinterpret_cast<uint8_t*>(&new_val)[i] = src[i];
+        }
+
+        timer->interval = timeval_to_ticks(new_val.it_interval_sec, new_val.it_interval_usec);
+        const uint64_t value_ticks = timeval_to_ticks(new_val.it_value_sec, new_val.it_value_usec);
+        timer->deadline = (value_ticks > 0U) ? (g_scheduler_ticks + value_ticks) : 0U;
+
+        // For ITIMER_REAL, also update legacy alarm_tick for backward compat
+        if (which == kItimerReal) {
+            process->alarm_tick = timer->deadline;
+        }
+    }
+    return 0U;
+}
+
+[[nodiscard]] uint32_t sys_getitimer_impl(Process* process, RegisterFrame* frame) noexcept {
+    const int which = static_cast<int>(frame->ebx);
+    const Process::IntervalTimer* timer = itimer_for_which(process, which);
+    if (timer == nullptr) return kErrnoInvalid;
+    if (frame->ecx == 0U) return kErrnoFault;
+
+    ITimerVal32 val{};
+    ticks_to_timeval(timer->interval, val.it_interval_sec, val.it_interval_usec);
+    if (timer->deadline > g_scheduler_ticks) {
+        ticks_to_timeval(timer->deadline - g_scheduler_ticks,
+                         val.it_value_sec, val.it_value_usec);
+    }
+    if (!write_user_bytes(process, frame->ecx, &val,
+                          static_cast<uint32_t>(sizeof(val)))) {
+        return kErrnoFault;
+    }
+    return 0U;
+}
+
 [[nodiscard]] uint32_t sys_getrlimit_compat(Process* process, RegisterFrame* frame) noexcept {
     if (frame->ecx == 0U) {
         return kErrnoFault;
@@ -2720,135 +1825,7 @@ uint32_t current_epoch_microseconds() noexcept {
     return 0U;
 }
 
-[[nodiscard]] uint32_t sys_rt_sigprocmask_compat(Process* process, RegisterFrame* frame) noexcept {
-    if (frame->edx != 0U) {
-        const uint32_t words[32] = {};
-        const uint32_t requested = frame->esi;
-        const uint32_t available = static_cast<uint32_t>(sizeof(words));
-        const uint32_t to_copy = requested < available ? requested : available;
-        if (!write_user_bytes(process, frame->edx, words, to_copy)) {
-            return kErrnoFault;
-        }
-    }
-    return 0U;
-}
-
-// -- Phase 1.6 syscall: getdents ------------------------------------------
-
-struct LinuxDirent32 {
-    uint32_t d_ino;
-    uint32_t d_off;
-    uint16_t d_reclen;
-    char d_name[1]; // variable-length
-};
-
-struct GetdentsContext {
-    Process* process;
-    uint32_t user_buffer;
-    uint32_t buffer_size;
-    uint32_t offset;
-    uint32_t entry_count;
-    const char* dir_path;
-};
-
-bool starts_with_dir(const char* path, const char* dir) noexcept {
-    if (path == nullptr || dir == nullptr) {
-        return false;
-    }
-    while (*dir != '\0') {
-        if (*path != *dir) {
-            return false;
-        }
-        ++path;
-        ++dir;
-    }
-    return true;
-}
-
-// Extract the immediate child name from a path relative to dir_path.
-// E.g., dir_path="/bin", entry="/bin/sh" -> "sh"
-// Returns false if not an immediate child.
-bool extract_child_name(const char* entry_path,
-                        const char* dir_path,
-                        char* name_out,
-                        uint32_t capacity) noexcept {
-    if (entry_path == nullptr || dir_path == nullptr || name_out == nullptr || capacity == 0U) {
-        return false;
-    }
-    const uint32_t dir_len = string_length(dir_path);
-    if (!starts_with_dir(entry_path, dir_path)) {
-        return false;
-    }
-    const char* rest = entry_path + dir_len;
-    if (*rest == '/') {
-        ++rest;
-    }
-    if (*rest == '\0') {
-        return false; // This IS the directory, not a child
-    }
-    // Check it's an immediate child (no further '/' except trailing)
-    uint32_t len = 0U;
-    while (rest[len] != '\0' && rest[len] != '/') {
-        if (len + 1U >= capacity) {
-            return false;
-        }
-        name_out[len] = rest[len];
-        ++len;
-    }
-    name_out[len] = '\0';
-    // If there's more after the slash, it's a deeper entry
-    if (rest[len] == '/' && rest[len + 1U] != '\0') {
-        return false;
-    }
-    return len > 0U;
-}
-
-bool getdents_visitor(const bootfs::FileRecord& file, void* context) noexcept {
-    auto* ctx = static_cast<GetdentsContext*>(context);
-    if (ctx == nullptr || file.path == nullptr) {
-        return true;
-    }
-
-    char name[64]{};
-    if (!extract_child_name(file.path, ctx->dir_path, name, sizeof(name))) {
-        return true; // Not a child of this directory, skip
-    }
-
-    const uint32_t name_len = string_length(name);
-    const uint32_t reclen = align_up(
-        static_cast<uint32_t>(sizeof(uint32_t) * 2U + sizeof(uint16_t) + name_len + 2U),
-        4U);
-
-    if (ctx->offset + reclen > ctx->buffer_size) {
-        return false; // Buffer full, stop
-    }
-
-    uint8_t* dest = nullptr;
-    if (!translate_user_region(ctx->process, ctx->user_buffer + ctx->offset, reclen, &dest)) {
-        return false;
-    }
-
-    // Write d_ino (use entry_count+2 as fake inode)
-    auto* ino = reinterpret_cast<uint32_t*>(dest);
-    *ino = ctx->entry_count + 2U;
-    // Write d_off (next offset)
-    auto* off = reinterpret_cast<uint32_t*>(dest + 4U);
-    *off = ctx->offset + reclen;
-    // Write d_reclen
-    auto* recl = reinterpret_cast<uint16_t*>(dest + 8U);
-    *recl = static_cast<uint16_t>(reclen);
-    // Write d_name
-    char* name_dest = reinterpret_cast<char*>(dest + 10U);
-    copy_region(reinterpret_cast<uint8_t*>(name_dest),
-                reinterpret_cast<const uint8_t*>(name),
-                name_len + 1U);
-    // Write d_type byte after null terminator
-    dest[10U + name_len + 1U] = file.is_directory ? 4U : 8U; // DT_DIR=4, DT_REG=8
-
-    ctx->offset += reclen;
-    ++ctx->entry_count;
-    return true;
-}
+// -- getdents syscall ------------------------------------------------------
 
 [[nodiscard]] uint32_t sys_getdents(Process* process, RegisterFrame* frame) noexcept {
     const int fd = resolve_fd(process, static_cast<int>(frame->ebx));
@@ -2943,7 +1920,7 @@ bool getdents_visitor(const bootfs::FileRecord& file, void* context) noexcept {
     return ctx.offset;
 }
 
-// -- Phase 2 syscalls: job control ----------------------------------------
+// -- Job control syscalls --------------------------------------------------
 
 [[nodiscard]] uint32_t sys_setpgid(Process* process, RegisterFrame* frame) noexcept {
     const uint32_t target_pid = frame->ebx;
@@ -2974,7 +1951,9 @@ bool getdents_visitor(const bootfs::FileRecord& file, void* context) noexcept {
     return process->pgid;
 }
 
-// -- Phase 2 syscalls: uname ----------------------------------------------
+// -- uname syscall ---------------------------------------------------------
+
+namespace {
 
 struct UtsName32 {
     char sysname[65];
@@ -2984,6 +1963,8 @@ struct UtsName32 {
     char machine[65];
     char domainname[65];
 };
+
+} // anonymous namespace
 
 [[nodiscard]] uint32_t sys_uname(Process* process, RegisterFrame* frame) noexcept {
     UtsName32 name{};
@@ -2999,22 +1980,50 @@ struct UtsName32 {
     return 0U;
 }
 
-// -- Phase 2 syscalls: symlink/readlink -----------------------------------
+// -- symlink/readlink syscalls ---------------------------------------------
 
 [[nodiscard]] uint32_t sys_symlink(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    (void)frame;
-    // ext2 mutation layer does not yet support symlinks
-    return kErrnoNoSys;
+    char target[256]{};
+    char linkpath[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, target, sizeof(target)) ||
+        !copy_and_resolve_user_path(process, frame->ecx, linkpath, sizeof(linkpath))) {
+        return kErrnoFault;
+    }
+    // For symlink, the target is stored as-is (not resolved)
+    char raw_target[256]{};
+    if (!copy_user_string(process, frame->ebx, raw_target, sizeof(raw_target))) {
+        return kErrnoFault;
+    }
+    return ext2_reader::create_symlink_runtime(raw_target, linkpath) ? 0U : kErrnoNoSys;
 }
 
 [[nodiscard]] uint32_t sys_readlink(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    (void)frame;
-    return kErrnoInvalid;
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
+        return kErrnoFault;
+    }
+    const uint32_t bufsiz = frame->edx;
+    if (bufsiz == 0U) {
+        return kErrnoInvalid;
+    }
+    uint8_t* user_buf = nullptr;
+    if (!translate_user_region(process, frame->ecx, bufsiz, &user_buf)) {
+        return kErrnoFault;
+    }
+    char target[256]{};
+    const int result = ext2_reader::readlink_runtime(path, target, sizeof(target));
+    if (result < 0) {
+        return kErrnoInvalid;
+    }
+    const uint32_t to_copy = (static_cast<uint32_t>(result) < bufsiz)
+                                 ? static_cast<uint32_t>(result) : bufsiz;
+    for (uint32_t i = 0U; i < to_copy; ++i) {
+        user_buf[i] = static_cast<uint8_t>(target[i]);
+    }
+    return to_copy;
 }
 
-// -- Phase 2 syscalls: file descriptor ops --------------------------------
+// -- File descriptor ops ---------------------------------------------------
 
 [[nodiscard]] uint32_t sys_fchdir(Process* process, RegisterFrame* frame) noexcept {
     (void)process;
@@ -3063,12 +2072,16 @@ struct UtsName32 {
     return 0U;
 }
 
-// -- Phase 2 syscalls: vectored I/O ---------------------------------------
+// -- Vectored I/O ----------------------------------------------------------
+
+namespace {
 
 struct IoVec32 {
     uint32_t base;
     uint32_t length;
 };
+
+} // anonymous namespace
 
 [[nodiscard]] uint32_t sys_readv(Process* process, RegisterFrame* frame) noexcept {
     const int user_fd = static_cast<int>(frame->ebx);
@@ -3100,7 +2113,7 @@ struct IoVec32 {
             for (uint32_t j = 0U; j < iov.length; ++j) {
                 char value = '\0';
                 if (!console::tty_try_read_char(&value)) {
-                    block_current_process_until_rescheduled(process, true, 0U);
+                    block_current_process_until_rescheduled(process, WaitReason::ConsoleInput, 0U);
                 }
                 buf[j] = static_cast<uint8_t>(value);
                 ++total;
@@ -3111,7 +2124,7 @@ struct IoVec32 {
         } else if (fd >= 0) {
             int result = bootfs::read(fd, buf, iov.length);
             while (result == bootfs::kReadWouldBlock) {
-                if (block_current_process_until_rescheduled(process, true, 0U)) {
+                if (block_current_process_until_rescheduled(process, WaitReason::ConsoleInput, 0U)) {
                     return total > 0U ? total : kErrnoIntr;
                 }
                 result = bootfs::read(fd, buf, iov.length);
@@ -3164,7 +2177,7 @@ struct IoVec32 {
         } else if (fd >= 0) {
             int result = bootfs::write(fd, buf, iov.length);
             while (result == bootfs::kWriteWouldBlock) {
-                if (block_current_process_until_rescheduled(process, false, 0U)) {
+                if (block_current_process_until_rescheduled(process, WaitReason::PipeIO, 0U)) {
                     return total > 0U ? total : kErrnoIntr;
                 }
                 result = bootfs::write(fd, buf, iov.length);
@@ -3180,7 +2193,9 @@ struct IoVec32 {
     return total;
 }
 
-// -- Phase 2 syscalls: select/poll ----------------------------------------
+// -- select/poll syscalls --------------------------------------------------
+
+namespace {
 
 struct FdSet32 {
     uint32_t bits[32]; // 1024 bits
@@ -3201,6 +2216,8 @@ void fd_set_set(FdSet32* set, int fd) noexcept {
     }
     set->bits[fd / 32] |= (1U << (fd % 32));
 }
+
+} // anonymous namespace
 
 [[nodiscard]] uint32_t sys_select(Process* process, RegisterFrame* frame) noexcept {
     const int nfds = static_cast<int>(frame->ebx);
@@ -3303,11 +2320,13 @@ void fd_set_set(FdSet32* set, int fd) noexcept {
         }
 
         // Block for one tick then re-check
-        block_current_process_until_rescheduled(process, true,
+        block_current_process_until_rescheduled(process, WaitReason::SleepTick,
                                                 g_scheduler_ticks + 1U);
         ++elapsed;
     }
 }
+
+namespace {
 
 struct PollFd32 {
     int32_t fd;
@@ -3318,6 +2337,8 @@ struct PollFd32 {
 constexpr int16_t kPollIn = 0x0001;
 constexpr int16_t kPollOut = 0x0004;
 constexpr int16_t kPollNVal = 0x0020;
+
+} // anonymous namespace
 
 [[nodiscard]] uint32_t sys_poll(Process* process, RegisterFrame* frame) noexcept {
     const uint32_t fds_addr = frame->ebx;
@@ -3331,7 +2352,7 @@ constexpr int16_t kPollNVal = 0x0020;
         if (timeout_ms > 0) {
             const uint64_t wake = g_scheduler_ticks +
                                   static_cast<uint64_t>(timeout_ms) * kTimerHz / 1000U;
-            block_current_process_until_rescheduled(process, false, wake);
+            block_current_process_until_rescheduled(process, WaitReason::SleepTick, wake);
         }
         return 0U;
     }
@@ -3385,13 +2406,13 @@ constexpr int16_t kPollNVal = 0x0020;
             return ready;
         }
 
-        block_current_process_until_rescheduled(process, true,
+        block_current_process_until_rescheduled(process, WaitReason::SleepTick,
                                                 g_scheduler_ticks + 1U);
         ++elapsed;
     }
 }
 
-// -- Phase 2 syscalls: nanosleep (proper implementation) ------------------
+// -- nanosleep syscall -----------------------------------------------------
 
 [[nodiscard]] uint32_t sys_nanosleep_impl(Process* process, RegisterFrame* frame) noexcept {
     if (frame->ebx == 0U) {
@@ -3406,7 +2427,7 @@ constexpr int16_t kPollNVal = 0x0020;
                            static_cast<uint64_t>(req->nanoseconds) / (1000000000U / kTimerHz);
     if (ticks > 0U) {
         const uint64_t target_tick = g_scheduler_ticks + ticks;
-        if (block_current_process_until_rescheduled(process, false, target_tick)) {
+        if (block_current_process_until_rescheduled(process, WaitReason::SleepTick, target_tick)) {
             // Interrupted by signal -- write remaining time if rem provided
             if (frame->ecx != 0U) {
                 const uint64_t remaining = (target_tick > g_scheduler_ticks)
@@ -3429,356 +2450,7 @@ constexpr int16_t kPollNVal = 0x0020;
     return 0U;
 }
 
-// -- Signal delivery framework --------------------------------------------
-
-void init_signal_state(Process* process) noexcept {
-    if (process == nullptr) {
-        return;
-    }
-    zero_region(reinterpret_cast<uint8_t*>(&process->signals),
-                static_cast<uint32_t>(sizeof(process->signals)));
-    // SIGCHLD defaults to ignore
-    process->signals.handlers[kSigChld].handler = kSigIgn;
-}
-
-bool is_default_terminate(uint32_t signum) noexcept {
-    // Signals whose default action is to terminate
-    switch (signum) {
-    case kSigHup: case kSigInt: case kSigQuit: case kSigIll:
-    case kSigAbrt: case kSigKill: case kSigSegv: case kSigPipe:
-    case kSigAlrm: case kSigTerm:
-        return true;
-    default:
-        return false;
-    }
-}
-
-bool is_default_ignore(uint32_t signum) noexcept {
-    switch (signum) {
-    case kSigChld: case kSigCont:
-        return true;
-    default:
-        return false;
-    }
-}
-
-void send_signal_to_process(Process* target, uint32_t signum) noexcept {
-    if (target == nullptr || signum == 0U || signum >= kMaxSignals) {
-        return;
-    }
-    target->signals.pending |= (1U << signum);
-    // Wake up waiting processes so they can handle the signal
-    if (target->state == ProcessState::Waiting) {
-        target->state = ProcessState::Runnable;
-        target->waiting_for_console_input = false;
-        target->wake_tick = 0U;
-    }
-}
-
-// Push a signal frame onto the user stack and redirect execution to the handler.
-// Returns true if a signal was delivered (context was modified).
-bool deliver_one_signal(Process* process) noexcept {
-    if (process == nullptr || process->signals.in_handler) {
-        return false;
-    }
-
-    const uint32_t deliverable = process->signals.pending & ~process->signals.blocked;
-    if (deliverable == 0U) {
-        return false;
-    }
-
-    // Find lowest-numbered pending unblocked signal
-    uint32_t signum = 0U;
-    for (uint32_t i = 1U; i < kMaxSignals; ++i) {
-        if ((deliverable & (1U << i)) != 0U) {
-            signum = i;
-            break;
-        }
-    }
-    if (signum == 0U) {
-        return false;
-    }
-
-    // Clear pending bit
-    process->signals.pending &= ~(1U << signum);
-
-    const SignalHandler32& handler = process->signals.handlers[signum];
-
-    // Handle SIG_IGN
-    if (handler.handler == kSigIgn) {
-        return false;
-    }
-
-    // Handle SIG_DFL
-    if (handler.handler == kSigDfl) {
-        if (is_default_ignore(signum)) {
-            return false;
-        }
-        if (signum == kSigStop || signum == kSigTstp) {
-            process->state = ProcessState::Stopped;
-            process->exit_status = (signum << 8U) | 0x7FU; // WIFSTOPPED encoding
-            // Notify parent of stopped child
-            Process* parent = find_process(process->ppid);
-            if (parent != nullptr) {
-                send_signal_to_process(parent, kSigChld);
-                if (parent->state == ProcessState::Waiting) {
-                    resume_waiting_parent(parent);
-                }
-            }
-            return true; // Context modified (process stopped)
-        }
-        if (signum == kSigCont) {
-            if (process->state == ProcessState::Stopped) {
-                process->state = ProcessState::Runnable;
-            }
-            return false;
-        }
-        if (is_default_terminate(signum)) {
-            // Default action: terminate
-            process->exit_status = 128U + signum;
-            process->state = ProcessState::Exited;
-            return true; // Context is irrelevant, process is dying
-        }
-        return false;
-    }
-
-    // User handler -- push signal frame onto user stack
-    const uint32_t frame_size = static_cast<uint32_t>(sizeof(SignalFrame32));
-    uint32_t new_esp = process->context.esp - frame_size;
-    new_esp = align_down(new_esp, 4U);
-
-    uint8_t* frame_dest = nullptr;
-    if (!translate_user_region(process, new_esp, frame_size, &frame_dest)) {
-        // Can't push frame -- kill process
-        process->exit_status = 128U + signum;
-        process->state = ProcessState::Exited;
-        return true;
-    }
-
-    auto* sig_frame = reinterpret_cast<SignalFrame32*>(frame_dest);
-
-    // Write sigreturn trampoline code (7 bytes, padded to 8):
-    //   B8 xx xx xx xx   movl $SYS_rt_sigreturn, %eax  (5 bytes)
-    //   CD 80            int $0x80                      (2 bytes)
-    //   90               nop                            (1 byte padding)
-    {
-        auto* code = reinterpret_cast<uint8_t*>(sig_frame->sigreturn_trampoline);
-        code[0] = 0xB8U; // movl $imm32, %eax
-        code[1] = static_cast<uint8_t>(SYS_rt_sigreturn & 0xFFU);
-        code[2] = static_cast<uint8_t>((SYS_rt_sigreturn >> 8U) & 0xFFU);
-        code[3] = 0U;
-        code[4] = 0U;
-        code[5] = 0xCDU; // int $0x80
-        code[6] = 0x80U;
-        code[7] = 0x90U; // nop
-    }
-
-    sig_frame->signum = signum;
-    sig_frame->saved_context = process->context;
-    sig_frame->saved_mask = process->signals.blocked;
-
-    // Block signals during handler execution
-    process->signals.saved_mask = process->signals.blocked;
-    process->signals.blocked |= handler.mask | (1U << signum);
-    if ((handler.flags & kSaNodefer) != 0U) {
-        process->signals.blocked &= ~(1U << signum);
-    }
-    process->signals.in_handler = true;
-
-    // Reset handler to SIG_DFL if SA_RESETHAND
-    if ((handler.flags & kSaResethand) != 0U) {
-        process->signals.handlers[signum].handler = kSigDfl;
-        process->signals.handlers[signum].flags = 0U;
-    }
-
-    // Redirect user context to signal handler.
-    // Push signum as argument on stack, trampoline as return address.
-    const uint32_t trampoline_addr = new_esp; // Address of the trampoline code on stack
-    new_esp -= 4U; // Space for signum argument
-    static_cast<void>(write_user_u32(process, new_esp, signum));
-    new_esp -= 4U; // Space for return address (trampoline)
-    static_cast<void>(write_user_u32(process, new_esp, trampoline_addr));
-
-    process->context.eip = handler.handler;
-    process->context.esp = new_esp;
-
-    return true;
-}
-
-// Sigaction syscall: register signal handlers
-// ebx = signum, ecx = new sigaction ptr, edx = old sigaction ptr
-struct SigAction32User {
-    uint32_t sa_handler;
-    uint32_t sa_flags;
-    uint32_t sa_restorer;
-    uint32_t sa_mask;
-};
-
-[[nodiscard]] uint32_t sys_sigaction_impl(Process* process, RegisterFrame* frame) noexcept {
-    const uint32_t signum = frame->ebx;
-    const uint32_t new_act_addr = frame->ecx;
-    const uint32_t old_act_addr = frame->edx;
-
-    if (signum == 0U || signum >= kMaxSignals || signum == kSigKill || signum == kSigStop) {
-        return kErrnoInvalid;
-    }
-
-    // Return old action if requested
-    if (old_act_addr != 0U) {
-        SigAction32User old_act{};
-        old_act.sa_handler = process->signals.handlers[signum].handler;
-        old_act.sa_flags = process->signals.handlers[signum].flags;
-        old_act.sa_restorer = process->signals.handlers[signum].restorer;
-        old_act.sa_mask = process->signals.handlers[signum].mask;
-        if (!write_user_bytes(process, old_act_addr, &old_act,
-                              static_cast<uint32_t>(sizeof(old_act)))) {
-            return kErrnoFault;
-        }
-    }
-
-    // Set new action if provided
-    if (new_act_addr != 0U) {
-        uint8_t* raw = nullptr;
-        if (!translate_user_region(process, new_act_addr,
-                                   static_cast<uint32_t>(sizeof(SigAction32User)), &raw)) {
-            return kErrnoFault;
-        }
-        const auto* new_act = reinterpret_cast<const SigAction32User*>(raw);
-        process->signals.handlers[signum].handler = new_act->sa_handler;
-        process->signals.handlers[signum].flags = new_act->sa_flags;
-        process->signals.handlers[signum].restorer = new_act->sa_restorer;
-        process->signals.handlers[signum].mask = new_act->sa_mask;
-    }
-
-    return 0U;
-}
-
-// kill syscall: send signal to process
-[[nodiscard]] uint32_t sys_kill_impl(Process* process, RegisterFrame* frame) noexcept {
-    (void)process;
-    const int32_t target_pid = static_cast<int32_t>(frame->ebx);
-    const uint32_t signum = frame->ecx;
-
-    if (signum >= kMaxSignals) {
-        return kErrnoInvalid;
-    }
-
-    // Signal 0 is a validity check, don't actually send
-    if (signum == 0U) {
-        if (target_pid > 0) {
-            return find_process(static_cast<uint32_t>(target_pid)) != nullptr ? 0U : kErrnoNoSys;
-        }
-        return 0U;
-    }
-
-    if (target_pid > 0) {
-        // Send to specific process
-        Process* target = find_process(static_cast<uint32_t>(target_pid));
-        if (target == nullptr) {
-            return kErrnoNoSys; // ESRCH
-        }
-        send_signal_to_process(target, signum);
-    } else if (target_pid == 0 || target_pid == -1) {
-        // Send to all processes in group (simplified: send to all)
-        for (auto& proc : g_processes) {
-            if (proc.in_use && proc.state != ProcessState::Exited) {
-                send_signal_to_process(&proc, signum);
-            }
-        }
-    } else {
-        // Send to specific process group (simplified: same as pid)
-        Process* target = find_process(static_cast<uint32_t>(-target_pid));
-        if (target == nullptr) {
-            return kErrnoNoSys;
-        }
-        send_signal_to_process(target, signum);
-    }
-
-    return 0U;
-}
-
-// sigreturn: restore context from signal frame on user stack
-[[noreturn]] void sys_rt_sigreturn_impl(Process* process, RegisterFrame* frame) noexcept {
-    (void)frame;
-    // The signal frame is at esp (after the trampoline's int $0x80 popped the
-    // return address). Walk up to find it.
-    // When the trampoline executes:
-    //   movl $SYS_rt_sigreturn, %eax
-    //   int $0x80
-    // At this point esp points past the return address and signum argument,
-    // so the frame starts at esp - 8 (return addr + signum) at the base.
-    // Actually, the trampoline IS the start of the signal frame.
-    // The stack at int $0x80 time:
-    //   [return addr to trampoline] [signum arg] [trampoline code...]
-    // After the handler returns, ESP points to [signum arg].
-    // After trampoline pops nothing (it's code, not stack), ESP is unchanged.
-    // We need to find the SignalFrame32 on the stack.
-    //
-    // Frame layout on stack (low to high):
-    //   return_addr (trampoline addr)  <- was ESP when handler called
-    //   signum_arg
-    //   [signal frame begins here]:
-    //     sigreturn_trampoline[2]
-    //     signum
-    //     saved_context
-    //     saved_mask
-    //
-    // When sigreturn is called, ESP is at the point after handler's 'ret'
-    // popped the return address (trampoline addr). So ESP now points to
-    // signum_arg. The signal frame is at ESP + 4 (past the signum arg).
-
-    const uint32_t frame_addr = process->context.esp + 4U;
-    uint8_t* raw = nullptr;
-    if (!translate_user_region(process, frame_addr,
-                               static_cast<uint32_t>(sizeof(SignalFrame32)), &raw)) {
-        // Can't restore -- kill process and dispatch next
-        process->exit_status = 128U + kSigSegv;
-        process->state = ProcessState::Exited;
-        dispatch_next_runnable("sigreturn failed to read signal frame");
-        __builtin_unreachable();
-    }
-
-    const auto* sig_frame = reinterpret_cast<const SignalFrame32*>(raw);
-
-    // Restore context
-    process->context = sig_frame->saved_context;
-    process->signals.blocked = sig_frame->saved_mask;
-    process->signals.in_handler = false;
-
-    // Must resume via the restored context, NOT the normal syscall return.
-    // The normal iret would go back to the trampoline (where int $0x80 was
-    // called), but we need to go back to the original pre-signal location.
-    activate_process(process);
-    i486_resume_user_context(&process->context);
-    __builtin_unreachable();
-}
-
-// signal() syscall (simplified SIG_DFL/SIG_IGN/handler)
-[[nodiscard]] uint32_t sys_signal_impl(Process* process, RegisterFrame* frame) noexcept {
-    const uint32_t signum = frame->ebx;
-    const uint32_t handler = frame->ecx;
-
-    if (signum == 0U || signum >= kMaxSignals || signum == kSigKill || signum == kSigStop) {
-        return kErrnoInvalid;
-    }
-
-    const uint32_t old_handler = process->signals.handlers[signum].handler;
-    process->signals.handlers[signum].handler = handler;
-    process->signals.handlers[signum].flags = kSaRestart;
-    process->signals.handlers[signum].mask = 0U;
-    process->signals.handlers[signum].restorer = 0U;
-    return old_handler;
-}
-
-uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept;
-
-extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
-    Process* process = g_current_process;
-    if (frame == nullptr || process == nullptr) {
-        return static_cast<uint32_t>(-1);
-    }
-    return dispatch_syscall(process, frame);
-}
+// -- Syscall dispatch ------------------------------------------------------
 
 uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     process->context = capture_user_context(frame);
@@ -3792,7 +2464,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return sys_open(process, frame);
     case SYS_close: {
         const int user_fd = static_cast<int>(frame->ebx);
-        if (user_fd < 0 || user_fd >= 32) {
+        if (user_fd < 0 || user_fd >= kMaxFds) {
             return kErrnoBadF;
         }
         const int global_slot = process->fd_map[user_fd];
@@ -3800,6 +2472,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             return kErrnoBadF;
         }
         process->fd_map[user_fd] = -1;
+        process->fd_flags[user_fd] = 0;
         bootfs::decrement_slot_refcount(global_slot);
         return 0U;
     }
@@ -3817,8 +2490,15 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return sys_chdir(process, frame);
     case SYS_getcwd:
         return sys_getcwd(process, frame);
-    case SYS_link:
-        return kErrnoNoSys; // Hard links not supported
+    case SYS_link: {
+        char oldpath[256]{};
+        char newpath[256]{};
+        if (!copy_and_resolve_user_path(process, frame->ebx, oldpath, sizeof(oldpath)) ||
+            !copy_and_resolve_user_path(process, frame->ecx, newpath, sizeof(newpath))) {
+            return kErrnoFault;
+        }
+        return ext2_reader::link_runtime_file(oldpath, newpath) ? 0U : kErrnoNoSys;
+    }
     case SYS_chmod: {
         char path[256]{};
         if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
@@ -3833,9 +2513,33 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     }
     case SYS_chown:
         return 0U; // Single-user model, succeed silently
-    case SYS_setuid:
-    case SYS_setgid:
-        return 0U; // Single-user model
+    case SYS_setuid: {
+        const uint32_t new_uid = frame->ebx;
+        if (process->cred.euid == 0U) {
+            // Superuser: set all three
+            process->cred.uid = new_uid;
+            process->cred.euid = new_uid;
+            process->cred.suid = new_uid;
+        } else if (new_uid == process->cred.uid || new_uid == process->cred.suid) {
+            process->cred.euid = new_uid;
+        } else {
+            return kErrnoPerm;
+        }
+        return 0U;
+    }
+    case SYS_setgid: {
+        const uint32_t new_gid = frame->ebx;
+        if (process->cred.euid == 0U) {
+            process->cred.gid = new_gid;
+            process->cred.egid = new_gid;
+            process->cred.sgid = new_gid;
+        } else if (new_gid == process->cred.gid || new_gid == process->cred.sgid) {
+            process->cred.egid = new_gid;
+        } else {
+            return kErrnoPerm;
+        }
+        return 0U;
+    }
     case SYS_exit:
         exit_current_process(frame->ebx, "orphaned i486 user process exited");
     case SYS_getpid:
@@ -3887,10 +2591,13 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     case SYS_nanosleep:
         return sys_nanosleep_impl(process, frame);
     case SYS_getuid:
+        return process->cred.uid;
     case SYS_geteuid:
+        return process->cred.euid;
     case SYS_getgid:
+        return process->cred.gid;
     case SYS_getegid:
-        return 0U;
+        return process->cred.egid;
     case SYS_alarm:
         return sys_alarm_compat(process, frame);
     case SYS_getrlimit:
@@ -3905,9 +2612,54 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return sys_umask_compat(process, frame);
     case SYS_nice:
         return sys_nice_compat(process, frame);
-    case SYS_setreuid:
-    case SYS_setregid:
+    case SYS_setreuid: {
+        const uint32_t ruid = frame->ebx;
+        const uint32_t euid = frame->ecx;
+        if (ruid != 0xFFFFFFFFU) {
+            if (process->cred.euid == 0U || ruid == process->cred.uid ||
+                ruid == process->cred.euid) {
+                process->cred.uid = ruid;
+            } else {
+                return kErrnoPerm;
+            }
+        }
+        if (euid != 0xFFFFFFFFU) {
+            if (process->cred.euid == 0U || euid == process->cred.uid ||
+                euid == process->cred.euid || euid == process->cred.suid) {
+                process->cred.euid = euid;
+            } else {
+                return kErrnoPerm;
+            }
+        }
+        if (ruid != 0xFFFFFFFFU || (euid != 0xFFFFFFFFU && euid != process->cred.uid)) {
+            process->cred.suid = process->cred.euid;
+        }
         return 0U;
+    }
+    case SYS_setregid: {
+        const uint32_t rgid = frame->ebx;
+        const uint32_t egid = frame->ecx;
+        if (rgid != 0xFFFFFFFFU) {
+            if (process->cred.euid == 0U || rgid == process->cred.gid ||
+                rgid == process->cred.egid) {
+                process->cred.gid = rgid;
+            } else {
+                return kErrnoPerm;
+            }
+        }
+        if (egid != 0xFFFFFFFFU) {
+            if (process->cred.euid == 0U || egid == process->cred.gid ||
+                egid == process->cred.egid || egid == process->cred.sgid) {
+                process->cred.egid = egid;
+            } else {
+                return kErrnoPerm;
+            }
+        }
+        if (rgid != 0xFFFFFFFFU || (egid != 0xFFFFFFFFU && egid != process->cred.gid)) {
+            process->cred.sgid = process->cred.egid;
+        }
+        return 0U;
+    }
     case SYS_rt_sigprocmask:
         return sys_rt_sigprocmask_compat(process, frame);
     case SYS_getpgid: {
@@ -3974,9 +2726,20 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         uint8_t* addr_raw = nullptr;
         if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw))
             return kErrnoFault;
-        return static_cast<uint32_t>(ksocket::sys_connect(
+        int rc = ksocket::sys_connect(
             static_cast<int>(frame->ebx),
-            reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw)));
+            reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw));
+        if (rc == -115) {
+            // EINPROGRESS: block until TCP state changes
+            const int sockfd = static_cast<int>(frame->ebx);
+            process->wait_tcp_conn = ksocket::get_tcp_conn_idx(sockfd);
+            block_current_process_until_rescheduled(process, WaitReason::TcpConnect, 0U);
+            // On wake, retry the connect call (socket remembers SynSent state)
+            rc = ksocket::sys_connect(sockfd,
+                reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw));
+            if (rc == -115) rc = -110; // ETIMEDOUT if still not connected
+        }
+        return static_cast<uint32_t>(rc);
     }
     case SYS_listen:
         return static_cast<uint32_t>(ksocket::sys_listen(
@@ -4007,26 +2770,149 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             static_cast<int>(frame->ebx),
             static_cast<int>(frame->ecx)));
     case SYS_setsockopt:
+        return static_cast<uint32_t>(ksocket::sys_setsockopt(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx),
+            static_cast<int>(frame->edx),
+            reinterpret_cast<const void*>(frame->esi),
+            frame->edi));
     case SYS_getsockopt:
+        return static_cast<uint32_t>(ksocket::sys_getsockopt(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx),
+            static_cast<int>(frame->edx),
+            reinterpret_cast<void*>(frame->esi),
+            reinterpret_cast<uint32_t*>(frame->edi)));
     case SYS_getsockname:
+        return static_cast<uint32_t>(ksocket::sys_getsockname(
+            static_cast<int>(frame->ebx),
+            reinterpret_cast<ksocket::SockAddrIn*>(frame->ecx)));
     case SYS_getpeername:
-    case SYS_sendmsg:
-    case SYS_recvmsg:
+        return static_cast<uint32_t>(ksocket::sys_getpeername(
+            static_cast<int>(frame->ebx),
+            reinterpret_cast<ksocket::SockAddrIn*>(frame->ecx)));
     case SYS_socketpair:
-        return kErrnoNoSys; // Not yet implemented
+        return static_cast<uint32_t>(ksocket::sys_socketpair(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx),
+            static_cast<int>(frame->edx),
+            reinterpret_cast<int*>(frame->esi)));
+    case SYS_sendmsg: {
+        // ebx = sockfd, ecx = msghdr* (userspace), edx = flags (ignored)
+        uint8_t* msg_raw = nullptr;
+        if (frame->ecx == 0U || !translate_user_region(process, frame->ecx,
+                static_cast<uint32_t>(sizeof(ksocket::MsgHdr32)), &msg_raw)) {
+            return kErrnoFault;
+        }
+        const auto* hdr = reinterpret_cast<const ksocket::MsgHdr32*>(msg_raw);
+        // Gather iov into a single buffer
+        if (hdr->msg_iovlen == 0U) return 0U;
+        uint8_t gather_buf[4096]{};
+        uint32_t total = 0U;
+        for (uint32_t i = 0U; i < hdr->msg_iovlen && total < sizeof(gather_buf); ++i) {
+            uint8_t* iov_raw = nullptr;
+            const uint32_t iov_addr = hdr->msg_iov + i * 8U;
+            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) break;
+            const auto* iov = reinterpret_cast<const ksocket::IoVec32*>(iov_raw);
+            uint32_t len = iov->iov_len;
+            if (total + len > sizeof(gather_buf)) len = static_cast<uint32_t>(sizeof(gather_buf)) - total;
+            uint8_t* data_raw = nullptr;
+            if (iov->iov_base != 0U && len > 0U &&
+                translate_user_region(process, iov->iov_base, len, &data_raw)) {
+                for (uint32_t j = 0U; j < len; ++j) gather_buf[total + j] = data_raw[j];
+                total += len;
+            }
+        }
+        // Resolve optional destination address
+        const ksocket::SockAddrIn* dest = nullptr;
+        uint8_t* name_raw = nullptr;
+        if (hdr->msg_name != 0U && hdr->msg_namelen >= sizeof(ksocket::SockAddrIn) &&
+            translate_user_region(process, hdr->msg_name,
+                static_cast<uint32_t>(sizeof(ksocket::SockAddrIn)), &name_raw)) {
+            dest = reinterpret_cast<const ksocket::SockAddrIn*>(name_raw);
+        }
+        return static_cast<uint32_t>(ksocket::sys_sendto(
+            static_cast<int>(frame->ebx), gather_buf, total, dest));
+    }
+    case SYS_recvmsg: {
+        // ebx = sockfd, ecx = msghdr* (userspace), edx = flags (ignored)
+        uint8_t* msg_raw = nullptr;
+        if (frame->ecx == 0U || !translate_user_region(process, frame->ecx,
+                static_cast<uint32_t>(sizeof(ksocket::MsgHdr32)), &msg_raw)) {
+            return kErrnoFault;
+        }
+        auto* hdr = reinterpret_cast<ksocket::MsgHdr32*>(msg_raw);
+        if (hdr->msg_iovlen == 0U) return 0U;
+        // Compute total iov capacity
+        uint32_t total_cap = 0U;
+        for (uint32_t i = 0U; i < hdr->msg_iovlen; ++i) {
+            uint8_t* iov_raw = nullptr;
+            const uint32_t iov_addr = hdr->msg_iov + i * 8U;
+            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) break;
+            const auto* iov = reinterpret_cast<const ksocket::IoVec32*>(iov_raw);
+            total_cap += iov->iov_len;
+        }
+        if (total_cap > 4096U) total_cap = 4096U;
+        // Receive into scratch buffer
+        uint8_t recv_buf[4096]{};
+        const int rc = ksocket::sys_recvfrom(
+            static_cast<int>(frame->ebx), recv_buf, total_cap, nullptr);
+        if (rc <= 0) return static_cast<uint32_t>(rc);
+        // Scatter into iov
+        uint32_t remaining = static_cast<uint32_t>(rc);
+        uint32_t offset = 0U;
+        for (uint32_t i = 0U; i < hdr->msg_iovlen && remaining > 0U; ++i) {
+            uint8_t* iov_raw = nullptr;
+            const uint32_t iov_addr = hdr->msg_iov + i * 8U;
+            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) break;
+            const auto* iov = reinterpret_cast<const ksocket::IoVec32*>(iov_raw);
+            uint32_t chunk = iov->iov_len;
+            if (chunk > remaining) chunk = remaining;
+            if (iov->iov_base != 0U && chunk > 0U) {
+                static_cast<void>(write_user_bytes(process, iov->iov_base, recv_buf + offset, chunk));
+            }
+            offset += chunk;
+            remaining -= chunk;
+        }
+        hdr->msg_flags = 0;
+        return static_cast<uint32_t>(rc);
+    }
     // Phase 3 POSIX completeness syscalls
     case SYS_gettid:
         return process->pid; // No threads, tid == pid
     case SYS_sched_yield:
         process->ticks_remaining = 0U;
         return 0U;
-    case SYS_lstat:
-        return sys_stat(process, frame); // No symlinks, lstat == stat
+    case SYS_lstat: {
+        char path[256]{};
+        if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
+            return kErrnoFault;
+        }
+        // Try ext2 lstat (no-follow) first
+        ext2_reader::NodeInfo info{};
+        if (ext2_reader::query_runtime_path_no_follow(path, info) && info.exists) {
+            bootfs::UserspaceStat host_stat{};
+            if (bootfs::stat_path(path, &host_stat) != 0) {
+                return kErrnoNoEnt;
+            }
+            // Override mode with no-follow mode (preserves symlink type bit)
+            host_stat.st_mode = info.mode;
+            host_stat.st_size = info.size;
+            uint8_t* destination = nullptr;
+            if (!translate_user_region(process, frame->ecx, sizeof(host_stat), &destination)) {
+                return kErrnoFault;
+            }
+            *reinterpret_cast<bootfs::UserspaceStat*>(destination) = host_stat;
+            return 0U;
+        }
+        // Fall back to regular stat for non-ext2 paths
+        return sys_stat(process, frame);
+    }
     case SYS_dup3: {
         const int old_user_fd = static_cast<int>(frame->ebx);
         const int new_user_fd = static_cast<int>(frame->ecx);
         const uint32_t flags = frame->edx;
-        if (new_user_fd < 0 || new_user_fd >= 32) {
+        if (new_user_fd < 0 || new_user_fd >= kMaxFds) {
             return kErrnoInvalid;
         }
         const int global_slot = resolve_fd(process, old_user_fd);
@@ -4042,9 +2928,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         }
         process->fd_map[new_user_fd] = global_slot;
         bootfs::increment_slot_refcount(global_slot);
-        if ((flags & 0x80000U) != 0U) { // O_CLOEXEC
-            static_cast<void>(bootfs::set_descriptor_flags(global_slot, 1));
-        }
+        process->fd_flags[new_user_fd] = ((flags & 0x80000U) != 0U) ? 1 : 0;
         return static_cast<uint32_t>(new_user_fd);
     }
     case SYS_pipe2: {
@@ -4054,10 +2938,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             return kErrnoNoMem;
         }
         const uint32_t flags = frame->ecx;
-        if ((flags & 0x80000U) != 0U) { // O_CLOEXEC
-            static_cast<void>(bootfs::set_descriptor_flags(pipe_fds[0], 1));
-            static_cast<void>(bootfs::set_descriptor_flags(pipe_fds[1], 1));
-        }
+        const int cloexec = ((flags & 0x80000U) != 0U) ? 1 : 0;
         const int local_read = allocate_fd_map_entry(process, pipe_fds[0]);
         const int local_write = allocate_fd_map_entry(process, pipe_fds[1]);
         if (local_read < 0 || local_write < 0) {
@@ -4076,6 +2957,8 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             bootfs::close(pipe_fds[1]);
             return kErrnoFault;
         }
+        process->fd_flags[local_read] = cloexec;
+        process->fd_flags[local_write] = cloexec;
         return 0U;
     }
     case SYS_fsync:
@@ -4085,7 +2968,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     }
     case SYS_flock: {
         const int gfd = resolve_fd(process, static_cast<int>(frame->ebx));
-        return (gfd >= 0 && bootfs::is_open(gfd)) ? 0U : kErrnoBadF;
+        if (gfd < 0 || !bootfs::is_open(gfd)) return kErrnoBadF;
+        return static_cast<uint32_t>(
+            lockf::do_flock(gfd, static_cast<int>(frame->ecx), process->pid));
     }
     case SYS_set_tid_address:
         // Store clear_child_tid pointer (simplified: just return pid)
@@ -4178,7 +3063,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
                 }
                 break;
             }
-            block_current_process_until_rescheduled(process, false, 0U);
+            block_current_process_until_rescheduled(process, WaitReason::PipeIO, 0U);
         }
         process->signals.blocked = old_mask;
         return kErrnoIntr;
@@ -4218,6 +3103,134 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         }
         return count;
     }
+    case SYS_setitimer:
+        return sys_setitimer_impl(process, frame);
+    case SYS_getitimer:
+        return sys_getitimer_impl(process, frame);
+    case SYS_getgroups: {
+        const uint32_t gidsetsize = frame->ebx;
+        if (gidsetsize == 0U) return process->cred.ngroups;
+        if (gidsetsize < process->cred.ngroups) return kErrnoInvalid;
+        if (frame->ecx == 0U) return kErrnoFault;
+        if (!write_user_bytes(process, frame->ecx, process->cred.groups,
+                              process->cred.ngroups * 4U)) {
+            return kErrnoFault;
+        }
+        return process->cred.ngroups;
+    }
+    case SYS_setgroups: {
+        const uint32_t ngroups = frame->ebx;
+        if (process->cred.euid != 0U) return kErrnoPerm;
+        if (ngroups > kMaxGroups) return kErrnoInvalid;
+        if (ngroups > 0U) {
+            uint8_t* raw = nullptr;
+            if (frame->ecx == 0U || !translate_user_region(process, frame->ecx,
+                    ngroups * 4U, &raw)) {
+                return kErrnoFault;
+            }
+            for (uint32_t i = 0U; i < ngroups; ++i) {
+                process->cred.groups[i] = reinterpret_cast<const uint32_t*>(raw)[i];
+            }
+        }
+        process->cred.ngroups = ngroups;
+        return 0U;
+    }
+
+    // -- SysV IPC syscalls ------------------------------------------------
+    case SYS_shmget:
+        return static_cast<uint32_t>(ipc::sys_shmget(
+            static_cast<ipc::key_t>(frame->ebx),
+            frame->ecx,
+            static_cast<int>(frame->edx)));
+    case SYS_shmat: {
+        uint32_t result_addr = 0U;
+        const int rc = ipc::sys_shmat(
+            static_cast<int>(frame->ebx), frame->ecx,
+            static_cast<int>(frame->edx), &result_addr);
+        if (rc < 0) return static_cast<uint32_t>(rc);
+        return result_addr;
+    }
+    case SYS_shmdt:
+        return static_cast<uint32_t>(ipc::sys_shmdt(frame->ebx));
+    case SYS_shmctl: {
+        ipc::ShmIdDs* buf = nullptr;
+        if (frame->edx != 0U) {
+            uint8_t* raw = nullptr;
+            if (!translate_user_region(process, frame->edx,
+                    static_cast<uint32_t>(sizeof(ipc::ShmIdDs)), &raw)) {
+                return kErrnoFault;
+            }
+            buf = reinterpret_cast<ipc::ShmIdDs*>(raw);
+        }
+        return static_cast<uint32_t>(ipc::sys_shmctl(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx), buf));
+    }
+    case SYS_semget:
+        return static_cast<uint32_t>(ipc::sys_semget(
+            static_cast<ipc::key_t>(frame->ebx),
+            static_cast<int>(frame->ecx),
+            static_cast<int>(frame->edx)));
+    case SYS_semop: {
+        uint8_t* raw = nullptr;
+        const uint32_t nsops = frame->edx;
+        if (frame->ecx == 0U || nsops == 0U) return kErrnoInvalid;
+        if (!translate_user_region(process, frame->ecx,
+                nsops * static_cast<uint32_t>(sizeof(ipc::SemBuf)), &raw)) {
+            return kErrnoFault;
+        }
+        return static_cast<uint32_t>(ipc::sys_semop(
+            static_cast<int>(frame->ebx),
+            reinterpret_cast<const ipc::SemBuf*>(raw), nsops));
+    }
+    case SYS_semctl:
+        return static_cast<uint32_t>(ipc::sys_semctl(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx),
+            static_cast<int>(frame->edx),
+            static_cast<int>(frame->esi)));
+    case SYS_msgget:
+        return static_cast<uint32_t>(ipc::sys_msgget(
+            static_cast<ipc::key_t>(frame->ebx),
+            static_cast<int>(frame->ecx)));
+    case SYS_msgsnd: {
+        uint8_t* raw = nullptr;
+        const uint32_t msgsz = frame->edx;
+        if (frame->ecx == 0U) return kErrnoFault;
+        if (!translate_user_region(process, frame->ecx, 4U + msgsz, &raw)) {
+            return kErrnoFault;
+        }
+        return static_cast<uint32_t>(ipc::sys_msgsnd(
+            static_cast<int>(frame->ebx), raw, msgsz,
+            static_cast<int>(frame->esi)));
+    }
+    case SYS_msgrcv: {
+        uint8_t* raw = nullptr;
+        const uint32_t msgsz = frame->edx;
+        if (frame->ecx == 0U) return kErrnoFault;
+        if (!translate_user_region(process, frame->ecx, 4U + msgsz, &raw)) {
+            return kErrnoFault;
+        }
+        return static_cast<uint32_t>(ipc::sys_msgrcv(
+            static_cast<int>(frame->ebx), raw, msgsz,
+            static_cast<int32_t>(frame->esi),
+            static_cast<int>(frame->edi)));
+    }
+    case SYS_msgctl: {
+        ipc::MsgIdDs* buf = nullptr;
+        if (frame->edx != 0U) {
+            uint8_t* raw = nullptr;
+            if (!translate_user_region(process, frame->edx,
+                    static_cast<uint32_t>(sizeof(ipc::MsgIdDs)), &raw)) {
+                return kErrnoFault;
+            }
+            buf = reinterpret_cast<ipc::MsgIdDs*>(raw);
+        }
+        return static_cast<uint32_t>(ipc::sys_msgctl(
+            static_cast<int>(frame->ebx),
+            static_cast<int>(frame->ecx), buf));
+    }
+
     default:
         uint32_t caller = 0U;
         const bool have_caller = read_user_u32(process, process->context.esp, &caller);
@@ -4239,6 +3252,16 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return kErrnoNoSys;
     }
 }
+
+extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
+    Process* process = g_current_process;
+    if (frame == nullptr || process == nullptr) {
+        return static_cast<uint32_t>(-1);
+    }
+    return dispatch_syscall(process, frame);
+}
+
+// -- Fault handling --------------------------------------------------------
 
 [[noreturn]] void handle_fault(uint32_t vector, uint32_t error_code,
                               uint32_t fault_eip) noexcept {
@@ -4312,7 +3335,7 @@ extern "C" [[noreturn]] void i486_handle_fault(uint32_t vector,
     handle_fault(vector, error_code, fault_eip);
 }
 
-} // namespace
+// -- Init shell launch -----------------------------------------------------
 
 bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
     g_boot_info = &info;

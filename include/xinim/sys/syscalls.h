@@ -147,6 +147,23 @@ enum xinim_syscall_no {
   SYS_mkdirat = 110,
   SYS_unlinkat = 111,
   SYS_set_tid_address = 112,
+
+  // Phase 5: interval timers, SysV IPC
+  SYS_setitimer = 113,
+  SYS_getitimer = 114,
+  SYS_shmget = 115,
+  SYS_shmat = 116,
+  SYS_shmdt = 117,
+  SYS_shmctl = 118,
+  SYS_semget = 119,
+  SYS_semop = 120,
+  SYS_semctl = 121,
+  SYS_msgget = 122,
+  SYS_msgsnd = 123,
+  SYS_msgrcv = 124,
+  SYS_msgctl = 125,
+  SYS_getgroups = 126,
+  SYS_setgroups = 127,
 };
 
 typedef uint64_t (*xinim_syscall_t)(uint64_t, uint64_t, uint64_t, uint64_t, uint64_t, uint64_t);

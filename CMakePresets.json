@@ -21,19 +21,60 @@
       }
     },
     {
-      "name": "i486-standalone",
-      "description": "i486 debug build (pure CMake, no Conan)",
+      "name": "i486-base",
+      "hidden": true,
       "inherits": "base",
-      "binaryDir": "${sourceDir}/build/i486/Debug",
       "cacheVariables": {
-        "CMAKE_BUILD_TYPE": "Debug",
         "CMAKE_TRY_COMPILE_TARGET_TYPE": "STATIC_LIBRARY",
         "XINIM_CPU_LANE": "i486"
       }
     },
     {
+      "name": "i486-standalone",
+      "description": "i486 debug build",
+      "inherits": "i486-base",
+      "binaryDir": "${sourceDir}/build/i486/Debug",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug"
+      }
+    },
+    {
+      "name": "i486-release",
+      "description": "i486 release build with -O3 and Thin LTO",
+      "inherits": "i486-base",
+      "binaryDir": "${sourceDir}/build/i486/Release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "XINIM_PGO_MODE": "none"
+      }
+    },
+    {
+      "name": "i486-pgo-generate",
+      "description": "i486 PGO phase 1: instrumented build for profile collection",
+      "inherits": "i486-base",
+      "binaryDir": "${sourceDir}/build/i486/PgoGenerate",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "XINIM_PGO_MODE": "generate"
+      }
+    },
+    {
+      "name": "i486-pgo-use",
+      "description": "i486 PGO phase 2: profile-guided optimized build (set XINIM_PGO_DATA)",
+      "inherits": "i486-base",
+      "binaryDir": "${sourceDir}/build/i486/PgoUse",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_INTERPROCEDURAL_OPTIMIZATION": "OFF",
+        "XINIM_PGO_MODE": "use",
+        "XINIM_PGO_DATA": "${sourceDir}/build/i486/pgo.profdata"
+      }
+    },
+    {
       "name": "i586-standalone",
-      "description": "i586 debug build (pure CMake, no Conan)",
+      "description": "i586 debug build",
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/i586/Debug",
       "cacheVariables": {
@@ -44,7 +85,7 @@
     },
     {
       "name": "i686-standalone",
-      "description": "i686 debug build (pure CMake, no Conan)",
+      "description": "i686 debug build",
       "inherits": "base",
       "binaryDir": "${sourceDir}/build/i686/Debug",
       "cacheVariables": {
@@ -58,6 +99,18 @@
     {
       "name": "i486-standalone",
       "configurePreset": "i486-standalone"
+    },
+    {
+      "name": "i486-release",
+      "configurePreset": "i486-release"
+    },
+    {
+      "name": "i486-pgo-generate",
+      "configurePreset": "i486-pgo-generate"
+    },
+    {
+      "name": "i486-pgo-use",
+      "configurePreset": "i486-pgo-use"
     },
     {
       "name": "i586-standalone",
@@ -74,6 +127,18 @@
       "configurePreset": "i486-standalone",
       "output": {
         "outputOnFailure": true
+      }
+    },
+    {
+      "name": "i486-vbox",
+      "configurePreset": "i486-release",
+      "output": {
+        "outputOnFailure": true
+      },
+      "filter": {
+        "include": {
+          "label": "vbox"
+        }
       }
     }
   ]

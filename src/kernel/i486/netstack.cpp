@@ -41,6 +41,8 @@ void set4(uint8_t* dst, uint8_t a, uint8_t b, uint8_t c, uint8_t d) noexcept {
     dst[0]=a; dst[1]=b; dst[2]=c; dst[3]=d;
 }
 
+} // namespace (close anonymous for ip_checksum, reopened below)
+
 uint16_t ip_checksum(const void* data, uint32_t length) noexcept {
     const auto* p = static_cast<const uint8_t*>(data);
     uint32_t sum = 0U;
@@ -51,6 +53,8 @@ uint16_t ip_checksum(const void* data, uint32_t length) noexcept {
     while (sum >> 16U) sum = (sum & 0xFFFFU) + (sum >> 16U);
     return static_cast<uint16_t>(~sum);
 }
+
+namespace {
 
 // --- DHCP packet structure (needed before handle_ipv4) ---
 
@@ -151,6 +155,8 @@ void handle_arp(const uint8_t* frame, uint32_t length) noexcept {
 
 // --- IPv4 ---
 
+} // namespace (close anonymous for send_ip_packet, reopened below)
+
 bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
                     const uint8_t* payload, uint32_t payload_len) noexcept {
     if (!g_config.configured) return false;
@@ -202,6 +208,8 @@ bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
 
     return send_frame(frame, total);
 }
+
+namespace {
 
 void handle_icmp(const Ipv4Header* ip, const uint8_t* payload, uint32_t length) noexcept {
     if (length < sizeof(IcmpHeader)) return;
@@ -282,9 +290,13 @@ void handle_ipv4(const uint8_t* frame, uint32_t length) noexcept {
         ksocket::deliver_udp(ip->src_ip, src_port, dst_port, udp_data, udp_data_len);
         break;
     }
-    case IP_PROTO_TCP:
-        // TCP dispatch (future)
+    case IP_PROTO_TCP: {
+        const uint32_t tcp_offset = static_cast<uint32_t>((ip->version_ihl & 0x0FU) * 4U);
+        const uint8_t* tcp_data = reinterpret_cast<const uint8_t*>(ip) + tcp_offset;
+        const uint32_t tcp_len = ntohs(ip->total_length) - tcp_offset;
+        deliver_tcp_segment(ip, tcp_data, tcp_len);
         break;
+    }
     default:
         break;
     }

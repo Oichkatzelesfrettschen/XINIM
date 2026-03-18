@@ -4,6 +4,18 @@
 # captures screenshots, and validates output via OCR-free pattern matching.
 set -euo pipefail
 
+# Skip gracefully (exit 77) when VBoxManage is not installed
+if ! command -v VBoxManage >/dev/null 2>&1; then
+    echo "SKIP: VBoxManage not found"
+    exit 77
+fi
+
+# Skip when qcow2 image is not built yet
+if ! command -v qemu-img >/dev/null 2>&1; then
+    echo "SKIP: qemu-img not found (needed for qcow2 -> VDI conversion)"
+    exit 77
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(dirname "${SCRIPT_DIR}")"
 BUILD_DIR="${PROJECT_ROOT}/build/i486/Debug"
@@ -222,6 +234,42 @@ main() {
     run_test "cat /etc/motd"     "cat /etc/motd"     4
     run_test "wc -l profile"     "wc -l /etc/profile" 5
     vbox_screenshot "06-fileio"
+
+    # --- Multi-stage pipeline ---
+    echo "--- Multi-stage pipelines ---"
+    run_test "3-stage ls|grep|wc"  "ls /bin | grep cat | wc -l"  7
+    run_test "3-stage echo|tr|cat" "echo hello | tr h H | cat"   7
+    vbox_screenshot "07-pipelines"
+
+    # --- File permissions ---
+    echo "--- File permissions ---"
+    run_test "chmod 644 tmp"       "echo test > /tmp/perm; chmod 644 /tmp/perm" 5
+    run_test "chmod 000 tmp"       "chmod 000 /tmp/perm" 4
+    run_test "chmod 755 tmp"       "chmod 755 /tmp/perm" 4
+    vbox_screenshot "08-permissions"
+
+    # --- Negative tests ---
+    echo "--- Negative tests ---"
+    run_test "cat nonexistent"     "cat /nonexistent 2>/dev/null; echo done" 5
+    run_test "ls nonexistent"      "ls /nonexistent 2>/dev/null; echo done"  5
+    run_test "mkdir existing"      "mkdir /tmp 2>/dev/null; echo done"       5
+    vbox_screenshot "09-negative"
+
+    # --- Signal tests ---
+    echo "--- Signal tests ---"
+    run_test "kill 0 self"         "kill -0 1"            4
+    vbox_screenshot "10-signals"
+
+    # --- TCC compilation ---
+    echo "--- TCC compilation ---"
+    run_test "tcc hello.c" "echo 'int main(){return 0;}' > /tmp/t.c; tcc -o /tmp/t /tmp/t.c; /tmp/t; echo ok" 8
+    vbox_screenshot "11-tcc"
+
+    # --- Symlink test ---
+    echo "--- Symlinks ---"
+    run_test "ln -s" "ln -s /bin/cat /tmp/mycat; /tmp/mycat /etc/motd" 6
+    run_test "readlink" "readlink /tmp/mycat" 5
+    vbox_screenshot "12-symlinks"
 
     # --- Final screenshot ---
     vbox_screenshot "99-final"

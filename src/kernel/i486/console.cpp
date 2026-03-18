@@ -1,5 +1,7 @@
 #include "console.hpp"
 
+#include "tty.hpp"
+
 namespace xinim::i486::console {
 namespace {
 
@@ -10,8 +12,6 @@ constexpr uint16_t kKeyboardStatusPort = 0x64U;
 constexpr uint16_t kVgaWidth = 80U;
 constexpr uint16_t kVgaHeight = 25U;
 constexpr uint8_t kVgaDefaultColor = 0x0FU;
-constexpr uint32_t kTtyRxBufferSize = 256U;
-
 volatile uint16_t* const g_vga = reinterpret_cast<volatile uint16_t*>(0xB8000U);
 uint16_t g_cursor_x = 0U;
 uint16_t g_cursor_y = 0U;
@@ -33,9 +33,6 @@ bool g_keyboard_ctrl = false;
 bool g_keyboard_caps_lock = false;
 bool g_keyboard_extended = false;
 volatile uint32_t g_pending_tty_signal = 0U; // 2=SIGINT(Ctrl+C), 20=SIGTSTP(Ctrl+Z)
-char g_tty_rx_buffer[kTtyRxBufferSize]{};
-uint32_t g_tty_rx_head = 0U;
-uint32_t g_tty_rx_tail = 0U;
 
 inline void outb(uint16_t port, uint8_t value) noexcept {
     asm volatile("outb %0, %1" : : "a"(value), "Nd"(port));
@@ -84,44 +81,19 @@ char serial_read(uint16_t port) noexcept {
 [[nodiscard]] bool keyboard_has_data() noexcept;
 [[nodiscard]] bool translate_keyboard_scancode(uint8_t scancode, char& output) noexcept;
 
-[[nodiscard]] bool tty_rx_buffer_empty() noexcept {
-    return g_tty_rx_head == g_tty_rx_tail;
-}
-
-[[nodiscard]] bool tty_rx_buffer_full() noexcept {
-    return ((g_tty_rx_tail + 1U) % kTtyRxBufferSize) == g_tty_rx_head;
-}
-
-void tty_rx_push(char value) noexcept {
-    if (tty_rx_buffer_full()) {
-        return;
-    }
-    g_tty_rx_buffer[g_tty_rx_tail] = value;
-    g_tty_rx_tail = (g_tty_rx_tail + 1U) % kTtyRxBufferSize;
-}
-
-[[nodiscard]] bool tty_rx_pop(char* out) noexcept {
-    if (out == nullptr || tty_rx_buffer_empty()) {
-        return false;
-    }
-    *out = g_tty_rx_buffer[g_tty_rx_head];
-    g_tty_rx_head = (g_tty_rx_head + 1U) % kTtyRxBufferSize;
-    return true;
-}
-
 void drain_tty_devices() noexcept {
     while (serial_has_data(kCom2)) {
         const char value = serial_read(kCom2);
         if (!is_valid_tty_serial_char(value)) {
             continue;
         }
-        tty_rx_push(value);
+        xinim::i486::tty::input_char(value);
     }
     while (keyboard_has_data()) {
         char output = '\0';
         const uint8_t scancode = inb(kKeyboardDataPort);
         if (translate_keyboard_scancode(scancode, output)) {
-            tty_rx_push(output);
+            xinim::i486::tty::input_char(output);
         }
     }
 }
@@ -750,12 +722,21 @@ void tty_poll_input() noexcept {
 
 bool tty_has_input() noexcept {
     drain_tty_devices();
-    return !tty_rx_buffer_empty();
+    return xinim::i486::tty::has_input();
 }
 
 bool tty_try_read_char(char* out) noexcept {
     drain_tty_devices();
-    return tty_rx_pop(out);
+    if (out == nullptr) {
+        return false;
+    }
+    char buf = '\0';
+    const int result = xinim::i486::tty::read(&buf, 1U);
+    if (result <= 0) {
+        return false;
+    }
+    *out = buf;
+    return true;
 }
 
 void vga_write_char(char c) noexcept {

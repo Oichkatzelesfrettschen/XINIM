@@ -8,6 +8,7 @@ struct NodeInfo {
     bool exists;
     bool is_directory;
     bool executable;
+    bool is_symlink;
     uint32_t size;
     uint16_t mode; // Full POSIX mode bits from ext2 inode (type + rwxrwxrwx)
 };
@@ -48,5 +49,10 @@ uint32_t build_runtime_directory_listing(const char* path,
 uint32_t build_persist_directory_listing(const char* path,
                                          char* buffer,
                                          uint32_t capacity) noexcept;
+
+bool create_symlink_runtime(const char* target, const char* linkpath) noexcept;
+int readlink_runtime(const char* path, char* buf, uint32_t size) noexcept;
+bool link_runtime_file(const char* existing, const char* new_path) noexcept;
+bool query_runtime_path_no_follow(const char* path, NodeInfo& info) noexcept;
 
 } // namespace xinim::i486::ext2_reader

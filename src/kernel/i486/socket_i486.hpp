@@ -6,10 +6,24 @@ namespace xinim::i486::ksocket {
 
 // Socket address families
 constexpr uint16_t AF_INET = 2U;
+constexpr uint16_t AF_UNIX = 1U;
 
 // Socket types
 constexpr int SOCK_STREAM = 1;
 constexpr int SOCK_DGRAM = 2;
+
+// Socket option levels
+constexpr int SOL_SOCKET = 1;
+constexpr int IPPROTO_TCP = 6;
+
+// Socket options (SOL_SOCKET)
+constexpr int SO_REUSEADDR = 2;
+constexpr int SO_KEEPALIVE = 9;
+constexpr int SO_SNDBUF = 7;
+constexpr int SO_RCVBUF = 8;
+
+// TCP options (IPPROTO_TCP)
+constexpr int TCP_NODELAY = 1;
 
 // Socket state
 enum class SocketState : uint8_t {
@@ -38,11 +52,12 @@ struct Socket {
     uint16_t remote_port;
     uint8_t local_addr[4];
     uint8_t remote_addr[4];
-    // TCP state
-    uint32_t tcp_seq;
-    uint32_t tcp_ack;
-    uint16_t tcp_window;
-    // Receive buffer
+    // TCP connection index into tcp.cpp's g_connections table
+    int tcp_conn_idx;
+    // Socket option flags
+    bool so_reuseaddr;
+    bool so_keepalive;
+    // Receive buffer (for UDP)
     uint8_t rx_buf[4096];
     uint32_t rx_head;
     uint32_t rx_tail;
@@ -63,6 +78,38 @@ int sys_recvfrom(int sockfd, void* buf, uint32_t len,
                  SockAddrIn* src_addr) noexcept;
 int sys_shutdown(int sockfd, int how) noexcept;
 int sys_close(int sockfd) noexcept;
+int sys_setsockopt(int sockfd, int level, int optname,
+                   const void* optval, uint32_t optlen) noexcept;
+int sys_getsockopt(int sockfd, int level, int optname,
+                   void* optval, uint32_t* optlen) noexcept;
+int sys_getsockname(int sockfd, SockAddrIn* addr) noexcept;
+int sys_getpeername(int sockfd, SockAddrIn* addr) noexcept;
+int sys_socketpair(int domain, int type, int protocol, int sv[2]) noexcept;
+
+// i386 struct iovec for scatter-gather I/O
+struct IoVec32 {
+    uint32_t iov_base;  // user pointer
+    uint32_t iov_len;
+};
+
+// i386 struct msghdr
+struct MsgHdr32 {
+    uint32_t msg_name;       // optional address (SockAddrIn*)
+    uint32_t msg_namelen;
+    uint32_t msg_iov;        // IoVec32* array
+    uint32_t msg_iovlen;     // count of IoVec32 entries
+    uint32_t msg_control;    // ancillary data (not supported yet)
+    uint32_t msg_controllen;
+    int msg_flags;
+};
+
+int sys_sendmsg(int sockfd, const void* data, uint32_t len,
+                const SockAddrIn* dest_addr) noexcept;
+int sys_recvmsg(int sockfd, void* buf, uint32_t len,
+                SockAddrIn* src_addr) noexcept;
+
+// Get TCP connection index for a socket (for scheduler TcpConnect wakeup).
+int get_tcp_conn_idx(int sockfd) noexcept;
 
 // Called from netstack when UDP/TCP data arrives
 void deliver_udp(const uint8_t* src_ip, uint16_t src_port,

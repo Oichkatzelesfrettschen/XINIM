@@ -30,6 +30,8 @@ endif()
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(X86CpuLanes)
+include(PGOSupport)
+include(VBoxLane)
 
 set_property(CACHE XINIM_X86_32_TOOLCHAIN_MODE PROPERTY STRINGS clang-m32 cross-elf)
 set_property(CACHE XINIM_VFS_PROFILE PROPERTY STRINGS auto default tiny)
@@ -186,7 +188,7 @@ endif()
 project(XINIM VERSION 1.0.0 LANGUAGES C CXX ASM)
 
 # =============================================================================
-# Pure Conan + CMake Layout
+# Build Layout
 # =============================================================================
 
 set(XINIM_ARTIFACT_ROOT "${XINIM_ARTIFACT_ROOT}" CACHE PATH
@@ -283,24 +285,11 @@ list(FIND _xinim_all_x86_lanes "${XINIM_CPU_LANE}" _xinim_lane_index)
 if(_xinim_lane_index EQUAL -1)
     message(FATAL_ERROR
         "Unknown XINIM_CPU_LANE='${XINIM_CPU_LANE}'. "
-        "Run 'conan install' with -o '&:lane=<lane>' for one of: ${_xinim_all_x86_lanes}.")
+        "Valid lanes: ${_xinim_all_x86_lanes}.")
 endif()
 
 xinim_get_x86_lane_property(${XINIM_CPU_LANE} family XINIM_ACTIVE_LANE_FAMILY)
 xinim_get_x86_lane_property(${XINIM_CPU_LANE} target_arch XINIM_ACTIVE_TARGET_ARCH)
-
-if(XINIM_ACTIVE_LANE_FAMILY STREQUAL "x86_64" AND NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
-    message(FATAL_ERROR
-        "Lane ${XINIM_CPU_LANE} requires a 64-bit Conan host profile. "
-        "Run 'conan install' with -pr:h=conan/profiles/clang-x86_64'.")
-endif()
-if(XINIM_ACTIVE_LANE_FAMILY STREQUAL "x86_32" AND
-   XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "clang-m32" AND
-   NOT CMAKE_SIZEOF_VOID_P EQUAL 4)
-    message(FATAL_ERROR
-        "Lane ${XINIM_CPU_LANE} requires a 32-bit Conan host profile. "
-        "Run 'conan install' with -pr:h=conan/profiles/clang-x86_32'.")
-endif()
 
 add_compile_options(
     $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
@@ -561,7 +550,7 @@ set_source_files_properties(src/crypto/sha2_hw.cpp PROPERTIES
 target_link_options(xinim PRIVATE -T ${CMAKE_SOURCE_DIR}/linker.ld)
 target_link_options(xinim PRIVATE -nostdlib -static -fno-stack-protector)
 
-# No Conan-managed runtime deps: crypto is vendored, kernel is freestanding.
+# No external runtime deps: crypto is vendored, kernel is freestanding.
 # target_link_libraries(xinim PRIVATE) -- intentionally empty
 
 set(XINIM_LIMINE_VERSION "v10.8.3-binary" CACHE STRING
@@ -702,9 +691,21 @@ set(XINIM_X86_32_KERNEL_SOURCES
     src/kernel/i486/virtio_net_i486.cpp
     src/pci/pci.cpp
     src/kernel/i486/netstack.cpp
+    src/kernel/i486/tcp.cpp
     src/kernel/i486/socket_i486.cpp
+    src/kernel/i486/sysv_ipc.cpp
+    src/kernel/i486/lockf.cpp
+    src/kernel/i486/procfs.cpp
     src/kernel/i486/main.cpp
     src/kernel/i486/console.cpp
+    src/kernel/i486/kutil.cpp
+    src/kernel/i486/process.cpp
+    src/kernel/i486/signal.cpp
+    src/kernel/i486/sched.cpp
+    src/kernel/i486/hw_init.cpp
+    src/kernel/i486/tty.cpp
+    src/kernel/i486/vfs.cpp
+    src/kernel/i486/devfs.cpp
     src/kernel/i486/ring3.cpp
     src/kernel/i486/ring3_entry.S
     src/kernel/i486/shell.cpp
@@ -799,6 +800,32 @@ set(XINIM_X86_32_GAPCHECK_SOURCES
     userland/tests/gapcheck_i486.cpp
 )
 
+# Helper: configure one x86_32 userland ELF executable (entry .S + one .cpp).
+# WHY: 15 target blocks inside xinim_add_x86_32_lane were identical -- extracted
+# to eliminate repetition and make future linker/flag changes a single edit.
+# Usage:
+#   xinim_x86_32_user_exe(short_name target_name SOURCES_VAR lane banner linker_script
+#                         COMPILE_OPTIONS ...  LINK_ARCH_OPTIONS ...)
+function(xinim_x86_32_user_exe exe_name target_name sources_var lane banner_name linker_script)
+    cmake_parse_arguments(PARSE_ARGV 6 _arg "" "" "COMPILE_OPTIONS;LINK_ARCH_OPTIONS")
+    add_executable(${target_name} ${${sources_var}})
+    set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${exe_name}-${lane}")
+    target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/include)
+    target_compile_features(${target_name} PRIVATE cxx_std_23)
+    target_compile_options(${target_name} PRIVATE ${_arg_COMPILE_OPTIONS})
+    target_compile_definitions(${target_name} PRIVATE
+        XINIM_BOOT_LANE_NAME="${banner_name}"
+    )
+    target_link_options(${target_name} PRIVATE
+        -T "${linker_script}"
+        -nostdlib
+        -static
+        -fno-stack-protector
+        ${_arg_LINK_ARCH_OPTIONS}
+    )
+    xinim_set_warnings(${target_name})
+endfunction()
+
 function(xinim_add_x86_32_lane lane)
     xinim_get_x86_lane_property(${lane} target_arch _target_arch)
     xinim_get_x86_lane_property(${lane} banner_name _banner_name)
@@ -818,6 +845,7 @@ function(xinim_add_x86_32_lane lane)
     xinim_get_x86_lane_property(${lane} shell_test _shell_test)
     set(_persist_test "${lane}_persistence_test")
     set(_mutation_test "${lane}_ext2_mutation_test")
+    set(_enhanced_test "${lane}_enhanced_test")
 
     set(_lane_compile_options ${_compile_options})
     set(_lane_link_arch_options
@@ -882,6 +910,24 @@ function(xinim_add_x86_32_lane lane)
         LINKER:--build-id=none
         ${_lane_link_arch_options}
     )
+    # Release: use Thin LTO (-flto=thin) instead of CMake's default full -flto.
+    # WHY: Thin LTO provides most of the IPO benefit with a fraction of the
+    # link-time memory and latency.  We disable the CMake IPO property so that
+    # CMAKE_INTERPROCEDURAL_OPTIMIZATION=ON from the preset does not add a
+    # conflicting full -flto flag on top.
+    if(CMAKE_BUILD_TYPE STREQUAL "Release")
+        target_compile_options(${_kernel_target} PRIVATE -flto=thin)
+        target_link_options(${_kernel_target} PRIVATE -flto=thin)
+        set_property(TARGET ${_kernel_target} PROPERTY INTERPROCEDURAL_OPTIMIZATION FALSE)
+    endif()
+    # PGO instrumentation / profile-guided optimization
+    xinim_apply_pgo_flags(${_kernel_target})
+    if(XINIM_PGO_MODE STREQUAL "generate")
+        target_sources(${_kernel_target} PRIVATE
+            ${CMAKE_SOURCE_DIR}/src/kernel/i486/pgo_dump.cpp
+        )
+        target_compile_definitions(${_kernel_target} PRIVATE XINIM_PGO_DUMP_ENABLED=1)
+    endif()
     # i486 kernel needs libgcc for 64-bit integer operations (__udivdi3 etc.)
     execute_process(
         COMMAND gcc -m32 -print-libgcc-file-name
@@ -892,26 +938,10 @@ function(xinim_add_x86_32_lane lane)
         target_link_libraries(${_kernel_target} PRIVATE "${_libgcc_path}")
     endif()
 
-    add_executable(${_shell_target} ${XINIM_X86_32_XASH_SOURCES})
-    set_target_properties(${_shell_target} PROPERTIES
-        OUTPUT_NAME "xash-${lane}"
-    )
-    target_include_directories(${_shell_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_shell_target} PRIVATE cxx_std_23)
-    target_compile_options(${_shell_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_shell_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_shell_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_shell_target})
+    xinim_x86_32_user_exe(xash ${_shell_target} XINIM_X86_32_XASH_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
     set(_mksh_source_dir "${CMAKE_SOURCE_DIR}/.scratch/mksh")
     set(_mksh_build_dir "${CMAKE_CURRENT_BINARY_DIR}/mksh-${lane}")
@@ -1017,13 +1047,27 @@ function(xinim_add_x86_32_lane lane)
         set(_util_target "${_util}_${lane}")
         set(_${_util}_binary "${_util_binary}")
         set(_${_util}_target "${_util_target}")
-        set(_util_source "${CMAKE_SOURCE_DIR}/userland/bin/${_util}_i486.c")
+        # Prefer C++23 source; fall back to C
+        set(_util_source_cpp "${CMAKE_SOURCE_DIR}/userland/bin/${_util}_i486.cpp")
+        set(_util_source_c "${CMAKE_SOURCE_DIR}/userland/bin/${_util}_i486.c")
+        if(EXISTS "${_util_source_cpp}")
+            set(_util_source "${_util_source_cpp}")
+            set(_util_compiler ${CMAKE_CXX_COMPILER})
+            set(_util_lang_flags -std=c++23 -fno-exceptions -fno-rtti)
+            set(_util_lang_label "C++23")
+        else()
+            set(_util_source "${_util_source_c}")
+            set(_util_compiler ${CMAKE_C_COMPILER})
+            set(_util_lang_flags "")
+            set(_util_lang_label "C")
+        endif()
         add_custom_command(
             OUTPUT "${_util_binary}"
-            COMMAND ${CMAKE_C_COMPILER}
+            COMMAND ${_util_compiler}
                 -m32
                 -march=i486
                 -mtune=i486
+                ${_util_lang_flags}
                 -I"${_dietlibc_tree_dir}/include"
                 -I"${CMAKE_SOURCE_DIR}/include"
                 -O2
@@ -1040,11 +1084,12 @@ function(xinim_add_x86_32_lane lane)
                 "${_dietlibc_start}"
                 "${_dietlibc_archive}"
                 -lgcc
+                -lstdc++
             DEPENDS
                 ${_dietlibc_target}
                 "${_util_source}"
                 "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
-            COMMENT "Building dietlibc-linked ${_util} for ${lane}"
+            COMMENT "Building dietlibc-linked ${_util} (${_util_lang_label}) for ${lane}"
             VERBATIM
         )
         add_custom_target(${_util_target} ALL DEPENDS "${_util_binary}")
@@ -1052,299 +1097,75 @@ function(xinim_add_x86_32_lane lane)
         list(APPEND _posix_util_targets "${_util_target}")
     endforeach()
 
-    add_executable(${_hello_target} ${XINIM_X86_32_HELLO_SOURCES})
-    set_target_properties(${_hello_target} PROPERTIES
-        OUTPUT_NAME "hello-${lane}"
-    )
-    target_include_directories(${_hello_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_hello_target} PRIVATE cxx_std_23)
-    target_compile_options(${_hello_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_hello_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_hello_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_hello_target})
+    xinim_x86_32_user_exe(hello ${_hello_target} XINIM_X86_32_HELLO_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_false_target} ${XINIM_X86_32_FALSE_SOURCES})
-    set_target_properties(${_false_target} PROPERTIES
-        OUTPUT_NAME "false-${lane}"
-    )
-    target_include_directories(${_false_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_false_target} PRIVATE cxx_std_23)
-    target_compile_options(${_false_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_false_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_false_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_false_target})
+    xinim_x86_32_user_exe(false ${_false_target} XINIM_X86_32_FALSE_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_heapprobe_target} ${XINIM_X86_32_HEAPPROBE_SOURCES})
-    set_target_properties(${_heapprobe_target} PROPERTIES
-        OUTPUT_NAME "heapprobe-${lane}"
-    )
-    target_include_directories(${_heapprobe_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_heapprobe_target} PRIVATE cxx_std_23)
-    target_compile_options(${_heapprobe_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_heapprobe_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_heapprobe_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_heapprobe_target})
+    xinim_x86_32_user_exe(heapprobe ${_heapprobe_target} XINIM_X86_32_HEAPPROBE_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_holdsvc_target} ${XINIM_X86_32_HOLDSVC_SOURCES})
-    set_target_properties(${_holdsvc_target} PROPERTIES
-        OUTPUT_NAME "holdsvc-${lane}"
-    )
-    target_include_directories(${_holdsvc_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_holdsvc_target} PRIVATE cxx_std_23)
-    target_compile_options(${_holdsvc_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_holdsvc_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_holdsvc_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_holdsvc_target})
+    xinim_x86_32_user_exe(holdsvc ${_holdsvc_target} XINIM_X86_32_HOLDSVC_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_ls_target} ${XINIM_X86_32_LS_SOURCES})
-    set_target_properties(${_ls_target} PROPERTIES
-        OUTPUT_NAME "ls-${lane}"
-    )
-    target_include_directories(${_ls_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_ls_target} PRIVATE cxx_std_23)
-    target_compile_options(${_ls_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_ls_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_ls_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_ls_target})
+    xinim_x86_32_user_exe(ls ${_ls_target} XINIM_X86_32_LS_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_writefile_target} ${XINIM_X86_32_WRITEFILE_SOURCES})
-    set_target_properties(${_writefile_target} PROPERTIES
-        OUTPUT_NAME "writefile-${lane}"
-    )
-    target_include_directories(${_writefile_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_writefile_target} PRIVATE cxx_std_23)
-    target_compile_options(${_writefile_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_writefile_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_writefile_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_writefile_target})
+    xinim_x86_32_user_exe(writefile ${_writefile_target} XINIM_X86_32_WRITEFILE_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_mkdir_target} ${XINIM_X86_32_MKDIR_SOURCES})
-    set_target_properties(${_mkdir_target} PROPERTIES
-        OUTPUT_NAME "mkdir-${lane}"
-    )
-    target_include_directories(${_mkdir_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_mkdir_target} PRIVATE cxx_std_23)
-    target_compile_options(${_mkdir_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_mkdir_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_mkdir_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_mkdir_target})
+    xinim_x86_32_user_exe(mkdir ${_mkdir_target} XINIM_X86_32_MKDIR_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_unlink_target} ${XINIM_X86_32_UNLINK_SOURCES})
-    set_target_properties(${_unlink_target} PROPERTIES
-        OUTPUT_NAME "unlink-${lane}"
-    )
-    target_include_directories(${_unlink_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_unlink_target} PRIVATE cxx_std_23)
-    target_compile_options(${_unlink_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_unlink_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_unlink_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_unlink_target})
+    xinim_x86_32_user_exe(unlink ${_unlink_target} XINIM_X86_32_UNLINK_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_rmdir_target} ${XINIM_X86_32_RMDIR_SOURCES})
-    set_target_properties(${_rmdir_target} PROPERTIES
-        OUTPUT_NAME "rmdir-${lane}"
-    )
-    target_include_directories(${_rmdir_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_rmdir_target} PRIVATE cxx_std_23)
-    target_compile_options(${_rmdir_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_rmdir_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_rmdir_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_rmdir_target})
+    xinim_x86_32_user_exe(rmdir ${_rmdir_target} XINIM_X86_32_RMDIR_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_mv_target} ${XINIM_X86_32_MV_SOURCES})
-    set_target_properties(${_mv_target} PROPERTIES
-        OUTPUT_NAME "mv-${lane}"
-    )
-    target_include_directories(${_mv_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_mv_target} PRIVATE cxx_std_23)
-    target_compile_options(${_mv_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_mv_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_mv_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_mv_target})
+    xinim_x86_32_user_exe(mv ${_mv_target} XINIM_X86_32_MV_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_seekwrite_target} ${XINIM_X86_32_SEEKWRITE_SOURCES})
-    set_target_properties(${_seekwrite_target} PROPERTIES
-        OUTPUT_NAME "seekwrite-${lane}"
-    )
-    target_include_directories(${_seekwrite_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_seekwrite_target} PRIVATE cxx_std_23)
-    target_compile_options(${_seekwrite_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_seekwrite_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_seekwrite_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_seekwrite_target})
+    xinim_x86_32_user_exe(seekwrite ${_seekwrite_target} XINIM_X86_32_SEEKWRITE_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_holecheck_target} ${XINIM_X86_32_HOLECHECK_SOURCES})
-    set_target_properties(${_holecheck_target} PROPERTIES
-        OUTPUT_NAME "holecheck-${lane}"
-    )
-    target_include_directories(${_holecheck_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_holecheck_target} PRIVATE cxx_std_23)
-    target_compile_options(${_holecheck_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_holecheck_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_holecheck_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_holecheck_target})
+    xinim_x86_32_user_exe(holecheck ${_holecheck_target} XINIM_X86_32_HOLECHECK_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_seekpatch_target} ${XINIM_X86_32_SEEKPATCH_SOURCES})
-    set_target_properties(${_seekpatch_target} PROPERTIES
-        OUTPUT_NAME "seekpatch-${lane}"
-    )
-    target_include_directories(${_seekpatch_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_seekpatch_target} PRIVATE cxx_std_23)
-    target_compile_options(${_seekpatch_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_seekpatch_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_seekpatch_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_seekpatch_target})
+    xinim_x86_32_user_exe(seekpatch ${_seekpatch_target} XINIM_X86_32_SEEKPATCH_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
-    add_executable(${_gapcheck_target} ${XINIM_X86_32_GAPCHECK_SOURCES})
-    set_target_properties(${_gapcheck_target} PROPERTIES
-        OUTPUT_NAME "gapcheck-${lane}"
-    )
-    target_include_directories(${_gapcheck_target} PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-    )
-    target_compile_features(${_gapcheck_target} PRIVATE cxx_std_23)
-    target_compile_options(${_gapcheck_target} PRIVATE ${_lane_compile_options})
-    target_compile_definitions(${_gapcheck_target} PRIVATE
-        XINIM_BOOT_LANE_NAME="${_banner_name}"
-    )
-    target_link_options(${_gapcheck_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_lane_link_arch_options}
-    )
-    xinim_set_warnings(${_gapcheck_target})
+    xinim_x86_32_user_exe(gapcheck ${_gapcheck_target} XINIM_X86_32_GAPCHECK_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
     add_custom_command(
         OUTPUT "${_ata_disk_image}"
@@ -1521,8 +1342,8 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_cmp_binary}:/bin/cmp"
             --guest-bin "${_file_binary}:/bin/file"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
-            --guest-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
-            --guest-bin "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}:/bin/bmake"
+            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
+            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}:/bin/bmake"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
             ${_kernel_target}
@@ -1913,6 +1734,19 @@ function(xinim_add_x86_32_lane lane)
             TIMEOUT 120
         )
 
+        add_test(
+            NAME ${_enhanced_test}
+            COMMAND python3 ${CMAKE_SOURCE_DIR}/test/boot/x86_32_enhanced_test.py
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        )
+        set_tests_properties(${_enhanced_test} PROPERTIES
+            LABELS "integration;enhanced;${lane};pipeline;symlink;tcc"
+            ENVIRONMENT "${_lane_env}"
+            FIXTURES_REQUIRED ${lane}_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 180
+        )
+
         if(lane STREQUAL "i486")
             set(_isapc_boot_log "${XINIM_LOG_ROOT}/${lane}-isapc-smoke.log")
             set(_isapc_shell_log "${XINIM_LOG_ROOT}/${lane}-isapc-kshell.log")
@@ -1975,11 +1809,33 @@ function(xinim_add_x86_32_lane lane)
                 TIMEOUT 120
             )
         endif()
+
+        # VBox integration test (requires VBoxManage on PATH)
+        if(lane STREQUAL "i486")
+            add_test(
+                NAME i486_vbox_integration_test
+                COMMAND bash ${CMAKE_SOURCE_DIR}/scripts/test_i486_vbox.sh
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+            )
+            set_tests_properties(i486_vbox_integration_test PROPERTIES
+                LABELS "integration;vbox;${lane}"
+                ENVIRONMENT "${_lane_env}"
+                FIXTURES_REQUIRED ${lane}_image
+                SKIP_RETURN_CODE 77
+                TIMEOUT 600
+            )
+        endif()
     endif()
 endfunction()
 
 if(XINIM_ACTIVE_LANE_FAMILY STREQUAL "x86_32")
     xinim_add_x86_32_lane(${XINIM_CPU_LANE})
+    # VirtualBox targets for interactive use and CI
+    xinim_add_vbox_targets(
+        ${XINIM_CPU_LANE}
+        "${CMAKE_BINARY_DIR}"
+        "${CMAKE_SOURCE_DIR}"
+    )
     if(XINIM_XORRISO_EXECUTABLE)
         xinim_get_x86_lane_property(${XINIM_CPU_LANE} image_target _xinim_active_x86_32_image_target)
         add_custom_target(xinim_x86_32_images DEPENDS ${_xinim_active_x86_32_image_target})

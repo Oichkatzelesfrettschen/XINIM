@@ -26,6 +26,9 @@ constexpr uint32_t kRootInodeNumber = 2U;
 constexpr uint16_t kFileTypeMask = 0xF000U;
 constexpr uint16_t kDirectoryType = 0x4000U;
 constexpr uint16_t kRegularFileType = 0x8000U;
+constexpr uint16_t kSymlinkType = 0xA000U;
+constexpr uint32_t kMaxSymlinkDepth = 8U;
+constexpr uint32_t kShortSymlinkMax = 60U;
 constexpr uint32_t kMaxBlockSize = 4096U;
 constexpr uint32_t kMaxInodeSize = 256U;
 constexpr uint32_t kMaxPathComponent = 32U;
@@ -927,9 +930,54 @@ void log_persist_file_probe() noexcept {
     console::newline();
 }
 
+bool resolve_path_follow(const char* path, Ext2Inode& inode_out,
+                         uint32_t symlink_depth) noexcept;
+
+// Read symlink target from inode. Short symlinks (<=60 bytes) are stored
+// directly in the i_block[] array. Long symlinks use a data block.
+bool read_symlink_target(const Ext2Inode& inode,
+                         char* target, uint32_t capacity) noexcept {
+    if ((inode.mode & kFileTypeMask) != kSymlinkType || capacity == 0U) {
+        return false;
+    }
+    const uint32_t length = inode.size;
+    if (length == 0U || length >= capacity) {
+        return false;
+    }
+    if (length <= kShortSymlinkMax) {
+        // Short symlink: target stored in i_block[0..14]
+        const auto* raw = reinterpret_cast<const char*>(inode.block);
+        for (uint32_t i = 0U; i < length; ++i) {
+            target[i] = raw[i];
+        }
+        target[length] = '\0';
+        return true;
+    }
+    // Long symlink: read from data block
+    uint32_t bytes_read = 0U;
+    // Const-cast needed because read_inode_range takes non-const (reads blocks)
+    auto& mutable_inode = const_cast<Ext2Inode&>(inode);
+    if (!read_inode_range(mutable_inode, 0U,
+                          reinterpret_cast<uint8_t*>(target), length, bytes_read) ||
+        bytes_read != length) {
+        return false;
+    }
+    target[length] = '\0';
+    return true;
+}
+
 bool resolve_path(const char* path, Ext2Inode& inode_out) noexcept {
+    return resolve_path_follow(path, inode_out, 0U);
+}
+
+// Internal resolve that tracks symlink recursion depth
+bool resolve_path_follow(const char* path, Ext2Inode& inode_out,
+                         uint32_t symlink_depth) noexcept {
     if (!g_state.valid || path == nullptr || path[0] != '/') {
         return false;
+    }
+    if (symlink_depth > kMaxSymlinkDepth) {
+        return false; // Symlink loop
     }
 
     Ext2Inode current{};
@@ -966,6 +1014,60 @@ bool resolve_path(const char* path, Ext2Inode& inode_out) noexcept {
         }
         if (!read_inode(child_inode_number, current)) {
             return false;
+        }
+
+        // Follow symlinks during path traversal
+        if ((current.mode & kFileTypeMask) == kSymlinkType) {
+            char target[256]{};
+            if (!read_symlink_target(current, target, sizeof(target))) {
+                return false;
+            }
+            if (target[0] == '/') {
+                // Absolute symlink: resolve from root, then append remaining path
+                char full[256]{};
+                uint32_t pos = 0U;
+                for (uint32_t i = 0U; target[i] != '\0' && pos + 1U < sizeof(full); ++i) {
+                    full[pos++] = target[i];
+                }
+                if (path[cursor] != '\0') {
+                    if (pos > 0U && full[pos - 1U] != '/') {
+                        full[pos++] = '/';
+                    }
+                    for (uint32_t i = cursor; path[i] != '\0' && pos + 1U < sizeof(full); ++i) {
+                        full[pos++] = path[i];
+                    }
+                }
+                full[pos] = '\0';
+                return resolve_path_follow(full, inode_out, symlink_depth + 1U);
+            }
+            // Relative symlink: build path from parent context
+            // We reconstruct the parent path from what we've traversed so far
+            char full[256]{};
+            uint32_t pos = 0U;
+            // Copy the already-traversed portion of path (up to the component we just resolved)
+            uint32_t prefix_end = cursor - component_length;
+            while (prefix_end > 1U && path[prefix_end - 1U] == '/') {
+                --prefix_end;
+            }
+            for (uint32_t i = 0U; i < prefix_end && pos + 1U < sizeof(full); ++i) {
+                full[pos++] = path[i];
+            }
+            if (pos > 0U && full[pos - 1U] != '/') {
+                full[pos++] = '/';
+            }
+            for (uint32_t i = 0U; target[i] != '\0' && pos + 1U < sizeof(full); ++i) {
+                full[pos++] = target[i];
+            }
+            if (path[cursor] != '\0') {
+                if (pos > 0U && full[pos - 1U] != '/') {
+                    full[pos++] = '/';
+                }
+                for (uint32_t i = cursor; path[i] != '\0' && pos + 1U < sizeof(full); ++i) {
+                    full[pos++] = path[i];
+                }
+            }
+            full[pos] = '\0';
+            return resolve_path_follow(full, inode_out, symlink_depth + 1U);
         }
     }
 
@@ -1706,11 +1808,23 @@ bool remove_node(const char* path) noexcept {
         child_is_directory = directory;
     }
 
-    if (!free_inode_storage(child, child_inode_number)) {
-        return false;
+    // E.1: Decrement links_count; only free storage when it reaches 0.
+    // Per POSIX: unlink removes directory entry but data persists while links > 0.
+    if (child.links_count > 0U) {
+        --child.links_count;
     }
-    if (!free_group0_inode(child_inode_number, directory)) {
-        return false;
+    if (child.links_count == 0U) {
+        if (!free_inode_storage(child, child_inode_number)) {
+            return false;
+        }
+        if (!free_group0_inode(child_inode_number, directory)) {
+            return false;
+        }
+    } else {
+        // Still has links -- just update the inode with decremented count
+        if (!write_inode(child_inode_number, child)) {
+            return false;
+        }
     }
 
     if (directory && parent.links_count != 0U) {
@@ -1808,7 +1922,7 @@ bool register_bootfs_mount() noexcept {
 }
 
 bool query_runtime_path(const char* path, NodeInfo& info) noexcept {
-    info = {false, false, false, 0U, 0U};
+    info = {false, false, false, false, 0U, 0U};
     char ext2_path[kMaxPersistPath]{};
     if (!map_runtime_path(path, ext2_path, sizeof(ext2_path))) {
         return false;
@@ -1822,6 +1936,7 @@ bool query_runtime_path(const char* path, NodeInfo& info) noexcept {
     info.exists = true;
     info.is_directory = (inode.mode & kFileTypeMask) == kDirectoryType;
     info.executable = (inode.mode & 0111U) != 0U;
+    info.is_symlink = (inode.mode & kFileTypeMask) == kSymlinkType;
     info.size = inode.size;
     info.mode = inode.mode;
     return true;
@@ -1829,7 +1944,7 @@ bool query_runtime_path(const char* path, NodeInfo& info) noexcept {
 
 bool query_persist_path(const char* path, NodeInfo& info) noexcept {
     if (path == nullptr || !starts_with(path, "/persist")) {
-        info = {false, false, false, 0U, 0U};
+        info = {false, false, false, false, 0U, 0U};
         return false;
     }
     return query_runtime_path(path, info);
@@ -2283,6 +2398,281 @@ uint32_t build_persist_directory_listing(const char* path,
         return 0U;
     }
     return build_runtime_directory_listing(path, buffer, capacity);
+}
+
+// -- Symlink support -------------------------------------------------------
+
+bool create_symlink_runtime(const char* target, const char* linkpath) noexcept {
+    if (target == nullptr || linkpath == nullptr) {
+        return false;
+    }
+    char ext2_path[kMaxPersistPath]{};
+    if (!map_runtime_path(linkpath, ext2_path, sizeof(ext2_path))) {
+        return false;
+    }
+    // Find parent directory and create the symlink inode
+    char parent_path[kMaxPersistPath]{};
+    char link_name[kMaxPathComponent + 1U]{};
+    if (!split_parent_path(ext2_path, parent_path, sizeof(parent_path),
+                           link_name, sizeof(link_name))) {
+        return false;
+    }
+    Ext2Inode parent{};
+    uint32_t parent_inode_number = 0U;
+    if (!resolve_path_with_inode_number(parent_path, parent, parent_inode_number) ||
+        (parent.mode & kFileTypeMask) != kDirectoryType) {
+        return false;
+    }
+    // Allocate a new inode for the symlink
+    uint32_t new_inode = 0U;
+    if (!allocate_group0_inode(false, new_inode)) {
+        return false;
+    }
+    Ext2Inode inode{};
+    if (!read_inode(new_inode, inode)) {
+        return false;
+    }
+
+    const uint32_t target_len = string_length(target);
+    inode.mode = static_cast<uint16_t>(kSymlinkType | 0777U);
+    inode.size = target_len;
+    inode.links_count = 1U;
+    if (g_timestamp_fn != nullptr) {
+        const uint32_t now = g_timestamp_fn();
+        inode.ctime = now;
+        inode.mtime = now;
+        inode.atime = now;
+    }
+
+    if (target_len <= kShortSymlinkMax) {
+        // Short symlink: store target directly in i_block[]
+        auto* raw = reinterpret_cast<char*>(inode.block);
+        for (uint32_t i = 0U; i < target_len; ++i) {
+            raw[i] = target[i];
+        }
+        inode.blocks = 0U;
+    } else {
+        // Long symlink: allocate a data block
+        uint32_t data_block = 0U;
+        if (!allocate_group0_block(data_block)) {
+            return false;
+        }
+        inode.block[0] = data_block;
+        inode.blocks = g_state.block_size / 512U;
+
+        for (uint32_t i = 0U; i < g_state.block_size; ++i) {
+            g_block_buffer[i] = 0U;
+        }
+        for (uint32_t i = 0U; i < target_len; ++i) {
+            g_block_buffer[i] = static_cast<uint8_t>(target[i]);
+        }
+        if (!write_block(data_block, g_block_buffer)) {
+            return false;
+        }
+    }
+
+    if (!write_inode(new_inode, inode)) {
+        return false;
+    }
+
+    // Add directory entry with file_type = 7 (symlink)
+    return add_directory_entry(parent, parent_inode_number, link_name, new_inode, 7U);
+}
+
+int readlink_runtime(const char* path, char* buf, uint32_t size) noexcept {
+    if (path == nullptr || buf == nullptr || size == 0U) {
+        return -1;
+    }
+    char ext2_path[kMaxPersistPath]{};
+    if (!map_runtime_path(path, ext2_path, sizeof(ext2_path))) {
+        return -1;
+    }
+    // Use resolve_path_follow with depth 0 but stop at the final component
+    // We need to NOT follow the final symlink
+    Ext2Inode inode{};
+    // Manually resolve the path without following the final component's symlink
+    if (!g_state.valid || ext2_path[0] != '/') {
+        return -1;
+    }
+    Ext2Inode current{};
+    if (!read_inode(kRootInodeNumber, current)) {
+        return -1;
+    }
+    uint32_t cursor = 1U;
+    while (ext2_path[cursor] != '\0') {
+        while (ext2_path[cursor] == '/') {
+            ++cursor;
+        }
+        if (ext2_path[cursor] == '\0') {
+            break;
+        }
+        char component[kMaxPathComponent + 1U]{};
+        uint32_t component_length = 0U;
+        while (ext2_path[cursor] != '\0' && ext2_path[cursor] != '/') {
+            if (component_length >= kMaxPathComponent) {
+                return -1;
+            }
+            component[component_length++] = ext2_path[cursor++];
+        }
+        component[component_length] = '\0';
+
+        uint32_t child_inode_number = 0U;
+        if (!lookup_in_directory(current, component, child_inode_number)) {
+            return -1;
+        }
+        if (!read_inode(child_inode_number, current)) {
+            return -1;
+        }
+        // Follow symlinks for intermediate components only
+        if (ext2_path[cursor] != '\0' &&
+            (current.mode & kFileTypeMask) == kSymlinkType) {
+            // This is an intermediate symlink, follow it
+            char target[256]{};
+            if (!read_symlink_target(current, target, sizeof(target))) {
+                return -1;
+            }
+            // For simplicity, only handle absolute intermediate targets
+            if (target[0] == '/') {
+                if (!resolve_path(target, current)) {
+                    return -1;
+                }
+            } else {
+                return -1; // Relative intermediate symlinks not supported in readlink path
+            }
+        }
+    }
+
+    inode = current;
+    if ((inode.mode & kFileTypeMask) != kSymlinkType) {
+        return -1; // Not a symlink
+    }
+    char target[256]{};
+    if (!read_symlink_target(inode, target, sizeof(target))) {
+        return -1;
+    }
+    uint32_t target_len = string_length(target);
+    if (target_len > size) {
+        target_len = size;
+    }
+    for (uint32_t i = 0U; i < target_len; ++i) {
+        buf[i] = target[i];
+    }
+    return static_cast<int>(target_len);
+}
+
+bool link_runtime_file(const char* existing, const char* new_path) noexcept {
+    if (existing == nullptr || new_path == nullptr) {
+        return false;
+    }
+    char ext2_existing[kMaxPersistPath]{};
+    char ext2_new[kMaxPersistPath]{};
+    if (!map_runtime_path(existing, ext2_existing, sizeof(ext2_existing)) ||
+        !map_runtime_path(new_path, ext2_new, sizeof(ext2_new))) {
+        return false;
+    }
+    // Resolve the existing file to get its inode number
+    Ext2Inode existing_inode{};
+    uint32_t existing_inode_number = 0U;
+    if (!resolve_path_with_inode_number(ext2_existing, existing_inode, existing_inode_number)) {
+        return false;
+    }
+    // Must not be a directory
+    if ((existing_inode.mode & kFileTypeMask) == kDirectoryType) {
+        return false;
+    }
+    // Find the parent directory for the new path
+    char parent_path[kMaxPersistPath]{};
+    char new_name[kMaxPathComponent + 1U]{};
+    if (!split_parent_path(ext2_new, parent_path, sizeof(parent_path),
+                           new_name, sizeof(new_name))) {
+        return false;
+    }
+    Ext2Inode parent{};
+    uint32_t parent_inode_number = 0U;
+    if (!resolve_path_with_inode_number(parent_path, parent, parent_inode_number) ||
+        (parent.mode & kFileTypeMask) != kDirectoryType) {
+        return false;
+    }
+    // Add directory entry pointing to existing inode
+    const uint8_t file_type = ((existing_inode.mode & kFileTypeMask) == kRegularFileType) ? 1U : 0U;
+    if (!add_directory_entry(parent, parent_inode_number, new_name,
+                             existing_inode_number, file_type)) {
+        return false;
+    }
+    // Increment links_count on the inode
+    ++existing_inode.links_count;
+    return write_inode(existing_inode_number, existing_inode);
+}
+
+bool query_runtime_path_no_follow(const char* path, NodeInfo& info) noexcept {
+    info = {false, false, false, false, 0U, 0U};
+    char ext2_path[kMaxPersistPath]{};
+    if (!map_runtime_path(path, ext2_path, sizeof(ext2_path))) {
+        return false;
+    }
+
+    // Resolve path WITHOUT following the final symlink
+    if (!g_state.valid || ext2_path[0] != '/') {
+        return false;
+    }
+    Ext2Inode current{};
+    if (!read_inode(kRootInodeNumber, current)) {
+        return false;
+    }
+    if (ext2_path[1] == '\0') {
+        info.exists = true;
+        info.is_directory = true;
+        info.mode = current.mode;
+        info.size = current.size;
+        return true;
+    }
+    uint32_t cursor = 1U;
+    while (ext2_path[cursor] != '\0') {
+        while (ext2_path[cursor] == '/') {
+            ++cursor;
+        }
+        if (ext2_path[cursor] == '\0') {
+            break;
+        }
+        char component[kMaxPathComponent + 1U]{};
+        uint32_t component_length = 0U;
+        while (ext2_path[cursor] != '\0' && ext2_path[cursor] != '/') {
+            if (component_length >= kMaxPathComponent) {
+                return false;
+            }
+            component[component_length++] = ext2_path[cursor++];
+        }
+        component[component_length] = '\0';
+
+        uint32_t child_inode_number = 0U;
+        if (!lookup_in_directory(current, component, child_inode_number)) {
+            return false;
+        }
+        if (!read_inode(child_inode_number, current)) {
+            return false;
+        }
+        // Follow intermediate symlinks, but NOT the final one
+        if (ext2_path[cursor] != '\0' &&
+            (current.mode & kFileTypeMask) == kSymlinkType) {
+            char target[256]{};
+            if (!read_symlink_target(current, target, sizeof(target))) {
+                return false;
+            }
+            if (target[0] == '/') {
+                if (!resolve_path(target, current)) {
+                    return false;
+                }
+            }
+        }
+    }
+
+    info.exists = true;
+    info.is_directory = (current.mode & kFileTypeMask) == kDirectoryType;
+    info.executable = (current.mode & 0111U) != 0U;
+    info.is_symlink = (current.mode & kFileTypeMask) == kSymlinkType;
+    info.size = current.size;
+    info.mode = current.mode;
+    return true;
 }
 
 } // namespace xinim::i486::ext2_reader

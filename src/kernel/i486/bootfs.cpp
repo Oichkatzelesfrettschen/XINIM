@@ -1,7 +1,11 @@
 #include "bootfs.hpp"
 
 #include "console.hpp"
+#include "devfs.hpp"
+#include "procfs.hpp"
 #include "ext2_reader.hpp"
+#include "tty.hpp"
+#include "vfs.hpp"
 
 namespace xinim::kernel::bootfs {
 namespace ext2_reader = ::xinim::i486::ext2_reader;
@@ -45,6 +49,7 @@ constexpr unsigned long kTermiosSetFlush = 0x5404UL;
 constexpr unsigned long kTtyGetPgrp = 0x540FUL;
 constexpr unsigned long kTtySetPgrp = 0x5410UL;
 constexpr unsigned long kWindowSizeGet = 0x5413UL;
+constexpr unsigned long kWindowSizeSet = 0x5414UL;
 
 struct TermiosState {
     uint32_t c_iflag;
@@ -66,6 +71,7 @@ enum class DeviceType : uint8_t {
     None = 0,
     DevNull = 1,
     DevZero = 2,
+    VfsDelegate = 3,
 };
 
 struct OpenFile {
@@ -85,6 +91,8 @@ struct OpenFile {
     uint32_t ext2_size;
     uint32_t refcount; // Number of fd_map entries referencing this slot
     DeviceType device_type;
+    xinim::i486::vfs::VfsOps* vfs_ops;
+    int vfs_slot;
     char ext2_path[kMaxPathLength];
     bool is_bootfs_directory;
     char dir_path[kMaxPathLength]; // Path of opened directory for getdents
@@ -132,6 +140,14 @@ bool g_pipe_eof_event = false;
 TermiosState g_terminal_state{};
 WindowSize g_window_size{25U, 80U, 0U, 0U};
 int g_foreground_pgrp = 1;
+
+OpenFile make_empty_open_file() noexcept {
+    return {
+        false, nullptr, 0U, kFileFlagO_RDONLY, kFileFlagO_RDONLY, 0,
+        false, false, false, 0U, false, false, false, 0U, 0U,
+        DeviceType::None, nullptr, 0, {}, false, {},
+    };
+}
 
 void configure_open_file_entry(size_t slot,
                               FileRecord* file,
@@ -248,27 +264,14 @@ void close_open_file_slot(size_t slot) noexcept {
         }
     }
 
-    g_open_files[slot] = {
-        false,
-        nullptr,
-        0U,
-        kFileFlagO_RDONLY,
-        kFileFlagO_RDONLY,
-        0,
-        false,
-        false,
-        false,
-        0U,
-        false,
-        false,
-        false,
-        0U,
-        0U, // refcount
-        DeviceType::None,
-        {},
-        false,
-        {},
-    };
+    // Close VFS delegate slot if applicable
+    if (g_open_files[slot].device_type == DeviceType::VfsDelegate &&
+        g_open_files[slot].vfs_ops != nullptr &&
+        g_open_files[slot].vfs_ops->close != nullptr) {
+        g_open_files[slot].vfs_ops->close(g_open_files[slot].vfs_slot);
+    }
+
+    g_open_files[slot] = make_empty_open_file();
 }
 
 [[nodiscard]] bool string_equals(const char* lhs, const char* rhs) noexcept {
@@ -637,6 +640,10 @@ void reset() noexcept {
     g_next_pipe_id = 1U;
     reset_path_cache();
     initialize_terminal_state();
+    xinim::i486::tty::initialize();
+    xinim::i486::vfs::initialize();
+    xinim::i486::vfs::mount("/dev", xinim::i486::devfs::ops());
+    xinim::i486::vfs::mount("/proc", xinim::i486::procfs::ops());
     g_window_size = {25U, 80U, 0U, 0U};
     g_foreground_pgrp = 1;
     for (size_t index = 0U; index < kMaxFiles; ++index) {
@@ -651,27 +658,7 @@ void reset() noexcept {
         };
     }
     for (size_t index = 0U; index < kMaxOpenFiles; ++index) {
-        g_open_files[index] = {
-            false,
-            nullptr,
-            0U,
-            kFileFlagO_RDONLY,
-            kFileFlagO_RDONLY,
-            0,
-            false,
-            false,
-            false,
-            0U,
-            false,
-            false,
-            false,
-            0U,
-            0U, // refcount
-            DeviceType::None,
-            {},
-            false,
-            {},
-        };
+        g_open_files[index] = make_empty_open_file();
         g_open_files[index].status_flags = kFileFlagO_RDONLY;
         g_open_files[index].descriptor_flags = 0;
     }
@@ -814,27 +801,9 @@ void configure_open_file_entry(size_t slot,
 int allocate_open_slot() noexcept {
     for (size_t index = static_cast<size_t>(kFirstFileDescriptor); index < kMaxOpenFiles; ++index) {
         if (!g_open_files[index].in_use) {
-            g_open_files[index] = {
-                true,
-                nullptr,
-                0U,
-                kFileFlagO_RDONLY,
-                kFileFlagO_RDONLY,
-                0,
-                false,
-                false,
-                false,
-                0U,
-                false,
-                false,
-                false,
-                0U,
-                1U, // refcount
-                DeviceType::None,
-                {},
-                false,
-                {},
-            };
+            g_open_files[index] = make_empty_open_file();
+            g_open_files[index].in_use = true;
+            g_open_files[index].refcount = 1U;
             return static_cast<int>(index);
         }
     }
@@ -1073,54 +1042,55 @@ int open(const char* path, uint32_t flags, uint32_t mode) noexcept {
         return -1;
     }
 
-    if (string_equals(normalized, "/dev/tty") || string_equals(normalized, "/dev/console")) {
-        const int fd = allocate_open_slot();
-        if (fd < 0) {
-            return -1;
+    // Route through VFS mount table (devfs, procfs, etc.)
+    {
+        const char* relative = nullptr;
+        xinim::i486::vfs::VfsOps* vops = xinim::i486::vfs::resolve(normalized, &relative);
+        if (vops != nullptr && vops->open != nullptr) {
+            // Check for specific device nodes first
+            const bool is_tty = string_equals(normalized, "/dev/tty") ||
+                                string_equals(normalized, "/dev/console");
+            const bool is_null = string_equals(normalized, "/dev/null");
+            const bool is_zero = string_equals(normalized, "/dev/zero");
+            if (is_tty || is_null || is_zero) {
+                const int fd = allocate_open_slot();
+                if (fd < 0) {
+                    return -1;
+                }
+                configure_open_file_entry(fd_to_slot(fd),
+                                          nullptr,
+                                          flags & kFileFlagO_ACCMODE,
+                                          false,
+                                          false,
+                                          is_tty,
+                                          0U,
+                                          false);
+                if (is_null) {
+                    g_open_files[fd_to_slot(fd)].device_type = DeviceType::DevNull;
+                } else if (is_zero) {
+                    g_open_files[fd_to_slot(fd)].device_type = DeviceType::DevZero;
+                }
+                return fd;
+            }
+            // Generic VFS delegate (procfs, etc.)
+            const int vfs_slot = vops->open(relative, flags, mode);
+            if (vfs_slot >= 0) {
+                const int fd = allocate_open_slot();
+                if (fd < 0) {
+                    if (vops->close != nullptr) vops->close(vfs_slot);
+                    return -1;
+                }
+                auto& f = g_open_files[fd_to_slot(fd)];
+                f = {};
+                f.in_use = true;
+                f.device_type = DeviceType::VfsDelegate;
+                f.vfs_ops = vops;
+                f.vfs_slot = vfs_slot;
+                copy_c_string(f.ext2_path, sizeof(f.ext2_path), normalized);
+                return fd;
+            }
+            // VFS open returned error; fall through to ext2/bootfs
         }
-        configure_open_file_entry(fd_to_slot(fd),
-                                  nullptr,
-                                  flags & kFileFlagO_ACCMODE,
-                                  false,
-                                  false,
-                                  true,
-                                  0U,
-                                  false);
-        return fd;
-    }
-
-    if (string_equals(normalized, "/dev/null")) {
-        const int fd = allocate_open_slot();
-        if (fd < 0) {
-            return -1;
-        }
-        configure_open_file_entry(fd_to_slot(fd),
-                                  nullptr,
-                                  flags & kFileFlagO_ACCMODE,
-                                  false,
-                                  false,
-                                  false,
-                                  0U,
-                                  false);
-        g_open_files[fd_to_slot(fd)].device_type = DeviceType::DevNull;
-        return fd;
-    }
-
-    if (string_equals(normalized, "/dev/zero")) {
-        const int fd = allocate_open_slot();
-        if (fd < 0) {
-            return -1;
-        }
-        configure_open_file_entry(fd_to_slot(fd),
-                                  nullptr,
-                                  flags & kFileFlagO_ACCMODE,
-                                  false,
-                                  false,
-                                  false,
-                                  0U,
-                                  false);
-        g_open_files[fd_to_slot(fd)].device_type = DeviceType::DevZero;
-        return fd;
     }
 
     ext2_reader::NodeInfo ext2_info{};
@@ -1268,27 +1238,23 @@ int read(int fd, void* buffer, uint32_t count) noexcept {
         return static_cast<int>(count);
     }
 
+    if (file.device_type == DeviceType::VfsDelegate) {
+        if (file.vfs_ops != nullptr && file.vfs_ops->read != nullptr) {
+            return file.vfs_ops->read(file.vfs_slot, buffer, count);
+        }
+        return -1;
+    }
+
     if (file.is_console) {
         if ((file.access & kFileFlagO_ACCMODE) == kFileFlagO_WRONLY) {
             return -1;
         }
-        char value = '\0';
-        if (!xinim::i486::console::tty_try_read_char(&value)) {
+        // Read through the TTY line discipline
+        const int result = xinim::i486::tty::read(buffer, count);
+        if (result == -1) {
             return kReadWouldBlock;
         }
-        if (value == '\r') {
-            value = '\n';
-        }
-        // Kernel-level echo when ECHO is set in termios c_lflag.
-        // Only echo to VGA -- COM2 echo is handled by the shell's line editor.
-        // This prevents double-echo on COM2 while ensuring keyboard users see
-        // their input on the VGA screen.
-        constexpr uint32_t kLflagEcho = 0010U; // ECHO bit in c_lflag (octal 010)
-        if ((g_terminal_state.c_lflag & kLflagEcho) != 0U) {
-            xinim::i486::console::vga_write_char(value);
-        }
-        static_cast<uint8_t*>(buffer)[0] = static_cast<uint8_t>(value);
-        return 1;
+        return result;
     }
 
     if (file.is_pipe) {
@@ -1407,6 +1373,13 @@ int write(int fd, const void* buffer, uint32_t count) noexcept {
 
     if (file.device_type == DeviceType::DevZero) {
         return static_cast<int>(count); // Discard
+    }
+
+    if (file.device_type == DeviceType::VfsDelegate) {
+        if (file.vfs_ops != nullptr && file.vfs_ops->write != nullptr) {
+            return file.vfs_ops->write(file.vfs_slot, buffer, count);
+        }
+        return -30; // EROFS
     }
 
     if (file.is_console) {
@@ -1548,6 +1521,13 @@ void decrement_slot_refcount(int slot) noexcept {
         return;
     }
     if (!g_open_files[slot].in_use) {
+        return;
+    }
+    // Console fds (slots 0/1/2): never close the underlying slot, just decrement
+    if (static_cast<size_t>(slot) < kReservedOpenDescriptors) {
+        if (g_open_files[slot].refcount > 1U) {
+            --g_open_files[slot].refcount;
+        }
         return;
     }
     if (g_open_files[slot].refcount > 1U) {
@@ -1953,29 +1933,37 @@ int control(int fd, int command, uintptr_t argument) noexcept {
 
     switch (static_cast<unsigned long>(command)) {
     case kTermiosGet: {
-        auto* state = reinterpret_cast<TermiosState*>(argument);
+        auto* state = reinterpret_cast<xinim::i486::tty::TermiosState*>(argument);
         if (state == nullptr) {
             return -1;
         }
-        *state = g_terminal_state;
+        xinim::i486::tty::get_termios(state);
         return 0;
     }
     case kTermiosSetNow:
     case kTermiosSetDrain:
     case kTermiosSetFlush: {
-        const auto* state = reinterpret_cast<const TermiosState*>(argument);
+        const auto* state = reinterpret_cast<const xinim::i486::tty::TermiosState*>(argument);
         if (state == nullptr) {
             return -1;
         }
-        g_terminal_state = *state;
+        xinim::i486::tty::set_termios(state);
         return 0;
     }
     case kWindowSizeGet: {
-        auto* size = reinterpret_cast<WindowSize*>(argument);
-        if (size == nullptr) {
+        auto* ws = reinterpret_cast<xinim::i486::tty::WindowSize*>(argument);
+        if (ws == nullptr) {
             return -1;
         }
-        *size = g_window_size;
+        xinim::i486::tty::get_winsize(ws);
+        return 0;
+    }
+    case kWindowSizeSet: {
+        const auto* ws = reinterpret_cast<const xinim::i486::tty::WindowSize*>(argument);
+        if (ws == nullptr) {
+            return -1;
+        }
+        xinim::i486::tty::set_winsize(ws);
         return 0;
     }
     case kTtyGetPgrp: {
