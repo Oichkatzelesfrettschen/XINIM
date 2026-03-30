@@ -7,6 +7,8 @@
 build/
 build_debug/
 build-*/
+build2/
+build_complete/
 dist/
 CMakeUserPresets.json
 .scratch/
@@ -67,6 +69,8 @@ xinim.bin
 *.backup
 *.bak
 *.old
+*_tmp.bak/
+*_legacy.bak/
 *~
 *.swp
 *.swo
@@ -77,6 +81,14 @@ xinim.bin
 __pycache__/
 .DS_Store
 Thumbs.db
+_codeql_detected_source_root 2
+test_errno
+test_errno 2
+test_errno 2.cpp
+include/* 2.h
+
+# Local salvage/cleanup worktrees
+cleanup_backups/
 
 # ==============================================================================
 # Editor and IDE Files
