@@ -148,6 +148,11 @@ gmon.out
 *.log
 logs/
 
+# Local debug journals and repo-mining notes
+local-driver-source-scan.md
+.xinim-local-notes/
+.codex-local-journal/
+
 # Doxygen/Sphinx output (will be regenerated)
 docs/doxygen/
 docs/sphinx/html/

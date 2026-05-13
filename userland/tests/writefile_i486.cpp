@@ -25,7 +25,7 @@ constexpr char kWriteFail[] = "writefile: write failed\r\n";
 }
 
 void write_string(int fd, const char* text) noexcept {
-    static_cast<void>(xinim::userland::i386::write(fd, text, string_length(text)));
+    static_cast<void>(xinim::userland::x86_32::write(fd, text, string_length(text)));
 }
 
 } // namespace
@@ -38,7 +38,7 @@ extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
         return 1;
     }
 
-    const uint32_t fd = xinim::userland::i386::open(
+    const uint32_t fd = xinim::userland::x86_32::open(
         argv[1],
         kOpenWriteOnly | kOpenCreate | kOpenTruncate,
         0644U);
@@ -48,8 +48,8 @@ extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
     }
 
     const uint32_t length = string_length(argv[2]);
-    const uint32_t written = xinim::userland::i386::write(static_cast<int>(fd), argv[2], length);
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(fd)));
+    const uint32_t written = xinim::userland::x86_32::write(static_cast<int>(fd), argv[2], length);
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(fd)));
     if (is_error(written) || written != length) {
         write_string(2, kWriteFail);
         return 1;

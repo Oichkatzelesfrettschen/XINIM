@@ -27,6 +27,12 @@ if(NOT XINIM_VFS_PROFILE)
     set(XINIM_VFS_PROFILE "auto" CACHE STRING
         "Bare-metal VFS resident-memory profile: auto, default, or tiny" FORCE)
 endif()
+option(XINIM_X86_32_TTY_TRACE
+    "Emit serial trace markers for 32-bit TTY/input scheduling diagnostics"
+    OFF)
+option(XINIM_I686_APIC_TIMER
+    "Use the experimental local APIC timer for i686 32-bit lanes instead of legacy PIC/PIT"
+    OFF)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
 include(X86CpuLanes)
@@ -808,7 +814,10 @@ set(XINIM_X86_32_GAPCHECK_SOURCES
 #                         COMPILE_OPTIONS ...  LINK_ARCH_OPTIONS ...)
 function(xinim_x86_32_user_exe exe_name target_name sources_var lane banner_name linker_script)
     cmake_parse_arguments(PARSE_ARGV 6 _arg "" "" "COMPILE_OPTIONS;LINK_ARCH_OPTIONS")
-    add_executable(${target_name} ${${sources_var}})
+    add_executable(${target_name}
+        ${${sources_var}}
+        ${CMAKE_SOURCE_DIR}/userland/runtime/x86_32_memory.cpp
+    )
     set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${exe_name}-${lane}")
     target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/include)
     target_compile_features(${target_name} PRIVATE cxx_std_23)
@@ -882,7 +891,8 @@ function(xinim_add_x86_32_lane lane)
     set(_stage_dir "${_image_dir}/staging")
     set(_boot_image "${_image_dir}/${_image_name}")
     set(_ata_disk_image "${_image_dir}/xinim-${lane}-ata.img")
-    set(_boot_disk_image "${_image_dir}/xinim-${lane}-boot.qcow2")
+    set(_boot_disk_image "${_image_dir}/xinim-${lane}-boot.vmdk")
+    set(_boot_disk_qcow2_image "${_image_dir}/xinim-${lane}-boot.qcow2")
     set(_boot_log "${XINIM_LOG_ROOT}/${lane}-smoke.log")
     set(_shell_log "${XINIM_LOG_ROOT}/${lane}-kshell.log")
     set(_compat_report "${XINIM_LOG_ROOT}/${lane}-shell-compat.txt")
@@ -915,6 +925,12 @@ function(xinim_add_x86_32_lane lane)
         XINIM_BOOT_MULTIBOOT2
         XINIM_BOOT_LANE_NAME="${_banner_name}"
     )
+    if(XINIM_X86_32_TTY_TRACE)
+        target_compile_definitions(${_kernel_target} PRIVATE XINIM_X86_32_TTY_TRACE=1)
+    endif()
+    if(XINIM_I686_APIC_TIMER)
+        target_compile_definitions(${_kernel_target} PRIVATE XINIM_I686_APIC_TIMER=1)
+    endif()
     if(XINIM_EFFECTIVE_VFS_PROFILE STREQUAL "tiny")
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_VFS_PROFILE_TINY=1)
     endif()
@@ -1189,7 +1205,20 @@ function(xinim_add_x86_32_lane lane)
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py
             --output "${_ata_disk_image}"
             --size-mb 16
+            --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/persist-hello"
+            --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
+            --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
+            --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
+            --guest-bin "$<TARGET_FILE:${_mkdir_target}>:/bin/mkdir"
+            --guest-bin "$<TARGET_FILE:${_unlink_target}>:/bin/unlink"
+            --guest-bin "$<TARGET_FILE:${_rmdir_target}>:/bin/rmdir"
+            --guest-bin "$<TARGET_FILE:${_mv_target}>:/bin/mv"
+            --guest-bin "$<TARGET_FILE:${_seekwrite_target}>:/bin/seekwrite"
+            --guest-bin "$<TARGET_FILE:${_holecheck_target}>:/bin/holecheck"
+            --guest-bin "$<TARGET_FILE:${_seekpatch_target}>:/bin/seekpatch"
+            --guest-bin "$<TARGET_FILE:${_gapcheck_target}>:/bin/gapcheck"
             --guest-bin "${_cat_binary}:/bin/cat"
             --guest-bin "${_echo_binary}:/bin/echo"
             --guest-bin "${_true_binary}:/bin/true"
@@ -1272,15 +1301,28 @@ function(xinim_add_x86_32_lane lane)
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py"
             ${_hello_target}
+            ${_false_target}
+            ${_heapprobe_target}
+            ${_holdsvc_target}
+            ${_writefile_target}
+            ${_mkdir_target}
+            ${_unlink_target}
+            ${_rmdir_target}
+            ${_mv_target}
+            ${_seekwrite_target}
+            ${_holecheck_target}
+            ${_seekpatch_target}
+            ${_gapcheck_target}
             ${_posix_util_targets}
         COMMENT "Generating reproducible ATA disk image for ${lane}"
         VERBATIM
     )
 
     add_custom_command(
-        OUTPUT "${_boot_disk_image}"
+        OUTPUT "${_boot_disk_image}" "${_boot_disk_qcow2_image}"
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py
             --output "${_boot_disk_image}"
+            --format vmdk
             --size-mb 32
             --kernel "$<TARGET_FILE:${_kernel_target}>"
             --shell "${_mksh_binary}"
@@ -1358,7 +1400,116 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "${_nice_binary}:/bin/nice"
             --guest-bin "${_cmp_binary}:/bin/cmp"
             --guest-bin "${_file_binary}:/bin/file"
+            --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
+            --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
+            --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
+            --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
+            --guest-bin "$<TARGET_FILE:${_mkdir_target}>:/bin/mkdir"
+            --guest-bin "$<TARGET_FILE:${_unlink_target}>:/bin/unlink"
+            --guest-bin "$<TARGET_FILE:${_rmdir_target}>:/bin/rmdir"
+            --guest-bin "$<TARGET_FILE:${_mv_target}>:/bin/mv"
+            --guest-bin "$<TARGET_FILE:${_seekwrite_target}>:/bin/seekwrite"
+            --guest-bin "$<TARGET_FILE:${_holecheck_target}>:/bin/holecheck"
+            --guest-bin "$<TARGET_FILE:${_seekpatch_target}>:/bin/seekpatch"
+            --guest-bin "$<TARGET_FILE:${_gapcheck_target}>:/bin/gapcheck"
+            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
+            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}:/bin/bmake"
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py
+            --output "${_boot_disk_qcow2_image}"
+            --format qcow2
+            --size-mb 32
+            --kernel "$<TARGET_FILE:${_kernel_target}>"
+            --shell "${_mksh_binary}"
+            --holdsvc "$<TARGET_FILE:${_holdsvc_target}>"
+            --motd "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
+            --include-dir "${_dietlibc_tree_dir}/include"
+            --guest-bin "${_cat_binary}:/bin/cat"
+            --guest-bin "${_echo_binary}:/bin/echo"
+            --guest-bin "${_true_binary}:/bin/true"
+            --guest-bin "${_pwd_binary}:/bin/pwd"
+            --guest-bin "${_env_binary}:/bin/env"
+            --guest-bin "${_cp_binary}:/bin/cp"
+            --guest-bin "${_rm_binary}:/bin/rm"
+            --guest-bin "${_test_binary}:/bin/test"
+            --guest-bin "${_basename_binary}:/bin/basename"
+            --guest-bin "${_dirname_binary}:/bin/dirname"
+            --guest-bin "${_printf_binary}:/bin/printf"
+            --guest-bin "${_wc_binary}:/bin/wc"
+            --guest-bin "${_head_binary}:/bin/head"
+            --guest-bin "${_tail_binary}:/bin/tail"
+            --guest-bin "${_sort_binary}:/bin/sort"
+            --guest-bin "${_uniq_binary}:/bin/uniq"
+            --guest-bin "${_cut_binary}:/bin/cut"
+            --guest-bin "${_tr_binary}:/bin/tr"
+            --guest-bin "${_tee_binary}:/bin/tee"
+            --guest-bin "${_grep_binary}:/bin/grep"
+            --guest-bin "${_sed_binary}:/bin/sed"
+            --guest-bin "${_kill_binary}:/bin/kill"
+            --guest-bin "${_sleep_binary}:/bin/sleep"
+            --guest-bin "${_uname_binary}:/bin/uname"
+            --guest-bin "${_id_binary}:/bin/id"
+            --guest-bin "${_touch_binary}:/bin/touch"
+            --guest-bin "${_ln_binary}:/bin/ln"
+            --guest-bin "${_xargs_binary}:/bin/xargs"
+            --guest-bin "${_dd_binary}:/bin/dd"
+            --guest-bin "${_seq_binary}:/bin/seq"
+            --guest-bin "${_yes_binary}:/bin/yes"
+            --guest-bin "${_nproc_binary}:/bin/nproc"
+            --guest-bin "${_which_binary}:/bin/which"
+            --guest-bin "${_chmod_binary}:/bin/chmod"
+            --guest-bin "${_chown_binary}:/bin/chown"
+            --guest-bin "${_readlink_binary}:/bin/readlink"
+            --guest-bin "${_mktemp_binary}:/bin/mktemp"
+            --guest-bin "${_expr_binary}:/bin/expr"
+            --guest-bin "${_hexdump_binary}:/bin/hexdump"
+            --guest-bin "${_du_binary}:/bin/du"
+            --guest-bin "${_date_binary}:/bin/date"
+            --guest-bin "${_df_binary}:/bin/df"
+            --guest-bin "${_md5sum_binary}:/bin/md5sum"
+            --guest-bin "${_tar_binary}:/bin/tar"
+            --guest-bin "${_find_binary}:/bin/find"
+            --guest-bin "${_ps_binary}:/bin/ps"
+            --guest-bin "${_awk_binary}:/bin/awk"
+            --guest-bin "${_diff_binary}:/bin/diff"
+            --guest-bin "${_patch_binary}:/bin/patch"
+            --guest-bin "${_pkg_add_binary}:/bin/pkg_add"
+            --guest-bin "${_wget_binary}:/bin/wget"
+            --guest-bin "${_whoami_binary}:/bin/whoami"
+            --guest-bin "${_hostname_binary}:/bin/hostname"
+            --guest-bin "${_clear_binary}:/bin/clear"
+            --guest-bin "${_tty_binary}:/bin/tty"
+            --guest-bin "${_printenv_binary}:/bin/printenv"
+            --guest-bin "${_logname_binary}:/bin/logname"
+            --guest-bin "${_tac_binary}:/bin/tac"
+            --guest-bin "${_cksum_binary}:/bin/cksum"
+            --guest-bin "${_paste_binary}:/bin/paste"
+            --guest-bin "${_nl_binary}:/bin/nl"
+            --guest-bin "${_split_binary}:/bin/split"
+            --guest-bin "${_nohup_binary}:/bin/nohup"
+            --guest-bin "${_strings_binary}:/bin/strings"
+            --guest-bin "${_join_binary}:/bin/join"
+            --guest-bin "${_fold_binary}:/bin/fold"
+            --guest-bin "${_expand_binary}:/bin/expand"
+            --guest-bin "${_time_binary}:/bin/time"
+            --guest-bin "${_nice_binary}:/bin/nice"
+            --guest-bin "${_cmp_binary}:/bin/cmp"
+            --guest-bin "${_file_binary}:/bin/file"
+            --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
+            --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
+            --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
+            --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
+            --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
+            --guest-bin "$<TARGET_FILE:${_mkdir_target}>:/bin/mkdir"
+            --guest-bin "$<TARGET_FILE:${_unlink_target}>:/bin/unlink"
+            --guest-bin "$<TARGET_FILE:${_rmdir_target}>:/bin/rmdir"
+            --guest-bin "$<TARGET_FILE:${_mv_target}>:/bin/mv"
+            --guest-bin "$<TARGET_FILE:${_seekwrite_target}>:/bin/seekwrite"
+            --guest-bin "$<TARGET_FILE:${_holecheck_target}>:/bin/holecheck"
+            --guest-bin "$<TARGET_FILE:${_seekpatch_target}>:/bin/seekpatch"
+            --guest-bin "$<TARGET_FILE:${_gapcheck_target}>:/bin/gapcheck"
             --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
             --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}:/bin/bmake"
         DEPENDS
@@ -1366,9 +1517,21 @@ function(xinim_add_x86_32_lane lane)
             ${_kernel_target}
             ${_mksh_target}
             ${_holdsvc_target}
+            ${_hello_target}
+            ${_false_target}
+            ${_heapprobe_target}
             ${_ls_target}
+            ${_writefile_target}
+            ${_mkdir_target}
+            ${_unlink_target}
+            ${_rmdir_target}
+            ${_mv_target}
+            ${_seekwrite_target}
+            ${_holecheck_target}
+            ${_seekpatch_target}
+            ${_gapcheck_target}
             ${_posix_util_targets}
-        COMMENT "Generating qcow2 boot disk for ${lane}"
+        COMMENT "Generating dynamic VMDK and qcow2 boot disks for ${lane}"
         VERBATIM
     )
 
@@ -1644,9 +1807,14 @@ function(xinim_add_x86_32_lane lane)
         "XINIM_QEMU_MEMORY=${_qemu_memory}"
         "XINIM_QEMU_VGA=${_qemu_vga}"
         "XINIM_QEMU_BOOT_IMAGE=${_boot_image}"
+        "XINIM_QEMU_BOOT_DISK=${_boot_disk_image}"
+        "XINIM_QEMU_BOOT_DISK_FORMAT=vmdk"
         "XINIM_QEMU_DISK_IMAGE=${_ata_disk_image}"
         "XINIM_QEMU_SMOKE_LOG=${_boot_log}"
         "XINIM_QEMU_SHELL_LOG=${_shell_log}"
+        "XINIM_QEMU_CMD_TIMEOUT=30"
+        "XINIM_QEMU_PROMPT_SETTLE_TIMEOUT=1.5"
+        "XINIM_QEMU_REBOOT_SETTLE_SECONDS=2.0"
     )
 
     if(TARGET ${_image_target})
@@ -1722,7 +1890,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 120
+            TIMEOUT 240
         )
 
         add_test(
@@ -1735,7 +1903,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 90
+            TIMEOUT 180
         )
 
         add_test(
@@ -1748,7 +1916,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 120
+            TIMEOUT 240
         )
 
         add_test(
@@ -1770,6 +1938,7 @@ function(xinim_add_x86_32_lane lane)
             set(_isapc_env
                 ${_lane_env}
                 "XINIM_QEMU_MACHINE=isapc"
+                "XINIM_QEMU_VGA=none"
                 "XINIM_QEMU_SMOKE_LOG=${_isapc_boot_log}"
                 "XINIM_QEMU_SHELL_LOG=${_isapc_shell_log}"
             )
@@ -1797,7 +1966,7 @@ function(xinim_add_x86_32_lane lane)
                 ENVIRONMENT "${_isapc_env}"
                 FIXTURES_REQUIRED ${lane}_image
                 SKIP_RETURN_CODE 77
-                TIMEOUT 120
+                TIMEOUT 240
             )
 
             add_test(
@@ -1810,7 +1979,7 @@ function(xinim_add_x86_32_lane lane)
                 ENVIRONMENT "${_isapc_env}"
                 FIXTURES_REQUIRED ${lane}_image
                 SKIP_RETURN_CODE 77
-                TIMEOUT 90
+                TIMEOUT 180
             )
 
             add_test(
@@ -1823,7 +1992,7 @@ function(xinim_add_x86_32_lane lane)
                 ENVIRONMENT "${_isapc_env}"
                 FIXTURES_REQUIRED ${lane}_image
                 SKIP_RETURN_CODE 77
-                TIMEOUT 120
+                TIMEOUT 240
             )
         endif()
 

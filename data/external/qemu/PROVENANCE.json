@@ -1,0 +1,36 @@
+{
+  "fetched_at": "2026-05-13",
+  "source_set": "Official QEMU system documentation",
+  "entries": [
+    {
+      "url": "https://www.qemu.org/docs/master/system/gdb.html",
+      "file": "qemu-master-gdb.html",
+      "sha256": "7ff6fd011981d0df237849ea8af3b642796b271822cb0d411fe2cd50ba2714f9",
+      "size_bytes": 26371
+    },
+    {
+      "url": "https://www.qemu.org/docs/master/system/i386/pc.html",
+      "file": "qemu-master-i386-pc.html",
+      "sha256": "be43e1ea7c217499847e2fb84bc9008a4e3df6cddb23c4bd425069d675e26091",
+      "size_bytes": 14989
+    },
+    {
+      "url": "https://www.qemu.org/docs/master/system/images.html",
+      "file": "qemu-master-images.html",
+      "sha256": "5975af026583d68960a32732e2487c56364f6515fded6e41cd5b02a703f934f5",
+      "size_bytes": 87709
+    },
+    {
+      "url": "https://www.qemu.org/docs/master/system/invocation.html",
+      "file": "qemu-master-invocation.html",
+      "sha256": "e906fd6f37dc999cbd7d65f7f383eea4e34b2afc98ae92cc682205e8c5282d4d",
+      "size_bytes": 416377
+    },
+    {
+      "url": "https://www.qemu.org/docs/master/system/devices/net.html",
+      "file": "qemu-master-net.html",
+      "sha256": "5d69b0622350f3ac04320abd2d92185a0d8503af6bd0f2cc722f8f4032120fb1",
+      "size_bytes": 31006
+    }
+  ]
+}

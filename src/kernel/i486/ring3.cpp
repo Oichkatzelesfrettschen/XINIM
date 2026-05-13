@@ -914,6 +914,11 @@ void set_service_state(SupervisedService* service,
         while (written < count) {
             char value = '\0';
             if (!console::tty_try_read_char(&value)) {
+#ifdef XINIM_X86_32_TTY_TRACE
+                console::write_string("tty trace: sys_read stdin block pid=");
+                console::write_dec32(process->pid);
+                console::newline();
+#endif
                 if (block_current_process_until_rescheduled(process, WaitReason::ConsoleInput, 0U)) {
                     return written > 0U ? written : kErrnoIntr;
                 }
@@ -931,11 +936,27 @@ void set_service_state(SupervisedService* service,
     for (;;) {
         const int result = bootfs::read(fd, buffer, count);
         if (result == bootfs::kReadWouldBlock) {
+#ifdef XINIM_X86_32_TTY_TRACE
+            if (bootfs::is_console_fd(fd)) {
+                console::write_string("tty trace: sys_read fd block pid=");
+                console::write_dec32(process->pid);
+                console::write_string(" fd=");
+                console::write_dec32(static_cast<uint32_t>(fd));
+                console::newline();
+            }
+#endif
             if (block_current_process_until_rescheduled(process, WaitReason::ConsoleInput, 0U)) {
                 return kErrnoIntr; // Interrupted by signal
             }
             continue;
         }
+#ifdef XINIM_X86_32_TTY_TRACE
+        if (bootfs::is_console_fd(fd)) {
+            console::write_string("tty trace: sys_read fd result=");
+            console::write_dec32(result >= 0 ? static_cast<uint32_t>(result) : 0U);
+            console::newline();
+        }
+#endif
         return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
     }
 }
@@ -2504,10 +2525,12 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
             return kErrnoFault;
         }
-        // Update ext2 inode permissions; bootfs files are immutable
         ext2_reader::NodeInfo ext2_info{};
-        if (ext2_reader::query_runtime_path(path, ext2_info)) {
-            ext2_reader::chmod_runtime_file(path, static_cast<uint16_t>(frame->ecx));
+        if (!ext2_reader::query_runtime_path(path, ext2_info)) {
+            return kErrnoNoEnt;
+        }
+        if (!ext2_reader::chmod_runtime_file(path, static_cast<uint16_t>(frame->ecx))) {
+            return kErrnoNoEnt;
         }
         return 0U;
     }

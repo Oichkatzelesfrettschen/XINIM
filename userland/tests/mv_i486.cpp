@@ -21,7 +21,7 @@ constexpr char kFail[] = "mv: rename failed\r\n";
 }
 
 void write_string(int fd, const char* text) noexcept {
-    static_cast<void>(xinim::userland::i386::write(fd, text, string_length(text)));
+    static_cast<void>(xinim::userland::x86_32::write(fd, text, string_length(text)));
 }
 
 } // namespace
@@ -34,7 +34,7 @@ extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
         return 1;
     }
 
-    const uint32_t result = xinim::userland::i386::rename(argv[1], argv[2]);
+    const uint32_t result = xinim::userland::x86_32::rename(argv[1], argv[2]);
     if (is_error(result)) {
         write_string(2, kFail);
         return 1;

@@ -3,7 +3,7 @@
 #if defined(__x86_64__)
 #include "xinim/userland/syscall_x86_64.hpp"
 #include <stddef.h>
-namespace xinim::userland::i386 {
+namespace xinim::userland::x86_32 {
 using uint32_t = ::uint32_t;
 using uint64_t = ::uint64_t;
 
@@ -83,7 +83,7 @@ inline uint32_t wait4(int pid, int* status, int options, void* rusage) noexcept 
 }
 }
 #elif defined(__i686__)
-// i686 fast path: SYSENTER stubs in the same xinim::userland::i386 namespace.
+// i686 fast path: SYSENTER stubs in the same xinim::userland::x86_32 namespace.
 #include "xinim/userland/syscall_i686.hpp"
 #else
 #include "xinim/userland/syscall_i386.hpp"
@@ -151,7 +151,7 @@ void write_line(const char* text) noexcept;
 }
 
 void write_char(char value) noexcept {
-    static_cast<void>(xinim::userland::i386::write(1, &value, 1U));
+    static_cast<void>(xinim::userland::x86_32::write(1, &value, 1U));
 }
 
 void write_string(const char* text) noexcept {
@@ -159,7 +159,7 @@ void write_string(const char* text) noexcept {
     if (length == 0U) {
         return;
     }
-    static_cast<void>(xinim::userland::i386::write(1, text, length));
+    static_cast<void>(xinim::userland::x86_32::write(1, text, length));
 }
 
 void write_line(const char* text) noexcept {
@@ -712,7 +712,7 @@ bool unset_environment_entry(const char* name) noexcept {
 
                 if (*cursor == '$') {
                     if (!append_u32_to_buffer(token, kLineBufferSize, token_length,
-                                              xinim::userland::i386::getpid())) {
+                                              xinim::userland::x86_32::getpid())) {
                         return false;
                     }
                     ++cursor;
@@ -842,7 +842,7 @@ void print_ro_root_paths() noexcept {
 void list_directory(const char* path) noexcept;
 
 uint32_t read_command() noexcept {
-    const uint32_t result = xinim::userland::i386::read(0, g_line, kLineBufferSize - 1U);
+    const uint32_t result = xinim::userland::x86_32::read(0, g_line, kLineBufferSize - 1U);
     if (result == 0U || is_syscall_error(result)) {
         write_line("read failed");
         return 0U;
@@ -867,7 +867,7 @@ uint32_t read_command() noexcept {
 }
 
 void print_pwd() noexcept {
-    const uint32_t result = xinim::userland::i386::getcwd(g_path, kPathBufferSize);
+    const uint32_t result = xinim::userland::x86_32::getcwd(g_path, kPathBufferSize);
     if (is_syscall_error(result)) {
         g_last_status = 1U;
         write_line("getcwd failed");
@@ -883,7 +883,7 @@ void print_test_result(bool result) noexcept {
 }
 
 void cat_file(const char* path) noexcept {
-    const uint32_t fd = xinim::userland::i386::open(path);
+    const uint32_t fd = xinim::userland::x86_32::open(path);
     if (is_syscall_error(fd)) {
         g_last_status = 1U;
         write_string("cat ");
@@ -894,22 +894,22 @@ void cat_file(const char* path) noexcept {
 
     bool read_failed = false;
     for (;;) {
-        const uint32_t read_result = xinim::userland::i386::read(static_cast<int>(fd), g_io, kIoBufferSize);
+        const uint32_t read_result = xinim::userland::x86_32::read(static_cast<int>(fd), g_io, kIoBufferSize);
         if (read_result == 0U || is_syscall_error(read_result)) {
             if (is_syscall_error(read_result)) {
                 read_failed = true;
             }
             break;
         }
-        static_cast<void>(xinim::userland::i386::write(1, g_io, read_result));
+        static_cast<void>(xinim::userland::x86_32::write(1, g_io, read_result));
     }
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(fd)));
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(fd)));
     g_last_status = read_failed ? 1U : 0U;
     write_string(kNewline);
 }
 
 void list_directory(const char* path) noexcept {
-    const uint32_t fd = xinim::userland::i386::open(path, kOpenFlagRDOnly, 0U);
+    const uint32_t fd = xinim::userland::x86_32::open(path, kOpenFlagRDOnly, 0U);
     if (is_syscall_error(fd)) {
         g_last_status = 1U;
         write_line("ls: unavailable");
@@ -918,7 +918,7 @@ void list_directory(const char* path) noexcept {
 
     bool read_failed = false;
     for (;;) {
-        const uint32_t result = xinim::userland::i386::read(
+        const uint32_t result = xinim::userland::x86_32::read(
             static_cast<int>(fd),
             g_io,
             kIoBufferSize - 1U);
@@ -933,7 +933,7 @@ void list_directory(const char* path) noexcept {
             write_char(g_io[index]);
         }
     }
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(fd)));
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(fd)));
 
     g_last_status = read_failed ? 1U : 0U;
 }
@@ -945,7 +945,7 @@ void copy_file(const char* source, const char* destination) noexcept {
         return;
     }
 
-    const uint32_t source_fd = xinim::userland::i386::open(
+    const uint32_t source_fd = xinim::userland::x86_32::open(
         source,
         kOpenFlagRDOnly,
         0U);
@@ -955,20 +955,20 @@ void copy_file(const char* source, const char* destination) noexcept {
         return;
     }
 
-    const uint32_t destination_fd = xinim::userland::i386::open(
+    const uint32_t destination_fd = xinim::userland::x86_32::open(
         destination,
         kOpenFlagWROnly | kOpenFlagCreat | kOpenFlagTrunc,
         0644U);
     if (is_syscall_error(destination_fd)) {
         g_last_status = 1U;
-        static_cast<void>(xinim::userland::i386::close(static_cast<int>(source_fd)));
+        static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(source_fd)));
         write_line("cp: failed to open destination");
         return;
     }
 
     bool failed = false;
     for (;;) {
-        const uint32_t read_result = xinim::userland::i386::read(
+        const uint32_t read_result = xinim::userland::x86_32::read(
             static_cast<int>(source_fd),
             g_io,
             kIoBufferSize - 1U);
@@ -981,7 +981,7 @@ void copy_file(const char* source, const char* destination) noexcept {
         }
         uint32_t written_total = 0U;
         while (written_total < read_result) {
-            const uint32_t written = xinim::userland::i386::write(
+            const uint32_t written = xinim::userland::x86_32::write(
                 static_cast<int>(destination_fd),
                 g_io + written_total,
                 read_result - written_total);
@@ -996,8 +996,8 @@ void copy_file(const char* source, const char* destination) noexcept {
         }
     }
 
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(source_fd)));
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(destination_fd)));
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(source_fd)));
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(destination_fd)));
     g_last_status = failed ? 1U : 0U;
     if (failed) {
         write_line("cp: transfer error");
@@ -1015,13 +1015,13 @@ void vi_edit_file(const char* path) noexcept {
     char current[kViBufferSize];
     bool failed = false;
 
-    const uint32_t existing_fd = xinim::userland::i386::open(
+    const uint32_t existing_fd = xinim::userland::x86_32::open(
         path,
         kOpenFlagRDOnly,
         0U);
     if (!is_syscall_error(existing_fd)) {
         for (;;) {
-            const uint32_t result = xinim::userland::i386::read(
+            const uint32_t result = xinim::userland::x86_32::read(
                 static_cast<int>(existing_fd),
                 current,
                 sizeof(current) - 1U);
@@ -1035,10 +1035,10 @@ void vi_edit_file(const char* path) noexcept {
                 break;
             }
         }
-        static_cast<void>(xinim::userland::i386::close(static_cast<int>(existing_fd)));
+        static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(existing_fd)));
     }
 
-    const uint32_t destination_fd = xinim::userland::i386::open(
+    const uint32_t destination_fd = xinim::userland::x86_32::open(
         path,
         kOpenFlagWROnly | kOpenFlagCreat | kOpenFlagTrunc,
         0644U);
@@ -1070,7 +1070,7 @@ void vi_edit_file(const char* path) noexcept {
         }
 
         g_vi[payload] = '\0';
-        const uint32_t written = xinim::userland::i386::write(
+        const uint32_t written = xinim::userland::x86_32::write(
             static_cast<int>(destination_fd),
             g_vi,
             payload);
@@ -1080,7 +1080,7 @@ void vi_edit_file(const char* path) noexcept {
         }
     }
 
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(destination_fd)));
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(destination_fd)));
     g_last_status = failed ? 1U : 0U;
     if (failed) {
         write_line("vi: write failed");
@@ -1102,7 +1102,7 @@ void vi_edit_file(const char* path) noexcept {
         if (!copy_string(buffer, capacity, name)) {
             return false;
         }
-        return xinim::userland::i386::access(buffer, 0) == 0U;
+        return xinim::userland::x86_32::access(buffer, 0) == 0U;
     }
 
     const char* path_variable = find_environment_value("PATH");
@@ -1147,7 +1147,7 @@ void vi_edit_file(const char* path) noexcept {
         if (!append_string_to_buffer(buffer, capacity, slash_len, name)) {
             return false;
         }
-        if (xinim::userland::i386::access(buffer, 0) == 0U) {
+        if (xinim::userland::x86_32::access(buffer, 0) == 0U) {
             return true;
         }
     }
@@ -1157,7 +1157,7 @@ void vi_edit_file(const char* path) noexcept {
         if (!append_string_to_buffer(buffer, capacity, fallback_length, name)) {
             return false;
         }
-        return xinim::userland::i386::access(buffer, 0) == 0U;
+        return xinim::userland::x86_32::access(buffer, 0) == 0U;
     }
     return false;
 }
@@ -1208,21 +1208,21 @@ void run_external_command(char* command, bool background) noexcept {
         return;
     }
 
-    const uint32_t pid = xinim::userland::i386::fork();
+    const uint32_t pid = xinim::userland::x86_32::fork();
     if (pid == static_cast<uint32_t>(-1)) {
         g_last_status = 255U;
         write_line("fork failed");
         return;
     }
     if (pid == 0U) {
-        static_cast<void>(xinim::userland::i386::execve(g_path, g_argv, g_envp_current));
+        static_cast<void>(xinim::userland::x86_32::execve(g_path, g_argv, g_envp_current));
         write_string("execve failed: ");
         write_line(g_path);
-        xinim::userland::i386::exit(127);
+        xinim::userland::x86_32::exit(127);
     }
 
     int status = 0;
-    const uint32_t waited = xinim::userland::i386::wait4(static_cast<int>(pid), &status, 0, nullptr);
+    const uint32_t waited = xinim::userland::x86_32::wait4(static_cast<int>(pid), &status, 0, nullptr);
     if (waited == static_cast<uint32_t>(-1)) {
         g_last_status = 255U;
         write_line("wait4 failed");
@@ -1253,7 +1253,7 @@ void list_env() noexcept {
     if (string_equals(argv0, "pid")) {
         g_last_status = 0U;
         write_string("pid: ");
-        write_dec(xinim::userland::i386::getpid());
+        write_dec(xinim::userland::x86_32::getpid());
         write_string(kNewline);
         return true;
     }
@@ -1284,7 +1284,7 @@ void list_env() noexcept {
             }
             status = parsed;
         }
-        xinim::userland::i386::exit(static_cast<int>(status));
+        xinim::userland::x86_32::exit(static_cast<int>(status));
         return true;
     }
 
@@ -1294,7 +1294,7 @@ void list_env() noexcept {
             write_line("usage: cd PATH");
             return true;
         }
-        const uint32_t result = xinim::userland::i386::chdir(g_argv[1]);
+        const uint32_t result = xinim::userland::x86_32::chdir(g_argv[1]);
         g_last_status = result == 0U ? 0U : 1U;
         write_string("cd ");
         write_string(g_argv[1]);
@@ -1309,7 +1309,7 @@ void list_env() noexcept {
             write_line("usage: check PATH");
             return true;
         }
-        const uint32_t result = xinim::userland::i386::access(g_argv[1], 0);
+        const uint32_t result = xinim::userland::x86_32::access(g_argv[1], 0);
         g_last_status = result == 0U ? 0U : 1U;
         write_string("check ");
         write_string(g_argv[1]);
@@ -1370,7 +1370,7 @@ void list_env() noexcept {
             write_line("usage: test -f PATH");
             return true;
         }
-        const bool exists = xinim::userland::i386::access(g_argv[2], 0) == 0U;
+        const bool exists = xinim::userland::x86_32::access(g_argv[2], 0) == 0U;
         g_last_status = exists ? 0U : 1U;
         print_test_result(exists);
         return true;

@@ -7,6 +7,8 @@
 #include "tty.hpp"
 #include "vfs.hpp"
 
+extern "C" void* memset(void* destination, int value, unsigned long count);
+
 namespace xinim::kernel::bootfs {
 namespace ext2_reader = ::xinim::i486::ext2_reader;
 namespace {
@@ -140,6 +142,11 @@ bool g_pipe_eof_event = false;
 TermiosState g_terminal_state{};
 WindowSize g_window_size{25U, 80U, 0U, 0U};
 int g_foreground_pgrp = 1;
+
+template <typename T>
+void zero_object(T& object) noexcept {
+    static_cast<void>(::memset(&object, 0, sizeof(T)));
+}
 
 OpenFile make_empty_open_file() noexcept {
     return {
@@ -647,37 +654,30 @@ void reset() noexcept {
     g_window_size = {25U, 80U, 0U, 0U};
     g_foreground_pgrp = 1;
     for (size_t index = 0U; index < kMaxFiles; ++index) {
-        g_files[index] = {
-            nullptr,
-            nullptr,
-            0U,
-            0U,
-            false,
-            false,
-            false,
-        };
+        g_files[index].path = nullptr;
+        g_files[index].data = nullptr;
+        g_files[index].size = 0U;
+        g_files[index].capacity = 0U;
+        g_files[index].read_only = false;
+        g_files[index].executable = false;
+        g_files[index].is_directory = false;
     }
     for (size_t index = 0U; index < kMaxOpenFiles; ++index) {
-        g_open_files[index] = make_empty_open_file();
+        zero_object(g_open_files[index]);
+        g_open_files[index].access = kFileFlagO_RDONLY;
         g_open_files[index].status_flags = kFileFlagO_RDONLY;
         g_open_files[index].descriptor_flags = 0;
+        g_open_files[index].device_type = DeviceType::None;
     }
     for (size_t index = 0U; index < kMaxDynamicFiles; ++index) {
-        g_tmp_files[index] = {};
+        zero_object(g_tmp_files[index]);
     }
     for (size_t index = 0U; index < kMaxPipes; ++index) {
-        g_pipes[index] = {
-            false,
-            kMaxPipeIdCounter,
-            0U,
-            0U,
-            0U,
-            0U,
-            {},
-        };
+        zero_object(g_pipes[index]);
+        g_pipes[index].id = kMaxPipeIdCounter;
     }
     for (size_t index = 0U; index < kMaxMounts; ++index) {
-        g_mount_points[index] = {};
+        zero_object(g_mount_points[index]);
     }
     configure_open_file_entry(0U, nullptr, kFileFlagO_RDONLY, false, false, true, 0U, false);
     configure_open_file_entry(1U, nullptr, kFileFlagO_WRONLY, false, false, true, 0U, false);

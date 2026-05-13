@@ -1,5 +1,13 @@
 # XINIM Changelog
 
+## Unreleased
+
+- Warning policy: `XINIM_ENABLE_WERROR=ON` now treats `-Wconversion` and
+  `-Wsign-conversion` as errors instead of demoting them.
+- QEMU x86 source index: official QEMU `pc`, invocation, disk image, network,
+  and GDB documentation is cached under `data/external/qemu/` and indexed in
+  `docs/external_sources/QEMU_X86_PC_SOURCES.md`.
+
 ## v1.4.0 -- Kyber KEM, PCI/virtio-net, Hardware Crypto, Recovery Server (2026-03-06)
 
 Fixes all Kyber768 KEM bugs, adds PCI bus enumeration and virtio-net PCI walk,
@@ -266,7 +274,8 @@ Added MAX_SPINS timeouts to all spin-wait loops; fixed data race; added IRQ guar
 ### Phase 6: Integration, Documentation, and Hardening
 
 - cmake/CompilerWarnings.cmake: promoted -Wshadow to -Werror=shadow (0 violations).
-  -Wconversion/-Wsign-conversion remain warnings pending v1.3.0 cleanup.
+  Historical note: -Wconversion/-Wsign-conversion were still warning-only in
+  v1.2.0; current builds promote them to errors when XINIM_ENABLE_WERROR is on.
 - docs/analysis/TODO_TRACKER.md: 3 PHASE6 items marked REMOVED (resolved in v1.2.0).
 - docs/analysis/CLAIMS_AUDIT.md: updated for v1.2.0 test count (31) and subsystems.
 - 31/31 host-side unit tests pass.
@@ -285,7 +294,8 @@ Added MAX_SPINS timeouts to all spin-wait loops; fixed data race; added IRQ guar
 - Kyber KEM: foundations correct, kem.cpp missing (Phase 9)
 - Ring 3: all servers run Ring 0 (Phase 9)
 - virtio-net: skeleton only (Phase 10)
-- -Wconversion/-Wsign-conversion: 13 files with warnings, blocked by v1.1.0 code
+- Historical v1.2 limitation: -Wconversion/-Wsign-conversion still had debt in
+  13 files; current builds promote those diagnostics to errors.
 - QEMU boot: infrastructure wired, validation requires CI QEMU runner
 
 ---

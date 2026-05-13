@@ -112,14 +112,26 @@ def test_lane(build_dir: pathlib.Path, lane_meta: dict, test_kinds: Iterable[str
     return 0
 
 
-def launch_lane(lane_meta: dict, cpu_override: str | None, memory_override: str | None, dry_run: bool) -> int:
+def launch_lane(
+    lane_meta: dict,
+    cpu_override: str | None,
+    memory_override: str | None,
+    boot_mode: str,
+    dry_run: bool,
+) -> int:
     launcher = pathlib.Path(lane_meta["launcher_script"])
-    image_path = lane_meta["image_path"]
     cpu = cpu_override or lane_meta["qemu_cpu"]
     memory = memory_override or lane_meta["qemu_memory"]
     machine = lane_meta["qemu_machine"]
 
-    command = [str(launcher), "--boot-image", image_path, "--cpu", cpu, "--machine", machine]
+    command = [str(launcher), "--cpu", cpu, "--machine", machine]
+    if boot_mode == "disk":
+        command.extend(["--boot-disk", lane_meta["boot_disk_path"]])
+    else:
+        command.extend(["--boot-image", lane_meta["image_path"]])
+        ata_disk = lane_meta.get("ata_disk_path", "")
+        if ata_disk:
+            command.extend(["--disk-image", ata_disk])
     if lane_meta["family"] == "x86_32":
         command.extend(["--memory", memory, "--vga", lane_meta["qemu_vga"]])
     else:
@@ -142,6 +154,12 @@ def parse_args() -> argparse.Namespace:
         help="run ctest for the selected kind; may be repeated",
     )
     parser.add_argument("--launch", action="store_true", help="launch QEMU for the selected lane")
+    parser.add_argument(
+        "--boot-mode",
+        choices=("disk", "iso"),
+        default="disk",
+        help="boot from the lane boot disk or ISO when launching (default: disk)",
+    )
     parser.add_argument("--cpu-override", help="override the lane's default QEMU CPU model")
     parser.add_argument("--memory-override", help="override the lane's default guest RAM size")
     parser.add_argument("--dry-run", action="store_true", help="print commands without executing them")
@@ -180,6 +198,7 @@ def main() -> int:
                 lane_meta,
                 cpu_override=args.cpu_override,
                 memory_override=args.memory_override,
+                boot_mode=args.boot_mode,
                 dry_run=args.dry_run,
             )
             if rc != 0:

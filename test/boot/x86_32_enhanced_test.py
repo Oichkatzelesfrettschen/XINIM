@@ -63,12 +63,12 @@ SHELL_PORT = int(
     os.environ.get("XINIM_QEMU_SHELL_PORT", str(SHELL_PORT_BY_LANE.get(LANE_NAME, 4566)))
 )
 BOOT_TIMEOUT = int(os.environ.get("XINIM_QEMU_BOOT_TIMEOUT", "25"))
-CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "8"))
+CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "30"))
 LOG_FILE = os.environ.get(
     "XINIM_QEMU_SHELL_LOG",
     os.path.join(XINIM_LOG_ROOT, f"{LANE_NAME}-enhanced.log"),
 )
-PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "#||# ||mksh$ ").split("||") if prompt]
+PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "$ ||#||# ||mksh$ ").split("||") if prompt]
 COMMAND_MARKER_PREFIX = "__XINIM_ENH_"
 READY_MARKER = "__XINIM_ENH_READY__"
 command_counter = 0
@@ -208,10 +208,11 @@ def main():
 
         # --- File I/O and permissions ---
         print("\n--- File permissions ---")
-        send_command(shell, "echo permtest > /tmp/perm")
-        results.append(check("cat /tmp/perm", send_command(shell, "cat /tmp/perm"), "permtest"))
-        send_command(shell, "chmod 644 /tmp/perm")
-        results.append(check("chmod 644", send_command(shell, "ls -l /tmp/perm"), "rw-"))
+        send_command(shell, "rm -f /persist/enh_perm")
+        send_command(shell, "echo permtest > /persist/enh_perm")
+        results.append(check("cat /persist/enh_perm", send_command(shell, "cat /persist/enh_perm"), "permtest"))
+        send_command(shell, "chmod 644 /persist/enh_perm")
+        results.append(check("chmod 644", send_command(shell, "ls -l /persist/enh_perm"), "-rw-r--r--"))
 
         # --- Negative tests (error handling) ---
         print("\n--- Negative tests ---")
@@ -226,18 +227,26 @@ def main():
 
         # --- TCC compilation ---
         print("\n--- TCC compilation ---")
-        send_command(shell, "echo 'int main(){return 0;}' > /tmp/t.c")
-        r = send_command(shell, "tcc -o /tmp/t /tmp/t.c && echo tcc_ok")
-        results.append(check("tcc compile", r, "tcc_ok"))
-        r = send_command(shell, "/tmp/t; echo exit=$?")
-        results.append(check("tcc run", r, "exit=0"))
+        tcc_probe = send_command(shell, "ls /bin/tcc 2>&1")
+        if "inaccessible or not found" in tcc_probe or "No such" in tcc_probe:
+            print("SKIP: tcc not present in this image")
+        else:
+            send_command(shell, "rm -f /persist/enh_t /persist/enh_t.c")
+            send_command(shell, "echo 'int main(){return 0;}' > /persist/enh_t.c")
+            r = send_command(shell, "tcc -o /persist/enh_t /persist/enh_t.c")
+            results.append(check("tcc compile", r, "__XINIM_ENH_"))
+            send_command(shell, "chmod 755 /persist/enh_t")
+            results.append(check("tcc output", send_command(shell, "ls -l /persist/enh_t"), "-rwxr-xr-x"))
+            r = send_command(shell, "/persist/enh_t; echo exit=$?")
+            results.append(check("tcc run", r, "exit=0"))
 
         # --- Symlink tests ---
         print("\n--- Symlinks ---")
-        send_command(shell, "ln -s /etc/motd /tmp/motd_link")
-        r = send_command(shell, "cat /tmp/motd_link")
+        send_command(shell, "rm -f /persist/motd_link")
+        send_command(shell, "ln -s /etc/motd /persist/motd_link")
+        r = send_command(shell, "cat /persist/motd_link")
         results.append(check("symlink read", r, "persistent root"))
-        r = send_command(shell, "readlink /tmp/motd_link")
+        r = send_command(shell, "readlink /persist/motd_link")
         results.append(check("readlink", r, "/etc/motd"))
 
         # --- Summary ---

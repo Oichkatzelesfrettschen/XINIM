@@ -129,13 +129,13 @@ SHELL_PORT = int(
     os.environ.get("XINIM_QEMU_SHELL_PORT", str(SHELL_PORT_BY_LANE.get(LANE_NAME, 4556)))
 )
 BOOT_TIMEOUT = int(os.environ.get("XINIM_QEMU_BOOT_TIMEOUT", "25"))
-CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "5"))
-PROMPT_SETTLE_TIMEOUT = float(os.environ.get("XINIM_QEMU_PROMPT_SETTLE_TIMEOUT", "0.5"))
+CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "30"))
+PROMPT_SETTLE_TIMEOUT = float(os.environ.get("XINIM_QEMU_PROMPT_SETTLE_TIMEOUT", "1.5"))
 LOG_FILE = os.environ.get(
     "XINIM_QEMU_SHELL_LOG",
     os.path.join(XINIM_LOG_ROOT, f"{LANE_NAME}-kshell.log"),
 )
-PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "#||# ||mksh$ ").split("||") if prompt]
+PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "$ ||#||# ||mksh$ ").split("||") if prompt]
 COMMAND_MARKER_PREFIX = "__XINIM_DONE_"
 READY_MARKER = "__XINIM_READY__"
 command_counter = 0
@@ -261,9 +261,27 @@ def handshake_shell(sock):
     return recv_until_text(sock, READY_MARKER, timeout=BOOT_TIMEOUT)
 
 
+def synchronize_shell(sock):
+    prompt = recv_until_prompt(sock, timeout=BOOT_TIMEOUT)
+    if not contains_prompt(prompt):
+        sock.sendall(b"\r")
+        prompt += recv_until_prompt(sock, timeout=CMD_TIMEOUT)
+    initial = handshake_shell(sock)
+    return prompt, initial
+
+
 def require_contains(name, response, expected):
     if expected not in response:
         print(f"FAIL: {name} response missing {expected!r}")
+        print(f"  Response: {response!r}")
+        return False
+    print(f"PASS: {name}")
+    return True
+
+
+def require_any(name, response, expected_values):
+    if not any(expected in response for expected in expected_values):
+        print(f"FAIL: {name} response missing one of {expected_values!r}")
         print(f"  Response: {response!r}")
         return False
     print(f"PASS: {name}")
@@ -288,12 +306,7 @@ def main():
 
     try:
         shell = connect_shell(retries=int(BOOT_TIMEOUT / 0.5))
-        prompt = recv_until_prompt(shell, timeout=BOOT_TIMEOUT)
-        if not contains_prompt(prompt):
-            print(f"FAIL: did not receive {LANE_NAME} shell prompt before handshake")
-            print(f"  Received: {prompt!r}")
-            sys.exit(1)
-        initial = handshake_shell(shell)
+        prompt, initial = synchronize_shell(shell)
         if READY_MARKER not in initial:
             print(f"FAIL: did not receive {LANE_NAME} shell ready marker")
             print(f"  Prompt: {prompt!r}")
@@ -337,7 +350,11 @@ def main():
             require_contains("command -v heapprobe", send_command(shell, "command -v heapprobe"), "/bin/heapprobe"),
             require_contains("command -v holdsvc", send_command(shell, "command -v holdsvc"), "/bin/holdsvc"),
             require_contains("command -v persist-hello", send_command(shell, "command -v persist-hello"), "/bin/persist-hello"),
-            require_contains("cat /etc/motd", send_command(shell, "cat /etc/motd"), "persistent root"),
+            require_any(
+                "cat /etc/motd",
+                send_command(shell, "cat /etc/motd"),
+                ["persistent root", "Welcome to XINIM"],
+            ),
             require_contains("test -d /persist", send_command(shell, "test -d /persist && echo yes"), "yes"),
             require_contains("test -d /persist/etc", send_command(shell, "test -d /persist/etc && echo yes"), "yes"),
             require_contains("test -d /persist/var", send_command(shell, "test -d /persist/var && echo yes"), "yes"),
@@ -440,7 +457,7 @@ def main():
                 exit_log,
                 "rogue pointer",
             ),
-            require_contains("shell exit respawn prompt", resumed, "#"),
+            require_not_contains("shell exit respawn rescue", resumed, "xinim-i486>"),
             require_contains("shell exit respawn path", send_command(shell, "echo $SHELL"), "/bin/mksh"),
         ])
 

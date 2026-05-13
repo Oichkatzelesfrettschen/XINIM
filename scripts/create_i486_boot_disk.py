@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Create a GRUB-bootable qcow2 disk image for the i486 QEMU lane.
+"""Create a GRUB-bootable disk image for XINIM 32-bit QEMU lanes.
 
 Produces a single bootable disk image:
   1. Raw image: MBR gap + ext2 partition with kernel, shell, utilities
   2. GRUB boot.img (MBR) + core.img (gap between MBR and partition)
-  3. Convert to qcow2 for efficient storage
+  3. Optionally convert to qcow2 or dynamic VMDK for efficient storage
 
 The ext2 partition contains /boot/grub/grub.cfg, /boot/xinim (kernel),
 /bin/* (all utilities), and /etc/* (configs).
@@ -257,23 +257,70 @@ def install_grub_to_image(
         return False
 
 
-def convert_to_qcow2(raw_path: str, qcow2_path: str) -> bool:
+def convert_disk_image(raw_path: str, output_path: str, image_format: str) -> bool:
+    if image_format == "raw":
+        return True
+
     qemu_img = shutil.which("qemu-img")
     if qemu_img is None:
-        print("WARNING: qemu-img not found, keeping raw image")
+        print(f"WARNING: qemu-img not found, keeping raw image: {raw_path}")
         return False
-    subprocess.run(
-        [qemu_img, "convert", "-f", "raw", "-O", "qcow2", raw_path, qcow2_path],
-        check=True,
-    )
+
+    command = [qemu_img, "convert", "-f", "raw"]
+    if image_format == "qcow2":
+        command.extend(["-O", "qcow2"])
+    elif image_format == "vmdk":
+        command.extend(["-O", "vmdk", "-o", "subformat=monolithicSparse"])
+    else:
+        raise SystemExit(f"unsupported output format: {image_format}")
+    command.extend([raw_path, output_path])
+
+    if os.path.exists(output_path):
+        os.unlink(output_path)
+    subprocess.run(command, check=True)
     return True
+
+
+def infer_output_format(output_path: str, raw_only: bool) -> str:
+    if raw_only:
+        return "raw"
+    lower = output_path.lower()
+    if lower.endswith(".qcow2"):
+        return "qcow2"
+    if lower.endswith(".vmdk"):
+        return "vmdk"
+    return "raw"
+
+
+def raw_work_path(output_path: str, image_format: str) -> str:
+    if image_format == "raw":
+        return output_path
+    suffix = f".{image_format}"
+    if output_path.lower().endswith(suffix):
+        return output_path[: -len(suffix)] + ".raw"
+    return f"{output_path}.raw"
+
+
+def describe_output(image_format: str) -> str:
+    if image_format == "qcow2":
+        return "qcow2 boot disk"
+    if image_format == "vmdk":
+        return "dynamic VMDK boot disk"
+    return "raw boot disk"
+
+
+def convert_to_qcow2(raw_path: str, qcow2_path: str) -> bool:
+    """Backward-compatible helper for older callers."""
+    return convert_disk_image(raw_path, qcow2_path, "qcow2")
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(
-        description="Create a GRUB-bootable qcow2 disk image for XINIM i486"
+        description="Create a GRUB-bootable disk image for XINIM 32-bit lanes"
     )
-    parser.add_argument("--output", required=True, help="Path to output image (qcow2)")
+    parser.add_argument("--output", required=True, help="Path to output image")
+    parser.add_argument("--format", choices=("auto", "raw", "qcow2", "vmdk"), default="auto",
+                        help="Output image format (default: infer from output suffix)")
     parser.add_argument("--size-mb", type=int, default=32, help="Disk size in MiB")
     parser.add_argument("--kernel", required=True, help="Path to kernel binary")
     parser.add_argument("--shell", required=True, help="Path to shell binary (mksh)")
@@ -302,13 +349,14 @@ def main() -> int:
     total_sectors = total_bytes // SECTOR_SIZE
     partition_sector_count = max(total_sectors - PARTITION_START_LBA, 1)
 
-    # Determine output paths
     output = args.output
-    if not args.raw_only and output.endswith(".qcow2"):
-        raw_path = output.replace(".qcow2", ".raw")
-    else:
-        raw_path = output
+    image_format = infer_output_format(output, args.raw_only)
+    if args.format != "auto":
+        image_format = args.format
+    raw_path = raw_work_path(output, image_format)
     os.makedirs(os.path.dirname(os.path.abspath(raw_path)), exist_ok=True)
+    if image_format != "raw":
+        os.makedirs(os.path.dirname(os.path.abspath(output)), exist_ok=True)
 
     # Create raw disk image
     with open(raw_path, "wb") as f:
@@ -347,15 +395,15 @@ def main() -> int:
     else:
         print("WARNING: no GRUB i386-pc platform found, disk not bootable")
 
-    # Convert to qcow2
-    if not args.raw_only and output.endswith(".qcow2"):
-        if convert_to_qcow2(raw_path, output):
+    # Convert to the requested final format.
+    if image_format != "raw":
+        if convert_disk_image(raw_path, output, image_format):
             os.unlink(raw_path)
-            print(f"qcow2 boot disk: {output} ({args.size_mb} MiB)")
+            print(f"{describe_output(image_format)}: {output} ({args.size_mb} MiB)")
         else:
-            print(f"Raw boot disk: {raw_path} ({args.size_mb} MiB)")
+            print(f"raw boot disk: {raw_path} ({args.size_mb} MiB)")
     else:
-        print(f"Raw boot disk: {raw_path} ({args.size_mb} MiB)")
+        print(f"{describe_output(image_format)}: {raw_path} ({args.size_mb} MiB)")
 
     return 0
 

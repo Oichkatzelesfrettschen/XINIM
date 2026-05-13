@@ -18,11 +18,11 @@ constexpr uint32_t kProbeBytes = 128U;
 }
 
 void write_string(const char* text) noexcept {
-    static_cast<void>(xinim::userland::i386::write(1, text, string_length(text)));
+    static_cast<void>(xinim::userland::x86_32::write(1, text, string_length(text)));
 }
 
 [[nodiscard]] uint32_t sys_brk(uint32_t value) noexcept {
-    return xinim::userland::i386::syscall1(static_cast<uint32_t>(SYS_brk), value);
+    return xinim::userland::x86_32::syscall1(static_cast<uint32_t>(SYS_brk), value);
 }
 
 } // namespace

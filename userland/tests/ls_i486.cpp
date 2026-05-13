@@ -2,14 +2,6 @@
 
 #include "xinim/userland/syscall_i386.hpp"
 
-extern "C" void* memset(void* destination, int value, unsigned int count) noexcept {
-    auto* bytes = static_cast<unsigned char*>(destination);
-    for (unsigned int index = 0U; index < count; ++index) {
-        bytes[index] = static_cast<unsigned char>(value);
-    }
-    return destination;
-}
-
 namespace {
 
 constexpr char kMissingPath[] = "ls: inaccessible or not found\r\n";
@@ -33,7 +25,7 @@ constexpr uint32_t kErrorThreshold = 0xFFFFF000U;
 }
 
 void write_bytes(int fd, const char* text, uint32_t length) noexcept {
-    static_cast<void>(xinim::userland::i386::write(fd, text, length));
+    static_cast<void>(xinim::userland::x86_32::write(fd, text, length));
 }
 
 void write_string(int fd, const char* text) noexcept {
@@ -74,11 +66,29 @@ void write_u32(int fd, uint32_t value) noexcept {
     return (mode & xinim::userland::kStatTypeMask) == xinim::userland::kStatDirectory;
 }
 
-void print_long_entry(const char* display_name,
-                      bool is_directory,
-                      uint32_t size) noexcept {
-    const char type = is_directory ? 'd' : '-';
+void write_permission_char(uint16_t mode, uint16_t bit, char value) noexcept {
+    const char output = (mode & bit) != 0U ? value : '-';
+    write_bytes(1, &output, 1U);
+}
+
+void write_mode_string(uint16_t mode) noexcept {
+    const char type = is_directory_mode(mode) ? 'd' : '-';
     write_bytes(1, &type, 1U);
+    write_permission_char(mode, 0400U, 'r');
+    write_permission_char(mode, 0200U, 'w');
+    write_permission_char(mode, 0100U, 'x');
+    write_permission_char(mode, 0040U, 'r');
+    write_permission_char(mode, 0020U, 'w');
+    write_permission_char(mode, 0010U, 'x');
+    write_permission_char(mode, 0004U, 'r');
+    write_permission_char(mode, 0002U, 'w');
+    write_permission_char(mode, 0001U, 'x');
+}
+
+void print_long_entry(const char* display_name,
+                      uint16_t mode,
+                      uint32_t size) noexcept {
+    write_mode_string(mode);
     write_string(1, " ");
     write_u32(1, size);
     write_string(1, " ");
@@ -145,19 +155,19 @@ void emit_directory_entry(const char* parent_path,
     }
 
     xinim::userland::UserspaceStat stat_buffer{};
-    const uint32_t stat_result = xinim::userland::i386::stat(child_path, &stat_buffer);
+    const uint32_t stat_result = xinim::userland::x86_32::stat(child_path, &stat_buffer);
     if (is_error(stat_result)) {
         write_string(2, kReadFail);
         return;
     }
 
-    print_long_entry(entry_name, is_directory_mode(stat_buffer.st_mode), stat_buffer.st_size);
+    print_long_entry(entry_name, stat_buffer.st_mode, stat_buffer.st_size);
 }
 
 int list_directory(const char* path,
                    bool long_format,
                    bool print_header) noexcept {
-    const uint32_t fd = xinim::userland::i386::open(path, 0U, 0U);
+    const uint32_t fd = xinim::userland::x86_32::open(path, 0U, 0U);
     if (is_error(fd)) {
         write_string(2, kMissingPath);
         return 1;
@@ -173,12 +183,12 @@ int list_directory(const char* path,
     uint32_t entry_length = 0U;
 
     for (;;) {
-        const uint32_t result = xinim::userland::i386::read(static_cast<int>(fd), io_buffer, sizeof(io_buffer));
+        const uint32_t result = xinim::userland::x86_32::read(static_cast<int>(fd), io_buffer, sizeof(io_buffer));
         if (result == 0U) {
             break;
         }
         if (is_error(result)) {
-            static_cast<void>(xinim::userland::i386::close(static_cast<int>(fd)));
+            static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(fd)));
             write_string(2, kReadFail);
             return 1;
         }
@@ -207,7 +217,7 @@ int list_directory(const char* path,
         emit_directory_entry(path, entry, long_format);
     }
 
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(fd)));
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(fd)));
     if (print_header) {
         write_string(1, "\r\n");
     }
@@ -218,7 +228,7 @@ int list_path(const char* path,
               bool long_format,
               bool print_header) noexcept {
     xinim::userland::UserspaceStat stat_buffer{};
-    const uint32_t stat_result = xinim::userland::i386::stat(path, &stat_buffer);
+    const uint32_t stat_result = xinim::userland::x86_32::stat(path, &stat_buffer);
     if (is_error(stat_result)) {
         write_string(2, kMissingPath);
         return 1;
@@ -230,7 +240,7 @@ int list_path(const char* path,
 
     const char* display_name = print_header ? base_name(path) : path;
     if (long_format) {
-        print_long_entry(display_name, false, stat_buffer.st_size);
+        print_long_entry(display_name, stat_buffer.st_mode, stat_buffer.st_size);
     } else {
         print_short_entry(display_name);
     }

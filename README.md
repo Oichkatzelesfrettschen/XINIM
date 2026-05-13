@@ -1,7 +1,7 @@
 # XINIM i486 Operating System
 
-A bare-metal operating system for i486 (and compatible) hardware.
-Boots from a single qcow2 disk image with embedded GRUB, runs an
+A bare-metal operating system for i486 and later 32-bit x86 hardware.
+Boots from a single dynamic VMDK or qcow2 disk image with embedded GRUB, runs an
 interactive mksh shell with 70+ POSIX utilities, pipes, signals,
 file I/O, and a C compiler (TCC).
 
@@ -23,8 +23,12 @@ file I/O, and a C compiler (TCC).
 # Configure (pure CMake, no Conan needed)
 cmake --preset i486-standalone
 
-# Build kernel + all utilities + bootable qcow2 disk
+# Build kernel + all utilities + bootable dynamic VMDK plus qcow2 disk
 cmake --build build/i486/Debug --target i486_boot_disk
+
+# CMOV-capable Pentium III / i686 lane
+cmake --preset i686-standalone
+cmake --build build/i686/Debug --target i686_boot_disk
 ```
 
 ### Launch
@@ -42,7 +46,7 @@ scripts/test_i486_vbox.sh
 ```bash
 # QEMU with VGA window
 qemu-system-i386 -machine pc -cpu 486 -m 64M -boot c \
-  -drive file=build/i486/Debug/images/i486/xinim-i486-boot.qcow2,format=qcow2 \
+  -drive file=build/i486/Debug/images/i486/xinim-i486-boot.vmdk,format=vmdk \
   -vga std -serial stdio
 ```
 
@@ -90,7 +94,7 @@ Unix commands.
 - Supervised service restart with DAG dependency ordering
 
 ### Boot Architecture
-- Single qcow2 disk image with embedded GRUB (MBR + core.img)
+- Single dynamic VMDK/qcow2 disk image with embedded GRUB (MBR + core.img)
 - ext2 root partition with kernel, shell, and all utilities
 - 7 Multiboot2 modules (kernel + xash + mksh + holdsvc + cat + ls + echo)
 - Remaining 70+ utilities loaded from ext2 on demand via execve
@@ -100,7 +104,8 @@ Unix commands.
 | Target | Description |
 |--------|-------------|
 | `xinim_i486` | Kernel binary |
-| `i486_boot_disk` | Bootable qcow2 disk image with all utilities |
+| `i486_boot_disk` | Bootable dynamic VMDK plus qcow2 disk image with all utilities |
+| `i686_boot_disk` | CMOV-capable Pentium III lane boot disks |
 | `xinim_i486_image` | ISO + ATA disk images (legacy) |
 | `dietlibc_i486` | dietlibc C library |
 | `mksh_i486` | mksh shell |
@@ -119,7 +124,7 @@ checks COM1 for faults. 37/37 tests pass with zero faults.
 ### Manual (QEMU)
 
 ```bash
-scripts/qemu_i486.sh --boot-disk build/i486/Debug/images/i486/xinim-i486-boot.qcow2
+scripts/qemu_i486.sh --boot-disk build/i486/Debug/images/i486/xinim-i486-boot.vmdk
 ```
 
 ## Architecture
@@ -164,7 +169,7 @@ Hardware
 | `src/kernel/i486/console.cpp` | VGA + keyboard + serial |
 | `src/kernel/i486/ext2_reader.cpp` | ext2 filesystem driver |
 | `src/kernel/i486/elf32_loader.cpp` | ELF binary loader |
-| `scripts/create_i486_boot_disk.py` | qcow2 disk image builder |
+| `scripts/create_i486_boot_disk.py` | raw, qcow2, and dynamic VMDK disk image builder |
 | `scripts/qemu_i486.sh` | QEMU launcher |
 | `scripts/test_i486_vbox.sh` | VirtualBox automated test suite |
 | `libc/dietlibc-xinim/` | Modified dietlibc for XINIM syscalls |

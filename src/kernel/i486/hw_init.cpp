@@ -11,6 +11,12 @@
 
 namespace xinim::i486::ring3 {
 
+#if defined(XINIM_ARCH_I686) && defined(XINIM_I686_APIC_TIMER)
+namespace {
+bool g_timer_uses_apic = false;
+}
+#endif
+
 void set_gdt_entry(int index,
                    uint32_t base,
                    uint32_t limit,
@@ -117,8 +123,12 @@ void initialize_pit(uint32_t frequency_hz) noexcept {
 }
 
 void send_timer_eoi() noexcept {
-#ifdef XINIM_ARCH_I686
-    xinim::i686::apic::send_apic_eoi();
+#if defined(XINIM_ARCH_I686) && defined(XINIM_I686_APIC_TIMER)
+    if (g_timer_uses_apic) {
+        xinim::i686::apic::send_apic_eoi();
+        return;
+    }
+    outb(kPic1CommandPort, kPicEoi);
 #else
     outb(kPic1CommandPort, kPicEoi);
 #endif
@@ -135,13 +145,21 @@ void initialize_i686_extensions() noexcept {
         xinim::i686::sse::initialize_sse();
     }
 
-    // APIC: enable local APIC and calibrate APIC timer to 100 Hz.
-    // Must come before IOAPIC so the local APIC is ready to receive IRQs.
+    // The APIC timer path is still experimental in the QEMU pc/pentium3 lane.
+    // Default to legacy PIC/PIT so blocking TTY reads keep getting preempted
+    // and COM2 input can wake the supervised shell.  Enable
+    // XINIM_I686_APIC_TIMER only when actively debugging APIC routing.
+#ifdef XINIM_I686_APIC_TIMER
     xinim::i686::apic::initialize_apic();
     xinim::i686::apic::initialize_apic_timer();
+    g_timer_uses_apic = true;
 
     // IOAPIC: route IRQ1 (keyboard) and IRQ14 (IDE); mask everything else.
     xinim::i686::ioapic::initialize_ioapic();
+#else
+    initialize_legacy_pic();
+    initialize_pit(kTimerHz);
+#endif
 
     // SYSENTER: program MSRs 0x174/0x175/0x176 for fast syscall path.
     if (feat.has_sysenter) {
@@ -158,6 +176,7 @@ void initialize_i686_extensions() noexcept {
     //
     // Without these, the CPU would see a null IDT gate and triple-fault on
     // the first spurious APIC interrupt or keypress.
+#ifdef XINIM_I686_APIC_TIMER
     set_kernel_fault_gate(0xFFU, xinim::i686::i686_apic_spurious_entry);
     set_kernel_fault_gate(xinim::i686::ioapic::kVectorKeyboard,
                           xinim::i686::i686_apic_irq_eoi_entry);
@@ -169,6 +188,7 @@ void initialize_i686_extensions() noexcept {
     // on some chipsets where both sources deliver to the CPU simultaneously.
     outb(kPic1DataPort, 0xFFU);
     outb(kPic2DataPort, 0xFFU);
+#endif
 }
 #endif
 

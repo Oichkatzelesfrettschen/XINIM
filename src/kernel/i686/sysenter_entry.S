@@ -27,6 +27,11 @@
 //   ESP = SYSENTER_ESP MSR (kernel stack top, equals g_tss.esp0)
 //   IF  = 0  (hardware clears IF)
 //   DS/ES/FS/GS = still user values (0x23)
+//
+// Return uses IRET rather than SYSEXIT.  SYSEXIT does not restore EFLAGS; if we
+// leave IF cleared, the next userspace timeslice cannot be preempted and
+// blocking TTY reads never wake from COM2 input.  Building an IRET frame with
+// EFLAGS=0x202 keeps the fast entry path while restoring normal timer IRQs.
 
 .extern i486_handle_syscall
 
@@ -70,8 +75,7 @@ i686_sysenter_entry:
     call    i486_handle_syscall
     addl    $4, %esp
 
-    // Disable interrupts before restoring user context to avoid a race where
-    // an IRQ fires after we reload user segments but before SYSEXIT.
+    // Disable interrupts while constructing the return frame.
     cli
 
     // Propagate the syscall return value into the frame's eax slot.
@@ -91,8 +95,10 @@ i686_sysenter_entry:
     movw    %ax, %fs
     movw    %ax, %gs
 
-    // SYSEXIT: CPL 0 -> CPL 3.
-    //   CS  = SYSENTER_CS + 16 = 0x18 | RPL3 = 0x1B  (kUserCodeSelector)
-    //   SS  = SYSENTER_CS + 24 = 0x20 | RPL3 = 0x23  (kUserDataSelector)
-    //   EIP = ECX, ESP = EDX
-    sysexit
+    // IRET: CPL 0 -> CPL 3 with IF restored.
+    pushl   $0x23       // SS = kUserDataSelector
+    pushl   %edx        // ESP = user return ESP
+    pushl   $0x202      // EFLAGS = IF set
+    pushl   $0x1B       // CS = kUserCodeSelector
+    pushl   %ecx        // EIP = user return EIP
+    iret

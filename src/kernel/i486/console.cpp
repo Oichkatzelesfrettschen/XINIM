@@ -82,13 +82,32 @@ char serial_read(uint16_t port) noexcept {
 [[nodiscard]] bool translate_keyboard_scancode(uint8_t scancode, char& output) noexcept;
 
 void drain_tty_devices() noexcept {
+#ifdef XINIM_X86_32_TTY_TRACE
+    uint32_t serial_count = 0U;
+    bool saw_newline = false;
+#endif
     while (serial_has_data(kCom2)) {
         const char value = serial_read(kCom2);
         if (!is_valid_tty_serial_char(value)) {
             continue;
         }
+#ifdef XINIM_X86_32_TTY_TRACE
+        ++serial_count;
+        if (value == '\r' || value == '\n') {
+            saw_newline = true;
+        }
+#endif
         xinim::i486::tty::input_char(value);
     }
+#ifdef XINIM_X86_32_TTY_TRACE
+    if (serial_count != 0U) {
+        write_string("tty trace: com2 drain count=");
+        write_dec32(serial_count);
+        write_string(" newline=");
+        write_bool(saw_newline);
+        newline();
+    }
+#endif
     while (keyboard_has_data()) {
         char output = '\0';
         const uint8_t scancode = inb(kKeyboardDataPort);
@@ -232,7 +251,8 @@ void execute_csi(char final_char) noexcept {
             } else if (p >= 30U && p <= 37U) {
                 g_vga_color = static_cast<uint8_t>((g_vga_color & 0xF8U) | ansi_to_vga_fg(p));
             } else if (p >= 40U && p <= 47U) {
-                g_vga_color = static_cast<uint8_t>((g_vga_color & 0x0FU) | (ansi_to_vga_bg(p) << 4U));
+                const uint8_t bg = static_cast<uint8_t>(ansi_to_vga_bg(p) << 4U);
+                g_vga_color = static_cast<uint8_t>((g_vga_color & 0x0FU) | bg);
             } else if (p == 7U) {
                 // Reverse video
                 uint8_t fg = g_vga_color & 0x0FU;
@@ -686,7 +706,6 @@ char debug_read_char() noexcept {
 }
 
 void tty_write_char(char c) noexcept {
-    drain_tty_devices();
     if (c == '\n') {
         serial_write(kCom2, '\r');
         serial_write(kCom2, '\n');

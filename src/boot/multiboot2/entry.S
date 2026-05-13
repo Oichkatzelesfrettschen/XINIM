@@ -15,7 +15,7 @@ multiboot2_header_end:
 .section .bss, "aw", @nobits
 .align 16
 boot_stack_bottom:
-    .skip 8192
+    .skip 65536
 boot_stack_top:
 
 .section .text, "ax"

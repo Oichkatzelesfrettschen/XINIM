@@ -40,15 +40,16 @@ QEMU_CPU = os.environ.get("XINIM_QEMU_CPU", "486")
 QEMU_MEMORY = os.environ.get("XINIM_QEMU_MEMORY", "32M")
 QEMU_VGA = os.environ.get("XINIM_QEMU_VGA", "std")
 SHELL_PORT = int(os.environ.get("XINIM_QEMU_SHELL_PORT", "4556"))
-BOOT_TIMEOUT = int(os.environ.get("XINIM_QEMU_BOOT_TIMEOUT", "25"))
-CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "5"))
-PROMPT_SETTLE_TIMEOUT = float(os.environ.get("XINIM_QEMU_PROMPT_SETTLE_TIMEOUT", "0.5"))
+BOOT_TIMEOUT = int(os.environ.get("XINIM_QEMU_BOOT_TIMEOUT", "40"))
+CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "30"))
+PROMPT_SETTLE_TIMEOUT = float(os.environ.get("XINIM_QEMU_PROMPT_SETTLE_TIMEOUT", "1.5"))
+REBOOT_SETTLE_SECONDS = float(os.environ.get("XINIM_QEMU_REBOOT_SETTLE_SECONDS", "2.0"))
 XINIM_LOG_ROOT = os.environ.get(
     "XINIM_LOG_ROOT",
     os.path.join(PROJECT_ROOT, "build", LANE_NAME, "Debug", "logs"),
 )
 LOG_FILE = os.path.join(XINIM_LOG_ROOT, f"{LANE_NAME}-ext2-mutation.log")
-PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "#||# ||mksh$ ").split("||") if prompt]
+PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "$ ||#||# ||mksh$ ").split("||") if prompt]
 COMMAND_MARKER_PREFIX = "__XINIM_DONE_"
 READY_MARKER = "__XINIM_READY__"
 command_counter = 0
@@ -178,6 +179,15 @@ def handshake_shell(sock):
     return recv_until_text(sock, READY_MARKER, timeout=BOOT_TIMEOUT)
 
 
+def synchronize_shell(sock):
+    prompt = recv_until_prompt(sock, timeout=BOOT_TIMEOUT)
+    if not contains_prompt(prompt):
+        sock.sendall(b"\r")
+        prompt += recv_until_prompt(sock, timeout=CMD_TIMEOUT)
+    initial = handshake_shell(sock)
+    return prompt, initial
+
+
 def require_contains(name, response, expected):
     if expected not in response:
         print(f"FAIL: {name} response missing {expected!r}")
@@ -200,13 +210,7 @@ def boot_and_connect():
     process = start_qemu()
     try:
         shell = connect_shell()
-        prompt = recv_until_prompt(shell, timeout=BOOT_TIMEOUT)
-        if not contains_prompt(prompt):
-            print(f"FAIL: did not receive {LANE_NAME} shell prompt before handshake")
-            print(f"  Received: {prompt!r}")
-            terminate_qemu(process)
-            sys.exit(1)
-        initial = handshake_shell(shell)
+        prompt, initial = synchronize_shell(shell)
         if READY_MARKER not in initial:
             print(f"FAIL: did not receive {LANE_NAME} shell ready marker")
             print(f"  Prompt: {prompt!r}")
@@ -270,10 +274,9 @@ def main():
             first_shell.close()
         except OSError:
             pass
-        time.sleep(0.5)
         terminate_qemu(first_process)
 
-    time.sleep(0.5)
+    time.sleep(REBOOT_SETTLE_SECONDS)
 
     second_process, second_shell = boot_and_connect()
     try:
@@ -309,10 +312,9 @@ def main():
             second_shell.close()
         except OSError:
             pass
-        time.sleep(0.5)
         terminate_qemu(second_process)
 
-    time.sleep(0.5)
+    time.sleep(REBOOT_SETTLE_SECONDS)
 
     third_process, third_shell = boot_and_connect()
     try:

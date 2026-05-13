@@ -23,13 +23,13 @@ if [[ "${1:-}" == "--clean" ]]; then
 fi
 
 echo "Configuring..."
-cmake --preset i486-standalone
+env -u CFLAGS -u CXXFLAGS -u LDFLAGS cmake --preset i486-standalone
 
 echo "Building kernel + disk..."
-cmake --build "$BUILD_DIR" --target i486_boot_disk
+env -u CFLAGS -u CXXFLAGS -u LDFLAGS cmake --build "$BUILD_DIR" --target i486_boot_disk
 
 echo "Build complete:"
-ls -lh "$BUILD_DIR/images/i486/xinim-i486-boot.qcow2" 2>/dev/null
+ls -lh "$BUILD_DIR/images/i486/xinim-i486-boot.vmdk" "$BUILD_DIR/images/i486/xinim-i486-boot.qcow2" 2>/dev/null
 
 if [[ "${1:-}" == "--run" ]]; then
     exec "$SCRIPT_DIR/qemu_i486.sh"

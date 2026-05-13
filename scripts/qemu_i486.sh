@@ -18,7 +18,7 @@ print_error() { echo -e "${RED}[QEMU x86_32]${NC} $1"; }
 IMAGE_ROOT="${XINIM_IMAGE_ROOT:-${PROJECT_ROOT}/build/i486/Debug/images}"
 LOG_ROOT="${XINIM_LOG_ROOT:-${PROJECT_ROOT}/build/i486/Debug/logs}"
 BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-}"
-BOOT_DISK="${XINIM_QEMU_BOOT_DISK:-${IMAGE_ROOT}/i486/xinim-i486-boot.qcow2}"
+BOOT_DISK="${XINIM_QEMU_BOOT_DISK:-${IMAGE_ROOT}/i486/xinim-i486-boot.vmdk}"
 DISK_IMAGE="${XINIM_QEMU_DISK_IMAGE:-}"
 QEMU_BIN="${XINIM_QEMU_SYSTEM_BIN:-qemu-system-i386}"
 MEMORY="64M"
@@ -35,7 +35,7 @@ Usage: $0 [--boot-image PATH | --boot-disk PATH] [options]
 
 Boot modes (pick one):
   --boot-image PATH       Boot from ISO image (default)
-  --boot-disk PATH        Boot from raw disk image (single-disk boot)
+  --boot-disk PATH        Boot from disk image (single-disk boot)
 
 Options:
   --memory SIZE           Guest RAM size (default: 64M)
@@ -51,7 +51,7 @@ Options:
 
 Examples:
   $0 --boot-image "\$XINIM_IMAGE_ROOT/i486/xinim-i486dx.iso"
-  $0 --boot-disk xinim-i486-boot.img
+  $0 --boot-disk xinim-i486-boot.vmdk
   $0 --boot-image boot.iso --disk-image ata.img --cpu pentium --memory 64M
 EOF
 }
@@ -152,9 +152,11 @@ if [[ -n "${BOOT_DISK}" ]]; then
     print_info "Boot disk: ${BOOT_DISK}"
     QEMU_ARGS+=(-boot c)
     # Detect format from extension
-    local disk_fmt="raw"
+    disk_fmt="raw"
     if [[ "${BOOT_DISK}" == *.qcow2 ]]; then
         disk_fmt="qcow2"
+    elif [[ "${BOOT_DISK}" == *.vmdk ]]; then
+        disk_fmt="vmdk"
     fi
     QEMU_ARGS+=(-drive "file=${BOOT_DISK},format=${disk_fmt},index=0,media=disk")
 else

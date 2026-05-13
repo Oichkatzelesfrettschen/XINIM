@@ -93,6 +93,11 @@ void echo_char(char c) noexcept {
 
 // Flush the canonical buffer to the output ring
 void flush_canon() noexcept {
+#ifdef XINIM_X86_32_TTY_TRACE
+    console::write_string("tty trace: flush canonical bytes=");
+    console::write_dec32(g_canon_len);
+    console::newline();
+#endif
     for (uint32_t i = 0U; i < g_canon_len; ++i) {
         out_push(g_canon_buf[i]);
     }
@@ -307,6 +312,10 @@ void input_char(char c) noexcept {
 
     // Newline: complete the line
     if (c == '\n') {
+#ifdef XINIM_X86_32_TTY_TRACE
+        console::write_string("tty trace: canonical newline");
+        console::newline();
+#endif
         g_canon_buf[g_canon_len] = '\n';
         if (g_canon_len + 1U < kCanonBufSize) {
             ++g_canon_len;
@@ -366,8 +375,17 @@ int read(void* buffer, uint32_t count) noexcept {
     }
 
     if (read_count == 0U) {
+#ifdef XINIM_X86_32_TTY_TRACE
+        console::write_string("tty trace: read would block");
+        console::newline();
+#endif
         return -1; // Would block
     }
+#ifdef XINIM_X86_32_TTY_TRACE
+    console::write_string("tty trace: read bytes=");
+    console::write_dec32(read_count);
+    console::newline();
+#endif
     return static_cast<int>(read_count);
 }
 

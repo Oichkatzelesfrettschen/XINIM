@@ -5,7 +5,7 @@
 #include "xinim/sys/syscalls.h"
 #include "xinim/userland/userspace_stat.hpp"
 
-namespace xinim::userland::i386 {
+namespace xinim::userland::x86_32 {
 
 inline uint32_t syscall0(uint32_t number) noexcept {
     uint32_t result = 0U;
@@ -305,4 +305,4 @@ inline uint32_t brk(uint32_t addr) noexcept {
     return syscall1(static_cast<uint32_t>(SYS_brk), addr);
 }
 
-} // namespace xinim::userland::i386
+} // namespace xinim::userland::x86_32

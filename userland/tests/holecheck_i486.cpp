@@ -29,7 +29,7 @@ constexpr char kOk[] = "holecheck ok\r\n";
 }
 
 void write_string(int fd, const char* text) noexcept {
-    static_cast<void>(xinim::userland::i386::write(fd, text, string_length(text)));
+    static_cast<void>(xinim::userland::x86_32::write(fd, text, string_length(text)));
 }
 
 [[nodiscard]] bool parse_u32(const char* text, uint32_t& value) noexcept {
@@ -73,7 +73,7 @@ extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
     }
 
     xinim::userland::UserspaceStat stat_buffer{};
-    const uint32_t stat_result = xinim::userland::i386::stat(argv[1], &stat_buffer);
+    const uint32_t stat_result = xinim::userland::x86_32::stat(argv[1], &stat_buffer);
     if (is_error(stat_result)) {
         write_string(2, kStatFail);
         return 1;
@@ -83,15 +83,15 @@ extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
         return 1;
     }
 
-    const uint32_t fd = xinim::userland::i386::open(argv[1], kOpenReadOnly, 0U);
+    const uint32_t fd = xinim::userland::x86_32::open(argv[1], kOpenReadOnly, 0U);
     if (is_error(fd)) {
         write_string(2, kOpenFail);
         return 1;
     }
 
     uint8_t buffer[kMaxFileBytes];
-    const uint32_t read_result = xinim::userland::i386::read(static_cast<int>(fd), buffer, expected_size);
-    static_cast<void>(xinim::userland::i386::close(static_cast<int>(fd)));
+    const uint32_t read_result = xinim::userland::x86_32::read(static_cast<int>(fd), buffer, expected_size);
+    static_cast<void>(xinim::userland::x86_32::close(static_cast<int>(fd)));
     if (is_error(read_result) || read_result != expected_size) {
         write_string(2, kReadFail);
         return 1;

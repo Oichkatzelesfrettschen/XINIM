@@ -22,7 +22,7 @@ constexpr char kNewline[] = "\r\n";
 }
 
 void write_string(const char* text) noexcept {
-    static_cast<void>(xinim::userland::i386::write(1, text, string_length(text)));
+    static_cast<void>(xinim::userland::x86_32::write(1, text, string_length(text)));
 }
 
 void write_dec(uint32_t value) noexcept {
@@ -41,7 +41,7 @@ void write_dec(uint32_t value) noexcept {
 
     while (index > 0U) {
         --index;
-        static_cast<void>(xinim::userland::i386::write(1, &buffer[index], 1U));
+        static_cast<void>(xinim::userland::x86_32::write(1, &buffer[index], 1U));
     }
 }
 
@@ -50,7 +50,7 @@ void write_dec(uint32_t value) noexcept {
 extern "C" int xinim_user_main(int argc, char** argv, char** envp) noexcept {
     write_string(kHello);
     write_string(kPidPrefix);
-    write_dec(xinim::userland::i386::getpid());
+    write_dec(xinim::userland::x86_32::getpid());
     write_string(kNewline);
     write_string(kArgcPrefix);
     write_dec(static_cast<uint32_t>(argc));

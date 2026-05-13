@@ -42,6 +42,12 @@ void apply_scheduler_profile(Process* process,
 void wake_ready_waiters() noexcept {
     const bool have_console_input = console::tty_has_input();
     const bool pipe_eof = bootfs::consume_pipe_eof_event();
+#ifdef XINIM_X86_32_TTY_TRACE
+    if (have_console_input) {
+        console::write_string("tty trace: scheduler sees console input");
+        console::newline();
+    }
+#endif
     for (auto& process : g_processes) {
         if (!process.in_use || process.state != ProcessState::Waiting) {
             continue;
@@ -49,6 +55,13 @@ void wake_ready_waiters() noexcept {
         if ((process.wait_reason == WaitReason::ConsoleInput ||
              process.wait_reason == WaitReason::PipeIO) &&
             (have_console_input || pipe_eof)) {
+#ifdef XINIM_X86_32_TTY_TRACE
+            console::write_string("tty trace: wake pid=");
+            console::write_dec32(process.pid);
+            console::write_string(" wait=");
+            console::write_dec32(static_cast<uint32_t>(process.wait_reason));
+            console::newline();
+#endif
             process.wait_reason = WaitReason::None;
             process.state = ProcessState::Runnable;
         }
