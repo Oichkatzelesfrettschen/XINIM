@@ -77,7 +77,7 @@ Process* allocate_process(uint32_t parent_pid) noexcept {
             bootfs::increment_slot_refcount(1);
             bootfs::increment_slot_refcount(2);
             init_signal_state(&process);
-#ifdef XINIM_ARCH_I686
+#if defined(XINIM_ARCH_I686) && defined(XINIM_I686_FPU_CONTEXT_SWITCH)
             // Initialise FPU/SSE state image so the new process starts with
             // a clean x87 + MXCSR context (all exceptions masked, round-to-nearest).
             xinim::i686::sse::fpu_init_context(process.fxsave_buf);

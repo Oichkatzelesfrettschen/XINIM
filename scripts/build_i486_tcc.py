@@ -16,6 +16,7 @@ Usage:
 
 import argparse
 import os
+import shutil
 import subprocess
 import tarfile
 import urllib.request
@@ -55,6 +56,103 @@ def find_sources(src_dir: Path) -> list[str]:
     return found
 
 
+def build_runtime(runtime_dir: Path, build_dir: Path, src_dir: Path,
+                  start_o: Path, dietlibc_a: Path, dietlibc_include: Path) -> None:
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    (runtime_dir / "tcc").mkdir(parents=True, exist_ok=True)
+
+    crt1_asm = build_dir / "xinim-tcc-crt1.S"
+    crt1_asm.write_text(
+        ".globl _start\n"
+        "_start:\n"
+        "    xorl %ebp, %ebp\n"
+        "    call main\n"
+        "    movl %eax, %ebx\n"
+        "    movl $25, %eax\n"
+        "    int $0x80\n"
+        "1:  jmp 1b\n",
+        encoding="utf-8",
+    )
+    subprocess.run(
+        [
+            "gcc", "-m32", "-march=i486", "-mtune=i486",
+            "-mno-mmx", "-mno-sse",
+            "-c", str(crt1_asm), "-o", str(runtime_dir / "crt1.o"),
+        ],
+        cwd=str(build_dir),
+        check=True,
+    )
+
+    empty_asm = build_dir / "empty-crt.S"
+    empty_asm.write_text(".section .text\n", encoding="utf-8")
+    subprocess.run(
+        [
+            "gcc", "-m32", "-march=i486", "-mtune=i486",
+            "-mno-mmx", "-mno-sse",
+            "-c", str(empty_asm), "-o", str(runtime_dir / "crti.o"),
+        ],
+        cwd=str(build_dir),
+        check=True,
+    )
+    shutil.copy2(runtime_dir / "crti.o", runtime_dir / "crtn.o")
+
+    libc_stub_c = build_dir / "xinim-tcc-libc-stubs.c"
+    libc_stub_c.write_text(
+        "int errno;\n"
+        "int *__errno_location(void) { return &errno; }\n"
+        "void exit(int status) {\n"
+        "    __asm__ __volatile__(\"int $0x80\" : : \"a\"(25), \"b\"(status));\n"
+        "    for (;;) {}\n"
+        "}\n",
+        encoding="utf-8",
+    )
+    libc_stub_o = build_dir / "xinim-tcc-libc-stubs.o"
+    subprocess.run(
+        [
+            "gcc", "-m32", "-march=i486", "-mtune=i486",
+            "-mno-mmx", "-mno-sse",
+            "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector", "-fno-builtin",
+            "-c", str(libc_stub_c), "-o", str(libc_stub_o),
+        ],
+        cwd=str(build_dir),
+        check=True,
+    )
+    subprocess.run(
+        ["ar", "rcs", str(runtime_dir / "libc.a"), str(libc_stub_o)],
+        cwd=str(build_dir),
+        check=True,
+    )
+
+    libtcc1_c = src_dir / "lib" / "libtcc1.c"
+    libtcc1_o = build_dir / "libtcc1.o"
+    if libtcc1_c.exists():
+        subprocess.run(
+            [
+                "gcc", "-m32", "-march=i486", "-mtune=i486",
+                "-mno-mmx", "-mno-sse",
+                f"-I{src_dir}",
+                f"-I{dietlibc_include}",
+                "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector", "-fno-builtin",
+                "-c", str(libtcc1_c), "-o", str(libtcc1_o),
+            ],
+            cwd=str(build_dir),
+            check=True,
+        )
+        subprocess.run(
+            ["ar", "rcs", str(runtime_dir / "tcc" / "libtcc1.a"), str(libtcc1_o)],
+            cwd=str(build_dir),
+            check=True,
+        )
+    else:
+        subprocess.run(
+            ["ar", "rcs", str(runtime_dir / "tcc" / "libtcc1.a")],
+            cwd=str(build_dir),
+            check=True,
+        )
+
+    (runtime_dir / ".xinim-tcc-runtime-ready").write_text("ready\n", encoding="utf-8")
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-dir", required=True)
@@ -62,6 +160,8 @@ def main() -> int:
     parser.add_argument("--start-o", required=True)
     parser.add_argument("--dietlibc-a", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--runtime-dir", default="",
+                        help="Directory for crt objects and libraries used by in-guest TCC")
     args = parser.parse_args()
 
     src_dir = Path(args.source_dir).resolve()
@@ -90,10 +190,9 @@ def main() -> int:
         "-DONE_SOURCE=0",
         "-DTCC_TARGET_I386",
         "-DCONFIG_TCC_STATIC",
-        "-DCONFIG_TCC_BACKTRACE=0",
         f'-DCONFIG_TCCDIR="/usr/lib/tcc"',
-        "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector",
-        "-Wno-error",
+        "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector", "-fno-builtin",
+        "-Werror", "-Wno-unused-result",
     ]
 
     object_files = []
@@ -121,6 +220,16 @@ def main() -> int:
     ]
     print(f"  LINK {output.name}")
     subprocess.run(link_cmd, cwd=str(build_dir), check=True)
+    if args.runtime_dir:
+        print(f"  RUNTIME {args.runtime_dir}")
+        build_runtime(
+            Path(args.runtime_dir).resolve(),
+            build_dir,
+            src_dir,
+            Path(args.start_o).resolve(),
+            Path(args.dietlibc_a).resolve(),
+            dietlibc_include,
+        )
     print(f"TCC built: {output}")
     return 0
 

@@ -27,6 +27,14 @@ the tools that should catch the next instance.
 | `isapc` multi-boot prompt race | The ext2 mutation harness rebooted QEMU instances after only 0.5 seconds; the legacy `isapc` model could connect then close before the guest prompt was observed. | Use a 2-second QEMU reboot settle and a 40-second boot prompt window for the multi-boot ext2 mutation test. |
 | TCP serial prompt loss | QEMU TCP serial can miss the first prompt if the guest prints before the client is attached, especially in multi-boot harnesses. | Send a blank line to redraw, then treat the explicit ready-marker handshake as authoritative. |
 | Parallel CTest flakiness | Parallel QEMU tests reused shared disk artifacts and ports, causing locks and timing cross-talk. | Run full QEMU lane gates serially, or give every parallel test its own copied disk and port allocation. |
+| TCC absent from images | CMake had helper scripts but no real TCC/bmake build targets; disk builders only accepted optional placeholder paths. | Build TCC/bmake as lane targets and stage them as required guest binaries when enabled. |
+| TCC runtime not visible | The ext2 runtime mapper exposed only `/bin` and `/etc`, while TCC searches `/usr/include`, `/usr/lib`, and `/usr/lib/tcc`. | Expose `/usr` as a canonical ext2-backed prefix. |
+| ext2 file sizes inflated | The ext2 writer copied the low 32-bit file size into `i_dir_acl`; for regular files this is the high 32 bits of size. | Keep `i_dir_acl=0` for regular-file write/truncate paths. |
+| TCC executable refused | The ext2 executable loader capped files at 64 KiB, smaller than `/bin/tcc` and `/bin/bmake`. | Raise the loader buffer to 1 MiB. |
+| TCC allocator failure | dietlibc malloc uses mmap/mremap-backed blocks; the kernel had too few user mapping slots and no `mremap`. | Increase mapping slots and implement minimal moving `mremap` for `MREMAP_MAYMOVE`. |
+| TCC-linked binary outside user window | TCC defaults i386 executables to `0x08048000`, outside XINIM's segmented user window. | Compile in-guest programs with `-Wl,-Ttext=0x00400000`; keep this in the enhanced gate. |
+| TCC crt syscall mismatch | A first-pass tiny crt used Linux `exit=1`, but XINIM uses `SYS_exit=25`. | Generate a XINIM-native TCC `crt1.o` using syscall 25. |
+| i686 stricter shell harness hang | After fixing echoed-marker false positives, i686 reaches ATA/ext2 and supervised ring3 launch but does not produce a mksh prompt. TTY trace shows user-mode dispatch reaches mksh and the support service; QEMU shows no device or bootloader fault. Conservative i486 userland flags, no `ENV=/etc/mkshrc`, and disabled FXSAVE/FXRSTOR context switching did not clear it. | Keep this bucket open as an i686 kernel preemption/context RCA item; use `XINIM_X86_32_TTY_TRACE=ON`, QEMU `-d int,cpu_reset,guest_errors,unimp`, and user EIP symbolication against `mksh` before treating i686 CTest as green. |
 
 ## Fault Classes And Instruments
 
@@ -162,8 +170,17 @@ Use this order for a maximal but bounded RCA pass:
 
 ## Verification Snapshot
 
-On 2026-05-13, `bash scripts/x86_32_full_gate.sh` completed successfully in a
-`tmux` session on this host:
+Additional targeted checkpoint on 2026-05-13:
+
+- `ctest --test-dir build/i486/Debug -R '^i486_enhanced_test$'
+  --output-on-failure` passed after requiring `/bin/tcc`.
+- The enhanced gate now compiles and runs a C program inside XINIM using
+  `tcc -static -Wl,-Ttext=0x00400000`.
+- `qemu-img check` found no errors in the regenerated i486 dynamic VMDK and
+  qcow2 boot images.
+
+On 2026-05-13, a pre-TCC checkpoint of `bash scripts/x86_32_full_gate.sh`
+completed successfully in a `tmux` session on this host:
 
 - `i686`: 8/8 CTest integration tests passed.
 - `i586`: 8/8 CTest integration tests passed.
@@ -178,3 +195,12 @@ about 133 seconds on this machine, and `i486_isapc_ext2_mutation_test` can take
 about 191 seconds. Keep the CTest outer timeouts above those observed values so
 valid slow boots are not killed while the inner command timeouts still catch
 actual guest hangs.
+
+Later on 2026-05-13, the TCC/bmake image expansion and stricter command-marker
+harness changed the current checkpoint:
+
+- `i486_enhanced_test` passes with required in-guest TCC, including compile and
+  execution of a simple `/persist` program.
+- `qemu-img check` passes for generated i486 dynamic VMDK/qcow2 artifacts.
+- `i686_kshell_test` is not currently green under the stricter harness; it
+  reaches supervised ring3 launch and then times out before a mksh prompt.

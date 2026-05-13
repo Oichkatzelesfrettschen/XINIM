@@ -241,13 +241,34 @@ def recv_until_text(sock, needle, timeout=CMD_TIMEOUT):
     return data.decode("utf-8", errors="replace")
 
 
+def recv_until_marker_line(sock, marker, timeout=CMD_TIMEOUT):
+    data = b""
+    end_time = time.time() + timeout
+    marker_bytes = f"{marker}:".encode("utf-8")
+    while time.time() < end_time:
+        try:
+            sock.settimeout(min(0.5, timeout))
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+            offset = data.find(marker_bytes)
+            while offset != -1:
+                if offset == 0 or data[offset - 1] in b"\r\n":
+                    return data.decode("utf-8", errors="replace")
+                offset = data.find(marker_bytes, offset + 1)
+        except socket.timeout:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def send_command(sock, command):
     global command_counter
     command_counter += 1
     marker = f"{COMMAND_MARKER_PREFIX}{command_counter}__"
     wrapped = f"{command}; __xinim_status=$?; echo {marker}:${{__xinim_status}}"
     sock.sendall((wrapped + "\r").encode("utf-8"))
-    response = recv_until_text(sock, marker, timeout=CMD_TIMEOUT)
+    response = recv_until_marker_line(sock, marker, timeout=CMD_TIMEOUT)
     response += recv_until_prompt(sock, timeout=PROMPT_SETTLE_TIMEOUT)
     return response
 
@@ -267,6 +288,7 @@ def synchronize_shell(sock):
         sock.sendall(b"\r")
         prompt += recv_until_prompt(sock, timeout=CMD_TIMEOUT)
     initial = handshake_shell(sock)
+    prompt += recv_until_prompt(sock, timeout=PROMPT_SETTLE_TIMEOUT)
     return prompt, initial
 
 

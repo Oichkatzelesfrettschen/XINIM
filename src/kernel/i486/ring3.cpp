@@ -593,7 +593,6 @@ void set_service_state(SupervisedService* service,
            append_exec_string(envp, "PATH=/bin:/usr/bin") &&
            append_exec_string(envp, "HOME=/") &&
            append_exec_string(envp, "TERM=vt100") &&
-           append_exec_string(envp, "ENV=/etc/mkshrc") &&
            append_exec_string(envp, "PS1=$ ") &&
            append_exec_string(envp, service->env);
 }
@@ -1630,6 +1629,65 @@ void set_service_state(SupervisedService* service,
     mapping->address = 0U;
     mapping->size = 0U;
     return 0U;
+}
+
+[[nodiscard]] uint32_t sys_mremap(Process* process, RegisterFrame* frame) noexcept {
+    if (process == nullptr || frame == nullptr) {
+        return kErrnoInvalid;
+    }
+
+    const uint32_t old_address = align_down(frame->ebx, kPageSize);
+    const uint32_t old_size = align_up(frame->ecx, kPageSize);
+    const uint32_t new_size = align_up(frame->edx, kPageSize);
+    const uint32_t flags = frame->esi;
+    if (old_size == 0U || new_size == 0U || (flags & ~kMremapMayMove) != 0U) {
+        return kErrnoInvalid;
+    }
+
+    UserMapping* mapping = find_mapping(process, old_address, old_size);
+    if (mapping == nullptr) {
+        return kErrnoInvalid;
+    }
+
+    uint8_t* old_region = nullptr;
+    if (!translate_user_region(process, mapping->address, mapping->size, &old_region)) {
+        return kErrnoInvalid;
+    }
+
+    if (new_size <= old_size) {
+        if (new_size < old_size) {
+            zero_region(old_region + new_size, old_size - new_size);
+        }
+        mapping->size = new_size;
+        return old_address;
+    }
+
+    if ((flags & kMremapMayMove) == 0U) {
+        return kErrnoNoMem;
+    }
+
+    mapping->in_use = false;
+    const uint32_t new_address = allocate_mapping_base(process, new_size);
+    mapping->in_use = true;
+    if (new_address == 0U) {
+        return kErrnoNoMem;
+    }
+
+    uint8_t* new_region = nullptr;
+    if (!translate_user_region(process, new_address, new_size, &new_region)) {
+        return kErrnoNoMem;
+    }
+    copy_region(new_region, old_region, old_size);
+    zero_region(new_region + old_size, new_size - old_size);
+    const uint32_t old_end = old_address + old_size;
+    const uint32_t new_end = new_address + new_size;
+    const bool overlaps = new_address < old_end && old_address < new_end;
+    if (!overlaps) {
+        zero_region(old_region, old_size);
+    }
+    mapping->address = new_address;
+    mapping->size = new_size;
+    return new_address;
 }
 
 [[nodiscard]] uint32_t sys_mprotect_compat(Process* process, RegisterFrame* frame) noexcept {
@@ -2697,7 +2755,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     case SYS_getdents:
         return sys_getdents(process, frame);
     case SYS_mremap:
-        return kErrnoNoSys;
+        return sys_mremap(process, frame);
     // Phase 2 syscalls
     case SYS_setpgid:
         return sys_setpgid(process, frame);

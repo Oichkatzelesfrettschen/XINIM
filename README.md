@@ -45,7 +45,7 @@ scripts/test_i486_vbox.sh
 
 ```bash
 # QEMU with VGA window
-qemu-system-i386 -machine pc -cpu 486 -m 64M -boot c \
+qemu-system-i386 -machine pc -cpu 486 -m 256M -boot c \
   -drive file=build/i486/Debug/images/i486/xinim-i486-boot.vmdk,format=vmdk \
   -vga std -serial stdio
 ```
@@ -76,7 +76,8 @@ Unix commands.
 - **TCC 0.9.27** -- Tiny C Compiler (210KB, compiles C on-target)
 - **bmake** -- BSD make (201KB)
 - **dietlibc headers** at `/usr/include`
-- Self-compilation: write `.c` file, compile with `tcc`, run the binary
+- On-target compile/run smoke path:
+  `tcc -static -Wl,-Ttext=0x00400000 -o /persist/a.out /persist/a.c`
 
 ### Kernel Features
 - Per-process file descriptor table with refcounting

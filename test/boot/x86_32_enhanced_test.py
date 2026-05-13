@@ -8,6 +8,7 @@ Extends the shell test pattern: boots QEMU, connects to COM2, validates output.
 """
 
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -29,9 +30,9 @@ DEFAULT_CPU_BY_LANE = {
     "i686": "pentium3",
 }
 DEFAULT_MEMORY_BY_LANE = {
-    "i486": "32M",
-    "i586": "48M",
-    "i686": "64M",
+    "i486": "256M",
+    "i586": "256M",
+    "i686": "256M",
 }
 SHELL_PORT_BY_LANE = {
     "i486": 4566,
@@ -59,11 +60,12 @@ QEMU_CPU = os.environ.get("XINIM_QEMU_CPU", DEFAULT_CPU_BY_LANE.get(LANE_NAME, "
 QEMU_MEMORY = os.environ.get("XINIM_QEMU_MEMORY", DEFAULT_MEMORY_BY_LANE.get(LANE_NAME, "32M"))
 QEMU_VGA = os.environ.get("XINIM_QEMU_VGA", "std")
 QEMU_DISK_IMAGE = os.environ.get("XINIM_QEMU_DISK_IMAGE", "")
+REQUIRE_TCC = os.environ.get("XINIM_REQUIRE_TCC", "0").upper() in {"1", "ON", "TRUE", "YES"}
 SHELL_PORT = int(
     os.environ.get("XINIM_QEMU_SHELL_PORT", str(SHELL_PORT_BY_LANE.get(LANE_NAME, 4566)))
 )
 BOOT_TIMEOUT = int(os.environ.get("XINIM_QEMU_BOOT_TIMEOUT", "25"))
-CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "30"))
+CMD_TIMEOUT = int(os.environ.get("XINIM_QEMU_CMD_TIMEOUT", "90"))
 LOG_FILE = os.environ.get(
     "XINIM_QEMU_SHELL_LOG",
     os.path.join(XINIM_LOG_ROOT, f"{LANE_NAME}-enhanced.log"),
@@ -145,13 +147,34 @@ def recv_until_text(sock, needle, timeout=CMD_TIMEOUT):
     return data.decode("utf-8", errors="replace")
 
 
+def recv_until_marker_line(sock, marker, timeout=CMD_TIMEOUT):
+    data = b""
+    end_time = time.time() + timeout
+    marker_bytes = f"{marker}:".encode()
+    while time.time() < end_time:
+        try:
+            sock.settimeout(min(0.5, timeout))
+            chunk = sock.recv(4096)
+            if not chunk:
+                break
+            data += chunk
+            offset = data.find(marker_bytes)
+            while offset != -1:
+                if offset == 0 or data[offset - 1] in b"\r\n":
+                    return data.decode("utf-8", errors="replace")
+                offset = data.find(marker_bytes, offset + 1)
+        except socket.timeout:
+            continue
+    return data.decode("utf-8", errors="replace")
+
+
 def send_command(sock, command):
     global command_counter
     command_counter += 1
     marker = f"{COMMAND_MARKER_PREFIX}{command_counter}__"
     wrapped = f"{command}; __s=$?; echo {marker}:${{__s}}"
     sock.sendall((wrapped + "\r").encode())
-    response = recv_until_text(sock, marker, timeout=CMD_TIMEOUT)
+    response = recv_until_marker_line(sock, marker, timeout=CMD_TIMEOUT)
     response += recv_until_prompt(sock, timeout=0.5)
     return response
 
@@ -159,6 +182,29 @@ def send_command(sock, command):
 def check(name, response, expected):
     if expected not in response:
         print(f"FAIL: {name} -- expected {expected!r}")
+        print(f"  Got: {response!r}")
+        return False
+    print(f"PASS: {name}")
+    return True
+
+
+def check_absent(name, response, unexpected):
+    if unexpected in response:
+        print(f"FAIL: {name} -- unexpected {unexpected!r}")
+        print(f"  Got: {response!r}")
+        return False
+    print(f"PASS: {name}")
+    return True
+
+
+def check_status_zero(name, response):
+    match = re.search(r"__XINIM_ENH_\d+__:(\d+)", response)
+    if not match:
+        print(f"FAIL: {name} -- missing command status marker")
+        print(f"  Got: {response!r}")
+        return False
+    if match.group(1) != "0":
+        print(f"FAIL: {name} -- exit status {match.group(1)}")
         print(f"  Got: {response!r}")
         return False
     print(f"PASS: {name}")
@@ -198,6 +244,7 @@ def main():
         if READY_MARKER not in initial:
             print(f"FAIL: no ready marker")
             sys.exit(1)
+        recv_until_prompt(shell, timeout=1.0)
 
         results = []
 
@@ -229,12 +276,18 @@ def main():
         print("\n--- TCC compilation ---")
         tcc_probe = send_command(shell, "ls /bin/tcc 2>&1")
         if "inaccessible or not found" in tcc_probe or "No such" in tcc_probe:
-            print("SKIP: tcc not present in this image")
+            if REQUIRE_TCC:
+                print("FAIL: tcc is required but not present in this image")
+                results.append(False)
+            else:
+                print("SKIP: tcc not present in this image")
         else:
             send_command(shell, "rm -f /persist/enh_t /persist/enh_t.c")
             send_command(shell, "echo 'int main(){return 0;}' > /persist/enh_t.c")
-            r = send_command(shell, "tcc -o /persist/enh_t /persist/enh_t.c")
+            r = send_command(shell, "tcc -static -Wl,-Ttext=0x00400000 -o /persist/enh_t /persist/enh_t.c")
             results.append(check("tcc compile", r, "__XINIM_ENH_"))
+            results.append(check_status_zero("tcc compile status", r))
+            results.append(check_absent("tcc compile clean", r, "error:"))
             send_command(shell, "chmod 755 /persist/enh_t")
             results.append(check("tcc output", send_command(shell, "ls -l /persist/enh_t"), "-rwxr-xr-x"))
             r = send_command(shell, "/persist/enh_t; echo exit=$?")

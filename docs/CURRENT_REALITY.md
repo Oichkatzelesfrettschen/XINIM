@@ -1,6 +1,6 @@
 # Current Reality
 
-Date: 2026-03-17
+Date: 2026-05-13
 
 This file is the short checkpoint for what the repository actually does today.
 
@@ -20,13 +20,17 @@ infrastructure in place.
 - Vectored I/O: readv, writev
 - Real time: CMOS RTC + PIT ticks (time, gettimeofday, clock_gettime)
 - Per-process working directory with relative path resolution
-- 16 process slots, 64 MB QEMU RAM
+- 8 process slots, 4 MB user address space per process, 256 MB QEMU RAM
 - 32 fd table, 256-byte paths, 16 pipes at 4096 bytes
 - O_NONBLOCK enforcement on pipes (-EAGAIN/-EPIPE)
 - Proper errno returns throughout (ENOENT, EBADF, EFAULT, ECHILD, EINTR, etc.)
 - ANSI CSI escape sequence parsing (colors, cursor, clear screen)
 - Termios ioctls (TCGETS/TCSETS, TIOCGWINSZ, TIOCGPGRP)
 - ext2 timestamps (atime/ctime/mtime) on create and write
+- ext2-backed `/bin`, `/etc`, and `/usr` canonical paths, with `/persist`
+  mapped to the persistent root
+- Anonymous `mmap`, `munmap`, and minimal moving `mremap` for dietlibc/TCC
+  allocation paths
 - execve resets signal handlers, closes FD_CLOEXEC descriptors
 - Orphan reparenting to PID 1
 
@@ -60,6 +64,21 @@ awk
 **Test programs:**
 signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 
+### In-Guest Toolchain
+
+- `mksh` is the active interactive shell.
+- The supervised shell receives `PS1` directly and does not auto-source
+  `/etc/mkshrc` during the ring3 launch path.
+- TCC is built as `/bin/tcc` for the 32-bit guest image when
+  `XINIM_X86_32_BUILD_TCC=ON` (default).
+- TCC runtime files are staged under `/usr/lib` and `/usr/lib/tcc`.
+- The current TCC runtime is intentionally tiny: a XINIM-native `crt1.o`,
+  empty `crti.o`/`crtn.o`, a minimal `libc.a` shim, and `libtcc1.a`.
+- The verified compiler command uses XINIM's load base:
+  `tcc -static -Wl,-Ttext=0x00400000 -o /persist/a.out /persist/a.c`.
+- bmake is built as `/bin/bmake` when `XINIM_X86_32_BUILD_BMAKE=ON`
+  (default).
+
 ### Build System
 
 - 76 GRUB module2 entries for bootfs
@@ -67,6 +86,11 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 - ext2 ATA disk with /etc/profile, /etc/mkshrc
 - mksh rebuilt with HAVE_SELECT, HAVE_GETSID, HAVE_FTRUNCATE, HAVE_SIG_T,
   HAVE_FLOCK enabled
+- Dynamic VMDK and qcow2 boot disks stage `/bin/tcc`, `/bin/bmake`,
+  `/usr/include`, and the TCC runtime.
+- The i686 kernel remains CMOV-capable (`pentium3`), while the guest userland
+  runtime is built with conservative i486 code generation pending i686 ring3
+  preemption/context RCA.
 
 ## x86_64 Lane
 
@@ -89,7 +113,8 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 
 - lwIP TCP/IP stack integration (pending)
 - Socket syscalls beyond -ENOSYS stubs (pending)
-- TCC compiler running inside XINIM (pending)
+- Full dietlibc static linking from TCC; current verified TCC runtime is a
+  small XINIM-native shim for simple C programs.
 - pkgsrc bootstrap (pending)
 - Full POSIX compliance (partial -- core subset working)
 
@@ -100,5 +125,6 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 - The 32-bit lane uses GRUB plus Multiboot2.
 - The x86_64 lane uses Limine.
 - `mksh` is the active i486 guest shell baseline.
-- `dietlibc` is the i486 userland C library (vendored, retargeted).
+- `dietlibc` is the i486 userland C library (vendored, retargeted) for the
+  normal utilities; TCC currently uses its own small runtime shim.
 - ring3.cpp is the monolithic Ring 3 supervisor (~4040 lines).

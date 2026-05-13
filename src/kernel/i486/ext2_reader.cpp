@@ -36,7 +36,7 @@ constexpr uint32_t kMaxDirectoryEntryName = 64U;
 constexpr uint32_t kMaxPreviewBytes = 48U;
 constexpr uint32_t kMaxPersistPath = 64U;
 constexpr uint32_t kExt2DirectBlocks = 12U;
-constexpr uint32_t kMaxExecutableBytes = 65536U;
+constexpr uint32_t kMaxExecutableBytes = 1024U * 1024U;
 constexpr uint32_t kSingleIndirectIndex = 12U;
 constexpr uint32_t kExt2RootPerms = 0755U;
 constexpr uint16_t kExt2FtUnknown = 0U;
@@ -654,6 +654,7 @@ bool map_runtime_path(const char* path, char* ext2_path, uint32_t capacity) noex
     static constexpr const char* kCanonicalPrefixes[] = {
         "/bin",
         "/etc",
+        "/usr",
     };
     for (const char* prefix : kCanonicalPrefixes) {
         const uint32_t prefix_length = string_length(prefix);
@@ -2216,7 +2217,7 @@ bool truncate_runtime_file(const char* path, uint32_t size) noexcept {
     }
 
     inode.size = size;
-    inode.dir_acl = size;
+    inode.dir_acl = 0U;
     g_executable_valid = false;
     return write_inode(inode_number, inode);
 }
@@ -2342,7 +2343,7 @@ int write_runtime_file(const char* path,
     const uint32_t end_offset = offset + bytes_written;
     if (end_offset > inode.size) {
         inode.size = end_offset;
-        inode.dir_acl = end_offset;
+        inode.dir_acl = 0U;
     }
     inode.mtime = now_timestamp();
     if (!write_inode(inode_number, inode)) {

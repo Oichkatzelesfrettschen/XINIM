@@ -64,6 +64,28 @@ def install_guest_binaries(root_dir: str, guest_bins: Iterable[str],
         os.chmod(destination, 0o755)
 
 
+def install_tcc_runtime(root_dir: str, runtime_dir: str | None) -> None:
+    if not runtime_dir:
+        return
+    if not os.path.isdir(runtime_dir):
+        raise SystemExit(f"TCC runtime directory not found: {runtime_dir}")
+
+    usr_lib = os.path.join(root_dir, "usr", "lib")
+    tcc_lib = os.path.join(usr_lib, "tcc")
+    os.makedirs(tcc_lib, exist_ok=True)
+
+    for name in ("crt1.o", "crti.o", "crtn.o", "libc.a"):
+        source = os.path.join(runtime_dir, name)
+        if not os.path.isfile(source):
+            raise SystemExit(f"TCC runtime file not found: {source}")
+        shutil.copy2(source, os.path.join(usr_lib, name))
+
+    libtcc1 = os.path.join(runtime_dir, "tcc", "libtcc1.a")
+    if not os.path.isfile(libtcc1):
+        raise SystemExit(f"TCC runtime file not found: {libtcc1}")
+    shutil.copy2(libtcc1, os.path.join(tcc_lib, "libtcc1.a"))
+
+
 def populate_root_tree(
     root_dir: str,
     kernel_path: str,
@@ -71,6 +93,7 @@ def populate_root_tree(
     holdsvc_path: str | None,
     motd_path: str | None,
     include_dir: str | None,
+    tcc_runtime_dir: str | None,
     guest_bins: Iterable[str],
     optional_bins: Iterable[str] = (),
 ) -> None:
@@ -135,6 +158,7 @@ def populate_root_tree(
         usr_include = os.path.join(root_dir, "usr", "include")
         shutil.copytree(include_dir, usr_include, dirs_exist_ok=True)
 
+    install_tcc_runtime(root_dir, tcc_runtime_dir)
     install_guest_binaries(root_dir, guest_bins)
     install_guest_binaries(root_dir, optional_bins, optional=True)
 
@@ -328,6 +352,8 @@ def main() -> int:
     parser.add_argument("--motd", default="", help="Path to /etc/motd")
     parser.add_argument("--include-dir", default="",
                         help="Path to C header directory to install at /usr/include")
+    parser.add_argument("--tcc-runtime-dir", default="",
+                        help="Path to staged TCC runtime files to install under /usr/lib")
     parser.add_argument("--grub-platform-dir", default="",
                         help="Path to GRUB i386-pc platform directory")
     parser.add_argument("--guest-bin", action="append", default=[],
@@ -374,6 +400,7 @@ def main() -> int:
             args.holdsvc if args.holdsvc else None,
             args.motd if args.motd else None,
             args.include_dir if args.include_dir else None,
+            args.tcc_runtime_dir if args.tcc_runtime_dir else None,
             args.guest_bin,
             args.optional_bin,
         )

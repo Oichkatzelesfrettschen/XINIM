@@ -30,8 +30,17 @@ endif()
 option(XINIM_X86_32_TTY_TRACE
     "Emit serial trace markers for 32-bit TTY/input scheduling diagnostics"
     OFF)
+option(XINIM_X86_32_BUILD_TCC
+    "Build and stage TinyCC for in-guest 32-bit compiler validation"
+    ON)
+option(XINIM_X86_32_BUILD_BMAKE
+    "Build and stage bmake for in-guest 32-bit package-build validation"
+    ON)
 option(XINIM_I686_APIC_TIMER
     "Use the experimental local APIC timer for i686 32-bit lanes instead of legacy PIC/PIT"
+    OFF)
+option(XINIM_I686_FPU_CONTEXT_SWITCH
+    "Use experimental FXSAVE/FXRSTOR context switching in i686 32-bit lanes"
     OFF)
 
 list(APPEND CMAKE_MODULE_PATH ${CMAKE_SOURCE_DIR}/cmake)
@@ -931,6 +940,9 @@ function(xinim_add_x86_32_lane lane)
     if(XINIM_I686_APIC_TIMER)
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_I686_APIC_TIMER=1)
     endif()
+    if(XINIM_I686_FPU_CONTEXT_SWITCH)
+        target_compile_definitions(${_kernel_target} PRIVATE XINIM_I686_FPU_CONTEXT_SWITCH=1)
+    endif()
     if(XINIM_EFFECTIVE_VFS_PROFILE STREQUAL "tiny")
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_VFS_PROFILE_TINY=1)
     endif()
@@ -978,6 +990,7 @@ function(xinim_add_x86_32_lane lane)
     set(_mksh_source_dir "${CMAKE_SOURCE_DIR}/.scratch/mksh")
     set(_mksh_build_dir "${CMAKE_CURRENT_BINARY_DIR}/mksh-${lane}")
     set(_mksh_binary "${_mksh_build_dir}/mksh")
+    set(_mksh_arch_flags "-march=i486 -mtune=i486 -mno-mmx -mno-sse")
     set(_dietlibc_source_dir "${CMAKE_SOURCE_DIR}/libc/dietlibc-xinim")
     set(_dietlibc_build_dir "${CMAKE_CURRENT_BINARY_DIR}/dietlibc-${lane}")
     set(_dietlibc_tree_dir "${_dietlibc_build_dir}/tree")
@@ -990,7 +1003,7 @@ function(xinim_add_x86_32_lane lane)
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
             --source-dir "${_mksh_source_dir}"
             --build-dir "${_mksh_build_dir}"
-            --cc "gcc -m32 ${_util_arch_flags}"
+            --cc "gcc -m32 ${_mksh_arch_flags}"
             --start-o "${_dietlibc_start}"
             --dietlibc-a "${_dietlibc_archive}"
             --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
@@ -1032,6 +1045,64 @@ function(xinim_add_x86_32_lane lane)
         VERBATIM
     )
     add_custom_target(${_dietlibc_target} ALL DEPENDS "${_dietlibc_archive}" "${_dietlibc_start}")
+
+    set(_guest_tool_targets "")
+    set(_guest_tool_bins "")
+    set(_guest_tcc_runtime_args "")
+
+    if(XINIM_X86_32_BUILD_TCC)
+        set(_tcc_target "tcc_${lane}")
+        set(_tcc_binary "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}")
+        set(_tcc_build_dir "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}-build")
+        set(_tcc_runtime_dir "${CMAKE_CURRENT_BINARY_DIR}/tcc-runtime-${lane}")
+        set(_tcc_runtime_marker "${_tcc_runtime_dir}/.xinim-tcc-runtime-ready")
+        add_custom_command(
+            OUTPUT "${_tcc_binary}" "${_tcc_runtime_marker}"
+            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_tcc.py
+                --source-dir "${CMAKE_SOURCE_DIR}/.scratch/tcc"
+                --build-dir "${_tcc_build_dir}"
+                --start-o "${_dietlibc_start}"
+                --dietlibc-a "${_dietlibc_archive}"
+                --runtime-dir "${_tcc_runtime_dir}"
+                --output "${_tcc_binary}"
+            DEPENDS
+                ${_dietlibc_target}
+                "${CMAKE_SOURCE_DIR}/scripts/build_i486_tcc.py"
+                "${CMAKE_SOURCE_DIR}/.scratch/tcc/xinim_stubs.c"
+                "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+            COMMENT "Building in-guest TinyCC compiler for ${lane}"
+            VERBATIM
+        )
+        add_custom_target(${_tcc_target} ALL DEPENDS "${_tcc_binary}" "${_tcc_runtime_marker}")
+        list(APPEND _guest_tool_targets ${_tcc_target})
+        list(APPEND _guest_tool_bins --guest-bin "${_tcc_binary}:/bin/tcc")
+        list(APPEND _guest_tcc_runtime_args --tcc-runtime-dir "${_tcc_runtime_dir}")
+    endif()
+
+    if(XINIM_X86_32_BUILD_BMAKE)
+        set(_bmake_target "bmake_${lane}")
+        set(_bmake_binary "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}")
+        set(_bmake_build_dir "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}-build")
+        add_custom_command(
+            OUTPUT "${_bmake_binary}"
+            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_bmake.py
+                --source-dir "${CMAKE_SOURCE_DIR}/.scratch/bmake"
+                --build-dir "${_bmake_build_dir}"
+                --start-o "${_dietlibc_start}"
+                --dietlibc-a "${_dietlibc_archive}"
+                --output "${_bmake_binary}"
+            DEPENDS
+                ${_dietlibc_target}
+                "${CMAKE_SOURCE_DIR}/scripts/build_i486_bmake.py"
+                "${CMAKE_SOURCE_DIR}/.scratch/bmake/xinim_compat.h"
+                "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+            COMMENT "Building in-guest bmake for ${lane}"
+            VERBATIM
+        )
+        add_custom_target(${_bmake_target} ALL DEPENDS "${_bmake_binary}")
+        list(APPEND _guest_tool_targets ${_bmake_target})
+        list(APPEND _guest_tool_bins --guest-bin "${_bmake_binary}:/bin/bmake")
+    endif()
 
     add_custom_command(
         OUTPUT "${_diethello_binary}"
@@ -1205,6 +1276,9 @@ function(xinim_add_x86_32_lane lane)
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/create_i486_ata_disk.py
             --output "${_ata_disk_image}"
             --size-mb 16
+            --include-dir "${_dietlibc_tree_dir}/include"
+            ${_guest_tcc_runtime_args}
+            ${_guest_tool_bins}
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/persist-hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
@@ -1314,6 +1388,7 @@ function(xinim_add_x86_32_lane lane)
             ${_seekpatch_target}
             ${_gapcheck_target}
             ${_posix_util_targets}
+            ${_guest_tool_targets}
         COMMENT "Generating reproducible ATA disk image for ${lane}"
         VERBATIM
     )
@@ -1329,6 +1404,8 @@ function(xinim_add_x86_32_lane lane)
             --holdsvc "$<TARGET_FILE:${_holdsvc_target}>"
             --motd "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
             --include-dir "${_dietlibc_tree_dir}/include"
+            ${_guest_tcc_runtime_args}
+            ${_guest_tool_bins}
             --guest-bin "${_cat_binary}:/bin/cat"
             --guest-bin "${_echo_binary}:/bin/echo"
             --guest-bin "${_true_binary}:/bin/true"
@@ -1414,8 +1491,6 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_holecheck_target}>:/bin/holecheck"
             --guest-bin "$<TARGET_FILE:${_seekpatch_target}>:/bin/seekpatch"
             --guest-bin "$<TARGET_FILE:${_gapcheck_target}>:/bin/gapcheck"
-            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
-            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}:/bin/bmake"
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py
             --output "${_boot_disk_qcow2_image}"
             --format qcow2
@@ -1425,6 +1500,8 @@ function(xinim_add_x86_32_lane lane)
             --holdsvc "$<TARGET_FILE:${_holdsvc_target}>"
             --motd "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
             --include-dir "${_dietlibc_tree_dir}/include"
+            ${_guest_tcc_runtime_args}
+            ${_guest_tool_bins}
             --guest-bin "${_cat_binary}:/bin/cat"
             --guest-bin "${_echo_binary}:/bin/echo"
             --guest-bin "${_true_binary}:/bin/true"
@@ -1510,8 +1587,6 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_holecheck_target}>:/bin/holecheck"
             --guest-bin "$<TARGET_FILE:${_seekpatch_target}>:/bin/seekpatch"
             --guest-bin "$<TARGET_FILE:${_gapcheck_target}>:/bin/gapcheck"
-            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}:/bin/tcc"
-            --optional-bin "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}:/bin/bmake"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
             ${_kernel_target}
@@ -1531,6 +1606,7 @@ function(xinim_add_x86_32_lane lane)
             ${_seekpatch_target}
             ${_gapcheck_target}
             ${_posix_util_targets}
+            ${_guest_tool_targets}
         COMMENT "Generating dynamic VMDK and qcow2 boot disks for ${lane}"
         VERBATIM
     )
@@ -1812,10 +1888,13 @@ function(xinim_add_x86_32_lane lane)
         "XINIM_QEMU_DISK_IMAGE=${_ata_disk_image}"
         "XINIM_QEMU_SMOKE_LOG=${_boot_log}"
         "XINIM_QEMU_SHELL_LOG=${_shell_log}"
-        "XINIM_QEMU_CMD_TIMEOUT=30"
+        "XINIM_QEMU_CMD_TIMEOUT=90"
         "XINIM_QEMU_PROMPT_SETTLE_TIMEOUT=1.5"
         "XINIM_QEMU_REBOOT_SETTLE_SECONDS=2.0"
     )
+    if(XINIM_X86_32_BUILD_TCC)
+        list(APPEND _lane_env "XINIM_REQUIRE_TCC=1")
+    endif()
 
     if(TARGET ${_image_target})
         add_test(
@@ -1890,7 +1969,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 240
+            TIMEOUT 420
         )
 
         add_test(
@@ -1903,7 +1982,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 180
+            TIMEOUT 420
         )
 
         add_test(
@@ -1916,7 +1995,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 240
+            TIMEOUT 420
         )
 
         add_test(
@@ -1929,7 +2008,7 @@ function(xinim_add_x86_32_lane lane)
             ENVIRONMENT "${_lane_env}"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
-            TIMEOUT 180
+            TIMEOUT 420
         )
 
         if(lane STREQUAL "i486")
@@ -1966,7 +2045,7 @@ function(xinim_add_x86_32_lane lane)
                 ENVIRONMENT "${_isapc_env}"
                 FIXTURES_REQUIRED ${lane}_image
                 SKIP_RETURN_CODE 77
-                TIMEOUT 240
+                TIMEOUT 420
             )
 
             add_test(
@@ -1979,7 +2058,7 @@ function(xinim_add_x86_32_lane lane)
                 ENVIRONMENT "${_isapc_env}"
                 FIXTURES_REQUIRED ${lane}_image
                 SKIP_RETURN_CODE 77
-                TIMEOUT 180
+                TIMEOUT 420
             )
 
             add_test(
@@ -1992,7 +2071,7 @@ function(xinim_add_x86_32_lane lane)
                 ENVIRONMENT "${_isapc_env}"
                 FIXTURES_REQUIRED ${lane}_image
                 SKIP_RETURN_CODE 77
-                TIMEOUT 240
+                TIMEOUT 420
             )
         endif()
 

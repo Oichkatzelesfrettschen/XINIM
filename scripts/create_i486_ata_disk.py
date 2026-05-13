@@ -54,7 +54,37 @@ def install_guest_binaries(root_dir: str, guest_bins: Iterable[str]) -> None:
         os.chmod(destination, 0o755)
 
 
-def populate_root_tree(root_dir: str, guest_bins: Iterable[str]) -> None:
+def install_include_tree(root_dir: str, include_dir: str | None) -> None:
+    if include_dir and os.path.isdir(include_dir):
+        usr_include = os.path.join(root_dir, "usr", "include")
+        shutil.copytree(include_dir, usr_include, dirs_exist_ok=True)
+
+
+def install_tcc_runtime(root_dir: str, runtime_dir: str | None) -> None:
+    if not runtime_dir:
+        return
+    if not os.path.isdir(runtime_dir):
+        raise SystemExit(f"TCC runtime directory not found: {runtime_dir}")
+
+    usr_lib = os.path.join(root_dir, "usr", "lib")
+    tcc_lib = os.path.join(usr_lib, "tcc")
+    os.makedirs(tcc_lib, exist_ok=True)
+
+    for name in ("crt1.o", "crti.o", "crtn.o", "libc.a"):
+        source = os.path.join(runtime_dir, name)
+        if not os.path.isfile(source):
+            raise SystemExit(f"TCC runtime file not found: {source}")
+        shutil.copy2(source, os.path.join(usr_lib, name))
+
+    libtcc1 = os.path.join(runtime_dir, "tcc", "libtcc1.a")
+    if not os.path.isfile(libtcc1):
+        raise SystemExit(f"TCC runtime file not found: {libtcc1}")
+    shutil.copy2(libtcc1, os.path.join(tcc_lib, "libtcc1.a"))
+
+
+def populate_root_tree(root_dir: str, guest_bins: Iterable[str],
+                       include_dir: str | None,
+                       tcc_runtime_dir: str | None) -> None:
     etc_dir = os.path.join(root_dir, "etc")
     bin_dir = os.path.join(root_dir, "bin")
     var_dir = os.path.join(root_dir, "var")
@@ -89,12 +119,16 @@ def populate_root_tree(root_dir: str, guest_bins: Iterable[str]) -> None:
     with open(os.path.join(var_dir, "disk-marker"), "w", encoding="utf-8") as handle:
         handle.write("ata-ext2-ready\n")
 
+    install_include_tree(root_dir, include_dir)
+    install_tcc_runtime(root_dir, tcc_runtime_dir)
     install_guest_binaries(root_dir, guest_bins)
 
 
 def format_ext2_partition(output_path: str,
                           partition_sector_count: int,
-                          guest_bins: Iterable[str]) -> None:
+                          guest_bins: Iterable[str],
+                          include_dir: str | None,
+                          tcc_runtime_dir: str | None) -> None:
     mke2fs = shutil.which("mke2fs")
     if mke2fs is None:
         raise SystemExit("mke2fs is required to build the i486 ATA ext2 image")
@@ -103,7 +137,7 @@ def format_ext2_partition(output_path: str,
     ext2_block_count = partition_sector_count // (EXT2_BLOCK_SIZE // SECTOR_SIZE)
 
     with tempfile.TemporaryDirectory(prefix="xinim-i486-root-") as root_dir:
-        populate_root_tree(root_dir, guest_bins)
+        populate_root_tree(root_dir, guest_bins, include_dir, tcc_runtime_dir)
         subprocess.run(
             [
                 mke2fs,
@@ -136,6 +170,10 @@ def main() -> int:
         default=[],
         help="Guest binary copy spec SOURCE:TARGET_PATH",
     )
+    parser.add_argument("--include-dir", default="",
+                        help="Path to C header directory to install at /usr/include")
+    parser.add_argument("--tcc-runtime-dir", default="",
+                        help="Path to staged TCC runtime files to install under /usr/lib")
     args = parser.parse_args()
 
     if args.size_mb < 4:
@@ -154,7 +192,13 @@ def main() -> int:
         handle.seek(0)
         handle.write(build_mbr(total_sectors))
 
-    format_ext2_partition(args.output, partition_sector_count, args.guest_bin)
+    format_ext2_partition(
+        args.output,
+        partition_sector_count,
+        args.guest_bin,
+        args.include_dir if args.include_dir else None,
+        args.tcc_runtime_dir if args.tcc_runtime_dir else None,
+    )
 
     return 0
 

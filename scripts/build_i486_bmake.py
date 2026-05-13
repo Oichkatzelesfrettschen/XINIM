@@ -93,9 +93,11 @@ def main() -> int:
         f"-I{dietlibc_include}",
         "-DHAVE_CONFIG_H",
         f"-DBMAKE_PATH_MAX=256",
+        "-DHAVE_STRTOL=1",
+        "-DHAVE_STRTOUL=1",
         f"-include{src_dir}/xinim_compat.h",
-        "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector",
-        "-w",
+        "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector", "-fno-builtin",
+        "-Werror",
     ]
 
     object_files = []

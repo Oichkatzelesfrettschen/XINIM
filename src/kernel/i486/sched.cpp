@@ -8,7 +8,7 @@
 #include "tcp.hpp"
 #include "tty.hpp"
 
-#ifdef XINIM_ARCH_I686
+#if defined(XINIM_ARCH_I686) && defined(XINIM_I686_FPU_CONTEXT_SWITCH)
 #include "../i686/sse.hpp"
 #endif
 
@@ -117,6 +117,17 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     if (process == nullptr) {
         resume_rescue_shell("no runnable i486 process");
     }
+#ifdef XINIM_X86_32_TTY_TRACE
+    console::write_string("tty trace: dispatch pid=");
+    console::write_dec32(process->pid);
+    console::write_string(" eip=");
+    console::write_hex32(process->context.eip);
+    console::write_string(" esp=");
+    console::write_hex32(process->context.esp);
+    console::write_string(" state=");
+    console::write_dec32(static_cast<uint32_t>(process->state));
+    console::newline();
+#endif
     SupervisedService* service = find_supervised_service_by_process(process);
     if (service != nullptr && !service->run_announced) {
         service->run_announced = true;
@@ -145,9 +156,19 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     if (process->ticks_remaining == 0U) {
         process->ticks_remaining = effective_quantum(process);
     }
-#ifdef XINIM_ARCH_I686
+#if defined(XINIM_ARCH_I686) && defined(XINIM_I686_FPU_CONTEXT_SWITCH)
     // Restore this process's FPU/SSE state before returning to user space.
+#ifdef XINIM_X86_32_TTY_TRACE
+    console::write_string("tty trace: i686 fxrstor pid=");
+    console::write_dec32(process->pid);
+    console::newline();
+#endif
     xinim::i686::sse::fpu_restore_context(process->fxsave_buf);
+#endif
+#ifdef XINIM_X86_32_TTY_TRACE
+    console::write_string("tty trace: resume user pid=");
+    console::write_dec32(process->pid);
+    console::newline();
 #endif
     i486_resume_user_context(&process->context);
     for (;;) {
@@ -193,13 +214,25 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     Process* current = g_current_process;
     if (current != nullptr && current->in_use) {
         current->context = capture_user_context(frame);
-#ifdef XINIM_ARCH_I686
+#if defined(XINIM_ARCH_I686) && defined(XINIM_I686_FPU_CONTEXT_SWITCH)
         // Save FPU/SSE state before this process is preempted.
         xinim::i686::sse::fpu_save_context(current->fxsave_buf);
 #endif
     }
 
     ++g_scheduler_ticks;
+
+#ifdef XINIM_X86_32_TTY_TRACE
+    if (g_scheduler_ticks <= 8U) {
+        console::write_string("tty trace: timer tick=");
+        console::write_dec32(static_cast<uint32_t>(g_scheduler_ticks));
+        if (current != nullptr) {
+            console::write_string(" pid=");
+            console::write_dec32(current->pid);
+        }
+        console::newline();
+    }
+#endif
 
     console::tty_poll_input();
 
