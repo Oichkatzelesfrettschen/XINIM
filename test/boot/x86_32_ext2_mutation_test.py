@@ -176,7 +176,8 @@ def recv_until_marker_line(sock, marker, timeout=CMD_TIMEOUT):
             data += chunk
             offset = data.find(marker_bytes)
             while offset != -1:
-                if offset == 0 or data[offset - 1] in b"\r\n":
+                status_offset = offset + len(marker_bytes)
+                if status_offset < len(data) and data[status_offset] in b"0123456789":
                     return data.decode("utf-8", errors="replace")
                 offset = data.find(marker_bytes, offset + 1)
         except socket.timeout:

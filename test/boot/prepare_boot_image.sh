@@ -23,6 +23,9 @@ case "${TARGET_NAME}" in
         fi
         ;;
     xinim_*_image)
+        if [ -n "${XINIM_QEMU_DISK_IMAGE:-}" ] && [ -f "${XINIM_QEMU_DISK_IMAGE}" ]; then
+            rm -f "${XINIM_QEMU_DISK_IMAGE}"
+        fi
         :
         ;;
     *)
