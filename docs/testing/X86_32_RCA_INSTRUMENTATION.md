@@ -34,7 +34,29 @@ the tools that should catch the next instance.
 | TCC allocator failure | dietlibc malloc uses mmap/mremap-backed blocks; the kernel had too few user mapping slots and no `mremap`. | Increase mapping slots and implement minimal moving `mremap` for `MREMAP_MAYMOVE`. |
 | TCC-linked binary outside user window | TCC defaults i386 executables to `0x08048000`, outside XINIM's segmented user window. | Compile in-guest programs with `-Wl,-Ttext=0x00400000`; keep this in the enhanced gate. |
 | TCC crt syscall mismatch | A first-pass tiny crt used Linux `exit=1`, but XINIM uses `SYS_exit=25`. | Generate a XINIM-native TCC `crt1.o` using syscall 25. |
-| i686 stricter shell harness hang | After fixing echoed-marker false positives, i686 reaches ATA/ext2 and supervised ring3 launch but does not produce a mksh prompt. TTY trace shows user-mode dispatch reaches mksh and the support service; QEMU shows no device or bootloader fault. Conservative i486 userland flags, no `ENV=/etc/mkshrc`, and disabled FXSAVE/FXRSTOR context switching did not clear it. | Keep this bucket open as an i686 kernel preemption/context RCA item; use `XINIM_X86_32_TTY_TRACE=ON`, QEMU `-d int,cpu_reset,guest_errors,unimp`, and user EIP symbolication against `mksh` before treating i686 CTest as green. |
+| i686 stricter shell harness hang | mksh reached controlling-TTY setup and called `fcntl(fd, F_DUPFD, FDBASE)`, but the ring3 fd table had been corrupted to map high descriptors to stdin. The corruption came from the 8 KiB per-process kernel stack growing downward into `context/mappings/fd_flags/fd_map` during syscall-heavy mksh startup. | Raise the ring3 kernel stack to 32 KiB, reset service fd maps to the canonical 0/1/2 console set before launch, and implement `F_DUPFD`/`F_DUPFD_CLOEXEC` allocation at or above the requested descriptor. |
+
+## Modern TTY Patterns Borrowed Cleanly
+
+The 2026-05-13 TTY/fd RCA used permissive references for behavior, not copied
+implementation:
+
+- SerenityOS (`BSD-2-Clause`) keeps init process stdio as three descriptors
+  backed by the selected TTY and implements `F_DUPFD` by allocating at the
+  caller-provided minimum descriptor.
+- FreeBSD's current tty line discipline (`BSD-2-Clause`) separates canonical
+  input availability, EOF/newline break handling, and output post-processing
+  from low-level device emission.
+
+The XINIM translation is C++-local and smaller:
+
+- `reset_fd_map_to_console()` normalizes launched services to descriptors
+  0, 1, and 2 only, matching the expected Unix process contract.
+- `allocate_fd_map_entry_at_or_above()` gives `fcntl(F_DUPFD, min)` the
+  descriptor-floor semantics that mksh expects for `FDBASE`.
+- The line-discipline queues stay in `tty.cpp`; COM1/COM2 device emission stays
+  under `console.cpp`; fd ownership remains in `bootfs.cpp` and per-process
+  `fd_map`.
 
 ## Fault Classes And Instruments
 

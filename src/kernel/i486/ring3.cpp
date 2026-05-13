@@ -665,6 +665,7 @@ void set_service_state(SupervisedService* service,
         return false;
     }
 
+    reset_fd_map_to_console(process);
     process->state = ProcessState::Runnable;
     process->exit_status = 0U;
     process->saved_kernel_esp = 0U;
@@ -794,6 +795,16 @@ void set_service_state(SupervisedService* service,
     if (process == nullptr) {
         resume_rescue_shell(fallback_reason);
     }
+
+#ifdef XINIM_X86_32_TTY_TRACE
+    console::write_string("tty trace: exit pid=");
+    console::write_dec32(process->pid);
+    console::write_string(" status=");
+    console::write_dec32(exit_status);
+    console::write_string(" crashed=");
+    console::write_dec32(crashed ? 1U : 0U);
+    console::newline();
+#endif
 
     process->exit_status = exit_status;
     process->state = ProcessState::Exited;
@@ -987,6 +998,33 @@ void set_service_state(SupervisedService* service,
         return kErrnoFault;
     }
 
+#ifdef XINIM_X86_32_TTY_TRACE
+    static uint32_t g_write_trace_budget = 24U;
+    if (bootfs::is_console_fd(fd) && g_write_trace_budget != 0U) {
+        --g_write_trace_budget;
+        console::write_string("tty trace: write pid=");
+        console::write_dec32(process->pid);
+        console::write_string(" userfd=");
+        console::write_dec32(static_cast<uint32_t>(user_fd >= 0 ? user_fd : 0));
+        console::write_string(" count=");
+        console::write_dec32(count);
+        console::write_string(" text=\"");
+        const uint32_t preview_count = count < 96U ? count : 96U;
+        for (uint32_t index = 0U; index < preview_count; ++index) {
+            const char ch = static_cast<char>(buffer[index]);
+            if (ch == '\n' || ch == '\r') {
+                console::write_string("\\n");
+            } else if (ch >= ' ' && ch <= '~') {
+                console::write_char(ch);
+            } else {
+                console::write_char('.');
+            }
+        }
+        console::write_string("\"");
+        console::newline();
+    }
+#endif
+
     for (;;) {
         const int result = bootfs::write(fd, buffer, count);
         if (result == bootfs::kWriteWouldBlock) {
@@ -1073,6 +1111,23 @@ void set_service_state(SupervisedService* service,
         return kErrnoFault;
     }
     const int global_slot = bootfs::open(path, frame->ecx, frame->edx);
+#ifdef XINIM_X86_32_TTY_TRACE
+    static uint32_t g_open_trace_budget = 48U;
+    if (g_open_trace_budget != 0U) {
+        --g_open_trace_budget;
+        console::write_string("tty trace: open path=");
+        console::write_string(path);
+        console::write_string(" flags=");
+        console::write_hex32(frame->ecx);
+        console::write_string(" global=");
+        console::write_dec32(global_slot >= 0 ? static_cast<uint32_t>(global_slot)
+                                              : static_cast<uint32_t>(-global_slot));
+        if (global_slot < 0) {
+            console::write_string(" neg=yes");
+        }
+        console::newline();
+    }
+#endif
     if (global_slot < 0) {
         return static_cast<uint32_t>(global_slot);
     }
@@ -1144,35 +1199,92 @@ void set_service_state(SupervisedService* service,
         return kErrnoBadF;
     }
     switch (static_cast<int>(frame->ecx)) {
-    case 0: {
-        // F_DUPFD: dup to lowest available fd >= arg
+    case kFcntlDupFd:
+    case kFcntlDupFdCloexec: {
+        const int minimum_fd = static_cast<int>(frame->edx);
+        if (minimum_fd < 0 || minimum_fd >= kMaxFds) {
+#ifdef XINIM_X86_32_TTY_TRACE
+            console::write_string("tty trace: fcntl-dup-fail reason=min pid=");
+            console::write_dec32(process->pid);
+            console::write_string(" min=");
+            console::write_dec32(static_cast<uint32_t>(minimum_fd));
+            console::newline();
+#endif
+            return kErrnoInvalid;
+        }
         if (!bootfs::is_open(fd)) {
+#ifdef XINIM_X86_32_TTY_TRACE
+            console::write_string("tty trace: fcntl-dup-fail reason=closed pid=");
+            console::write_dec32(process->pid);
+            console::write_string(" userfd=");
+            console::write_dec32(static_cast<uint32_t>(user_fd));
+            console::write_string(" fd=");
+            console::write_dec32(fd >= 0 ? static_cast<uint32_t>(fd) : 0U);
+            console::newline();
+#endif
             return kErrnoBadF;
         }
-        const int new_local = allocate_fd_map_entry(process, fd);
+        const int new_local = allocate_fd_map_entry_at_or_above(process, fd, minimum_fd);
         if (new_local < 0) {
+#ifdef XINIM_X86_32_TTY_TRACE
+            console::write_string("tty trace: fcntl-dup-fail reason=full pid=");
+            console::write_dec32(process->pid);
+            console::write_string(" min=");
+            console::write_dec32(static_cast<uint32_t>(minimum_fd));
+            console::write_string(" slots=");
+            for (int slot = 8; slot < 16; ++slot) {
+                console::write_dec32(static_cast<uint32_t>(slot));
+                console::write_char(':');
+                const int mapped = process->fd_map[slot];
+                if (mapped < 0) {
+                    console::write_string("-");
+                } else {
+                    console::write_dec32(static_cast<uint32_t>(mapped));
+                }
+                console::write_char(' ');
+            }
+            console::newline();
+#endif
             return kErrnoNoMem;
         }
         bootfs::increment_slot_refcount(fd);
-        process->fd_flags[new_local] = 0; // F_DUPFD clears CLOEXEC
+        process->fd_flags[new_local] =
+            (static_cast<int>(frame->ecx) == kFcntlDupFdCloexec) ? kFdCloExec : 0;
+#ifdef XINIM_X86_32_TTY_TRACE
+        static uint32_t g_fcntl_dup_trace_budget = 32U;
+        if (g_fcntl_dup_trace_budget != 0U) {
+            --g_fcntl_dup_trace_budget;
+            console::write_string("tty trace: fcntl-dup pid=");
+            console::write_dec32(process->pid);
+            console::write_string(" userfd=");
+            console::write_dec32(static_cast<uint32_t>(user_fd));
+            console::write_string(" min=");
+            console::write_dec32(static_cast<uint32_t>(minimum_fd));
+            console::write_string(" new=");
+            console::write_dec32(static_cast<uint32_t>(new_local));
+            console::write_string(" cloexec=");
+            console::write_dec32(process->fd_flags[new_local] != 0 ? 1U : 0U);
+            console::newline();
+        }
+#endif
         return static_cast<uint32_t>(new_local);
     }
-    case 1: // F_GETFD: per-process descriptor flags
+    case kFcntlGetFd:
         return static_cast<uint32_t>(process->fd_flags[user_fd]);
-    case 2: // F_SETFD: per-process descriptor flags
-        process->fd_flags[user_fd] = static_cast<int>(frame->edx) & 1; // FD_CLOEXEC
+    case kFcntlSetFd:
+        process->fd_flags[user_fd] = static_cast<int>(frame->edx) & kFdCloExec;
         return 0U;
-    case 3: {
+    case kFcntlGetFl: {
         const int result = bootfs::status_flags(fd);
         return result >= 0 ? static_cast<uint32_t>(result) : kErrnoBadF;
     }
-    case 4:
+    case kFcntlSetFl:
         return bootfs::set_status_flags(fd, static_cast<int>(frame->edx)) == 0
             ? 0U
             : kErrnoBadF;
-    case 5: // F_GETLK
-    case 6: // F_SETLK
-    case 7: { // F_SETLKW
+    case kFcntlGetLk:
+    case kFcntlSetLk:
+    case kFcntlSetLkW: {
         uint8_t* fl_raw = nullptr;
         if (frame->edx == 0U || !translate_user_region(process, frame->edx,
                 static_cast<uint32_t>(sizeof(lockf::Flock32)), &fl_raw)) {
@@ -1207,6 +1319,26 @@ void set_service_state(SupervisedService* service,
             fd,
             static_cast<int>(frame->ecx),
             reinterpret_cast<uintptr_t>(translated));
+#ifdef XINIM_X86_32_TTY_TRACE
+        static uint32_t g_ioctl_trace_budget = 32U;
+        if (g_ioctl_trace_budget != 0U) {
+            --g_ioctl_trace_budget;
+            console::write_string("tty trace: ioctl pid=");
+            console::write_dec32(process->pid);
+            console::write_string(" userfd=");
+            console::write_dec32(frame->ebx);
+            console::write_string(" fd=");
+            console::write_dec32(fd >= 0 ? static_cast<uint32_t>(fd) : 0U);
+            console::write_string(" cmd=");
+            console::write_hex32(frame->ecx);
+            console::write_string(" result=");
+            console::write_dec32(result == 0 ? 0U : static_cast<uint32_t>(-result));
+            if (result != 0) {
+                console::write_string(" neg=yes");
+            }
+            console::newline();
+        }
+#endif
         return result == 0 ? 0U : kErrnoNoTTY;
     }
 
@@ -1214,6 +1346,22 @@ void set_service_state(SupervisedService* service,
         fd,
         static_cast<int>(frame->ecx),
         0U);
+#ifdef XINIM_X86_32_TTY_TRACE
+    static uint32_t g_ioctl_null_trace_budget = 16U;
+    if (g_ioctl_null_trace_budget != 0U) {
+        --g_ioctl_null_trace_budget;
+        console::write_string("tty trace: ioctl-null pid=");
+        console::write_dec32(process->pid);
+        console::write_string(" cmd=");
+        console::write_hex32(frame->ecx);
+        console::write_string(" result=");
+        console::write_dec32(result == 0 ? 0U : static_cast<uint32_t>(-result));
+        if (result != 0) {
+            console::write_string(" neg=yes");
+        }
+        console::newline();
+    }
+#endif
     return result == 0 ? 0U : kErrnoNoTTY;
 }
 
@@ -1601,6 +1749,28 @@ void set_service_state(SupervisedService* service,
     slot->in_use = true;
     slot->address = mapping_base;
     slot->size = length;
+#ifdef XINIM_X86_32_TTY_TRACE
+    static uint32_t g_mmap_trace_budget = 48U;
+    if (g_mmap_trace_budget != 0U) {
+        --g_mmap_trace_budget;
+        console::write_string("tty trace: mmap pid=");
+        console::write_dec32(process->pid);
+        console::write_string(" len=");
+        console::write_hex32(length);
+        console::write_string(" prot=");
+        console::write_hex32(frame->edx);
+        console::write_string(" flags=");
+        console::write_hex32(flags);
+        console::write_string(" userfd=");
+        console::write_dec32(user_fd >= 0 ? static_cast<uint32_t>(user_fd) : 0U);
+        if (user_fd < 0) {
+            console::write_string(" negfd=yes");
+        }
+        console::write_string(" result=");
+        console::write_hex32(mapping_base);
+        console::newline();
+    }
+#endif
     return mapping_base;
 }
 
@@ -2531,8 +2701,67 @@ constexpr int16_t kPollNVal = 0x0020;
 
 // -- Syscall dispatch ------------------------------------------------------
 
+#ifdef XINIM_X86_32_TTY_TRACE
+namespace {
+
+uint32_t g_syscall_trace_budget = 192U;
+
+[[nodiscard]] bool trace_syscall(uint32_t number) noexcept {
+    switch (number) {
+    case SYS_read:
+    case SYS_write:
+    case SYS_open:
+    case SYS_close:
+    case SYS_ioctl:
+    case SYS_exit:
+    case SYS_execve:
+    case SYS_fcntl:
+    case SYS_wait4:
+    case SYS_brk:
+    case SYS_mmap:
+    case SYS_mremap:
+    case SYS_select:
+    case SYS_poll:
+    case SYS_readv:
+    case SYS_writev:
+    case SYS_set_tid_address:
+        return true;
+    default:
+        return false;
+    }
+}
+
+void trace_syscall_entry(const Process* process, const RegisterFrame* frame) noexcept {
+    if (process == nullptr || frame == nullptr || g_syscall_trace_budget == 0U ||
+        !trace_syscall(frame->eax)) {
+        return;
+    }
+    --g_syscall_trace_budget;
+    console::write_string("tty trace: syscall pid=");
+    console::write_dec32(process->pid);
+    console::write_string(" nr=");
+    console::write_dec32(frame->eax);
+    console::write_string(" eip=");
+    console::write_hex32(process->context.eip);
+    console::write_string(" esp=");
+    console::write_hex32(process->context.esp);
+    console::write_string(" ebx=");
+    console::write_hex32(frame->ebx);
+    console::write_string(" ecx=");
+    console::write_hex32(frame->ecx);
+    console::write_string(" edx=");
+    console::write_hex32(frame->edx);
+    console::newline();
+}
+
+} // namespace
+#endif
+
 uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     process->context = capture_user_context(frame);
+#ifdef XINIM_X86_32_TTY_TRACE
+    trace_syscall_entry(process, frame);
+#endif
 
     switch (frame->eax) {
     case SYS_read:

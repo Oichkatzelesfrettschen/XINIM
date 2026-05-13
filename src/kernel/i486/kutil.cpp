@@ -90,16 +90,45 @@ int resolve_fd(const Process* process, int fd) noexcept {
 }
 
 int allocate_fd_map_entry(Process* process, int global_slot) noexcept {
+    return allocate_fd_map_entry_at_or_above(process, global_slot, 0);
+}
+
+int allocate_fd_map_entry_at_or_above(Process* process,
+                                      int global_slot,
+                                      int minimum_fd) noexcept {
     if (process == nullptr || global_slot < 0) {
         return -1;
     }
-    for (int i = 0; i < kMaxFds; ++i) {
+    if (minimum_fd < 0 || minimum_fd >= kMaxFds) {
+        return -1;
+    }
+    for (int i = minimum_fd; i < kMaxFds; ++i) {
         if (process->fd_map[i] == -1) {
             process->fd_map[i] = global_slot;
             return i;
         }
     }
     return -1;
+}
+
+void reset_fd_map_to_console(Process* process) noexcept {
+    if (process == nullptr) {
+        return;
+    }
+    for (int fd_index = 0; fd_index < kMaxFds; ++fd_index) {
+        const int slot = process->fd_map[fd_index];
+        if (slot >= 0) {
+            bootfs::decrement_slot_refcount(slot);
+        }
+        process->fd_map[fd_index] = -1;
+        process->fd_flags[fd_index] = 0;
+    }
+    process->fd_map[0] = 0;
+    process->fd_map[1] = 1;
+    process->fd_map[2] = 2;
+    bootfs::increment_slot_refcount(0);
+    bootfs::increment_slot_refcount(1);
+    bootfs::increment_slot_refcount(2);
 }
 
 // -- User memory access ----------------------------------------------------

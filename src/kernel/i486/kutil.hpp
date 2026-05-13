@@ -25,6 +25,10 @@ void copy_region(uint8_t* out, const uint8_t* in, uint32_t size) noexcept;
 
 [[nodiscard]] int resolve_fd(const Process* process, int fd) noexcept;
 [[nodiscard]] int allocate_fd_map_entry(Process* process, int global_slot) noexcept;
+[[nodiscard]] int allocate_fd_map_entry_at_or_above(Process* process,
+                                                    int global_slot,
+                                                    int minimum_fd) noexcept;
+void reset_fd_map_to_console(Process* process) noexcept;
 
 // -- User memory access ----------------------------------------------------
 

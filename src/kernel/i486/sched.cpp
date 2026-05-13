@@ -14,6 +14,52 @@
 
 namespace xinim::i486::ring3 {
 
+#ifdef XINIM_X86_32_TTY_TRACE
+namespace {
+
+uint32_t g_trace_dispatch_budget = 256U;
+uint32_t g_trace_wake_budget = 96U;
+uint32_t g_trace_block_budget = 96U;
+
+void trace_process_snapshot(const char* prefix, const Process& process) noexcept {
+    console::write_string(prefix);
+    console::write_string(" pid=");
+    console::write_dec32(process.pid);
+    console::write_string(" state=");
+    console::write_dec32(static_cast<uint32_t>(process.state));
+    console::write_string(" wait=");
+    console::write_dec32(static_cast<uint32_t>(process.wait_reason));
+    console::write_string(" pri=");
+    console::write_dec32(process.priority);
+    console::write_string(" ticks=");
+    console::write_dec32(process.ticks_remaining);
+    console::write_string(" eip=");
+    console::write_hex32(process.context.eip);
+    console::write_string(" esp=");
+    console::write_hex32(process.context.esp);
+    console::newline();
+}
+
+void trace_run_queue_snapshot(const char* prefix) noexcept {
+    if (g_trace_wake_budget == 0U) {
+        return;
+    }
+    --g_trace_wake_budget;
+    console::write_string(prefix);
+    console::newline();
+    for (const auto& process : g_processes) {
+        if (!process.in_use) {
+            continue;
+        }
+        if (process.state == ProcessState::Waiting || process.state == ProcessState::Runnable) {
+            trace_process_snapshot("tty trace:   proc", process);
+        }
+    }
+}
+
+} // namespace
+#endif
+
 uint32_t effective_quantum(const Process* process) noexcept {
     if (process == nullptr) {
         return 0U;
@@ -44,8 +90,7 @@ void wake_ready_waiters() noexcept {
     const bool pipe_eof = bootfs::consume_pipe_eof_event();
 #ifdef XINIM_X86_32_TTY_TRACE
     if (have_console_input) {
-        console::write_string("tty trace: scheduler sees console input");
-        console::newline();
+        trace_run_queue_snapshot("tty trace: scheduler sees console input");
     }
 #endif
     for (auto& process : g_processes) {
@@ -56,11 +101,10 @@ void wake_ready_waiters() noexcept {
              process.wait_reason == WaitReason::PipeIO) &&
             (have_console_input || pipe_eof)) {
 #ifdef XINIM_X86_32_TTY_TRACE
-            console::write_string("tty trace: wake pid=");
-            console::write_dec32(process.pid);
-            console::write_string(" wait=");
-            console::write_dec32(static_cast<uint32_t>(process.wait_reason));
-            console::newline();
+            if (g_trace_wake_budget != 0U) {
+                --g_trace_wake_budget;
+                trace_process_snapshot("tty trace: wake", process);
+            }
 #endif
             process.wait_reason = WaitReason::None;
             process.state = ProcessState::Runnable;
@@ -118,15 +162,10 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
         resume_rescue_shell("no runnable i486 process");
     }
 #ifdef XINIM_X86_32_TTY_TRACE
-    console::write_string("tty trace: dispatch pid=");
-    console::write_dec32(process->pid);
-    console::write_string(" eip=");
-    console::write_hex32(process->context.eip);
-    console::write_string(" esp=");
-    console::write_hex32(process->context.esp);
-    console::write_string(" state=");
-    console::write_dec32(static_cast<uint32_t>(process->state));
-    console::newline();
+    if (g_trace_dispatch_budget != 0U) {
+        --g_trace_dispatch_budget;
+        trace_process_snapshot("tty trace: dispatch", *process);
+    }
 #endif
     SupervisedService* service = find_supervised_service_by_process(process);
     if (service != nullptr && !service->run_announced) {
@@ -166,9 +205,10 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     xinim::i686::sse::fpu_restore_context(process->fxsave_buf);
 #endif
 #ifdef XINIM_X86_32_TTY_TRACE
-    console::write_string("tty trace: resume user pid=");
-    console::write_dec32(process->pid);
-    console::newline();
+    if (g_trace_dispatch_budget != 0U) {
+        --g_trace_dispatch_budget;
+        trace_process_snapshot("tty trace: resume user", *process);
+    }
 #endif
     i486_resume_user_context(&process->context);
     for (;;) {
@@ -194,11 +234,23 @@ bool block_current_process_until_rescheduled(Process* process,
     process->state = ProcessState::Waiting;
     process->wait_reason = reason;
     process->wake_tick = wake_tick;
+#ifdef XINIM_X86_32_TTY_TRACE
+    if (g_trace_block_budget != 0U) {
+        --g_trace_block_budget;
+        trace_process_snapshot("tty trace: block", *process);
+    }
+#endif
     wake_ready_waiters();
     Process* next = select_next_runnable(g_current_process);
     if (next == nullptr) {
         resume_rescue_shell("no runnable i486 process while current blocked");
     }
+#ifdef XINIM_X86_32_TTY_TRACE
+    if (g_trace_block_budget != 0U) {
+        --g_trace_block_budget;
+        trace_process_snapshot("tty trace: switch-to", *next);
+    }
+#endif
     activate_process(next);
     i486_switch_to_user_context(&next->context, &process->saved_kernel_esp);
     clear_saved_kernel_stack(process);
@@ -207,6 +259,12 @@ bool block_current_process_until_rescheduled(Process* process,
     process->wake_tick = 0U;
     const bool has_signal = (process->signals.pending & ~process->signals.blocked) != 0U;
     activate_process(process);
+#ifdef XINIM_X86_32_TTY_TRACE
+    if (g_trace_block_budget != 0U) {
+        --g_trace_block_budget;
+        trace_process_snapshot("tty trace: resume-blocked", *process);
+    }
+#endif
     return has_signal;
 }
 

@@ -67,15 +67,7 @@ Process* allocate_process(uint32_t parent_pid) noexcept {
             process.cwd[1] = '\0';
             process.segment_base = compute_segment_base(process);
             process.ctty_slot = -1;
-            for (int fd_index = 0; fd_index < kMaxFds; ++fd_index) {
-                process.fd_map[fd_index] = -1;
-            }
-            process.fd_map[0] = 0;
-            process.fd_map[1] = 1;
-            process.fd_map[2] = 2;
-            bootfs::increment_slot_refcount(0);
-            bootfs::increment_slot_refcount(1);
-            bootfs::increment_slot_refcount(2);
+            reset_fd_map_to_console(&process);
             init_signal_state(&process);
 #if defined(XINIM_ARCH_I686) && defined(XINIM_I686_FPU_CONTEXT_SWITCH)
             // Initialise FPU/SSE state image so the new process starts with
