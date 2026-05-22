@@ -86,7 +86,8 @@ for package in \
   qemu-system-x86 qemu-img qemu-user clang llvm lld gdb rr afl++ afl-utils \
   honggfuzz radamsa syzkaller-git trinity radare2 rizin ghidra retdec binwalk \
   strace ltrace valgrind bpftrace perf semgrep cppcheck shellcheck shfmt \
-  libguestfs guestfs-tools pax-utils checksec e2fsprogs mtools xorriso grub
+  libguestfs guestfs-tools pax-utils checksec e2fsprogs mtools xorriso grub \
+  bochs nbdkit genext2fs e2tools
 do
   if pacman -Q "$package" >/dev/null 2>&1; then
     pacman -Q "$package"

@@ -27,6 +27,7 @@ the tools that should catch the next instance.
 | `isapc` multi-boot prompt race | The ext2 mutation harness rebooted QEMU instances after only 0.5 seconds; the legacy `isapc` model could connect then close before the guest prompt was observed. | Use a 2-second QEMU reboot settle and a 40-second boot prompt window for the multi-boot ext2 mutation test. |
 | TCP serial prompt loss | QEMU TCP serial can miss the first prompt if the guest prints before the client is attached, especially in multi-boot harnesses. | Send a blank line to redraw, then treat the explicit ready-marker handshake as authoritative. |
 | Parallel CTest flakiness | Parallel QEMU tests reused shared disk artifacts and ports, causing locks and timing cross-talk. | Run full QEMU lane gates serially, or give every parallel test its own copied disk and port allocation. |
+| Persistence harness false status | The persistence harness appended `; echo $?` inside commands that were already wrapped by a marker-status echo, so failures could be hidden by the status of the extra `echo`; the slow `isapc` path also exposed basename lookup fragility for disk helper binaries. | Parse the wrapper marker status directly and invoke disk helper utilities through absolute `/bin/...` paths. |
 | TCC absent from images | CMake had helper scripts but no real TCC/bmake build targets; disk builders only accepted optional placeholder paths. | Build TCC/bmake as lane targets and stage them as required guest binaries when enabled. |
 | TCC runtime not visible | The ext2 runtime mapper exposed only `/bin` and `/etc`, while TCC searches `/usr/include`, `/usr/lib`, and `/usr/lib/tcc`. | Expose `/usr` as a canonical ext2-backed prefix. |
 | ext2 file sizes inflated | The ext2 writer copied the low 32-bit file size into `i_dir_acl`; for regular files this is the high 32 bits of size. | Keep `i_dir_acl=0` for regular-file write/truncate paths. |
@@ -150,6 +151,14 @@ Installed via `paru` on 2026-05-13 for this RCA pass:
 - `keystone` and `python-keystone`: instruction assembly experiments.
 - `afl-utils`: AFL campaign and crash-corpus helpers.
 - `radamsa`: mutation fuzz input generation.
+- `bochs`: alternate x86 emulator for CPU and legacy-device cross-checks.
+- `nbdkit`: scriptable NBD exports for block-image fault injection and
+  host-side disk experiments. Its AUR `check()` failed two libguestfs-backed
+  FAT/VDDK tests on this host, so it was installed with `--nocheck` after the
+  compiled tool and `nbdkit --dump-config` verified locally.
+- `genext2fs`: deterministic ext2 image construction for fixture generation.
+- `e2tools`: direct ext2 file injection and inspection helpers such as `e2cp`
+  and `e2ls`.
 
 Already present before that install:
 
@@ -158,9 +167,41 @@ Already present before that install:
   cppcheck, shellcheck, shfmt, kcov/lcov/gcovr, syzkaller, trinity, Capstone,
   Unicorn, angr, user-local Frida tools, e2fsprogs, mtools, xorriso, and GRUB.
 
-Exact-name `paru -Ss` probes did not find `nbdkit`, `bochs`, `genext2fs`,
-or `e2tools` in the configured repos. Recheck with broader names before adding
-them to the hard requirement set.
+The host audit should now report zero missing tools. Keep these as expanded RCA
+tools rather than minimal build requirements: the normal build needs only the
+core compiler, image, and QEMU tools, while this set is for debugging,
+instrumentation, fuzzing, reverse engineering, and disk forensics.
+
+## Tool Package Use Cases
+
+Use this package matrix to pick a tool by fault shape before dropping into a
+line-by-line debug loop.
+
+| Package or tool family | XINIM use case | Good next action |
+| --- | --- | --- |
+| CMake, Ninja | Detect stale configure state and lane/property drift. | Reconfigure cleanly, then build the exact lane target. |
+| Clang, LLVM, LLD, libc++ | Build 32-bit freestanding and hosted pieces with warnings-as-errors. | Inspect `compile_commands.json`, lane flags, and linker maps. |
+| `clang-tidy`, `scan-build`, `intercept-build` | Catch static C/C++ defects before booting QEMU. | Capture the compile database and run targeted analyzer passes. |
+| `semgrep`, `cppcheck` | Scan for semantic bugs, unchecked errors, and portability traps. | Add a narrow rule or suppress only with a cited reason. |
+| `shellcheck`, `shfmt`, `python -m py_compile` | Validate shell and Python harnesses before blaming the guest. | Run the syntax stage from `scripts/x86_32_full_gate.sh`. |
+| `llvm-objdump`, `llvm-readelf`, `llvm-nm` | Verify ELF32 layout, entry points, sections, symbols, and relocations. | Compare kernel, userland, and TCC-linked guest binaries. |
+| `llvm-dwarfdump`, `pahole` | Inspect debug info and struct layout for ABI or stack corruption. | Check PCB, fd table, syscall frame, and ext2 structure sizes. |
+| `scanelf`, `dumpelf`, `checksec` | Inspect hosted binary metadata and hardening. | Use on host tools and bootstrapped compiler artifacts. |
+| `gdb`, `rr` | Debug host repros and QEMU GDB-stub stops. | Use `--gdb` in the QEMU debug helper for guest reset/fault stops. |
+| `strace`, `ltrace` | Prove host-side file, socket, and library-call behavior. | Trace QEMU or helper tools when image locks or missing files are suspected. |
+| `perf`, `bpftrace`, `valgrind` | Profile host hot loops and memory bugs in host harnesses. | Use on parsers, image builders, or QEMU-host repros, not guest kernel code directly. |
+| `qemu-system-i386`, `qemu-i386` | Run full-system lanes and user-mode i386 smoke checks. | Prefer full-system QEMU for kernel/device RCA; use user-mode checks for hosted utilities. |
+| `qemu-img`, `qemu-io`, `qemu-nbd` | Validate, probe, and export raw/qcow2/VMDK disk images. | Run `qemu-img check`; use `qemu-io` or NBD for block-level repros. |
+| `fsck.ext2`, `debugfs`, `e2tools` | Inspect and manipulate ext2 images without booting XINIM. | Confirm superblocks, directory entries, and staged `/bin` payloads. |
+| `guestfish`, `guestmount`, `virt-inspector` | Mount or inspect guest images through libguestfs. | Cross-check image contents when the guest sees different disk state. |
+| `genext2fs` | Build deterministic ext2 fixtures. | Recreate small ext2 cases for parser and mutation tests. |
+| `mtools`, `xorriso`, GRUB | Build and inspect boot media. | Check ISO/FAT/GRUB generation before kernel handoff RCA. |
+| AFL++, `afl-utils`, `honggfuzz`, `radamsa` | Fuzz host parsers and mutate command/disk inputs. | Start with MBR, ext2, Multiboot2, ELF32, and shell lexer harnesses. |
+| `syzkaller`, `trinity` | Reference syscall stress patterns. | Mine patterns and invariants; do not treat Linux behavior as XINIM ABI. |
+| `radare2`, `rizin`, Ghidra, RetDec, Binwalk | Reverse engineer binary behavior and containers. | Use for local artifacts, permissively licensed references, and generated guest binaries. |
+| Capstone, Keystone, Unicorn, angr, Frida | Instruction decode/assemble, emulation, symbolic, and dynamic analysis. | Prototype instruction/syscall edge cases outside the guest first. |
+| `bochs` | Independent x86 emulator cross-check. | Reproduce CPU or legacy-device assumptions when QEMU behavior is suspect. |
+| `nbdkit` | Scriptable disk backends and image fault injection. | Export a controlled NBD disk to reproduce block-layer edge cases. |
 
 Run the local audit:
 
@@ -218,11 +259,24 @@ about 191 seconds. Keep the CTest outer timeouts above those observed values so
 valid slow boots are not killed while the inner command timeouts still catch
 actual guest hangs.
 
-Later on 2026-05-13, the TCC/bmake image expansion and stricter command-marker
-harness changed the current checkpoint:
+Intermediate 2026-05-13 checkpoint before the later i686 fd/stack harness fix:
 
 - `i486_enhanced_test` passes with required in-guest TCC, including compile and
   execution of a simple `/persist` program.
 - `qemu-img check` passes for generated i486 dynamic VMDK/qcow2 artifacts.
-- `i686_kshell_test` is not currently green under the stricter harness; it
-  reaches supervised ring3 launch and then times out before a mksh prompt.
+- `i686_kshell_test` was not green under the stricter harness at that moment;
+  it reached supervised ring3 launch and then timed out before a mksh prompt.
+
+Final 2026-05-13 checkpoint after the optional disk/debug tool install:
+
+- `bash scripts/x86_32_tooling_audit.sh` reports zero missing tools, including
+  `bochs`, `nbdkit`, `genext2fs`, and `e2tools`.
+- `bash scripts/x86_32_full_gate.sh` passed in a `tmux` session.
+- `i686`: 8/8 CTest integration tests passed, including kshell, persistence,
+  ext2 mutation, and enhanced TCC coverage.
+- `i586`: 8/8 CTest integration tests passed.
+- `i486`: 12/12 CTest integration tests passed, including `isapc` smoke,
+  shell, persistence, and ext2 mutation coverage.
+- `qemu-img check` found no errors in generated `i486`, `i586`, and `i686`
+  dynamic VMDK and qcow2 boot images.
+- `git diff --check` passed.

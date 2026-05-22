@@ -162,15 +162,22 @@ paru -S --needed \
   qemu-user \
   python-keystone \
   afl-utils \
-  radamsa
+  radamsa \
+  bochs \
+  nbdkit \
+  genext2fs \
+  e2tools
 ```
 
 The 2026-05-13 host audit also found QEMU, Clang/LLVM/LLD, GDB, rr, AFL++,
 honggfuzz, radare2, rizin, Ghidra, RetDec, Binwalk, strace, valgrind, bpftrace,
 perf, semgrep, cppcheck, shellcheck, shfmt, kcov/lcov/gcovr, syzkaller,
 trinity, Capstone, Unicorn, angr, user-local Frida tools, e2fsprogs, mtools,
-xorriso, and GRUB already available. Exact-name `paru -Ss` probes did not find
-`nbdkit`, `bochs`, `genext2fs`, or `e2tools` in the configured repos.
+xorriso, and GRUB already available. A later 2026-05-13 optional disk-tool pass
+installed `bochs`, `nbdkit`, `genext2fs`, and `e2tools`; `nbdkit` was installed
+with `--nocheck` after its AUR package tests hit a host libguestfs/dosfstools
+FAT mount-path failure, while the compiled tool and runtime config verified
+locally.
 
 Optional Arch / AUR cross-toolchain packages:
 
