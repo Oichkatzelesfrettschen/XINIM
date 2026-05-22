@@ -8,6 +8,7 @@ that the shortened content persisted and no stale tail bytes leaked back.
 """
 
 import os
+import re
 import socket
 import subprocess
 import sys
@@ -215,6 +216,21 @@ def require_not_contains(name, response, unexpected):
     return True
 
 
+def require_exit_status(name, response, expected):
+    matches = re.findall(r"__XINIM_DONE_\d+__:(\d+)", response)
+    if not matches:
+        print(f"FAIL: {name} response missing command marker status")
+        print(f"  Response: {response!r}")
+        return False
+    actual = int(matches[-1])
+    if actual != expected:
+        print(f"FAIL: {name} exit status {actual}, expected {expected}")
+        print(f"  Response: {response!r}")
+        return False
+    print(f"PASS: {name}")
+    return True
+
+
 def terminate_qemu(process):
     process.terminate()
     try:
@@ -258,75 +274,75 @@ def main():
             require_contains("holecheck exists", send_command(first_shell, "command -v holecheck"), "/bin/holecheck"),
             require_contains("seekpatch exists", send_command(first_shell, "command -v seekpatch"), "/bin/seekpatch"),
             require_contains("gapcheck exists", send_command(first_shell, "command -v gapcheck"), "/bin/gapcheck"),
-            require_contains(
+            require_exit_status(
                 "writefile long update",
-                send_command(first_shell, f"writefile {WRITE_PATH} {LONG_WRITE_VALUE}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/writefile {WRITE_PATH} {LONG_WRITE_VALUE}"),
+                0,
             ),
             require_contains(
                 "updated long content first boot",
-                send_command(first_shell, f"cat {WRITE_PATH}"),
+                send_command(first_shell, f"/bin/cat {WRITE_PATH}"),
                 LONG_WRITE_VALUE,
             ),
-            require_contains(
+            require_exit_status(
                 "writefile short update",
-                send_command(first_shell, f"writefile {WRITE_PATH} {SHORT_WRITE_VALUE}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/writefile {WRITE_PATH} {SHORT_WRITE_VALUE}"),
+                0,
             ),
             require_contains(
                 "updated short content first boot",
-                send_command(first_shell, f"cat {WRITE_PATH}"),
+                send_command(first_shell, f"/bin/cat {WRITE_PATH}"),
                 SHORT_WRITE_VALUE,
             ),
             require_not_contains(
                 "stale tail removed first boot",
-                send_command(first_shell, f"cat {WRITE_PATH}"),
+                send_command(first_shell, f"/bin/cat {WRITE_PATH}"),
                 TAIL_FRAGMENT,
             ),
-            require_contains(
+            require_exit_status(
                 "seed dirty block",
-                send_command(first_shell, f"writefile {SEED_PATH} {HOLE_SEED_VALUE}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/writefile {SEED_PATH} {HOLE_SEED_VALUE}"),
+                0,
             ),
-            require_contains(
+            require_exit_status(
                 "seed unlink",
-                send_command(first_shell, f"unlink {SEED_PATH}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/unlink {SEED_PATH}"),
+                0,
             ),
-            require_contains(
+            require_exit_status(
                 "seekwrite hole file",
-                send_command(first_shell, f"seekwrite {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/seekwrite {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}"),
+                0,
             ),
             require_contains(
                 "holecheck first boot",
-                send_command(first_shell, f"holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}; echo $?"),
+                send_command(first_shell, f"/bin/holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}"),
                 "holecheck ok",
             ),
-            require_contains(
+            require_exit_status(
                 "holecheck first boot status",
-                send_command(first_shell, f"holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}"),
+                0,
             ),
-            require_contains(
+            require_exit_status(
                 "seed patch base file",
-                send_command(first_shell, f"writefile {PATCH_PATH} {PATCH_HEAD}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/writefile {PATCH_PATH} {PATCH_HEAD}"),
+                0,
             ),
-            require_contains(
+            require_exit_status(
                 "seekpatch existing file growth",
-                send_command(first_shell, f"seekpatch {PATCH_PATH} {PATCH_OFFSET} {PATCH_TAIL}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/seekpatch {PATCH_PATH} {PATCH_OFFSET} {PATCH_TAIL}"),
+                0,
             ),
             require_contains(
                 "gapcheck first boot",
-                send_command(first_shell, f"gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}; echo $?"),
+                send_command(first_shell, f"/bin/gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}"),
                 "gapcheck ok",
             ),
-            require_contains(
+            require_exit_status(
                 "gapcheck first boot status",
-                send_command(first_shell, f"gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}; echo $?"),
-                "0",
+                send_command(first_shell, f"/bin/gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}"),
+                0,
             ),
         ]
         if not all(results):
@@ -346,33 +362,33 @@ def main():
         results = [
             require_contains(
                 "persisted content second boot",
-                send_command(second_shell, f"cat {WRITE_PATH}"),
+                send_command(second_shell, f"/bin/cat {WRITE_PATH}"),
                 SHORT_WRITE_VALUE,
             ),
             require_not_contains(
                 "stale tail removed second boot",
-                send_command(second_shell, f"cat {WRITE_PATH}"),
+                send_command(second_shell, f"/bin/cat {WRITE_PATH}"),
                 TAIL_FRAGMENT,
             ),
             require_contains(
                 "holecheck second boot",
-                send_command(second_shell, f"holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}; echo $?"),
+                send_command(second_shell, f"/bin/holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}"),
                 "holecheck ok",
             ),
-            require_contains(
+            require_exit_status(
                 "holecheck second boot status",
-                send_command(second_shell, f"holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}; echo $?"),
-                "0",
+                send_command(second_shell, f"/bin/holecheck {HOLE_PATH} {HOLE_OFFSET} {HOLE_VALUE}"),
+                0,
             ),
             require_contains(
                 "gapcheck second boot",
-                send_command(second_shell, f"gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}; echo $?"),
+                send_command(second_shell, f"/bin/gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}"),
                 "gapcheck ok",
             ),
-            require_contains(
+            require_exit_status(
                 "gapcheck second boot status",
-                send_command(second_shell, f"gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}; echo $?"),
-                "0",
+                send_command(second_shell, f"/bin/gapcheck {PATCH_PATH} {PATCH_HEAD} 3 {PATCH_TAIL}"),
+                0,
             ),
         ]
         if not all(results):

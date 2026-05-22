@@ -153,6 +153,21 @@ def populate_root_tree(
         with open(os.path.join(etc_dir, "motd"), "w", encoding="utf-8") as f:
             f.write("XINIM i486\n")
 
+    with open(os.path.join(etc_dir, "persist.txt"), "w", encoding="utf-8") as f:
+        f.write("persistent-root-ok\n")
+
+    with open(os.path.join(etc_dir, "issue"), "w", encoding="utf-8") as f:
+        f.write("XINIM i486 persistent ext2 root\n")
+
+    with open(os.path.join(etc_dir, "persist-profile"), "w", encoding="utf-8") as f:
+        f.write("export PERSIST_PROFILE=disk-root\n")
+
+    with open(os.path.join(etc_dir, "persist-write-slot"), "w", encoding="utf-8") as f:
+        f.write("x" * 256 + "\n")
+
+    with open(os.path.join(var_dir, "disk-marker"), "w", encoding="utf-8") as f:
+        f.write("ata-ext2-ready\n")
+
     # Install C headers for TCC
     if include_dir and os.path.isdir(include_dir):
         usr_include = os.path.join(root_dir, "usr", "include")

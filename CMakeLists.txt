@@ -1939,6 +1939,20 @@ function(xinim_add_x86_32_lane lane)
             )
         endif()
 
+        set(_boot_disk_layout_test "${lane}_boot_disk_layout_test")
+        add_test(
+            NAME ${_boot_disk_layout_test}
+            COMMAND ${CMAKE_SOURCE_DIR}/test/boot/x86_32_boot_disk_layout_test.sh
+            WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+        )
+        set_tests_properties(${_boot_disk_layout_test} PROPERTIES
+            LABELS "integration;boot;${lane};layout;disk"
+            ENVIRONMENT "${_lane_env}"
+            FIXTURES_REQUIRED ${lane}_image
+            SKIP_RETURN_CODE 77
+            TIMEOUT 120
+        )
+
         add_test(
             NAME ${_compat_test}
             COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py

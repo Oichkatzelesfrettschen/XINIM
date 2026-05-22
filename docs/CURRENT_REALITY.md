@@ -116,7 +116,8 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 - Full dietlibc static linking from TCC; current verified TCC runtime is a
   small XINIM-native shim for simple C programs.
 - pkgsrc bootstrap (pending)
-- Full POSIX compliance (partial -- core subset working)
+- Full POSIX.1-2008 conformance is not claimed; only the documented core
+  subset is working.
 
 ## Architectural Truth
 
