@@ -116,6 +116,16 @@ parents. Their row counts must not be added to the parent rows as if all rows
 were independent. The utility and shell-language rows remain separate
 denominators.
 
+The staged x86_64 runtime has one shell implementation and one libc provider.
+One mksh R59c source build uses the upstream legacy POSIX profile and is
+installed byte-identically as `/bin/mksh` and `/bin/sh`; no `/bin/lksh` or
+`/bin/xash` is staged. Every `/bin` ELF is either explicitly dietlibc-linked or
+one of the finite syscall-only assembly programs. The image build rejects
+unknown binaries, alternate shells, dynamic loaders, shared-library
+dependencies, and missing dietlibc provenance.
+The generated provider manifest also binds every staged `/bin` executable to
+the exact build artifact that CMake copied into the image.
+
 ### Bounded progress estimates
 
 These percentages are engineering estimates for the paused objective, not

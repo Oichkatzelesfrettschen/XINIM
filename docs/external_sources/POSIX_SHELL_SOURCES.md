@@ -388,21 +388,20 @@ lookup in the scanner must fail the counter and offset-or-hash invariant.
 ## Shell and libc compatibility boundary
 
 mksh R59c is not itself a whole-shell conformance claim. Its upstream FAQ says
-that the closest POSIX configuration is `lksh -o posix` under the `C` locale.
-The lksh build uses the host C `long` arithmetic required by POSIX, while mksh
-deliberately uses defined 32-bit arithmetic on every host. POSIX mode must also
-keep mksh UTF-8 mode disabled. The durable image layout is therefore:
+that the closer POSIX configuration is the `-L` legacy profile in POSIX mode
+under the `C` locale. That profile uses the host C `long` arithmetic required
+by POSIX, while full mksh deliberately uses defined 32-bit arithmetic on every
+host. POSIX mode must also keep mksh UTF-8 mode disabled.
 
-- `/bin/mksh`: the full interactive MirBSD Korn shell.
-- `/bin/lksh`: the R59c legacy-POSIX build from the same pinned source.
-- `/bin/sh`: the same binary as `/bin/lksh`, entered in POSIX mode.
-
-This is an upstream-supported build split, not a fallback shell. The image
-implements the split and the exact QEMU gate proves the three executable
-identities, Ring 3 PID 1 startup through `/bin/sh`, host-`long` arithmetic,
-POSIX mode, the `C` locale, disabled brace expansion, and byte-oriented string
-length. These witnesses are necessary but do not close the `sh` row without
-the complete shell-language matrix.
+The x86_64 image therefore builds one executable from the pinned mksh tree with
+`MKSH_LEGACY_MODE` and `MKSH_BINSHPOSIX`, installs it byte-identically as
+`/bin/mksh` and `/bin/sh`, and installs no `/bin/lksh` or `/bin/xash`. The
+legacy identity remains visible in `KSH_VERSION`; only the redundant pathname
+and alternate shell implementations are removed. The exact QEMU gate proves
+Ring 3 PID 1 startup through `/bin/sh`, the sole-shell layout, the full 64-bit
+signed-`long` value range, POSIX mode, the `C` locale, disabled brace
+expansion, and byte-oriented string length. These witnesses are necessary but
+do not close the `sh` row without the complete shell-language matrix.
 
 dietlibc 0.35 currently defines `_POSIX_VERSION` as `199506L`. It contains
 selected later interfaces and recognizes `_POSIX_C_SOURCE >= 200809L`, but

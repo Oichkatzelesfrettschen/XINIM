@@ -9,6 +9,8 @@ import subprocess
 import tempfile
 from pathlib import Path
 
+VENDOR_C_DIALECT = "-std=gnu11"
+
 
 def run(arguments: list[str], working_directory: Path) -> None:
     subprocess.run(arguments, cwd=working_directory, check=True)
@@ -137,7 +139,10 @@ def main() -> int:
         f"-j{arguments.jobs}",
         "ARCH=x86_64",
         f"CC={compiler}",
-        "EXTRACFLAGS=-Werror -fno-stack-protector -fno-pie -fno-pic",
+        (
+            "EXTRACFLAGS="
+            f"{VENDOR_C_DIALECT} -Werror -fno-stack-protector -fno-pie -fno-pic"
+        ),
         "bin-x86_64/start.o",
         "bin-x86_64/dietlibc.a",
     ]
@@ -152,6 +157,7 @@ def main() -> int:
         for source_path in sorted(source_root.glob("*.c")):
             object_path = tree_directory / "bin-x86_64" / f"{source_path.stem}.o"
             compile_arguments = compiler_arguments + [
+                VENDOR_C_DIALECT,
                 "-I" + str(tree_directory),
                 "-isystem",
                 str(tree_directory / "include"),
