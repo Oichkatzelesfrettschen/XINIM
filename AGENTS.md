@@ -51,8 +51,8 @@ acceptable substitute for fixing the responsible subsystem.
   labels, and review history in commits or review artifacts, not source.
 - Use descriptive identifiers. Avoid single-letter names outside compact
   mathematical notation or conventional indices with obvious local scope.
-- Use ASCII in source, documentation, tests, generated text, and commit
-  messages.
+- Do not use emoji in source, documentation, tests, generated text, or commit
+  messages. UTF-8 text and technical notation are otherwise allowed.
 - Use `docker compose`; never use the legacy `docker-compose` command.
 
 ## Build and Verification
@@ -81,6 +81,15 @@ Do not claim complete POSIX.2 conformance until the repository carries a
 finite standards-derived shell and utility ledger and every required shell,
 utility, filesystem, process, signal, terminal, and conformance gate passes in
 Ring 3 on the exact QEMU platform.
+
+The x86_64 image has one libc provider and one shell implementation. Every
+staged `/bin` ELF must pass `scripts/verify_x86_64_runtime_ownership.py`: it is
+either explicitly dietlibc-linked or an enumerated syscall-only assembly
+binary. The sole mksh R59c source build uses its upstream legacy POSIX profile
+and is installed byte-identically as `/bin/mksh` and `/bin/sh`; no alternate
+shell is staged. Vendor C builds use explicit GNU C11, while Issue 7 C
+conformance tests use strict C99 and the profile-specific feature-test macros
+documented in `docs/posix/C_LANGUAGE_LIBC_SHELL_ALIGNMENT.md`.
 
 ## References
 

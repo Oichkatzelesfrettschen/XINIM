@@ -1,126 +1,59 @@
-# mksh Integration for XINIM
+# mksh Integration
 
-## Overview
+## Active x86_64 lane
 
-This directory contains the integration of mksh (MirBSD Korn Shell) as the default shell for XINIM.
+The supported x86_64 image uses pinned mksh R59c as its sole shell source.
+`scripts/acquire_mksh_source.py` verifies the upstream archive, and
+`scripts/prepare_mksh_source.py` applies the hash-bound lexer conformance patch
+without modifying the pristine source tree.
 
-## Source
+The target build is performed by `scripts/build_x86_64_mksh.py` with:
 
-- **Upstream**: https://github.com/MirBSD/mksh
-- **License**: BSD-like (MirOS License)
-- **Version**: R59c (latest stable)
-
-## Integration Strategy
-
-### 1. XINIM-Specific Syscall Layer
-
-File: `xinim_syscalls.cpp`
-
-Provides mksh with XINIM system call interface:
-- Process control (fork, exec, wait, exit)
-- File operations (open, read, write, close, dup)
-- Terminal I/O (ioctl, tcgetattr, tcsetattr)
-- Signal handling (signal, kill, sigaction)
-- Environment (getenv, setenv, unsetenv)
-
-### 2. Terminal Integration
-
-File: `xinim_terminal.c`
-
-Integrates mksh with XINIM terminal subsystem:
-- Raw/cooked mode switching
-- Line editing support
-- Terminal size detection
-- Character input/output
-- Color support (ANSI escape sequences)
-
-### 3. Job Control
-
-File: `xinim_job_control.c`
-
-Implements POSIX job control:
-- Background/foreground process groups
-- Process group management
-- SIGTSTP/SIGCONT handling
-- Terminal ownership
-
-## Build Process
-
-```bash
-# Download mksh source
-cd userland/shell/mksh
-wget https://www.mirbsd.org/MirOS/dist/mir/mksh/mksh-R59c.tgz
-tar xzf mksh-R59c.tgz
-
-# Build with XINIM integration
-sh Build.sh \
-    -r \
-    -c lto \
-    -t XINIM \
-    -L \
-    -DMKSH_ASSUME_UTF8=1 \
-    -DMKSH_DISABLE_TTY_WARNING=1
+```text
+-std=gnu11
+-nostdinc
+-nostdlib
+-static
+MKSH_LEGACY_MODE
+MKSH_BINSHPOSIX
+MKSH_ASSUME_UTF8=0
 ```
 
-## Features Enabled
+The upstream legacy profile is intentional. SUSv4 Issue 7 requires at least
+signed `long` shell arithmetic. Full mksh uses fixed 32-bit arithmetic on
+64-bit systems, while the legacy profile uses the C implementation's `long`.
+The same resulting executable is staged byte-identically as `/bin/mksh` and
+`/bin/sh`. Invocation as `/bin/sh` enables POSIX mode. No `/bin/lksh`,
+`/bin/xash`, or other shell is staged in the x86_64 image.
 
-- Command-line editing (emacs mode)
-- Command history
-- Tab completion
-- Job control
-- Aliases and functions
-- UTF-8 support
-- POSIX compliance mode
-- Bash compatibility extensions
+mksh compiles only against the built dietlibc headers and links with explicit
+dietlibc `start.o`, `dietlibc.a`, and the compiler runtime. The image ownership
+gate binds every staged `/bin` executable to its exact provider build artifact
+and rejects another libc, a dynamic loader, shared-library dependencies,
+alternate shells, and unclassified binaries.
 
-## Testing
-
-```bash
-# Run mksh test suite
-cd userland/shell/mksh
-./mksh test.sh
-
-# Interactive testing
-./mksh
-mksh$ echo $KSH_VERSION
-mksh$ set -o posix
-mksh$ function test { echo "Hello from mksh"; }
-mksh$ test
-```
-
-## Configuration
-
-Default configuration file: `/etc/mkshrc`
+## Verification
 
 ```sh
-# System-wide mksh configuration
-export PS1='$(whoami)@$(hostname):${PWD} \$ '
-export HISTFILE=~/.mksh_history
-export HISTSIZE=1000
+python3 scripts/verify_x86_64_runtime_ownership.py --self-test
 
-# Useful aliases
-alias ll='ls -la'
-alias la='ls -A'
-alias l='ls -CF'
+cmake --build build/x86_64/Debug \
+  --target xinim_x86_64_image xinim_x86_64_runtime_ownership_check -j2
 
-# Set safe umask
-umask 022
+ctest --test-dir build/x86_64/Debug \
+  -R '^(x86_64_runtime_ownership|x86_64_shell_test)$' \
+  --output-on-failure
 ```
 
-User configuration file: `~/.mkshrc`
+The exact shell gate runs in Ring 3 on QEMU `pc-q35-11.1`, `qemu64`, and one
+vCPU. Passing it does not by itself establish complete POSIX shell conformance;
+the finite shell-language ledger remains the conformance denominator.
 
-## Integration Status
+## Other lanes
 
-- [ ] Download mksh source
-- [x] Implement `xinim_syscalls.cpp`, `xinim_terminal.c`, and `xinim_job_control.c`
-- [x] Compile the integration layer in the native build as a reference artifact
-- [ ] Build mksh for XINIM
-- [ ] Run test suite
-- [ ] Install to /bin/mksh
-- [ ] Set as default shell
+The i486 and hosted shell targets have separate build and runtime histories.
+They are not evidence for the supported x86_64 runtime ownership contract.
 
-Current note:
-- The active shell lane remains `userland/shell/xinim-sh/` and the staged
-  guest `xash` path.
-- The `integration/*.c` files now compile as a reference library in the native
-  build, but they are still not the active shell lane.
+See `docs/posix/C_LANGUAGE_LIBC_SHELL_ALIGNMENT.md` for the C99 application
+contract, GNU C11 vendor dialect, C++23 ownership boundary, dietlibc policy,
+and POSIX test-suite admission rules.

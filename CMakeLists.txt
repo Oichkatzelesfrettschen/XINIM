@@ -861,6 +861,7 @@ if(XINIM_CPU_LANE STREQUAL "x86_64")
 find_program(XINIM_PYTHON3_EXECUTABLE python3 REQUIRED)
 find_program(XINIM_X86_64_USER_GCC gcc REQUIRED)
 find_program(XINIM_X86_64_USER_GXX g++ REQUIRED)
+find_program(XINIM_READELF_EXECUTABLE readelf REQUIRED)
 
 set(XINIM_MKSH_ARCHIVE "" CACHE FILEPATH
     "Optional local mksh R59c archive; the pinned source URL is used when empty")
@@ -881,10 +882,8 @@ set(XINIM_X86_64_MKSH_PATCH
     "${CMAKE_SOURCE_DIR}/third_party/patches/mksh-R59c-posix-lexer-conformance.patch")
 set(XINIM_X86_64_MKSH_PATCH_MANIFEST
     "${CMAKE_SOURCE_DIR}/third_party/patches/mksh-R59c-posix-lexer-conformance.json")
-set(XINIM_X86_64_MKSH_BUILD_DIR "${XINIM_X86_64_MKSH_ROOT}/build-mksh")
-set(XINIM_X86_64_LKSH_BUILD_DIR "${XINIM_X86_64_MKSH_ROOT}/build-lksh")
+set(XINIM_X86_64_MKSH_BUILD_DIR "${XINIM_X86_64_MKSH_ROOT}/build-posix-mksh")
 set(XINIM_X86_64_MKSH_BINARY "${XINIM_X86_64_MKSH_BUILD_DIR}/mksh")
-set(XINIM_X86_64_LKSH_BINARY "${XINIM_X86_64_LKSH_BUILD_DIR}/lksh")
 
 set(_XINIM_MKSH_ACQUIRE_ARGS
     --source-dir "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}")
@@ -1270,29 +1269,6 @@ add_custom_command(
         --dietlibc-a "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
         --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         --output "${XINIM_X86_64_MKSH_BINARY}"
-        --mode mksh
-    DEPENDS
-        xinim_x86_64_mksh_patched_source
-        "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/.xinim-patched-source.json"
-        xinim_x86_64_dietlibc
-        "${XINIM_X86_64_DIETLIBC_START}"
-        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
-        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
-    COMMENT "Building full x86_64 mksh R59c"
-    VERBATIM
-)
-add_custom_command(
-    OUTPUT "${XINIM_X86_64_LKSH_BINARY}"
-    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
-        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
-        --source-dir "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}"
-        --build-dir "${XINIM_X86_64_LKSH_BUILD_DIR}"
-        --cc "${XINIM_X86_64_USER_GCC}"
-        --start-o "${XINIM_X86_64_DIETLIBC_START}"
-        --dietlibc-a "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
-        --output "${XINIM_X86_64_LKSH_BINARY}"
         --mode lksh
     DEPENDS
         xinim_x86_64_mksh_patched_source
@@ -1302,12 +1278,11 @@ add_custom_command(
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
         "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
         "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
-    COMMENT "Building POSIX-oriented x86_64 lksh R59c"
+    COMMENT "Building the sole x86_64 mksh R59c POSIX profile"
     VERBATIM
 )
 add_custom_target(xinim_x86_64_mksh DEPENDS
-    "${XINIM_X86_64_MKSH_BINARY}"
-    "${XINIM_X86_64_LKSH_BINARY}")
+    "${XINIM_X86_64_MKSH_BINARY}")
 
 add_library(xinim_x86_64_assembly_abi OBJECT
     test/contract/x86_64_assembly_abi.cpp
@@ -1364,6 +1339,35 @@ set_tests_properties(
 )
 endif()
 
+set(XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST
+    "${CMAKE_CURRENT_BINARY_DIR}/x86_64-runtime-providers.tsv")
+string(CONCAT XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST_CONTENT
+    "provider\tname\tbuild_path\n"
+    "dietlibc\tbootfs-reuse-check\t${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}\n"
+    "dietlibc\tbyte-oracle\t${XINIM_X86_64_BYTE_ORACLE_BINARY}\n"
+    "dietlibc\tmkdir\t${XINIM_X86_64_MKDIR_BINARY}\n"
+    "dietlibc\tmksh\t${XINIM_X86_64_MKSH_BINARY}\n"
+    "dietlibc\tprintf\t${XINIM_X86_64_PRINTF_BINARY}\n"
+    "dietlibc\tprintf-signal-oracle\t${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}\n"
+    "dietlibc\trm\t${XINIM_X86_64_RM_BINARY}\n"
+    "dietlibc\tsh\t${XINIM_X86_64_MKSH_BINARY}\n"
+    "syscall-only\tbrk-check\t$<TARGET_FILE:xinim_x86_64_brk_check>\n"
+    "syscall-only\techo\t$<TARGET_FILE:xinim_x86_64_echo>\n"
+    "syscall-only\tfile-operations-check\t$<TARGET_FILE:xinim_x86_64_file_operations_check>\n"
+    "syscall-only\tfs-abi-check\t$<TARGET_FILE:xinim_x86_64_fs_abi_check>\n"
+    "syscall-only\tmmap-check\t$<TARGET_FILE:xinim_x86_64_mmap_check>\n"
+    "syscall-only\tpreempt-check\t$<TARGET_FILE:xinim_x86_64_preempt_check>\n"
+    "syscall-only\truntime-check\t$<TARGET_FILE:xinim_x86_64_runtime_check>\n"
+    "syscall-only\tselect-check\t$<TARGET_FILE:xinim_x86_64_select_check>\n"
+    "syscall-only\tsignal-check\t$<TARGET_FILE:xinim_x86_64_signal_check>\n"
+    "syscall-only\ttrue\t$<TARGET_FILE:xinim_x86_64_true>\n"
+    "syscall-only\ttty-abi-check\t$<TARGET_FILE:xinim_x86_64_tty_abi_check>\n"
+)
+file(GENERATE
+    OUTPUT "${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST}"
+    CONTENT "${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST_CONTENT}"
+)
+
     if(XINIM_XORRISO_EXECUTABLE AND EXISTS "${XINIM_LIMINE_CONFIG}")
     add_custom_command(
         OUTPUT "${XINIM_X86_64_BOOT_IMAGE}"
@@ -1387,7 +1391,6 @@ endif()
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_CONFIG}" "${XINIM_X86_64_STAGE_DIR}/limine.conf"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_CONFIG}" "${XINIM_X86_64_STAGE_DIR}/boot/limine.conf"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_CONFIG}" "${XINIM_X86_64_STAGE_DIR}/boot/limine/limine.conf"
-        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_shell>" "${XINIM_X86_64_STAGE_DIR}/bin/xash"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_true>" "${XINIM_X86_64_STAGE_DIR}/bin/true"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_echo>" "${XINIM_X86_64_STAGE_DIR}/bin/echo"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_PRINTF_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/printf"
@@ -1406,10 +1409,14 @@ endif()
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_select_check>" "${XINIM_X86_64_STAGE_DIR}/bin/select-check"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_file_operations_check>" "${XINIM_X86_64_STAGE_DIR}/bin/file-operations-check"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_MKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/mksh"
-        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_LKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/lksh"
-        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_LKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/sh"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_MKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/sh"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_mkshrc" "${XINIM_X86_64_STAGE_DIR}/etc/mkshrc"
         COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_motd.txt" "${XINIM_X86_64_STAGE_DIR}/etc/motd"
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            "${CMAKE_SOURCE_DIR}/scripts/verify_x86_64_runtime_ownership.py"
+            --stage-dir "${XINIM_X86_64_STAGE_DIR}"
+            --provider-manifest "${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST}"
+            --readelf "${XINIM_READELF_EXECUTABLE}"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_X86_64_IMAGE_DIR}"
         COMMAND ${XINIM_XORRISO_EXECUTABLE}
             -as mkisofs
@@ -1426,7 +1433,6 @@ endif()
         COMMAND "${XINIM_LIMINE_ROOT}/limine" bios-install "${XINIM_X86_64_BOOT_IMAGE}"
         DEPENDS
             xinim
-            xinim_x86_64_shell
             xinim_x86_64_true
             xinim_x86_64_echo
             xinim_x86_64_printf
@@ -1452,7 +1458,8 @@ endif()
             xinim_x86_64_file_operations_check
             xinim_x86_64_mksh
             "${XINIM_X86_64_MKSH_BINARY}"
-            "${XINIM_X86_64_LKSH_BINARY}"
+            "${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST}"
+            "${CMAKE_SOURCE_DIR}/scripts/verify_x86_64_runtime_ownership.py"
             xinim_bootstrap_limine
             "${XINIM_LIMINE_CONFIG}"
             "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_mkshrc"
@@ -1463,6 +1470,18 @@ endif()
     )
 
     add_custom_target(xinim_x86_64_image DEPENDS "${XINIM_X86_64_BOOT_IMAGE}")
+    add_custom_target(xinim_x86_64_runtime_ownership_check
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            "${CMAKE_SOURCE_DIR}/scripts/verify_x86_64_runtime_ownership.py"
+            --stage-dir "${XINIM_X86_64_STAGE_DIR}"
+            --provider-manifest "${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST}"
+            --readelf "${XINIM_READELF_EXECUTABLE}"
+        DEPENDS
+            xinim_x86_64_image
+            "${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST}"
+            "${CMAKE_SOURCE_DIR}/scripts/verify_x86_64_runtime_ownership.py"
+        VERBATIM
+    )
     add_custom_target(run_qemu_x86_64
         COMMAND "${CMAKE_SOURCE_DIR}/scripts/qemu_x86_64.sh" --boot-image "${XINIM_X86_64_BOOT_IMAGE}"
         DEPENDS xinim_x86_64_image
@@ -3626,6 +3645,17 @@ set_tests_properties(dietlibc_exec_limit_adapter_self_test PROPERTIES
     TIMEOUT 30
 )
 
+add_test(
+    NAME x86_64_runtime_ownership_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_x86_64_runtime_ownership.py
+        --self-test
+)
+set_tests_properties(x86_64_runtime_ownership_self_test PROPERTIES
+    LABELS "contract;external;posix;libc;shell"
+    TIMEOUT 30
+)
+
 add_custom_target(xinim_posix2_utility_ledger_check
     COMMAND ${XINIM_PYTHON3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
@@ -4092,6 +4122,21 @@ if(TARGET xinim_x86_64_image)
         SKIP_RETURN_CODE 77
         FIXTURES_SETUP x86_64_image
         TIMEOUT 120
+    )
+
+    add_test(
+        NAME x86_64_runtime_ownership
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/scripts/verify_x86_64_runtime_ownership.py
+            --stage-dir ${XINIM_X86_64_STAGE_DIR}
+            --provider-manifest ${XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST}
+            --readelf ${XINIM_READELF_EXECUTABLE}
+        WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    )
+    set_tests_properties(x86_64_runtime_ownership PROPERTIES
+        LABELS "integration;boot;contract;posix;libc;shell"
+        FIXTURES_REQUIRED x86_64_image
+        TIMEOUT 30
     )
 
     add_test(

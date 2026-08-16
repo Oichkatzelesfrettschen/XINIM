@@ -54,13 +54,14 @@ qemu-system-x86_64 11.1.0
 Limine x86_64 ISO
 ```
 
-The image boots static lksh R59c as Ring 3 PID 1 at `/bin/sh`; `/bin/lksh` is
-the same legacy-POSIX build. `/bin/mksh` remains the full R59c shell, and
-`/bin/xash` remains a distinct, explicit rescue binary. The startup file
-selects POSIX mode, the `C` locale, and byte-oriented string handling. The
-exact QEMU test proves that `/bin/sh` is lksh, that `/bin/mksh` remains the
-full shell, and that host-`long` arithmetic and disabled brace and UTF-8 modes
-survive guest execution. It also proves startup-file
+The image boots one static mksh R59c source build as Ring 3 PID 1 at
+`/bin/sh`. The build uses upstream's legacy POSIX profile so shell arithmetic
+uses the x86_64 C implementation's `long`; the same binary is installed as
+`/bin/mksh`. No lksh-named or xash shell is staged. Invocation as `/bin/sh`,
+the startup file, the `C` locale, and byte-oriented string handling select the
+POSIX behavior. The exact QEMU test proves the sole-shell layout, the legacy
+POSIX profile, the full 64-bit signed-`long` value range, and disabled brace
+and UTF-8 modes survive guest execution. It also proves startup-file
 execution, process identity, quoting, parameter expansion, command and
 arithmetic substitution, functions, loops, case, pipelines, redirections,
 asynchronous lists, wait, interactive monitor mode, foreground jobs, signals,
@@ -78,7 +79,7 @@ conformance.
 
 The pinned mksh R59c source remains pristine under `mksh-R59c/source`. A
 hash-bound repository patch produces `mksh-R59c/patched-source` atomically;
-both mksh and lksh build only from that verified tree. The patch captures the
+the sole shell builds only from that verified tree. The patch captures the
 physical command-substitution source while alias lookup is suppressed, locates
 the physical closing parenthesis through recursive token recognition, and then
 parses the bounded source with normal alias behavior. Host tests prove identical

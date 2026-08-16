@@ -2740,20 +2740,15 @@ def main():
                 "MKSH_EXECUTABLE_OK",
             ),
             require_contains(
-                "lksh executable",
+                "alternate shells absent",
                 send_command(
                     shell,
-                    "test -x /bin/lksh && printf '%s\\n' LKSH_EXECUTABLE_OK",
+                    "for path in /bin/ash /bin/bash /bin/dash /bin/ksh "
+                    "/bin/lksh /bin/pdksh /bin/xash /bin/zsh; do "
+                    'test ! -e "$path" || exit 1; done; '
+                    "printf '%s\\n' ALTERNATE_SHELLS_ABSENT_OK",
                 ),
-                "LKSH_EXECUTABLE_OK",
-            ),
-            require_contains(
-                "xash rescue executable",
-                send_command(
-                    shell,
-                    "test -x /bin/xash && printf '%s\\n' XASH_RESCUE_OK",
-                ),
-                "XASH_RESCUE_OK",
+                "ALTERNATE_SHELLS_ABSENT_OK",
             ),
             require_contains(
                 "mkdir executable",
@@ -2901,27 +2896,20 @@ def main():
                     "RM_OPTION_FORCE_OK",
                 ),
                 require_contains(
-                    "sh image is lksh",
+                    "sh uses the mksh legacy POSIX profile",
                     send_command(
                         shell,
                         "/bin/sh -c 'case ${KSH_VERSION-} in "
-                        '*LEGACY*KSH*) printf "%s\\n" SH_IS_LKSH_OK;; esac\'',
+                        '*LEGACY*KSH*) printf "%s\\n" SH_MKSH_POSIX_PROFILE_OK;; esac\'',
                     ),
-                    "SH_IS_LKSH_OK",
-                ),
-                require_contains(
-                    "lksh image entry",
-                    send_command(
-                        shell,
-                        "/bin/lksh -o posix -c 'printf \"%s\\n\" LKSH_COMMAND_OK'",
-                    ),
-                    "LKSH_COMMAND_OK",
+                    "SH_MKSH_POSIX_PROFILE_OK",
                 ),
                 require_contains(
                     "mksh image entry",
                     send_command(
                         shell,
-                        "/bin/mksh -c 'printf \"%s\\n\" MKSH_COMMAND_OK'",
+                        "/bin/mksh -o posix -c 'case ${KSH_VERSION-} in "
+                        '*LEGACY*KSH*) printf "%s\\n" MKSH_COMMAND_OK;; esac\'',
                     ),
                     "MKSH_COMMAND_OK",
                 ),
@@ -2935,11 +2923,13 @@ def main():
                     "POSIX_C_LOCALE_OK",
                 ),
                 require_contains(
-                    "host long arithmetic",
+                    "64-bit signed-long range",
                     send_command(
                         shell,
-                        "value=$((2147483647 + 1)); "
-                        'test "$value" -eq 2147483648 && '
+                        "maximum=$((9223372036854775807)); "
+                        "minimum=$((-9223372036854775807 - 1)); "
+                        'test "$maximum" = 9223372036854775807 && '
+                        'test "$minimum" = -9223372036854775808 && '
                         "printf '%s\\n' POSIX_LONG_ARITHMETIC_OK",
                     ),
                     "POSIX_LONG_ARITHMETIC_OK",
