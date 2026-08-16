@@ -12,3 +12,5 @@ tss_load:
     ret
 
 .size tss_load, . - tss_load
+
+.section .note.GNU-stack,"",@progbits

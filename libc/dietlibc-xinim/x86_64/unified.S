@@ -1,6 +1,6 @@
 #include <dietfeatures.h>
 
-#define SYS_exit 0x3c
+#define SYS_exit 25
 
 .text
 

@@ -1,0 +1,8 @@
+LC_ALL=C
+LANG=C
+PS1='sh# '
+SHELL=/bin/sh
+export LC_ALL LANG PS1 SHELL
+set -o posix
+set +U
+/bin/echo '[user] Ring 3 POSIX sh PID 1 entry'

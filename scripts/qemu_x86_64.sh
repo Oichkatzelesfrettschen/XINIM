@@ -22,27 +22,22 @@ print_warning() { echo -e "${YELLOW}[WARN]${NC} $1"; }
 # Default configuration for x86_64
 BUILD_ROOT="${XINIM_BUILD_ROOT:-${PROJECT_ROOT}/build/x86_64/Debug}"
 IMAGE_ROOT="${XINIM_IMAGE_ROOT:-${BUILD_ROOT}/images}"
-KERNEL_IMAGE="${BUILD_ROOT}/xinim"
 BOOT_IMAGE="${XINIM_QEMU_BOOT_IMAGE:-${IMAGE_ROOT}/x86_64/xinim-x86_64.iso}"
 MEMORY="512M"
 CPU_TYPE="qemu64"
-MACHINE="q35"  # Modern PC with PCIe
-ACCEL=""
+MACHINE="pc-q35-11.1"
+ACCEL_ARGS=()
 SERIAL_OUTPUT="stdio"
 KSHELL_PORT=4555
 DISPLAY="-nographic"
 DEBUG_MODE=false
 GDB_PORT=1234
 KERNEL_CMDLINE=""
-SMP_CPUS="2"
+SMP_CPUS="1"
 
 # Parse command line arguments
 while [[ $# -gt 0 ]]; do
     case $1 in
-        -k|--kernel)
-            KERNEL_IMAGE="$2"
-            shift 2
-            ;;
         --boot-image)
             BOOT_IMAGE="$2"
             shift 2
@@ -90,15 +85,13 @@ Usage: $0 [OPTIONS]
 XINIM x86_64 QEMU Launch Script
 
 Options:
-  -k, --kernel PATH       Path to kernel ELF (default: external build root)
   --boot-image PATH       Bootable disk/ISO image for QEMU (recommended)
   -m, --memory SIZE       Memory size (default: 512M)
   --cpu TYPE             CPU type (default: qemu64)
                          Options: qemu64, host, Nehalem, SandyBridge, IvyBridge,
                                   Haswell, Broadwell, Skylake-Client, Cascadelake-Server
-  --machine TYPE         Machine type (default: q35)
-                         Options: q35 (modern PCIe), pc (legacy i440FX)
-  --smp N                Number of CPUs (default: 2)
+  --machine TYPE         Machine type (required: pc-q35-11.1)
+  --smp N                Number of CPUs (default: 1)
   -g, --debug            Enable GDB debugging
   --gdb-port PORT        GDB server port (default: 1234)
   --display              Enable graphical display (default: serial only)
@@ -109,9 +102,6 @@ Options:
 Examples:
   # Boot from a prebuilt image
   $0 --boot-image "\$XINIM_IMAGE_ROOT/x86_64/xinim-x86_64.iso"
-
-  # Legacy direct kernel path (only for kernels that QEMU can load directly)
-  $0
 
   # Boot with more memory and CPUs
   $0 -m 2G --smp 4
@@ -137,9 +127,8 @@ Recommended CPU types for x86_64:
   - Skylake-Client:   Intel Skylake (2015) - AVX2, modern features
   - Cascadelake:      Intel Cascade Lake (2019) - AVX512
 
-Machine types:
-  - q35:              Modern PC (Q35 chipset, PCIe) - recommended
-  - pc:               Standard PC (i440FX chipset, legacy PCI)
+Machine type:
+  - pc-q35-11.1:      Versioned Q35 chipset contract used by all x86_64 tests
 
 EOF
             exit 0
@@ -153,36 +142,43 @@ EOF
 done
 
 # Check for QEMU
-if ! command -v qemu-system-x86_64 &> /dev/null; then
-    print_error "qemu-system-x86_64 not found"
+QEMU_CMD="${XINIM_QEMU_SYSTEM_BIN:-qemu-system-x86_64}"
+if ! command -v "${QEMU_CMD}" &> /dev/null; then
+    print_error "${QEMU_CMD} not found"
     print_info "Install with: sudo pacman -S qemu-system-x86 (Arch)"
     print_info "Or: sudo apt-get install qemu-system-x86 (Debian/Ubuntu)"
     exit 1
 fi
 
+if [[ "${MACHINE}" != "pc-q35-11.1" ]]; then
+    print_error "unsupported x86_64 machine: ${MACHINE}"
+    print_info "The validated hardware contract is pc-q35-11.1."
+    exit 1
+fi
+
 # Detect KVM support for acceleration
 if [[ -e /dev/kvm ]] && [[ -w /dev/kvm ]]; then
-    ACCEL="-accel kvm"
+    ACCEL_ARGS=(-accel kvm)
     print_info "KVM acceleration enabled"
 else
     print_warning "KVM not available, using software emulation"
-    ACCEL="-accel tcg"
+    ACCEL_ARGS=(-accel tcg)
 fi
 
 # Build QEMU command
-QEMU_CMD="qemu-system-x86_64"
 QEMU_ARGS=(
     # Machine configuration
     -machine "$MACHINE"
     -cpu "$CPU_TYPE"
-    $ACCEL
+    "${ACCEL_ARGS[@]}"
     -m "$MEMORY"
     -smp "$SMP_CPUS"
     
-    # Modern PC devices
-    -device "ahci,id=ahci"                    # AHCI controller
-    -device "e1000,netdev=net0"               # E1000 network card
-    -netdev "user,id=net0"                    # User-mode networking
+    # The Q35 machine owns its ICH9 AHCI controller. Networking remains off
+    # until the selected kernel driver has a proven QEMU transport contract.
+    -nodefaults
+    -vga none
+    -nic none
     
     # Serial port configuration: COM1 for logs, COM2 for kshell
     -serial "$SERIAL_OUTPUT"
@@ -198,30 +194,14 @@ QEMU_ARGS=(
     -no-reboot
 )
 
-if [[ -n "${BOOT_IMAGE}" ]]; then
-    if [[ ! -f "${BOOT_IMAGE}" ]]; then
-        print_error "Boot image not found: ${BOOT_IMAGE}"
-        exit 1
-    fi
-    QEMU_ARGS+=(
-        -cdrom "${BOOT_IMAGE}"
-        -boot d
-    )
-else
-    if [[ ! -f "$KERNEL_IMAGE" ]]; then
-        print_error "Kernel image not found: $KERNEL_IMAGE"
-        print_info "Please build the kernel first with: cmake --build --preset x86_64-debug"
-        exit 1
-    fi
-
-    if file "$KERNEL_IMAGE" | grep -q "ELF 64-bit"; then
-        print_error "Direct -kernel boot is not supported for the current Limine-oriented kernel ELF."
-        print_info "Provide a bootable image via --boot-image or XINIM_QEMU_BOOT_IMAGE."
-        exit 1
-    fi
-
-    QEMU_ARGS+=(-kernel "$KERNEL_IMAGE")
+if [[ ! -f "${BOOT_IMAGE}" ]]; then
+    print_error "Boot image not found: ${BOOT_IMAGE}"
+    exit 1
 fi
+QEMU_ARGS+=(
+    -cdrom "${BOOT_IMAGE}"
+    -boot d
+)
 
 # Add kernel command line if specified
 if [[ -n "$KERNEL_CMDLINE" ]]; then
@@ -238,21 +218,18 @@ if [[ "$DEBUG_MODE" == true ]]; then
         QEMU_ARGS+=(-gdb "tcp::$GDB_PORT")
     fi
     print_info "Debug mode enabled - GDB server on port $GDB_PORT"
-    print_info "Connect with: gdb $KERNEL_IMAGE -ex 'target remote localhost:$GDB_PORT'"
+    print_info "Connect with: gdb ${BUILD_ROOT}/xinim -ex 'target remote localhost:$GDB_PORT'"
 fi
 
 # Print configuration
 print_info "Starting XINIM in QEMU (x86_64)"
 print_info "================================"
-print_info "Kernel:       $KERNEL_IMAGE"
-if [[ -n "${BOOT_IMAGE}" ]]; then
-    print_info "Boot Image:   ${BOOT_IMAGE}"
-fi
+print_info "Boot Image:   ${BOOT_IMAGE}"
 print_info "Memory:       $MEMORY"
 print_info "CPUs:         $SMP_CPUS"
 print_info "CPU Type:     $CPU_TYPE"
 print_info "Machine:      $MACHINE"
-print_info "Acceleration: ${ACCEL#-accel }"
+print_info "Acceleration: ${ACCEL_ARGS[1]}"
 print_info "kshell port:  $KSHELL_PORT (COM2 via TCP)"
 print_info "================================"
 

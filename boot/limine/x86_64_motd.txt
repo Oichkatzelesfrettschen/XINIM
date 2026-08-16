@@ -1,0 +1,3 @@
+Welcome to XINIM x86_64.
+The boot image starts mksh as the Ring 3 PID 1 shell.
+The xash diagnostic shell remains available explicitly as /bin/xash.

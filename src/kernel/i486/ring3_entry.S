@@ -1,3 +1,5 @@
+#include <xinim/abi/x86_32_context_layout.h>
+
 .section .text
 
 .global i486_load_gdt
@@ -5,15 +7,16 @@
 i486_load_gdt:
     movl 4(%esp), %eax
     lgdt (%eax)
-    ljmp $0x08, $.Lflush_segments
+    ljmp $XINIM_X86_KERNEL_CS_SELECTOR, $.Lflush_segments
 .Lflush_segments:
-    movw $0x10, %ax
+    movw $XINIM_X86_KERNEL_DS_SELECTOR, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %fs
     movw %ax, %gs
     movw %ax, %ss
     ret
+.size i486_load_gdt, . - i486_load_gdt
 
 .global i486_load_idt
 .type i486_load_idt, @function
@@ -21,6 +24,7 @@ i486_load_idt:
     movl 4(%esp), %eax
     lidt (%eax)
     ret
+.size i486_load_idt, . - i486_load_idt
 
 .global i486_load_tss
 .type i486_load_tss, @function
@@ -28,6 +32,7 @@ i486_load_tss:
     movw 4(%esp), %ax
     ltr %ax
     ret
+.size i486_load_tss, . - i486_load_tss
 
 .global i486_enter_user_mode
 .type i486_enter_user_mode, @function
@@ -47,12 +52,14 @@ i486_enter_user_mode:
     pushl %ecx
     pushl %eax
     iret
+.size i486_enter_user_mode, . - i486_enter_user_mode
 
 .global i486_resume_user_context
 .type i486_resume_user_context, @function
 i486_resume_user_context:
     movl 4(%esp), %eax
     jmp i486_restore_user_context
+.size i486_resume_user_context, . - i486_resume_user_context
 
 .global i486_switch_to_user_context
 .type i486_switch_to_user_context, @function
@@ -65,6 +72,7 @@ i486_switch_to_user_context:
     movl %esp, (%edx)
     movl 20(%esp), %eax
     jmp i486_restore_user_context
+.size i486_switch_to_user_context, . - i486_switch_to_user_context
 
 .global i486_resume_saved_kernel_stack
 .type i486_resume_saved_kernel_stack, @function
@@ -76,27 +84,29 @@ i486_resume_saved_kernel_stack:
     popl %edi
     popl %ebp
     ret
+.size i486_resume_saved_kernel_stack, . - i486_resume_saved_kernel_stack
 
 .global i486_restore_user_context
 .type i486_restore_user_context, @function
 i486_restore_user_context:
-    pushl 60(%eax)
-    pushl 56(%eax)
-    pushl 52(%eax)
-    pushl 48(%eax)
-    pushl 44(%eax)
-    pushl 40(%eax)
-    pushl 36(%eax)
-    pushl 32(%eax)
-    pushl 28(%eax)
-    pushl 24(%eax)
-    pushl 20(%eax)
-    pushl 16(%eax)
-    pushl 12(%eax)
-    pushl 8(%eax)
-    pushl 4(%eax)
-    pushl 0(%eax)
+    pushl XINIM_X86_32_USER_SS(%eax)
+    pushl XINIM_X86_32_USER_ESP(%eax)
+    pushl XINIM_X86_32_USER_EFLAGS(%eax)
+    pushl XINIM_X86_32_USER_CS(%eax)
+    pushl XINIM_X86_32_USER_EIP(%eax)
+    pushl XINIM_X86_32_USER_GS(%eax)
+    pushl XINIM_X86_32_USER_FS(%eax)
+    pushl XINIM_X86_32_USER_ES(%eax)
+    pushl XINIM_X86_32_USER_DS(%eax)
+    pushl XINIM_X86_32_USER_EBP(%eax)
+    pushl XINIM_X86_32_USER_EDI(%eax)
+    pushl XINIM_X86_32_USER_ESI(%eax)
+    pushl XINIM_X86_32_USER_EDX(%eax)
+    pushl XINIM_X86_32_USER_ECX(%eax)
+    pushl XINIM_X86_32_USER_EBX(%eax)
+    pushl XINIM_X86_32_USER_EAX(%eax)
     jmp i486_syscall_return
+.size i486_restore_user_context, . - i486_restore_user_context
 
 .extern i486_handle_syscall
 .extern i486_handle_timer_irq
@@ -116,16 +126,20 @@ i486_syscall_entry:
     pushl %ebx
     pushl %eax
 
-    movw $0x10, %ax
+    movw $XINIM_X86_KERNEL_DS_SELECTOR, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %fs
     movw %ax, %gs
 
-    pushl %esp
+    cld
+    movl %esp, %ebp
+    andl $-16, %esp
+    subl $12, %esp
+    pushl %ebp
     call i486_handle_syscall
-    addl $4, %esp
-    movl %eax, (%esp)
+    movl %ebp, %esp
+    movl %eax, XINIM_X86_32_REGISTER_EAX(%esp)
 
 i486_syscall_return:
     popl %eax
@@ -140,6 +154,7 @@ i486_syscall_return:
     popl %fs
     popl %gs
     iret
+.size i486_syscall_entry, . - i486_syscall_entry
 
 .global i486_timer_irq_entry
 .type i486_timer_irq_entry, @function
@@ -156,18 +171,23 @@ i486_timer_irq_entry:
     pushl %ebx
     pushl %eax
 
-    movw $0x10, %ax
+    movw $XINIM_X86_KERNEL_DS_SELECTOR, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %fs
     movw %ax, %gs
 
-    pushl %esp
+    cld
+    movl %esp, %ebp
+    andl $-16, %esp
+    subl $12, %esp
+    pushl %ebp
     call i486_handle_timer_irq
 
     cli
     hlt
     jmp .
+.size i486_timer_irq_entry, . - i486_timer_irq_entry
 
 .macro XINIM_FAULT_STUB_NOERR name, vector
 .global \name
@@ -176,6 +196,7 @@ i486_timer_irq_entry:
     pushl $0
     pushl $\vector
     jmp i486_fault_common
+    .size \name, . - \name
 .endm
 
 .macro XINIM_FAULT_STUB_ERR name, vector
@@ -184,6 +205,7 @@ i486_timer_irq_entry:
 \name:
     pushl $\vector
     jmp i486_fault_common
+    .size \name, . - \name
 .endm
 
 .global i486_fault_common
@@ -201,27 +223,31 @@ i486_fault_common:
     pushl %ebx
     pushl %eax
 
-    movw $0x10, %ax
+    movw $XINIM_X86_KERNEL_DS_SELECTOR, %ax
     movw %ax, %ds
     movw %ax, %es
     movw %ax, %fs
     movw %ax, %gs
 
-    // Pass fault EIP from the CPU interrupt frame as 3rd arg.
-    // Stack: [11 regs = 44 bytes][vector][error_code][EIP][CS][EFLAGS][ESP][SS]
-    // fault EIP is at esp + 44 + 4 + 4 = esp + 52
-    movl 52(%esp), %ecx
+    // Read arguments before realigning the asynchronous kernel stack.
+    movl XINIM_X86_32_REGISTER_SIZE(%esp), %eax
+    movl XINIM_X86_32_REGISTER_SIZE + 4(%esp), %edx
+    movl XINIM_X86_32_REGISTER_SIZE + 8(%esp), %ecx
+    andl $-16, %esp
+    subl $4, %esp
     pushl %ecx
-    movl 52(%esp), %edx
-    movl 48(%esp), %eax
     pushl %edx
     pushl %eax
+    cld
     call i486_handle_fault
 
     cli
     hlt
     jmp .
+.size i486_fault_common, . - i486_fault_common
 
 XINIM_FAULT_STUB_NOERR i486_fault_ud_entry, 6
 XINIM_FAULT_STUB_ERR i486_fault_gp_entry, 13
 XINIM_FAULT_STUB_ERR i486_fault_pf_entry, 14
+
+.section .note.GNU-stack,"",@progbits

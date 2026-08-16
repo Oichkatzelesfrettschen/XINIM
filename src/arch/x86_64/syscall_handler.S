@@ -1,95 +1,99 @@
+#include <xinim/abi/x86_64_context_layout.h>
+#include <xinim/abi/x86_64_syscall_frame.h>
+
 .intel_syntax noprefix
 
 /**
  * @file syscall_handler.S
- * @brief Fast syscall entry point for x86_64
+ * @brief SysV AMD64 bridge from SYSCALL to the XINIM C++ dispatcher
  */
 
 .section .text
 .code64
 
+.extern xinim_syscall_dispatch_frame
+
 .globl syscall_handler
 .type syscall_handler, @function
-.align 16
+.p2align 4
 syscall_handler:
-    # CRITICAL: We are in Ring 0 but still on user stack!
-    # Save user RSP in R15 temporarily
-    mov r15, rsp
+    /*
+     * SYSCALL does not switch stacks. The kernel is single-CPU, so the entry
+     * path first records the user stack in dedicated scratch storage and then
+     * moves to the kernel syscall stack without consuming a user GPR.
+     */
+    mov [rip + syscall_user_rsp], rsp
+    mov rsp, [rip + syscall_kernel_stack_top]
 
-    # Switch to kernel syscall stack
-    lea rsp, [rip + kernel_syscall_stack_top]
+    /* Explicit IRETQ frame; the current GDT is not a valid SYSRET pair. */
+    push XINIM_X86_USER_DS_SELECTOR
+    push qword ptr [rip + syscall_user_rsp]
+    push r11
+    push XINIM_X86_USER_CS_SELECTOR
+    push rcx
 
-    # Now we're on kernel stack - safe to save everything
-    push r15        # User RSP
-    push r11        # User RFLAGS
-    push rcx        # User RIP
-
-    # Save callee-saved registers
+    /* Preserve every user GPR except architectural RCX and R11 clobbers. */
     push rbx
     push rbp
     push r12
     push r13
     push r14
-    push r15        # Save original R15
-
-    # Save argument registers
+    push r15
     push rdi
     push rsi
     push rdx
     push r10
     push r8
     push r9
-
-    # Save RAX (syscall number)
     push rax
 
-    # Prepare arguments for syscall_dispatch
-    # User passed: RAX=syscall_num, RDI=arg1, RSI=arg2, RDX=arg3, R10=arg4, R8=arg5, R9=arg6
-    # C++ expects: RDI=syscall_num, RSI=arg1, RDX=arg2, RCX=arg3, R8=arg4, R9=arg5, stack=arg6
+    /* C and C++ require a clear direction flag and a 16-byte-aligned call. */
+    cld
 
-    mov rdi, [rsp]         # RAX (syscall_num) -> RDI
-    mov rsi, [rsp + 8*6]   # Original RDI (arg1) -> RSI
-    mov rdx, [rsp + 8*5]   # Original RSI (arg2) -> RDX
-    mov rcx, [rsp + 8*4]   # Original RDX (arg3) -> RCX
-    mov r8,  [rsp + 8*3]   # Original R10 (arg4) -> R8
-    mov r9,  [rsp + 8*2]   # Original R8 (arg5) -> R9
+    /* The dispatcher may use x87, MMX, or SSE registers. Preserve user state. */
+    sub rsp, XINIM_X86_64_FXSAVE_SIZE
+    fxsave64 [rsp]
 
-    # arg6 is original R9
-    mov rax, [rsp + 8*1]   
-    push rax
+    lea rdi, [rsp + XINIM_X86_64_FXSAVE_SIZE]
+    call xinim_syscall_dispatch_frame
 
-    # Call C++ dispatch function (renamed to match dispatch.cpp or syscall.cpp)
-    # The linker error said 'xinim_syscall_dispatch' was defined in dispatch.cpp
-    call xinim_syscall_dispatch
+    fxrstor64 [rsp]
+    add rsp, XINIM_X86_64_FXSAVE_SIZE
 
-    # Clean up arg6 from stack
-    add rsp, 8
+    /* Replace the saved syscall number with the dispatcher result. */
+    mov [rsp + XINIM_X86_64_SYSCALL_RAX], rax
 
-    # RAX now contains return value - save in callee-saved register
-    mov rbx, rax
-
-    # Restore registers (skip argument registers)
-    add rsp, 8*7    
-
-    # Restore callee-saved registers (except RBX)
+    pop rax
+    pop r9
+    pop r8
+    pop r10
+    pop rdx
+    pop rsi
+    pop rdi
     pop r15
     pop r14
     pop r13
     pop r12
     pop rbp
-    add rsp, 8      
-
-    pop rcx         # User RIP
-    pop r11         # User RFLAGS
-    pop rsp         # User RSP
-
-    mov rax, rbx
-    sysretq
+    pop rbx
+    iretq
 
 .size syscall_handler, . - syscall_handler
 
 .section .bss
-.align 16
+.p2align 4
+syscall_user_rsp:
+    .quad 0
+
+.p2align 4
 kernel_syscall_stack:
     .skip 8192
 kernel_syscall_stack_top:
+
+.section .data
+.globl syscall_kernel_stack_top
+.p2align 3
+syscall_kernel_stack_top:
+    .quad kernel_syscall_stack_top
+
+.section .note.GNU-stack,"",@progbits

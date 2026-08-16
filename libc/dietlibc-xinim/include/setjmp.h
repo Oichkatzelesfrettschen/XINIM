@@ -235,7 +235,8 @@ typedef struct __jmp_buf_tag {	/* C++ doesn't like tagless structs.  */
   sigset_t __saved_mask;	/* Saved signal mask.  */
 } jmp_buf[1];
 
-extern int __sigsetjmp(jmp_buf __env,int __savemask) __THROW;
+extern int __sigsetjmp(jmp_buf __env,int __savemask) __THROW
+     __attribute__((__returns_twice__));
 
 extern void longjmp(jmp_buf __env,int __val)
      __THROWNL __attribute__((__noreturn__));

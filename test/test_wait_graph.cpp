@@ -4,6 +4,7 @@
  */
 
 #include "wait_graph.hpp"
+
 #include <cassert>
 
 int main() {
@@ -31,9 +32,13 @@ int main() {
     // Path still exists 1->2->3
     assert(g.has_path(1, 3));
 
+    // Removing a node clears both incoming and outgoing edges.
+    g.remove_node(2);
+    assert(!g.has_path(1, 3));
+    assert(!g.has_path(1, 2));
+    assert(!g.has_path(2, 3));
+
     // Self-loop is a cycle
-    g.remove_edge(1, 2);
-    g.remove_edge(2, 3);
     g.add_edge(5, 5);
     assert(g.is_in_cycle(5));
 

@@ -12,7 +12,7 @@ static unsigned int n;
 uint32_t arc4random(void) {
   if (n==0) arc4random_stir();
   uint32_t r=buf[n];
-  if (++n > sizeof(buf)/sizeof(buf[0])) n=0;
+  if (++n >= sizeof(buf)/sizeof(buf[0])) n=0;
   return r;
 }
 
@@ -60,5 +60,13 @@ void arc4random_stir(void) {
 }
 
 void arc4random_addrandom(unsigned char* dat,size_t datlen) {
-}
+  unsigned char* random_state;
+  size_t state_index;
 
+  if (dat==0 || datlen==0) return;
+  arc4random_stir();
+  random_state=(unsigned char*)buf;
+  for (state_index=0; state_index<datlen; ++state_index)
+    random_state[state_index % sizeof(buf)] ^= dat[state_index];
+  n=0;
+}

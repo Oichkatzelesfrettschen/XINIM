@@ -1,31 +1,96 @@
-#!/usr/bin/env bash
-# Cache official shell and standards sources for offline reference.
+#!/bin/sh
+# Acquire the official POSIX Issue 7, 2018 HTML archive for local use.
 
-set -euo pipefail
+set -eu
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-export XINIM_REPO_ROOT="$(dirname "${SCRIPT_DIR}")"
-source "${SCRIPT_DIR}/xinim-env.sh"
-xinim_ensure_project_dirs
+SCRIPT_DIRECTORY=$(CDPATH= cd -P -- "$(dirname -- "$0")" && pwd)
+REPOSITORY_ROOT=$(dirname -- "$SCRIPT_DIRECTORY")
+ARCHIVE_URL=https://pubs.opengroup.org/onlinepubs/9699919799/download/susv4-2018.tgz
+ARCHIVE_NAME=susv4-2018.tgz
+MOZILLA_USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0'
+DOWNLOAD_DIRECTORY=$REPOSITORY_ROOT/build/_state/downloads/posix
+EXTRACT_ROOT=$REPOSITORY_ROOT/build/_state/cache/posix
+ARCHIVE_PATH=$DOWNLOAD_DIRECTORY/$ARCHIVE_NAME
+RESPONSE_LOG=$DOWNLOAD_DIRECTORY/susv4-2018.response.log
+OFFLINE=0
 
-DEST_DIR="${XINIM_REPO_ROOT}/data/external/posix"
-mkdir -p "${DEST_DIR}"
-
-fetch() {
-    local url="$1"
-    local name="$2"
-    local path="${DEST_DIR}/${name}"
-    curl -LfsS "${url}" -o "${path}"
+usage() {
+    printf '%s\n' \
+        "usage: $0 [--offline] [--download-directory PATH] [--extract-root PATH]"
 }
 
-fetch "https://www.opengroup.org/austin/" "austin_group_overview.html"
-fetch "https://pubs.opengroup.org/onlinepubs/9699919799.2013edition/utilities/V3_chap02.html" \
-    "posix_shell_command_language_2008.html"
-fetch "https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap02.html" \
-    "posix_conformance_2017.html"
-fetch "https://pubs.opengroup.org/onlinepubs/9699919799/utilities/V3_chap01.html" \
-    "posix_shell_and_utilities_2017.html"
-fetch "https://pubs.opengroup.org/onlinepubs/9799919799/xrat/V4_xcu_chap01.html" \
-    "posix_issue8_shell_rationale.html"
+while [ "$#" -gt 0 ]; do
+    case $1 in
+        --offline)
+            OFFLINE=1
+            shift
+            ;;
+        --download-directory)
+            [ "$#" -ge 2 ] || {
+                usage >&2
+                exit 2
+            }
+            DOWNLOAD_DIRECTORY=$2
+            ARCHIVE_PATH=$DOWNLOAD_DIRECTORY/$ARCHIVE_NAME
+            RESPONSE_LOG=$DOWNLOAD_DIRECTORY/susv4-2018.response.log
+            shift 2
+            ;;
+        --extract-root)
+            [ "$#" -ge 2 ] || {
+                usage >&2
+                exit 2
+            }
+            EXTRACT_ROOT=$2
+            shift 2
+            ;;
+        --help)
+            usage
+            exit 0
+            ;;
+        *)
+            printf 'unknown argument: %s\n' "$1" >&2
+            usage >&2
+            exit 2
+            ;;
+    esac
+done
 
-sha256sum "${DEST_DIR}"/*.html > "${DEST_DIR}/SHA256SUMS"
+mkdir -p -- "$DOWNLOAD_DIRECTORY" "$EXTRACT_ROOT"
+
+if [ "$OFFLINE" -eq 0 ]; then
+    PARTIAL_ARCHIVE=$DOWNLOAD_DIRECTORY/.susv4-2018.tgz.partial.$$
+    PARTIAL_RESPONSE=$DOWNLOAD_DIRECTORY/.susv4-2018.response.partial.$$
+    cleanup_partial_files() {
+        rm -f -- "$PARTIAL_ARCHIVE" "$PARTIAL_RESPONSE"
+    }
+    trap cleanup_partial_files EXIT HUP INT TERM
+
+    wget \
+        --user-agent="$MOZILLA_USER_AGENT" \
+        --https-only \
+        --max-redirect=5 \
+        --timeout=30 \
+        --tries=3 \
+        --server-response \
+        --output-document="$PARTIAL_ARCHIVE" \
+        "$ARCHIVE_URL" \
+        2>"$PARTIAL_RESPONSE"
+
+    python3 "$SCRIPT_DIRECTORY/verify_posix_issue7_archive.py" \
+        --repo-root "$REPOSITORY_ROOT" \
+        --archive "$PARTIAL_ARCHIVE"
+
+    mv -- "$PARTIAL_ARCHIVE" "$ARCHIVE_PATH"
+    mv -- "$PARTIAL_RESPONSE" "$RESPONSE_LOG"
+    trap - EXIT HUP INT TERM
+fi
+
+python3 "$SCRIPT_DIRECTORY/verify_posix_issue7_archive.py" \
+    --repo-root "$REPOSITORY_ROOT" \
+    --archive "$ARCHIVE_PATH" \
+    --extract-root "$EXTRACT_ROOT" \
+    --extract
+
+printf '%s\n' \
+    "Retained personal-use archive: $ARCHIVE_PATH" \
+    "Verified extracted corpus: $EXTRACT_ROOT/susv4-2018"

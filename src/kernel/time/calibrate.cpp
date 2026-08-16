@@ -1,48 +1,53 @@
 #include "calibrate.hpp"
 
+#include "apic_calibration_math.hpp"
+
 namespace xinim::time {
 
-ApicCalibResult calibrate_apic_with_hpet(xinim::hal::x86_64::Lapic& lapic,
-                                         xinim::hal::x86_64::Hpet& hpet,
-                                         uint32_t desired_hz) {
-    ApicCalibResult r{0, 4}; // divide by 16 default
-    const uint64_t period_fs = hpet.period_fs();
-    if (!period_fs || !desired_hz) return r;
+    ApicCalibResult calibrate_apic_with_hpet(xinim::hal::x86_64::Lapic &lapic,
+                                             xinim::hal::x86_64::Hpet &hpet, uint32_t desired_hz) {
+        ApicCalibResult r{0, 4}; // divide by 16 default
+        const uint64_t period_fs = hpet.period_fs();
+        if (!period_fs || !desired_hz)
+            return r;
 
-    // Use HPET to measure APIC timer rate in one-shot mode.
-    // Target a 10ms sample window.
-    const uint64_t sample_ns = 10'000'000ULL;
-    const uint32_t trial_initial = 50'000'000U; // arbitrary large-ish
-    lapic.setup_timer(32, trial_initial, r.divider_pow2, false /*one-shot*/);
+        // Use HPET to measure APIC timer rate in one-shot mode.  Read both counters
+        // at each boundary so LAPIC programming latency is excluded from the
+        // measured decrement.  A 10 ms interval is long enough to make MMIO read
+        // skew insignificant while remaining bounded during early boot.
+        const uint64_t sample_ns = 10'000'000ULL;
+        const uint64_t target_hpet_ticks =
+            ((sample_ns * 1'000'000ULL) + period_fs - 1U) / period_fs;
+        const uint32_t trial_initial = 50'000'000U; // arbitrary large-ish
+        lapic.setup_timer(32, trial_initial, r.divider_pow2, false /*one-shot*/,
+                          true /*masked until the IDT is installed*/);
 
-    uint64_t start = hpet.counter();
-    uint64_t last = start;
-    uint32_t stalled_reads = 0;
-    // Busy wait until sample_ns elapses
-    for (;;) {
-        uint64_t now = hpet.counter();
-        if (now == last) {
-            if (++stalled_reads > 1'000'000U) {
+        const uint64_t start_hpet = hpet.counter();
+        const uint32_t start_apic = lapic.current_count();
+        uint64_t end_hpet = start_hpet;
+        constexpr uint32_t kMaximumCounterReads = 200'000U;
+        for (uint32_t counter_reads = 0U; counter_reads < kMaximumCounterReads; ++counter_reads) {
+            end_hpet = hpet.counter();
+            if ((end_hpet - start_hpet) >= target_hpet_ticks) {
                 break;
             }
-        } else {
-            stalled_reads = 0;
-            last = now;
         }
-        __uint128_t ns = ((__uint128_t)(now - start) * (__uint128_t)period_fs) / 1000000ULL;
-        if (ns >= sample_ns) break;
+
+        const uint64_t elapsed_hpet_ticks = end_hpet - start_hpet;
+        if (elapsed_hpet_ticks < target_hpet_ticks) {
+            lapic.stop_timer();
+            return r;
+        }
+
+        const uint32_t end_apic = lapic.current_count();
+        if (end_apic > start_apic) {
+            lapic.stop_timer();
+            return r;
+        }
+        const uint32_t elapsed_apic_ticks = start_apic - end_apic;
+        r.initial_count = compute_apic_timer_initial_count(elapsed_apic_ticks, elapsed_hpet_ticks,
+                                                           period_fs, desired_hz);
+        return r;
     }
 
-    // Measure elapsed APIC ticks over sample_ns via current_count
-    uint32_t remaining = lapic.current_count();
-    uint32_t elapsed_apic = trial_initial - remaining;
-    if (elapsed_apic == 0) elapsed_apic = 1;
-    __uint128_t ticks_per_ns = ( (__uint128_t)elapsed_apic ) / sample_ns;
-    if (ticks_per_ns == 0) return r;
-    __uint128_t count_for_period = ( (__uint128_t)1'000'000'000ULL * ticks_per_ns ) / desired_hz;
-    if (count_for_period == 0) count_for_period = 1;
-    r.initial_count = (uint32_t)count_for_period;
-    return r;
-}
-
-}
+} // namespace xinim::time

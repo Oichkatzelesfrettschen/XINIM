@@ -172,13 +172,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /xinim
 
-# Copy only the built kernel.
-# NOTE: This stage requires a pre-built 'xinim' kernel binary to be present
-# in the build context at image build time. Build the kernel first, then
-# copy it to the repo root before building this stage:
-#   ./containers/container.sh build
-#   cp build/x86_64/Debug/xinim ./xinim
-#   docker build --target runtime -t xinim-runtime -f containers/Containerfile .
-COPY xinim /xinim/xinim
+# The runtime consumes the same Limine ISO as every other x86_64 launch path.
+# Build xinim_x86_64_image before constructing this stage.
+COPY build/x86_64/Debug/images/x86_64/xinim-x86_64.iso /xinim/xinim-x86_64.iso
 
-CMD ["qemu-system-x86_64", "-kernel", "/xinim/xinim", "-nographic", "-no-reboot"]
+CMD ["qemu-system-x86_64", "-machine", "pc-q35-11.1", "-cpu", "qemu64", "-m", "512M", "-smp", "1", "-cdrom", "/xinim/xinim-x86_64.iso", "-boot", "d", "-serial", "stdio", "-nodefaults", "-vga", "none", "-nic", "none", "-nographic", "-monitor", "none", "-no-reboot"]

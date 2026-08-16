@@ -8,10 +8,13 @@
 
 #include "params.hpp"
 #include "reduce.hpp"
+
 #include <cassert>
 #include <cstdint>
 
 using namespace xinim::crypto::kyber;
+
+constexpr int16_t kModulus = static_cast<int16_t>(KYBER_Q);
 
 static void test_kyber_parameter_values() {
     // Kyber-768 defaults
@@ -39,7 +42,7 @@ static void test_montgomery_constants() {
     static_assert(MONT == -1044);
     // Verify: 2^16 = 65536, 65536 mod 3329 = 65536 - 19*3329 = 65536 - 63251 = 2285
     // But MONT is in signed representation: 2285 - 3329 = -1044
-    assert((65536 % KYBER_Q) == static_cast<unsigned>(MONT + KYBER_Q));
+    assert((65536 % kModulus) == static_cast<int>(MONT) + kModulus);
 }
 
 static void test_parameter_relationships() {
@@ -85,9 +88,10 @@ static void test_variant_parameters() {
 
 static void test_reduction_identity() {
     // barrett_reduce should be approximately identity for small values
-    for (int16_t x = 0; x < static_cast<int16_t>(KYBER_Q); ++x) {
+    for (int16_t x = 0; x < kModulus; ++x) {
         int16_t r = barrett_reduce(x);
-        if (r < 0) r = static_cast<int16_t>(r + KYBER_Q);
+        if (r < 0)
+            r = static_cast<int16_t>(r + kModulus);
         assert(r == x);
     }
 }

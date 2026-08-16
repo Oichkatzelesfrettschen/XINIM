@@ -24,7 +24,9 @@ boot_stack_top:
 .extern xinim_i486_kmain
 _start:
     cli
+    cld
     movl $boot_stack_top, %esp
+    subl $8, %esp
     pushl %ebx
     pushl %eax
     call xinim_i486_kmain
@@ -34,3 +36,5 @@ _start:
     hlt
     jmp 1b
 .size _start, . - _start
+
+.section .note.GNU-stack,"",@progbits

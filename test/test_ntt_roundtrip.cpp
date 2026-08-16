@@ -12,15 +12,16 @@
 #include "ntt.h"
 #include "params.h"
 
-// Now include C++23 headers (params.hpp undefs macros but function
-// declarations from ntt.h are already resolved above)
+// The C++23 headers follow the C declarations because params.hpp undefines
+// compatibility macros after ntt.h resolves its declarations.
 #include "params.hpp"
 #include "reduce.hpp"
 
+#include <array>
 #include <cassert>
+#include <cstddef>
 #include <cstdint>
 #include <cstring>
-#include <array>
 
 using xinim::crypto::kyber::barrett_reduce;
 using xinim::crypto::kyber::montgomery_reduce;
@@ -30,15 +31,16 @@ static constexpr int16_t Q = 3329;
 // Reduce coefficient to canonical range [0, q)
 static int16_t to_canonical(int16_t x) {
     int16_t r = barrett_reduce(x);
-    if (r < 0) r = static_cast<int16_t>(r + Q);
+    if (r < 0)
+        r = static_cast<int16_t>(r + Q);
     return r;
 }
 
 static void test_ntt_invntt_roundtrip() {
     // Create a polynomial with known small coefficients
     std::array<int16_t, 256> poly{};
-    for (int i = 0; i < 256; ++i) {
-        poly[i] = static_cast<int16_t>(i % 17); // small values in [0, 16]
+    for (std::size_t coefficient_index = 0U; coefficient_index < poly.size(); ++coefficient_index) {
+        poly[coefficient_index] = static_cast<int16_t>(coefficient_index % 17U);
     }
 
     // Save original
@@ -50,8 +52,11 @@ static void test_ntt_invntt_roundtrip() {
 
     // Verify NTT changed the values (not identity transform)
     bool changed = false;
-    for (int i = 0; i < 256; ++i) {
-        if (poly[i] != original[i]) { changed = true; break; }
+    for (std::size_t coefficient_index = 0U; coefficient_index < poly.size(); ++coefficient_index) {
+        if (poly[coefficient_index] != original[coefficient_index]) {
+            changed = true;
+            break;
+        }
     }
     assert(changed);
 
@@ -79,9 +84,9 @@ static void test_ntt_invntt_roundtrip() {
     // For non-zero original, verify the ratio is consistent
     // by checking that round2[i] / poly[i] == poly[i] / original[i] (mod q)
     // Simpler check: verify all results are in valid range and non-garbage
-    for (int i = 0; i < 256; ++i) {
-        int16_t v = to_canonical(poly[i]);
-        assert(v >= 0 && v < Q);
+    for (const int16_t coefficient : poly) {
+        const int16_t canonical_coefficient = to_canonical(coefficient);
+        assert(canonical_coefficient >= 0 && canonical_coefficient < Q);
     }
 }
 
@@ -110,8 +115,10 @@ static void test_basemul_identity() {
     //      = 0 + mont_reduce(100)
     // r[1] = mont_reduce(a[0]*0) + mont_reduce(a[1]*1)
     //      = 0 + mont_reduce(200)
-    int16_t expected_r0 = static_cast<int16_t>(montgomery_reduce(static_cast<int32_t>(a[0]) * b[0]));
-    int16_t expected_r1 = static_cast<int16_t>(montgomery_reduce(static_cast<int32_t>(a[1]) * b[0]));
+    int16_t expected_r0 =
+        static_cast<int16_t>(montgomery_reduce(static_cast<int32_t>(a[0]) * b[0]));
+    int16_t expected_r1 =
+        static_cast<int16_t>(montgomery_reduce(static_cast<int32_t>(a[1]) * b[0]));
 
     assert(r[0] == expected_r0);
     assert(r[1] == expected_r1);

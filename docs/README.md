@@ -46,6 +46,8 @@
 
 ### POSIX
 - [POSIX_COMPLIANCE.md](POSIX_COMPLIANCE.md) - POSIX conformance roadmap
+- [external_sources/POSIX_SHELL_SOURCES.md](external_sources/POSIX_SHELL_SOURCES.md) - Pinned shell specification provenance and evidence boundaries
+- [external_sources/QEMU_X86_PC_SOURCES.md](external_sources/QEMU_X86_PC_SOURCES.md) - Versioned QEMU Q35 hardware and clean-room driver evidence
 
 ## Archived Documentation
 

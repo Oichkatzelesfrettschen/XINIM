@@ -1,13 +1,5 @@
-# Xinim AI Notes
+# XINIM Claude Compatibility Note
 
-This repository follows the rules in docs/AGENTS.md. Key points:
-- C++23 only; Clang 18+ preferred.
-- All modified C++ files require Doxygen comments.
-- Run clang-format on modified C++ sources before commit.
-- Prefer CMake + Conan; legacy xmake references must be removed or archived.
-- Treat warnings as errors.
-
-Operational reminders:
-- Keep build instructions in docs/BUILD.md and docs/REQUIREMENTS.md aligned.
-- Capture QEMU boot logs under logs/ when validating.
-- Use rg/rg --files for fast searches.
+Follow [AGENTS.md](AGENTS.md) as the canonical repository policy. Use
+[docs/CURRENT_REALITY.md](docs/CURRENT_REALITY.md) for verified status and
+[docs/README.md](docs/README.md) for the documentation index.

@@ -1,6 +1,26 @@
+* text=auto eol=lf
+
+*.c text diff
+*.h text diff
+*.cpp text diff
+*.hpp text diff
+*.py text diff
+*.sh text diff
+*.md text diff
+*.tsv text diff
+*.json text diff
+*.patch -whitespace
+*.S text diff
 *.asm text diff
 tools/c86/diskio.asm text diff
 tools/c86/bootblok.asm text diff
 tools/c86/fsck1.asm text diff
 *.s text diff
 
+# Retained QEMU disk evidence below the hosting size limit stays in ordinary
+# Git when explicitly admitted. Binary images must never enter text diffs.
+*.qcow2 -text -diff
+*.vmdk -text -diff
+*.vdi -text -diff
+*.raw -text -diff
+*.fd -text -diff
