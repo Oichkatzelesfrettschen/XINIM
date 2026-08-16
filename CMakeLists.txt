@@ -3591,7 +3591,7 @@ set_tests_properties(posix_language_check PROPERTIES
 )
 
 set(XINIM_POSIX_ISSUE7_ARCHIVE
-    "${CMAKE_SOURCE_DIR}/build/_state/downloads/posix/susv4-2018.tgz")
+    "${CMAKE_SOURCE_DIR}/data/external/posix/susv4-2018.tgz")
 add_custom_target(xinim_posix_issue7_source_fetch
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/fetch_posix_sources.sh
     DEPENDS

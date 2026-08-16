@@ -58,7 +58,13 @@ regular files: 1668
 directories: 12
 ```
 
-The retained local paths are:
+The canonical versioned source object is:
+
+```text
+data/external/posix/susv4-2018.tgz
+```
+
+The derived build-local paths are:
 
 ```text
 build/_state/downloads/posix/susv4-2018.tgz
@@ -66,15 +72,11 @@ build/_state/downloads/posix/susv4-2018.response.log
 build/_state/cache/posix/susv4-2018/
 ```
 
-These build-state paths are intentionally ignored by Git. The official page
-grants download for local installation and personal use only, and the archive
-copyright page forbids reproduction in an electronic retrieval system without
-prior written permission from both copyright holders. The 4,976,241-byte file
-is below GitHub's object-size limit, and the XINIM remote is private, but size
-and visibility do not override those terms. Git or LFS retention requires
-written permission from IEEE and The Open Group. XINIM therefore tracks the
-acquisition mechanism, immutable identity, response facts, and derived key
-hashes while retaining the full reference artifact locally.
+The build-state paths remain intentionally ignored by Git. This private
+repository versions the exact archive at the canonical source path above as
+the immutable SUSv4 authority for its conformance program. The extracted HTML
+tree and HTTP response log remain derived evidence; they are regenerated from
+the versioned archive and are not independent standards sources.
 
 ## OCR decision
 

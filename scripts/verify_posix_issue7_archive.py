@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--archive",
         type=Path,
-        default=Path("build/_state/downloads/posix") / ARCHIVE_NAME,
+        default=Path("data/external/posix") / ARCHIVE_NAME,
     )
     parser.add_argument(
         "--extract-root",

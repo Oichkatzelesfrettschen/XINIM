@@ -78,7 +78,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--archive",
         type=pathlib.Path,
-        default=pathlib.Path("build/_state/downloads/posix/susv4-2018.tgz"),
+        default=pathlib.Path("data/external/posix/susv4-2018.tgz"),
     )
     parser.add_argument(
         "--requirements",
