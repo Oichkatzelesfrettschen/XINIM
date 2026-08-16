@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Verify the finite POSIX.2 utility denominator and its closure states."""
+"""Verify the finite SUSv4 Issue 7 utility denominator and its closure states."""
 
 from __future__ import annotations
 
@@ -34,7 +34,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ledger",
         type=pathlib.Path,
-        default=pathlib.Path("docs/posix/posix2_utility_ledger.tsv"),
+        default=pathlib.Path("docs/posix/posix_issue7_utility_ledger.tsv"),
     )
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
@@ -204,7 +204,9 @@ def require_failure(
     expected_fragment: str,
     repo_root: pathlib.Path,
 ) -> None:
-    with tempfile.TemporaryDirectory(prefix="xinim-posix2-ledger-") as temp_dir:
+    with tempfile.TemporaryDirectory(
+        prefix="xinim-posix-issue7-utility-ledger-"
+    ) as temp_dir:
         candidate = pathlib.Path(temp_dir) / "ledger.tsv"
         candidate.write_text(ledger_text, encoding="ascii")
         failures = validate_ledger(candidate, repo_root)
@@ -312,19 +314,22 @@ def main() -> int:
     ledger_path = resolve_ledger(repo_root, args.ledger).resolve()
     failures = validate_ledger(ledger_path, repo_root)
     if failures:
-        print("POSIX.2 utility ledger verification failed:", file=sys.stderr)
+        print(
+            "SUSv4 Issue 7 utility ledger verification failed:",
+            file=sys.stderr,
+        )
         for failure in failures:
             print(f"  {failure}", file=sys.stderr)
         return 1
 
     if args.self_test:
         run_self_test(ledger_path, repo_root)
-        print("POSIX.2 utility ledger mutation self-test passed.")
+        print("SUSv4 Issue 7 utility ledger mutation self-test passed.")
         return 0
 
     open_count, closed_count = count_states(ledger_path)
     print(
-        "POSIX.2 utility ledger verified: "
+        "SUSv4 Issue 7 utility ledger verified: "
         f"{EXPECTED_COUNT} rows, {closed_count} closed, {open_count} open."
     )
     return 0

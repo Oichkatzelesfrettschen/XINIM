@@ -3597,7 +3597,7 @@ add_custom_target(xinim_posix_issue7_source_fetch
     DEPENDS
         ${CMAKE_SOURCE_DIR}/scripts/fetch_posix_sources.sh
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
-        ${CMAKE_SOURCE_DIR}/docs/posix/posix2_utility_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
     USES_TERMINAL
     VERBATIM
 )
@@ -3608,7 +3608,7 @@ add_custom_target(xinim_posix_issue7_archive_check
         --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
     DEPENDS
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
-        ${CMAKE_SOURCE_DIR}/docs/posix/posix2_utility_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
     VERBATIM
 )
 add_test(
@@ -3656,33 +3656,33 @@ set_tests_properties(x86_64_runtime_ownership_self_test PROPERTIES
     TIMEOUT 30
 )
 
-add_custom_target(xinim_posix2_utility_ledger_check
+add_custom_target(xinim_posix_issue7_utility_ledger_check
     COMMAND ${XINIM_PYTHON3_EXECUTABLE}
-        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_utility_ledger.py
         --repo-root ${CMAKE_SOURCE_DIR}
     DEPENDS
-        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
-        ${CMAKE_SOURCE_DIR}/docs/posix/posix2_utility_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_utility_ledger.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
         ${CMAKE_SOURCE_DIR}/docs/posix/printf_requirements.tsv
     VERBATIM
 )
 add_test(
-    NAME posix2_utility_ledger
+    NAME posix_issue7_utility_ledger
     COMMAND ${XINIM_PYTHON3_EXECUTABLE}
-        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_utility_ledger.py
         --repo-root ${CMAKE_SOURCE_DIR}
 )
 add_test(
-    NAME posix2_utility_ledger_self_test
+    NAME posix_issue7_utility_ledger_self_test
     COMMAND ${XINIM_PYTHON3_EXECUTABLE}
-        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_utility_ledger.py
         --repo-root ${CMAKE_SOURCE_DIR}
         --self-test
 )
 set_tests_properties(
-    posix2_utility_ledger
-    posix2_utility_ledger_self_test
+    posix_issue7_utility_ledger
+    posix_issue7_utility_ledger_self_test
     PROPERTIES
         LABELS "contract;docs;posix"
         TIMEOUT 15

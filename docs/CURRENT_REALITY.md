@@ -108,7 +108,7 @@ command-substitution alias-boundary cases, 70 repeated process lifecycles, and
 shell grammar:     125 closed,   0 open
 token recognition: 17 closed,   0 open
 shell language:      7 closed,  63 open
-POSIX.2 utilities:   1 closed, 174 open
+SUSv4 Issue 7 utilities: 1 closed, 174 open
 ```
 
 The grammar and token ledgers are subordinate evidence for shell-language
@@ -136,7 +136,7 @@ conformance claims:
   breadth rather than reaching PID 1.
 - Shell-language conformance: approximately 35 percent. Grammar and token
   recognition are closed, while 63 of 70 parent language rows remain open.
-- Complete POSIX.2 shell and utility conformance: approximately 20 percent.
+- Complete SUSv4 Issue 7 Shell and Utilities conformance: approximately 20 percent.
   Only `printf` is closed in the 175-utility denominator.
 - The full requested operating-system objective: approximately 15 percent.
   This includes the remaining shell, utility, filesystem, process, signal,
@@ -175,7 +175,7 @@ where they are C-only.
 - pkgsrc bootstrap (pending)
 - Full POSIX conformance is not claimed. The exact open rows are retained in
   `docs/posix/posix_shell_language_ledger.tsv` and
-  `docs/posix/posix2_utility_ledger.tsv`.
+  `docs/posix/posix_issue7_utility_ledger.tsv`.
 
 ## Architectural Truth
 

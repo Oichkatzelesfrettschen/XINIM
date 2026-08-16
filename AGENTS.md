@@ -77,10 +77,13 @@ The exact boot-platform test uses `qemu-system-x86_64`,
 `-machine pc-q35-11.1`, `-cpu qemu64`, and `-smp 1`. Do not weaken the machine,
 CPU, privilege, timeout, or expected-output checks to obtain a pass.
 
-Do not claim complete POSIX.2 conformance until the repository carries a
-finite standards-derived shell and utility ledger and every required shell,
-utility, filesystem, process, signal, terminal, and conformance gate passes in
-Ring 3 on the exact QEMU platform.
+Do not claim complete SUSv4 Issue 7 Shell and Utilities conformance until the
+repository carries the modern standards-derived shell and utility ledger and
+every required shell, utility, filesystem, process, signal, terminal, and
+conformance gate passes in Ring 3 on the exact QEMU platform. Historical
+POSIX.2/POSIXv2 requirements are not an alternate closure path. Do not claim
+full SUSv4 or POSIX conformance until the complete applicable denominator,
+including Base Definitions and System Interfaces, is versioned and closed.
 
 The x86_64 image has one libc provider and one shell implementation. Every
 staged `/bin` ELF must pass `scripts/verify_x86_64_runtime_ownership.py`: it is

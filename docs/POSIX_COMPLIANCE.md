@@ -1,4 +1,4 @@
-# POSIX.2 Shell and Utilities Closure
+# SUSv4 Issue 7 Shell and Utilities Closure
 
 This document defines a bounded conformance program. It is not a claim that
 XINIM is fully conforming.
@@ -7,8 +7,13 @@ XINIM is fully conforming.
 
 The implementation target is IEEE Std 1003.1-2017 and The Open Group Base
 Specifications Issue 7, 2018 edition: POSIX.1-2008 with its Technical
-Corrigenda. POSIX.2 is the historical name for the Shell and Utilities volume;
-it is not a separate 1992 target in this program.
+Corrigenda. The active requirements are the modern unified Issue 7 Shell and
+Utilities requirements derived from SUSv4. Historical POSIX.2/POSIXv2
+requirements are not a parallel denominator and cannot close an Issue 7 row.
+
+The former `posix2_*` ledger and verifier names are retired. The active
+denominator is named `posix_issue7_utility_ledger`; the pinned SUSv4 archive is
+the only standards source for its rows.
 
 The denominator is derived from the official `susv4-2018.tgz` personal-use
 HTML archive: 160 standalone utility pages plus the 15 special built-ins
@@ -19,7 +24,7 @@ may assist implementation research but are not the canonical specification.
 
 The canonical state ledgers are:
 
-- `docs/posix/posix2_utility_ledger.tsv`
+- `docs/posix/posix_issue7_utility_ledger.tsv`
 - `docs/posix/posix_shell_language_ledger.tsv`
 - `docs/posix/posix_shell_grammar_requirements.tsv`
 - `docs/posix/printf_requirements.tsv`
@@ -163,23 +168,23 @@ necessary but not sufficient.
 ```sh
 cmake --build build/x86_64/Debug \
   --target xinim_posix_issue7_archive_check \
-           xinim_posix2_utility_ledger_check \
+           xinim_posix_issue7_utility_ledger_check \
            xinim_posix_printf_requirements_check \
            xinim_posix_shell_language_ledger_check \
            xinim_posix_shell_grammar_requirements_check \
            xinim_posix_token_recognition_requirements_check
 
 ctest --test-dir build/x86_64/Debug \
-  -R '^(posix_issue7_archive|posix_issue7_archive_self_test|posix2_utility_ledger|posix2_utility_ledger_self_test|posix_printf_requirements|posix_printf_requirements_self_test|posix_shell_language_ledger|posix_shell_language_ledger_self_test|posix_shell_grammar_requirements|posix_shell_grammar_requirements_self_test|posix_token_recognition_requirements|posix_token_recognition_requirements_self_test|dietlibc_setjmp_contract|dietlibc_setjmp_contract_self_test|mksh_patch_pipeline_self_test|mksh_command_substitution_boundary|test_posix_printf)$' \
+  -R '^(posix_issue7_archive|posix_issue7_archive_self_test|posix_issue7_utility_ledger|posix_issue7_utility_ledger_self_test|posix_printf_requirements|posix_printf_requirements_self_test|posix_shell_language_ledger|posix_shell_language_ledger_self_test|posix_shell_grammar_requirements|posix_shell_grammar_requirements_self_test|posix_token_recognition_requirements|posix_token_recognition_requirements_self_test|dietlibc_setjmp_contract|dietlibc_setjmp_contract_self_test|mksh_patch_pipeline_self_test|mksh_command_substitution_boundary|test_posix_printf)$' \
   --output-on-failure
 
 ctest --test-dir build/x86_64/Debug \
   -R '^x86_64_shell_test$' --output-on-failure
 ```
 
-Declare the selected POSIX.2 shell and utility denominator closed only when all
-175 utility rows and all 70 shell-language rows are closed, both open and
-closed partitions remain disjoint and exhaustive, and the exact Q35 Ring 3
-regression gate passes. Do not promote that bounded result into broader
-POSIX.1 or Issue 8 system-interface conformance without a separately versioned
-denominator and test suite.
+Declare the selected SUSv4 Issue 7 Shell and Utilities denominator closed only
+when all 175 utility rows and all 70 shell-language rows are closed, both open
+and closed partitions remain disjoint and exhaustive, and the exact Q35 Ring 3
+regression gate passes. Do not promote that bounded result into full SUSv4
+system-interface conformance until Base Definitions and System Interfaces have
+their own complete, versioned denominators and test suites.
