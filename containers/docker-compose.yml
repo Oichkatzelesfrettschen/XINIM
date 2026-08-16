@@ -16,7 +16,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "cmake --preset debug && cmake --build build/Debug"
+    command: bash -c "cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug && cmake --build build/x86_64/Debug --target xinim_x86_64_image"
     profiles:
       - build
 
@@ -33,7 +33,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"
+    command: bash -c "cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug && cmake --build build/x86_64/Debug && ctest --output-on-failure --test-dir build/x86_64/Debug -L unit"
     depends_on:
       - build
     profiles:
@@ -81,12 +81,18 @@ services:
     tty: true
     command: >
       qemu-system-x86_64
-        -kernel /xinim/build/Debug/xinim
+        -machine pc-q35-11.1
+        -cdrom /xinim/build/x86_64/Debug/images/x86_64/xinim-x86_64.iso
+        -boot d
         -nographic
+        -nodefaults
+        -vga none
+        -nic none
+        -monitor none
         -no-reboot
         -m 512M
         -cpu qemu64
-        -serial mon:stdio
+        -serial stdio
     depends_on:
       - build
     profiles:
@@ -111,12 +117,18 @@ services:
     tty: true
     command: >
       qemu-system-x86_64
-        -kernel /xinim/build/Debug/xinim
+        -machine pc-q35-11.1
+        -cdrom /xinim/build/x86_64/Debug/images/x86_64/xinim-x86_64.iso
+        -boot d
         -nographic
+        -nodefaults
+        -vga none
+        -nic none
+        -monitor none
         -no-reboot
         -m 512M
         -cpu qemu64
-        -serial mon:stdio
+        -serial stdio
         -s -S
     profiles:
       - qemu-debug
@@ -138,16 +150,16 @@ services:
       bash -c "
         set -e
         echo '=== Configuring Build ==='
-        cmake --preset debug
+        cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug
 
         echo '=== Building XINIM ==='
-        cmake --build build/Debug
+        cmake --build build/x86_64/Debug
 
         echo '=== Running Tests ==='
-        ctest --output-on-failure --test-dir build/Debug -L unit || echo 'Some tests failed'
+        ctest --output-on-failure --test-dir build/x86_64/Debug -L unit
 
         echo '=== Running Lint ==='
-        run-clang-tidy -p build/Debug || echo 'Lint completed with warnings'
+        run-clang-tidy -p build/x86_64/Debug
 
         echo '=== CI Pipeline Complete ==='
       "
@@ -167,7 +179,7 @@ services:
     volumes:
       - ..:/xinim:Z
     working_dir: /xinim
-    command: bash -c "cmake --preset debug && cmake --build build/Debug && run-clang-tidy -p build/Debug"
+    command: bash -c "cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug && cmake --build build/x86_64/Debug && run-clang-tidy -p build/x86_64/Debug"
     profiles:
       - lint
 

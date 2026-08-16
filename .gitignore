@@ -9,9 +9,11 @@ build_debug/
 build-*/
 build2/
 build_complete/
+cmake-build-*/
 dist/
 CMakeUserPresets.json
 .scratch/
+.cache/
 
 # Third-party source downloads
 third_party/dietlibc-src/
@@ -37,6 +39,8 @@ xinim-*.tar.gz
 *.ko
 *.obj
 *.elf
+*.d
+*.dwo
 
 # Libraries
 *.a
@@ -53,7 +57,9 @@ xinim-*.tar.gz
 # Binary directories (pattern from dietlibc cleanup)
 bin-*/
 libc/dietlibc-xinim/bin-*/
-libc/dietlibc-xinim/bin-*
+
+# QEMU reference captures and exact-target evidence are not globally ignored.
+# Generated images and object trees belong under the ignored build/ directory.
 
 # Kernel images
 *.iso
@@ -79,6 +85,12 @@ xinim.bin
 *.tmp
 *.temp
 __pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
 .DS_Store
 Thumbs.db
 _codeql_detected_source_root 2
@@ -170,6 +182,8 @@ test/results/
 # Coverage reports
 coverage/
 *.coverage
+.coverage.*
+htmlcov/
 
 # Static analysis
 .ccls-cache/
@@ -205,7 +219,6 @@ $RECYCLE.BIN/
 # Archive and Legacy (explicitly track if needed)
 # ==============================================================================
 
-# Archive directory contents are tracked via git
-# Individual archived files should be explicitly added if needed
-scripts/__pycache__/
+# Archive directory contents are tracked via git.
+# Individual archived files should be explicitly added if needed.
 /mksh

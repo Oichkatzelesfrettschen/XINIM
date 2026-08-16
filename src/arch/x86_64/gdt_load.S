@@ -1,3 +1,5 @@
+#include <xinim/abi/x86_segment_selectors.h>
+
 .section .text
 .code64
 
@@ -8,14 +10,14 @@ gdt_load:
     lgdt (%rdi)
     
     # Perform a far jump to reload CS
-    pushq $0x08                 # New CS (Kernel Code Selector)
+    pushq $XINIM_X86_KERNEL_CS_SELECTOR
     leaq .reload_segments(%rip), %rax
     pushq %rax
     lretq                     # Far return to reload CS
 
 .reload_segments:
     # Reload data segment registers with kernel data selector
-    mov $0x10, %ax              # Kernel Data Selector
+    mov $XINIM_X86_KERNEL_DS_SELECTOR, %ax
     mov %ax, %ds
     mov %ax, %es
     mov %ax, %ss
@@ -28,3 +30,5 @@ gdt_load:
     ret
 
 .size gdt_load, .-gdt_load
+
+.section .note.GNU-stack,"",@progbits

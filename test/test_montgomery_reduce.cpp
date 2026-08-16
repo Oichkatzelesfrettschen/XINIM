@@ -6,14 +6,22 @@
  */
 
 #include "reduce.hpp"
+
 #include <cassert>
 #include <cstdint>
 
-using xinim::crypto::kyber::montgomery_reduce;
 using xinim::crypto::kyber::barrett_reduce;
 using xinim::crypto::kyber::csubq;
 using xinim::crypto::kyber::KYBER_Q;
+using xinim::crypto::kyber::montgomery_reduce;
 using xinim::crypto::kyber::QINV;
+
+constexpr int16_t kModulus = static_cast<int16_t>(KYBER_Q);
+
+[[nodiscard]] constexpr int16_t canonicalize(int16_t value) noexcept {
+    const int16_t reduced = barrett_reduce(value);
+    return reduced < 0 ? static_cast<int16_t>(reduced + kModulus) : reduced;
+}
 
 static void test_montgomery_basic() {
     // Montgomery reduction: given a (int32_t), computes a * 2^{-16} mod q
@@ -21,8 +29,7 @@ static void test_montgomery_basic() {
     int32_t a = static_cast<int32_t>(KYBER_Q) << 16;
     int16_t r = montgomery_reduce(a);
     // r should be congruent to 0 mod q
-    int16_t canonical = barrett_reduce(r);
-    if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
+    const int16_t canonical = canonicalize(r);
     assert(canonical == 0);
 }
 
@@ -31,9 +38,8 @@ static void test_montgomery_identity() {
     for (int16_t x = 0; x < 100; ++x) {
         int32_t a = static_cast<int32_t>(x) << 16;
         int16_t r = montgomery_reduce(a);
-        int16_t canonical = barrett_reduce(r);
-        if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
-        int16_t expected = static_cast<int16_t>(x % KYBER_Q);
+        const int16_t canonical = canonicalize(r);
+        const int16_t expected = static_cast<int16_t>(x % kModulus);
         assert(canonical == expected);
     }
 }
@@ -42,8 +48,7 @@ static void test_montgomery_negative() {
     // Test with negative inputs
     int32_t a = -static_cast<int32_t>(KYBER_Q) << 16;
     int16_t r = montgomery_reduce(a);
-    int16_t canonical = barrett_reduce(r);
-    if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
+    const int16_t canonical = canonicalize(r);
     assert(canonical == 0);
 }
 
@@ -52,8 +57,7 @@ static void test_montgomery_product() {
     // If we compute mont_reduce(a * b) for a=1, b=2^16, we should get 1
     int32_t a = 1 * (1 << 16);
     int16_t r = montgomery_reduce(a);
-    int16_t canonical = barrett_reduce(r);
-    if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
+    const int16_t canonical = canonicalize(r);
     assert(canonical == 1);
 }
 
@@ -63,8 +67,7 @@ static void test_barrett_basic() {
     for (int16_t x = 0; x < 100; ++x) {
         int16_t r = barrett_reduce(x);
         // Result should be congruent to x mod q
-        int16_t canonical = r;
-        if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
+        const int16_t canonical = canonicalize(r);
         assert(canonical == x);
     }
 }
@@ -73,8 +76,7 @@ static void test_barrett_large() {
     // For x >= q, barrett_reduce should bring it into range
     int16_t x = static_cast<int16_t>(KYBER_Q + 100);
     int16_t r = barrett_reduce(x);
-    int16_t canonical = r;
-    if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
+    const int16_t canonical = canonicalize(r);
     assert(canonical == 100);
 }
 
@@ -82,9 +84,8 @@ static void test_barrett_negative() {
     // For negative values, should still reduce correctly
     int16_t x = static_cast<int16_t>(-100);
     int16_t r = barrett_reduce(x);
-    int16_t canonical = r;
-    if (canonical < 0) canonical = static_cast<int16_t>(canonical + KYBER_Q);
-    assert(canonical == static_cast<int16_t>(KYBER_Q - 100));
+    const int16_t canonical = canonicalize(r);
+    assert(canonical == static_cast<int16_t>(kModulus - 100));
 }
 
 static void test_csubq() {
@@ -98,7 +99,7 @@ static void test_csubq() {
 static void test_constexpr_montgomery() {
     // Verify constexpr evaluation works
     static constexpr int16_t r = montgomery_reduce(static_cast<int32_t>(1) << 16);
-    static_assert(r == 1 || r == 1 - KYBER_Q || r == 1 + KYBER_Q,
+    static_assert(r == 1 || r == 1 - kModulus || r == 1 + kModulus,
                   "constexpr montgomery_reduce(2^16) should yield 1 mod q");
 }
 

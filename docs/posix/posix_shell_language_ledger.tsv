@@ -1,0 +1,78 @@
+# authority: IEEE Std 1003.1-2017 and The Open Group Base Specifications Issue 7, 2018 edition
+# source: susv4-2018/utilities/V3_chap02.html
+# derivation: normative h3-h5 anchors in sections 2.1 through 2.14, excluding Examples headings
+# snapshot-count: 70
+# key-sha256: 94198e92e4559a4919ea1f481341e474980b1472c0b66732c906673688f7f5af
+# anchor-title-sha256: f9be211b16d1e77a9198419d0d85b56d3ca9756ccc6988406c52b9522f737493
+# state invariant: every shell-language row is exactly one of open or closed
+anchor	title	state	witness	next_action
+tag_18_01	Shell Introduction	open	missing:exact_tests_for_tag_18_01	Derive complete normative assertions from tag_18_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_02	Quoting	open	missing:exact_tests_for_tag_18_02	Derive complete normative assertions from tag_18_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_02_01	Escape Character (Backslash)	closed	tests:test/boot/x86_64_shell_test.py#tag_18_02_01.backslash_preserves_portable_lexer_classes,test/boot/x86_64_shell_test.py#tag_18_02_01.backslash_preserves_literal_tab,test/boot/x86_64_shell_test.py#tag_18_02_01.backslash_newline_removal_precedes_tokenization	-
+tag_18_02_02	Single-Quotes	closed	tests:test/boot/x86_64_shell_test.py#tag_18_02_02.single_quotes_preserve_special_and_empty_fields,test/boot/x86_64_shell_test.py#tag_18_02_02.single_quotes_preserve_tab_and_newline,test/boot/x86_64_shell_test.py#tag_18_02_02.single_quote_literal_requires_quote_boundary,test/boot/x86_64_shell_test.py#tag_18_02_02.single_quote_cannot_nest_syntax_rejection	-
+tag_18_02_03	Double-Quotes	open	missing:delegated_requirements_for_tag_18_02_03	Close token recognition, special parameter @, parameter expansion, command substitution, and arithmetic expansion; prove alias substitution is excluded while matching command-substitution parentheses, then promote the retained exact Q35 Ring 3 witnesses.
+tag_18_03	Token Recognition	closed	test-group:test/boot/x86_64_shell_test.py#SHELL_LANGUAGE_COMMAND_CASES@tag_18_03	-
+tag_18_03_01	Alias Substitution	closed	tests:test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.command_name_is_eligible,test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.argument_is_not_eligible,test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.quoted_name_is_not_eligible,test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.reserved_word_is_not_eligible,test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.alias_unalias_lifecycle,test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.portable_name_characters,test/boot/x86_64_shell_test.py#tag_18_03_01.a01_command_name_substitution.recursive_loop_is_suppressed,test/boot/x86_64_shell_test.py#tag_18_03_01.a02_trailing_blank_chain.successive_command_words,test/boot/x86_64_shell_test.py#tag_18_03_01.a02_trailing_blank_chain.invalid_name_stops_chain,test/boot/x86_64_shell_test.py#tag_18_03_01.a02_trailing_blank_chain.nonblank_value_stops_chain,test/boot/x86_64_shell_test.py#tag_18_03_01.a03_environment_noninheritance.defining_shell_retains_alias,test/boot/x86_64_shell_test.py#tag_18_03_01.a03_environment_noninheritance.separate_shell_excludes_alias,test/boot/x86_64_shell_test.py#tag_18_03_01.a03_environment_noninheritance.utility_excludes_alias	-
+tag_18_04	Reserved Words	open	missing:exact_tests_for_tag_18_04	Derive complete normative assertions from tag_18_04, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_05	Parameters and Variables	open	missing:exact_tests_for_tag_18_05	Derive complete normative assertions from tag_18_05, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_05_01	Positional Parameters	open	missing:exact_tests_for_tag_18_05_01	Derive complete normative assertions from tag_18_05_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_05_02	Special Parameters	open	missing:exact_tests_for_tag_18_05_02	Derive complete normative assertions from tag_18_05_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_05_03	Shell Variables	open	missing:exact_tests_for_tag_18_05_03	Derive complete normative assertions from tag_18_05_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06	Word Expansions	open	missing:exact_tests_for_tag_18_06	Derive complete normative assertions from tag_18_06, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_01	Tilde Expansion	open	missing:exact_tests_for_tag_18_06_01	Derive complete normative assertions from tag_18_06_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_02	Parameter Expansion	open	missing:exact_tests_for_tag_18_06_02	Derive complete normative assertions from tag_18_06_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_03	Command Substitution	open	missing:exact_tests_for_tag_18_06_03	Derive complete normative assertions from tag_18_06_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_04	Arithmetic Expansion	open	missing:exact_tests_for_tag_18_06_04	Derive complete normative assertions from tag_18_06_04, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_05	Field Splitting	open	missing:exact_tests_for_tag_18_06_05	Derive complete normative assertions from tag_18_06_05, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_06	Pathname Expansion	open	missing:exact_tests_for_tag_18_06_06	Derive complete normative assertions from tag_18_06_06, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_06_07	Quote Removal	open	missing:exact_tests_for_tag_18_06_07	Derive complete normative assertions from tag_18_06_07, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07	Redirection	open	missing:exact_tests_for_tag_18_07	Derive complete normative assertions from tag_18_07, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_01	Redirecting Input	open	missing:exact_tests_for_tag_18_07_01	Derive complete normative assertions from tag_18_07_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_02	Redirecting Output	open	missing:exact_tests_for_tag_18_07_02	Derive complete normative assertions from tag_18_07_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_03	Appending Redirected Output	open	missing:exact_tests_for_tag_18_07_03	Derive complete normative assertions from tag_18_07_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_04	Here-Document	open	missing:exact_tests_for_tag_18_07_04	Derive complete normative assertions from tag_18_07_04, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_05	Duplicating an Input File Descriptor	open	missing:exact_tests_for_tag_18_07_05	Derive complete normative assertions from tag_18_07_05, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_06	Duplicating an Output File Descriptor	open	missing:exact_tests_for_tag_18_07_06	Derive complete normative assertions from tag_18_07_06, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_07_07	Open File Descriptors for Reading and Writing	open	missing:exact_tests_for_tag_18_07_07	Derive complete normative assertions from tag_18_07_07, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_08	Exit Status and Errors	open	missing:exact_tests_for_tag_18_08	Derive complete normative assertions from tag_18_08, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_08_01	Consequences of Shell Errors	open	missing:exact_tests_for_tag_18_08_01	Derive complete normative assertions from tag_18_08_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_08_02	Exit Status for Commands	open	missing:exact_tests_for_tag_18_08_02	Derive complete normative assertions from tag_18_08_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09	Shell Commands	open	missing:exact_tests_for_tag_18_09	Derive complete normative assertions from tag_18_09, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_01	Simple Commands	open	missing:exact_tests_for_tag_18_09_01	Derive complete normative assertions from tag_18_09_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_01_01	Command Search and Execution	open	missing:exact_tests_for_tag_18_09_01_01	Derive complete normative assertions from tag_18_09_01_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_02	Pipelines	open	missing:exact_tests_for_tag_18_09_02	Derive complete normative assertions from tag_18_09_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_02_01	Exit Status	open	missing:exact_tests_for_tag_18_09_02_01	Derive complete normative assertions from tag_18_09_02_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03	Lists	open	missing:exact_tests_for_tag_18_09_03	Derive complete normative assertions from tag_18_09_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_02	Asynchronous Lists	open	missing:exact_tests_for_tag_18_09_03_02	Derive complete normative assertions from tag_18_09_03_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_03	Exit Status	open	missing:exact_tests_for_tag_18_09_03_03	Derive complete normative assertions from tag_18_09_03_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_04	Sequential Lists	open	missing:exact_tests_for_tag_18_09_03_04	Derive complete normative assertions from tag_18_09_03_04, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_05	Exit Status	open	missing:exact_tests_for_tag_18_09_03_05	Derive complete normative assertions from tag_18_09_03_05, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_06	AND Lists	open	missing:exact_tests_for_tag_18_09_03_06	Derive complete normative assertions from tag_18_09_03_06, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_07	Exit Status	open	missing:exact_tests_for_tag_18_09_03_07	Derive complete normative assertions from tag_18_09_03_07, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_08	OR Lists	open	missing:exact_tests_for_tag_18_09_03_08	Derive complete normative assertions from tag_18_09_03_08, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_03_09	Exit Status	open	missing:exact_tests_for_tag_18_09_03_09	Derive complete normative assertions from tag_18_09_03_09, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04	Compound Commands	open	missing:exact_tests_for_tag_18_09_04	Derive complete normative assertions from tag_18_09_04, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_01	Grouping Commands	open	missing:exact_tests_for_tag_18_09_04_01	Derive complete normative assertions from tag_18_09_04_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_02	Exit Status	open	missing:exact_tests_for_tag_18_09_04_02	Derive complete normative assertions from tag_18_09_04_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_03	The for Loop	open	missing:exact_tests_for_tag_18_09_04_03	Derive complete normative assertions from tag_18_09_04_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_04	Exit Status	open	missing:exact_tests_for_tag_18_09_04_04	Derive complete normative assertions from tag_18_09_04_04, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_05	Case Conditional Construct	open	missing:exact_tests_for_tag_18_09_04_05	Derive complete normative assertions from tag_18_09_04_05, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_06	Exit Status	open	missing:exact_tests_for_tag_18_09_04_06	Derive complete normative assertions from tag_18_09_04_06, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_07	The if Conditional Construct	open	missing:exact_tests_for_tag_18_09_04_07	Derive complete normative assertions from tag_18_09_04_07, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_08	Exit Status	open	missing:exact_tests_for_tag_18_09_04_08	Derive complete normative assertions from tag_18_09_04_08, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_09	The while Loop	open	missing:exact_tests_for_tag_18_09_04_09	Derive complete normative assertions from tag_18_09_04_09, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_10	Exit Status	open	missing:exact_tests_for_tag_18_09_04_10	Derive complete normative assertions from tag_18_09_04_10, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_11	The until Loop	open	missing:exact_tests_for_tag_18_09_04_11	Derive complete normative assertions from tag_18_09_04_11, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_04_12	Exit Status	open	missing:exact_tests_for_tag_18_09_04_12	Derive complete normative assertions from tag_18_09_04_12, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_05	Function Definition Command	open	missing:exact_tests_for_tag_18_09_05	Derive complete normative assertions from tag_18_09_05, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_09_05_01	Exit Status	open	missing:exact_tests_for_tag_18_09_05_01	Derive complete normative assertions from tag_18_09_05_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_10	Shell Grammar	closed	test-group:test/boot/x86_64_shell_test.py#SHELL_GRAMMAR_COMMAND_CASES@tag_18_10_	-
+tag_18_10_01	Shell Grammar Lexical Conventions	closed	test-group:test/boot/x86_64_shell_test.py#SHELL_GRAMMAR_COMMAND_CASES@tag_18_10_01.	-
+tag_18_10_02	Shell Grammar Rules	closed	test-group:test/boot/x86_64_shell_test.py#SHELL_GRAMMAR_COMMAND_CASES@tag_18_10_02.	-
+tag_18_11	Signals and Error Handling	open	missing:exact_tests_for_tag_18_11	Derive complete normative assertions from tag_18_11, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_12	Shell Execution Environment	open	missing:exact_tests_for_tag_18_12	Derive complete normative assertions from tag_18_12, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_13	Pattern Matching Notation	open	missing:exact_tests_for_tag_18_13	Derive complete normative assertions from tag_18_13, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_13_01	Patterns Matching a Single Character	open	missing:exact_tests_for_tag_18_13_01	Derive complete normative assertions from tag_18_13_01, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_13_02	Patterns Matching Multiple Characters	open	missing:exact_tests_for_tag_18_13_02	Derive complete normative assertions from tag_18_13_02, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_13_03	Patterns Used for Filename Expansion	open	missing:exact_tests_for_tag_18_13_03	Derive complete normative assertions from tag_18_13_03, implement missing behavior, and add exact Q35 Ring 3 tests.
+tag_18_14	Special Built-In Utilities	open	missing:exact_tests_for_tag_18_14	Derive complete normative assertions from tag_18_14, implement missing behavior, and add exact Q35 Ring 3 tests.

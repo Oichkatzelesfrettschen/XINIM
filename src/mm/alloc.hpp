@@ -11,7 +11,30 @@
  * @ingroup memory
  */
 
+#include "const.hpp"
+
+#include <cstddef>
 #include <cstdint>
+#include <xinim/boot/bootinfo.hpp>
+
+/**
+ * Each admitted boot range receives sixteen free-extent slots. This bounded
+ * fragmentation policy is derived from the boot-map intake contract rather
+ * than the unrelated scheduler process count.
+ */
+inline constexpr std::size_t PHYSICAL_HOLE_DESCRIPTOR_CAPACITY =
+    16U * xinim::boot::kBootMemoryRangeCapacity;
+
+/**
+ * In each admitted physical run, allocated and free extents alternate, so the
+ * number of allocated extents cannot exceed the number of free extents plus
+ * the number of admitted runs.
+ */
+inline constexpr std::size_t PHYSICAL_ALLOCATION_DESCRIPTOR_CAPACITY =
+    PHYSICAL_HOLE_DESCRIPTOR_CAPACITY + xinim::boot::kBootMemoryRangeCapacity;
+
+static_assert(PHYSICAL_HOLE_DESCRIPTOR_CAPACITY == 1024U);
+static_assert(PHYSICAL_ALLOCATION_DESCRIPTOR_CAPACITY == 1088U);
 
 /**
  * @brief Allocate a block of physical memory measured in clicks.
@@ -21,7 +44,11 @@
  * free_mem(). The base and size are aligned to @c CLICK_SIZE bytes.
  *
  * @param clicks Number of memory clicks to allocate.
+ * A zero-sized request fails. Physical click zero remains reserved because
+ * ::NO_MEM uses zero as the failure sentinel.
+ *
  * @return Base click address of the allocated block or ::NO_MEM on failure.
+ * Calls are serialized by an interrupt-safe SMP lock.
  *
  * @ingroup memory
  */
@@ -30,16 +57,22 @@
 /**
  * @brief Free a previously allocated block of physical memory.
  *
- * The caller relinquishes ownership of the region back to the allocator. The
- * block must have been obtained from alloc_mem() and respect the original
- * click alignment.
+ * The caller relinquishes ownership of the range back to the allocator. The
+ * range must be wholly contained in a live allocated extent. Partial release
+ * splits or trims that extent while preserving ownership of retained clicks.
+ *
+ * Invalid, overlapping, overflowing, and out-of-range blocks are rejected.
+ * A middle split is also rejected when the bounded allocation descriptor table
+ * is full. The caller retains ownership after every rejected release.
  *
  * @param base   Starting click of the block to free.
  * @param clicks Size of the block in clicks.
+ * @return True when ownership was accepted; false when the block was rejected.
+ * Calls are serialized by an interrupt-safe SMP lock.
  *
  * @ingroup memory
  */
-void free_mem(uint64_t base, uint64_t clicks) noexcept;
+[[nodiscard]] bool free_mem(uint64_t base, uint64_t clicks) noexcept;
 
 /**
  * @brief Return the size of the largest available hole.
@@ -57,8 +90,26 @@ void free_mem(uint64_t base, uint64_t clicks) noexcept;
  * internal free list of hole descriptors. Subsequent allocations carve out
  * subranges while preserving page alignment.
  *
- * @param clicks Total number of clicks available.
+ * Click zero is excluded from the managed region so successful allocations
+ * cannot collide with the ::NO_MEM sentinel.
+ *
+ * @param clicks End-exclusive physical click limit.
  *
  * @ingroup memory
  */
 void mem_init(uint64_t clicks) noexcept;
+
+/**
+ * @brief Initialise free holes from normalized bootloader memory ranges.
+ *
+ * Only complete clicks in ranges tagged ::xinim::boot::MEMORY_RANGE_USABLE are
+ * admitted. Reserved, kernel, module, framebuffer, ACPI, and bad-memory ranges
+ * remain unavailable.
+ *
+ * @param ranges Normalized physical memory ranges.
+ * @param range_count Number of entries in @p ranges.
+ * @return True when the complete map was admitted; false for invalid input or
+ * descriptor exhaustion. Failure leaves the allocator empty.
+ */
+[[nodiscard]] bool mem_init_from_memory_map(const xinim::boot::MemRange *ranges,
+                                            std::size_t range_count) noexcept;

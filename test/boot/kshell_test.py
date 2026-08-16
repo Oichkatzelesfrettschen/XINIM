@@ -36,23 +36,37 @@ BOOT_IMAGE = os.environ.get(
 QEMU_BIN = "qemu-system-x86_64"
 KSHELL_PORT = 4555
 BOOT_TIMEOUT = 15  # seconds to wait for QEMU to boot
-CMD_TIMEOUT = 5    # seconds to wait for command response
+CMD_TIMEOUT = 5  # seconds to wait for command response
 
 
 def start_qemu():
     """Start QEMU with dual serial using a preconfigured boot image."""
     cmd = [
         QEMU_BIN,
-        "-machine", "q35",
-        "-cpu", "qemu64",
-        "-m", "512M",
-        "-smp", "1",
-        "-cdrom", BOOT_IMAGE,
-        "-boot", "d",
-        "-serial", "file:/dev/null",  # COM1: discard logs
-        "-serial", f"tcp::{KSHELL_PORT},server,nowait",  # COM2: kshell
+        "-machine",
+        "pc-q35-11.1",
+        "-cpu",
+        "qemu64",
+        "-m",
+        "512M",
+        "-smp",
+        "1",
+        "-cdrom",
+        BOOT_IMAGE,
+        "-boot",
+        "d",
+        "-serial",
+        "file:/dev/null",  # COM1: discard logs
+        "-serial",
+        f"tcp::{KSHELL_PORT},server,nowait",  # COM2: kshell
+        "-nodefaults",
+        "-vga",
+        "none",
+        "-nic",
+        "none",
         "-nographic",
-        "-monitor", "none",
+        "-monitor",
+        "none",
         "-no-reboot",
     ]
     return subprocess.Popen(
@@ -118,7 +132,7 @@ def test_info(sock):
     """Test the info command returns kernel version string."""
     resp = send_command(sock, "info")
     if "XINIM Kernel" not in resp:
-        print(f"FAIL: 'info' response missing 'XINIM Kernel'")
+        print("FAIL: 'info' response missing 'XINIM Kernel'")
         print(f"  Response: {resp!r}")
         return False
     print("PASS: info")
@@ -129,11 +143,11 @@ def test_ps(sock):
     """Test the ps command shows process table header."""
     resp = send_command(sock, "ps")
     if "PID" not in resp:
-        print(f"FAIL: 'ps' response missing 'PID' header")
+        print("FAIL: 'ps' response missing 'PID' header")
         print(f"  Response: {resp!r}")
         return False
     if "Total active:" not in resp:
-        print(f"FAIL: 'ps' response missing 'Total active:' summary")
+        print("FAIL: 'ps' response missing 'Total active:' summary")
         print(f"  Response: {resp!r}")
         return False
     print("PASS: ps")
@@ -144,11 +158,11 @@ def test_mem(sock):
     """Test the mem command shows heap usage."""
     resp = send_command(sock, "mem")
     if "Kernel heap:" not in resp:
-        print(f"FAIL: 'mem' response missing 'Kernel heap:'")
+        print("FAIL: 'mem' response missing 'Kernel heap:'")
         print(f"  Response: {resp!r}")
         return False
     if "bytes" not in resp:
-        print(f"FAIL: 'mem' response missing 'bytes'")
+        print("FAIL: 'mem' response missing 'bytes'")
         print(f"  Response: {resp!r}")
         return False
     print("PASS: mem")
@@ -159,7 +173,7 @@ def test_unknown(sock):
     """Test that unknown commands produce an error message."""
     resp = send_command(sock, "xyzzy")
     if "Unknown command" not in resp:
-        print(f"FAIL: unknown command did not produce error")
+        print("FAIL: unknown command did not produce error")
         print(f"  Response: {resp!r}")
         return False
     print("PASS: unknown command error")
@@ -169,7 +183,9 @@ def test_unknown(sock):
 def main():
     if not os.path.isfile(BOOT_IMAGE):
         print(f"SKIP: Boot image not found: {BOOT_IMAGE}")
-        print("Set XINIM_QEMU_BOOT_IMAGE to a bootable image that already enables the debug shell.")
+        print(
+            "Set XINIM_QEMU_BOOT_IMAGE to a bootable image that already enables the debug shell."
+        )
         sys.exit(77)
 
     print(f"Starting QEMU (boot image: {BOOT_IMAGE})")
@@ -187,7 +203,7 @@ def main():
             sock.sendall(b"\r")
             initial = recv_until_prompt(sock, timeout=CMD_TIMEOUT)
             if "xinim>" not in initial and "xinim-kernel-dbg>" not in initial:
-                print(f"FAIL: Did not receive kshell prompt")
+                print("FAIL: Did not receive kshell prompt")
                 print(f"  Received: {initial!r}")
                 sys.exit(1)
 

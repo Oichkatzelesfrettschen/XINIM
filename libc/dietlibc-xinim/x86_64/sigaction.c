@@ -17,7 +17,7 @@ asm(".text\n" ".align 16\n"
 #ifdef __ILP32__
     "movq $0x40000201, %rax\n"
 #else
-    "movq $15, %rax\n"
+    "movq $80, %rax\n"
 #endif
     "syscall\n" "hlt\n");
 #endif

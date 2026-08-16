@@ -1,0 +1,37 @@
+{
+  "archive": {
+    "name": "mksh-R59c.tgz",
+    "sha256": "77ae1665a337f1c48c61d6b961db3e52119b38e58884d1c89684af31f87bc506",
+    "url": "http://www.mirbsd.org/MirOS/dist/mir/mksh/mksh-R59c.tgz",
+    "version": "R59c"
+  },
+  "files": {
+    "edit.c": {
+      "postimage_sha256": "7eac19b154704959bda056732d1b40ae0d616f0ad2faac9be4dbd5a9ffe20e89",
+      "preimage_sha256": "35f34fe025aebafde57726ba6aa1502b45541cbaa0150716d08cf072799841dd"
+    },
+    "lex.c": {
+      "postimage_sha256": "2b1c9f907c5b196d2abb434ae413bc50e1eed3379bb25cef6795d3ab922b1b1a",
+      "preimage_sha256": "56edd10bd931b6f9a6ec5133990f18738e048178890ce0a785ebc38a90bf5aed"
+    },
+    "main.c": {
+      "postimage_sha256": "79c6fb7a697bc9c80382ce4b2da8d76b9bd63713d1bd7a17cc7238bfcaf4d8ce",
+      "preimage_sha256": "8f8551b6e16abe02f234f6170a277f8c803a1374f703d02fa253f3cddbc21d8c"
+    },
+    "sh.h": {
+      "postimage_sha256": "af0d4d353b3403f609beba1c854bd3b13412c1c00e753b4fcdf2d0d650d8570b",
+      "preimage_sha256": "b50e3f2c61332251f488dafad7f2a0bd67e85d77e696e584f368f05418960706"
+    },
+    "syn.c": {
+      "postimage_sha256": "74f80dd139a4dfb94fb9f2bc6308d73a937d8a771a871eac055d00b82cb79551",
+      "preimage_sha256": "1bbccb171143dfa832cc2e9b26fd6563f62764d530cad2f5584961c3d038be6b"
+    }
+  },
+  "mechanism": "Recognize the physical command-substitution delimiter with alias expansion suppressed, then parse the bounded source with normal alias semantics. Classify the complete unquoted digit run only before a less-than or greater-than redirection operator as one IO number, parse multi-digit descriptor duplication names within mksh's checked descriptor range, reserve descriptors 0 through 31 for users while moving shell-private descriptors to 32 and above, and require an unquoted POSIX NAME for the name() function-definition form.",
+  "patch": {
+    "name": "mksh-R59c-posix-lexer-conformance.patch",
+    "sha256": "0dfa943da33bfa95c64b6f4b7f6af909b3ccf06e0dd989f230cc5466954b4ae8"
+  },
+  "schema": 1,
+  "standards_authority": "IEEE Std 1003.1-2017, Shell Command Language 2.2.3, 2.6.3, and 2.10.1"
+}

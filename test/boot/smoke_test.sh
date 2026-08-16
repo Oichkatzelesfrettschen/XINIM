@@ -25,17 +25,23 @@ if [ ! -f "$BOOT_IMAGE" ]; then
     exit 77
 fi
 
+mkdir -p "$LOG_ROOT"
+rm -f "$LOG_FILE"
+
 echo "Starting QEMU boot smoke test..."
 
 # Boot QEMU with COM1 output to a log file, kill after timeout.
 qemu-system-x86_64 \
-    -machine q35 \
+    -machine pc-q35-11.1 \
     -cpu qemu64 \
     -m 512M \
     -smp 1 \
     -cdrom "$BOOT_IMAGE" \
     -boot d \
     -serial "file:${LOG_FILE}" \
+    -nodefaults \
+    -vga none \
+    -nic none \
     -nographic \
     -monitor none \
     -no-reboot &

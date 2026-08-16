@@ -1,68 +1,84 @@
 #pragma once
-#include <stdint.h>
 #include <stddef.h>
+#include <stdint.h>
 
 namespace xinim::boot {
 
-struct MemRange { uint64_t base{}, length{}; uint32_t type{}; };
+    inline constexpr size_t kBootModuleCapacity = 32U;
+    inline constexpr size_t kBootMemoryRangeCapacity = 64U;
 
-struct BootModule {
-    const void* address{nullptr};
-    uint64_t size{0};
-    const char* string{nullptr};
+    inline constexpr uint32_t MEMORY_RANGE_USABLE = 1U;
+    inline constexpr uint32_t MEMORY_RANGE_RESERVED = 2U;
+    inline constexpr uint32_t MEMORY_RANGE_ACPI_RECLAIMABLE = 3U;
+    inline constexpr uint32_t MEMORY_RANGE_ACPI_NVS = 4U;
+    inline constexpr uint32_t MEMORY_RANGE_BAD = 5U;
+    inline constexpr uint32_t MEMORY_RANGE_BOOTLOADER_RECLAIMABLE = 6U;
+    inline constexpr uint32_t MEMORY_RANGE_KERNEL_AND_MODULES = 7U;
+    inline constexpr uint32_t MEMORY_RANGE_FRAMEBUFFER = 8U;
+    inline constexpr uint32_t MEMORY_RANGE_ACPI_TABLES = 9U;
 
-    [[nodiscard]] constexpr bool valid() const noexcept {
-        return address != nullptr && size != 0;
-    }
-};
+    struct MemRange {
+        uint64_t base{}, length{};
+        uint32_t type{};
+    };
 
-enum class BootProtocol : uint8_t {
-    Unknown = 0,
-    Limine = 1,
-    Multiboot2 = 2,
-};
+    struct BootModule {
+        const void *address{nullptr};
+        uint64_t size{0};
+        const char *string{nullptr};
 
-struct FramebufferInfo {
-    void* address{nullptr};
-    uint64_t width{0};
-    uint64_t height{0};
-    uint64_t pitch{0};
-    uint16_t bpp{0};
-    uint8_t memory_model{0};
-    uint8_t red_mask_size{0};
-    uint8_t red_mask_shift{0};
-    uint8_t green_mask_size{0};
-    uint8_t green_mask_shift{0};
-    uint8_t blue_mask_size{0};
-    uint8_t blue_mask_shift{0};
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return address != nullptr && size != 0;
+        }
+    };
 
-    [[nodiscard]] constexpr bool valid() const noexcept {
-        return address != nullptr && width != 0 && height != 0 && pitch != 0;
-    }
-};
+    enum class BootProtocol : uint8_t {
+        Unknown = 0,
+        Limine = 1,
+        Multiboot2 = 2,
+    };
 
-struct CpuBootInfo {
-    bool has_cpuid{false};
-    bool has_fpu{false};
-};
+    struct FramebufferInfo {
+        void *address{nullptr};
+        uint64_t width{0};
+        uint64_t height{0};
+        uint64_t pitch{0};
+        uint16_t bpp{0};
+        uint8_t memory_model{0};
+        uint8_t red_mask_size{0};
+        uint8_t red_mask_shift{0};
+        uint8_t green_mask_size{0};
+        uint8_t green_mask_shift{0};
+        uint8_t blue_mask_size{0};
+        uint8_t blue_mask_shift{0};
 
-struct BootInfo {
-    BootProtocol protocol{BootProtocol::Unknown};
-    const char* cmdline{nullptr};
-    const void* acpi_rsdp{nullptr};
-    uint64_t hhdm_offset{0};
-    const MemRange* memory_map{nullptr};
-    size_t memory_map_entries{0};
-    const BootModule* modules{nullptr};
-    size_t modules_count{0};
-    FramebufferInfo framebuffer{};
-    CpuBootInfo cpu{};
+        [[nodiscard]] constexpr bool valid() const noexcept {
+            return address != nullptr && width != 0 && height != 0 && pitch != 0;
+        }
+    };
 
-    [[nodiscard]] constexpr bool has_framebuffer() const noexcept {
-        return framebuffer.valid();
-    }
-};
+    struct CpuBootInfo {
+        bool has_cpuid{false};
+        bool has_fpu{false};
+    };
 
-const BootInfo& get_info();
+    struct BootInfo {
+        BootProtocol protocol{BootProtocol::Unknown};
+        const char *cmdline{nullptr};
+        const void *acpi_rsdp{nullptr};
+        uint64_t hhdm_offset{0};
+        const MemRange *memory_map{nullptr};
+        size_t memory_map_entries{0};
+        const BootModule *modules{nullptr};
+        size_t modules_count{0};
+        FramebufferInfo framebuffer{};
+        CpuBootInfo cpu{};
+
+        [[nodiscard]] constexpr bool has_framebuffer() const noexcept {
+            return framebuffer.valid();
+        }
+    };
+
+    const BootInfo &get_info();
 
 } // namespace xinim::boot

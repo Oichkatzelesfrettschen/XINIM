@@ -12,6 +12,7 @@
 .type i686_apic_spurious_entry, @function
 i686_apic_spurious_entry:
     iret
+.size i686_apic_spurious_entry, . - i686_apic_spurious_entry
 
 // ---------------------------------------------------------------------------
 // i686_apic_irq_eoi_entry -- stub for IOAPIC-routed IRQs with no handler.
@@ -33,3 +34,6 @@ i686_apic_irq_eoi_entry:
     movl    $0x00000000, 0xFEE000B0  // write 0 to APIC EOI register
     popal
     iret
+.size i686_apic_irq_eoi_entry, . - i686_apic_irq_eoi_entry
+
+.section .note.GNU-stack,"",@progbits

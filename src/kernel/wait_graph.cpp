@@ -2,53 +2,75 @@
 
 namespace lattice {
 
-void WaitForGraph::add_edge(xinim::pid_t from, xinim::pid_t to) noexcept {
-    if (from >= 0 && from < MAX_NODES && to >= 0 && to < MAX_NODES) {
-        adj_[from][to] = true;
+    void WaitForGraph::add_edge(xinim::pid_t from, xinim::pid_t to) noexcept {
+        if (from >= 0 && from < MAX_NODES && to >= 0 && to < MAX_NODES) {
+            const auto from_index = static_cast<std::size_t>(from);
+            const auto to_index = static_cast<std::size_t>(to);
+            adj_[from_index][to_index] = true;
+        }
     }
-}
 
-void WaitForGraph::remove_edge(xinim::pid_t from, xinim::pid_t to) noexcept {
-    if (from >= 0 && from < MAX_NODES && to >= 0 && to < MAX_NODES) {
-        adj_[from][to] = false;
+    void WaitForGraph::remove_edge(xinim::pid_t from, xinim::pid_t to) noexcept {
+        if (from >= 0 && from < MAX_NODES && to >= 0 && to < MAX_NODES) {
+            const auto from_index = static_cast<std::size_t>(from);
+            const auto to_index = static_cast<std::size_t>(to);
+            adj_[from_index][to_index] = false;
+        }
     }
-}
 
-bool WaitForGraph::has_path(xinim::pid_t from, xinim::pid_t to) const noexcept {
-    if (from < 0 || from >= MAX_NODES || to < 0 || to >= MAX_NODES) return false;
-    if (from == to) return true;
+    void WaitForGraph::remove_node(xinim::pid_t node) noexcept {
+        if (node < 0 || node >= MAX_NODES)
+            return;
+        const auto node_index = static_cast<std::size_t>(node);
+        for (std::size_t index = 0; index < adj_.size(); ++index) {
+            adj_[node_index][index] = false;
+            adj_[index][node_index] = false;
+        }
+    }
 
-    xinim::pid_t queue[MAX_NODES];
-    bool visited[MAX_NODES]{};
-    int head = 0, tail = 0;
+    bool WaitForGraph::has_path(xinim::pid_t from, xinim::pid_t to) const noexcept {
+        if (from < 0 || from >= MAX_NODES || to < 0 || to >= MAX_NODES)
+            return false;
+        if (from == to)
+            return true;
 
-    queue[tail++] = from;
-    visited[from] = true;
+        xinim::pid_t queue[MAX_NODES];
+        bool visited[MAX_NODES]{};
+        std::size_t head = 0;
+        std::size_t tail = 0;
 
-    while (head < tail) {
-        xinim::pid_t curr = queue[head++];
-        for (int next = 0; next < MAX_NODES; ++next) {
-            if (adj_[curr][next]) {
-                if (next == to) return true;
-                if (!visited[next]) {
-                    visited[next] = true;
-                    queue[tail++] = next;
+        queue[tail++] = from;
+        visited[static_cast<std::size_t>(from)] = true;
+
+        while (head < tail) {
+            const xinim::pid_t current = queue[head++];
+            const auto current_index = static_cast<std::size_t>(current);
+            for (std::size_t next_index = 0; next_index < adj_.size(); ++next_index) {
+                if (adj_[current_index][next_index]) {
+                    if (next_index == static_cast<std::size_t>(to))
+                        return true;
+                    if (!visited[next_index]) {
+                        visited[next_index] = true;
+                        queue[tail++] = static_cast<xinim::pid_t>(next_index);
+                    }
                 }
             }
         }
+
+        return false;
     }
 
-    return false;
-}
-
-bool WaitForGraph::is_in_cycle(xinim::pid_t node) const noexcept {
-    if (node < 0 || node >= MAX_NODES) return false;
-    for (int next = 0; next < MAX_NODES; ++next) {
-        if (adj_[node][next]) {
-            if (has_path(next, node)) return true;
+    bool WaitForGraph::is_in_cycle(xinim::pid_t node) const noexcept {
+        if (node < 0 || node >= MAX_NODES)
+            return false;
+        const auto node_index = static_cast<std::size_t>(node);
+        for (std::size_t next_index = 0; next_index < adj_.size(); ++next_index) {
+            if (adj_[node_index][next_index]) {
+                if (has_path(static_cast<xinim::pid_t>(next_index), node))
+                    return true;
+            }
         }
+        return false;
     }
-    return false;
-}
 
 } // namespace lattice

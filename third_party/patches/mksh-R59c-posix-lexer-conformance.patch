@@ -1,0 +1,985 @@
+--- a/edit.c
++++ b/edit.c
+@@ -2035,7 +2035,7 @@
+ 	if (*pat == '^') {
+ 		return ((strncmp(str, pat + 1, strlen(pat + 1)) == 0) ? 0 : -1);
+ 	} else {
+-		char *q = strstr(str, pat);
++		const char *q = strstr(str, pat);
+ 		return ((q == NULL) ? -1 : q - str);
+ 	}
+ }
+--- a/lex.c
++++ b/lex.c
+@@ -52,6 +52,15 @@
+ 	char *xp;
+ };
+ 
++struct source_capture {
++	struct source_capture *next;
++	struct source **frames;
++	size_t frame_count;
++	XString xs;
++	char *xp;
++	unsigned int alias_lookup_count;
++};
++
+ /*
+  * Structure to keep track of the lexing state and the various pieces of info
+  * needed for each particular state.
+@@ -98,6 +107,7 @@
+ static void ungetsc_i(int);
+ static int getsc_uu(void);
+ static void getsc_line(Source *);
++static int getsc_u(void);
+ static int getsc_bn(void);
+ static int getsc_i(void);
+ static char *get_brace_var(XString *, char *);
+@@ -105,15 +115,23 @@
+ static void gethere(void);
+ static Lex_state *push_state_i(State_info *, Lex_state *);
+ static Lex_state *pop_state_i(State_info *, Lex_state *);
++static int source_read_byte(Source *);
++static bool source_capture_contains(const struct source_capture *, Source *);
++static bool source_capture_position_is_raw(const Source *, const char *);
++static void source_capture_record(Source *, const char *, int);
++static void source_capture_unread(Source *, const char *, int);
++static void source_capture_note_alias_lookup(const char *);
+ 
+ static int backslash_skip;
+ static int ignore_backslash_newline;
++static Source *last_source_byte_frame;
++static const char *last_source_byte_position;
+ 
+ /* optimised getsc_bn() */
+ #define o_getsc()	(*source->str != '\0' && *source->str != '\\' && \
+-			    !backslash_skip ? *source->str++ : getsc_bn())
++			    !backslash_skip ? source_read_byte(source) : getsc_bn())
+ /* optimised getsc_uu() */
+-#define	o_getsc_u()	((*source->str != '\0') ? *source->str++ : getsc_uu())
++#define	o_getsc_u()	getsc_u()
+ 
+ /* retrace helper */
+ #define o_getsc_r(carg)					\
+@@ -186,6 +204,213 @@
+ 	POP_STATE();						\
+ } while (/* CONSTCOND */ 0)
+ 
++static bool
++source_capture_contains(const struct source_capture *capture, Source *frame)
++{
++	size_t frame_index;
++
++	for (frame_index = 0; frame_index < capture->frame_count; ++frame_index)
++		if (capture->frames[frame_index] == frame)
++			return (true);
++	return (false);
++}
++
++static bool
++source_capture_position_is_raw(const Source *frame, const char *position)
++{
++	if ((frame->type == SALIAS || frame->type == SREREAD) &&
++	    position == frame->ugbuf)
++		return (false);
++	return (true);
++}
++
++static void
++source_capture_record(Source *frame, const char *position, int c)
++{
++	struct source_capture *capture = source_capture_info;
++
++	if (c == 0 || !source_capture_position_is_raw(frame, position))
++		return;
++	while (capture != NULL) {
++		if (source_capture_contains(capture, frame)) {
++			Xcheck(capture->xs, capture->xp);
++			*capture->xp++ = c;
++		}
++		capture = capture->next;
++	}
++}
++
++static void
++source_capture_unread(Source *frame, const char *position, int c)
++{
++	struct source_capture *capture = source_capture_info;
++
++	if (c == 0 || !source_capture_position_is_raw(frame, position))
++		return;
++	while (capture != NULL) {
++		if (source_capture_contains(capture, frame)) {
++			if (Xlength(capture->xs, capture->xp) == 0 ||
++			    (unsigned char)capture->xp[-1] != (unsigned int)c)
++				internal_errorf("source capture rewind mismatch");
++			--capture->xp;
++		}
++		capture = capture->next;
++	}
++}
++
++static int
++source_read_byte(Source *frame)
++{
++	const char *position = frame->str;
++	int c = ord(*frame->str++);
++
++	if (c != 0 && source_capture_position_is_raw(frame, position)) {
++		last_source_byte_frame = frame;
++		last_source_byte_position = position;
++	}
++	source_capture_record(frame, position, c);
++	return (c);
++}
++
++bool
++source_last_byte_is(Source *frame, const char *position)
++{
++	return (last_source_byte_frame == frame &&
++	    last_source_byte_position == position);
++}
++
++static int
++getsc_u(void)
++{
++	if (*source->str != '\0')
++		return (source_read_byte(source));
++	return (getsc_uu());
++}
++
++void
++source_capture_begin(void)
++{
++	struct source_capture *capture;
++	Source *frame;
++	size_t frame_index;
++	size_t frame_count = 0;
++
++	for (frame = source; frame != NULL; frame = frame->next)
++		++frame_count;
++	capture = alloc(sizeof(struct source_capture), ATEMP);
++	capture->frames = alloc2(frame_count, sizeof(Source *), ATEMP);
++	capture->frame_count = frame_count;
++	frame_index = 0;
++	for (frame = source; frame != NULL; frame = frame->next)
++		capture->frames[frame_index++] = frame;
++	Xinit(capture->xs, capture->xp, 64, ATEMP);
++	capture->alias_lookup_count = 0;
++	capture->next = source_capture_info;
++	source_capture_info = capture;
++}
++
++static char *
++source_capture_take(bool emit_trace)
++{
++	struct source_capture *capture = source_capture_info;
++	char *cp;
++
++	if (capture == NULL)
++		internal_errorf("source_capture_finish: no active capture");
++	Xcheck(capture->xs, capture->xp);
++	*capture->xp = '\0';
++	cp = Xstring(capture->xs, capture->xp);
++#ifdef MKSH_XINIM_CAPTURE_TEST
++	if (emit_trace) {
++		const char hex[] = "0123456789abcdef";
++		char *trace_position;
++
++		shf_fprintf(shl_out, "XINIM_CAPTURE bytes=");
++		for (trace_position = cp; trace_position < capture->xp;
++		    ++trace_position) {
++			unsigned int byte = (unsigned char)*trace_position;
++
++			shf_putchar(hex[byte >> 4], shl_out);
++			shf_putchar(hex[byte & 15], shl_out);
++		}
++		shf_fprintf(shl_out, " scan_alias_lookups=%u\n",
++		    capture->alias_lookup_count);
++		shf_flush(shl_out);
++	}
++#else
++	(void)emit_trace;
++#endif
++	source_capture_info = capture->next;
++	return (cp);
++}
++
++char *
++source_capture_finish(void)
++{
++	return (source_capture_take(true));
++}
++
++void
++source_capture_cancel(void)
++{
++	(void)source_capture_take(false);
++}
++
++void
++source_capture_prepare_replay(const char *prefix)
++{
++	struct source_capture *capture;
++	size_t prefix_length = strlen(prefix);
++
++	source_capture_begin();
++	capture = source_capture_info;
++	XcheckN(capture->xs, capture->xp, prefix_length);
++	memcpy(capture->xp, prefix, prefix_length);
++	capture->xp += prefix_length;
++	pending_source_capture = capture;
++}
++
++bool
++source_capture_adopt_pending(void)
++{
++	if (pending_source_capture == NULL)
++		return (false);
++	if (pending_source_capture != source_capture_info)
++		internal_errorf("pending source capture is not active");
++	pending_source_capture = NULL;
++	return (true);
++}
++
++struct source_capture *
++source_capture_parent(void)
++{
++	if (source_capture_info == NULL)
++		internal_errorf("source capture has no parent");
++	return (source_capture_info->next);
++}
++
++void
++source_capture_restore_environment(void)
++{
++	source_capture_info = e->old_source_capture;
++	pending_source_capture = e->old_pending_source_capture;
++}
++
++static void
++source_capture_note_alias_lookup(const char *name)
++{
++	if (source_capture_info != NULL) {
++		++source_capture_info->alias_lookup_count;
++		return;
++	}
++#ifdef MKSH_XINIM_CAPTURE_TEST
++	shf_fprintf(shl_out, "XINIM_ALIAS_LOOKUP name=%s\n", name);
++	shf_flush(shl_out);
++#else
++	(void)name;
++#endif
++}
++
+ /**
+  * Lexical analyser
+  *
+@@ -396,6 +621,10 @@
+ 					if ((unsigned int)c == ORD('(' /*)*/)) {
+ 						*wp++ = EXPRSUB;
+ 						PUSH_SRETRACE(SASPAREN);
++						source_capture_begin();
++						Xcheck(source_capture_info->xs,
++						    source_capture_info->xp);
++						*source_capture_info->xp++ = '(';
+ 						/* unneeded? */
+ 						/*statep->ls_flags &= ~LS_HEREDOC;*/
+ 						statep->nparen = 2;
+@@ -650,6 +879,7 @@
+ 					POP_SRETRACE();
+ 
+ 					if ((unsigned int)(c2 = getsc()) == ORD(/*(*/ ')')) {
++						source_capture_cancel();
+ 						cz = strlen(sp) - 2;
+ 						XcheckN(ws, wp, cz);
+ 						memcpy(wp, sp + 1, cz);
+@@ -659,6 +889,7 @@
+ 						break;
+ 					} else {
+ 						Source *s;
++						char *physical_prefix;
+ 
+ 						ungetsc(c2);
+ 						/*
+@@ -666,6 +897,10 @@
+ 						 * assume we were really
+ 						 * parsing a $(...) expression
+ 						 */
++						physical_prefix = source_capture_take(false);
++						source_capture_prepare_replay(physical_prefix);
++						afree(sp, ATEMP);
++						sp = physical_prefix;
+ 						--wp;
+ 						s = pushs(SREREAD,
+ 						    source->areap);
+@@ -1009,6 +1244,10 @@
+ 					yyerror(Tf_heredoc,
+ 					    evalstr((*p)->delim, 0));
+ 		}
++		if ((unsigned int)c == ORD(')') &&
++		    source_last_byte_is(comsub_delimiter_source,
++		    comsub_delimiter_position))
++			c = COMSUB_END;
+ 		return (c);
+ 	}
+ 
+@@ -1049,8 +1288,12 @@
+ 			afree(yylval.cp, ATEMP);
+ 			return (p->val.i);
+ 		}
+-		if ((cf & ALIAS) && (p = ktsearch(&aliases, ident, h)) &&
+-		    (p->flag & ISSET)) {
++		if ((cf & ALIAS) && source_alias_suppression_depth == 0) {
++			source_capture_note_alias_lookup(ident);
++			p = ktsearch(&aliases, ident, h);
++		} else
++			p = NULL;
++		if (p != NULL && (p->flag & ISSET)) {
+ 			/*
+ 			 * this still points to the same character as the
+ 			 * ungetsc'd terminator from above
+@@ -1253,7 +1496,7 @@
+ 	Source *s = source;
+ 	int c;
+ 
+-	while ((c = ord(*s->str++)) == 0) {
++	while ((c = source_read_byte(s)) == 0) {
+ 		/* return 0 for EOF by default */
+ 		s->str = NULL;
+ 		switch (s->type) {
+@@ -1729,9 +1972,10 @@
+ static void
+ ungetsc_i(int c)
+ {
+-	if (source->str > source->start)
++	if (source->str > source->start) {
++		source_capture_unread(source, source->str - 1, c);
+ 		source->str--;
+-	else {
++	} else {
+ 		Source *s;
+ 
+ 		s = pushs(SREREAD, source->areap);
+--- a/main.c
++++ b/main.c
+@@ -889,6 +889,7 @@
+ 			yyrecursive_pop(true);
+ 			s->start = s->str = null;
+ 			retrace_info = NULL;
++			source_capture_restore_environment();
+ 			herep = heres;
+ 			break;
+ 		}
+@@ -1029,6 +1030,8 @@
+ 	ep->savefd = NULL;
+ 	ep->temps = NULL;
+ 	ep->yyrecursive_statep = NULL;
++	ep->old_source_capture = source_capture_info;
++	ep->old_pending_source_capture = pending_source_capture;
+ 	ep->type = type;
+ 	ep->flags = e->flags & EF_IN_EVAL;
+ 	e = ep;
+@@ -1042,6 +1045,8 @@
+ 	int fd;
+ 
+ 	yyrecursive_pop(true);
++	source_capture_info = ep->old_source_capture;
++	pending_source_capture = ep->old_pending_source_capture;
+ 	while (ep->oenv && ep->oenv->loc != ep->loc)
+ 		popblock();
+ 	if (ep->savefd != NULL) {
+--- a/sh.h
++++ b/sh.h
+@@ -763,7 +763,7 @@
+ #endif
+ 
+ #define NUFILE		32	/* Number of user-accessible files */
+-#define FDBASE		10	/* First file usable by Shell */
++#define FDBASE		NUFILE	/* First file usable by Shell */
+ 
+ /*
+  * simple grouping allocator
+@@ -851,9 +851,13 @@
+ #endif
+ 
+ struct sretrace_info;
++struct source_capture;
+ struct yyrecursive_state;
+ 
+ EXTERN struct sretrace_info *retrace_info;
++EXTERN struct source_capture *source_capture_info;
++EXTERN struct source_capture *pending_source_capture;
++EXTERN unsigned int source_alias_suppression_depth;
+ EXTERN unsigned int subshell_nesting_type;
+ 
+ extern struct env {
+@@ -865,6 +869,8 @@
+ 	struct temp *temps;	/* temp files */
+ 	/* saved parser recursion state */
+ 	struct yyrecursive_state *yyrecursive_statep;
++	struct source_capture *old_source_capture;
++	struct source_capture *old_pending_source_capture;
+ 	kshjmp_buf jbuf;	/* long jump back to env creator */
+ 	uint8_t type;		/* environment type - see below */
+ 	uint8_t flags;		/* EF_* */
+@@ -2267,6 +2273,7 @@
+ #define COPROC		280	/* |& */
+ #define BRKEV		281	/* ;| */
+ #define BRKFT		282	/* ;& */
++#define COMSUB_END	283	/* physical outer command-substitution close */
+ #define YYERRCODE	300
+ 
+ /* flags to yylex */
+@@ -2357,6 +2364,8 @@
+ #define IDENT	64
+ 
+ EXTERN Source *source;		/* yyparse/yylex source */
++EXTERN Source *comsub_delimiter_source;
++EXTERN const char *comsub_delimiter_position;
+ EXTERN YYSTYPE yylval;		/* result from yylex */
+ EXTERN struct ioword *heres[HERES], **herep;
+ EXTERN char ident[IDENT + 1];
+@@ -2716,6 +2725,14 @@
+ bool parse_usec(const char *, struct timeval *);
+ char *yyrecursive(int);
+ void yyrecursive_pop(bool);
++void source_capture_begin(void);
++char *source_capture_finish(void);
++void source_capture_cancel(void);
++void source_capture_prepare_replay(const char *);
++bool source_capture_adopt_pending(void);
++struct source_capture *source_capture_parent(void);
++void source_capture_restore_environment(void);
++bool source_last_byte_is(Source *, const char *);
+ /* tree.c */
+ void fptreef(struct shf *, int, const char *, ...);
+ char *snptreef(char *, ssize_t, const char *, ...);
+--- a/syn.c
++++ b/syn.c
+@@ -33,13 +33,31 @@
+ 
+ struct yyrecursive_state {
+ 	struct ioword *old_heres[HERES];
++	struct sretrace_info *old_retrace_info;
++	struct source_capture *old_source_capture;
+ 	struct yyrecursive_state *next;
++	Source *old_comsub_delimiter_source;
++	const char *old_comsub_delimiter_position;
+ 	struct ioword **old_herep;
+ 	int old_symbol;
++	unsigned int old_alias_suppression_depth;
+ 	unsigned int old_nesting_type;
+ 	bool old_reject;
+ };
+ 
++enum comsub_case_phase {
++	COMSUB_CASE_WORD,
++	COMSUB_CASE_IN,
++	COMSUB_CASE_PATTERN,
++	COMSUB_CASE_BODY
++};
++
++struct comsub_case_state {
++	struct comsub_case_state *next;
++	enum comsub_case_phase phase;
++	bool pattern_started;
++};
++
+ static void yyparse(bool);
+ static struct op *pipeline(int, int);
+ static struct op *andor(int);
+@@ -59,6 +77,9 @@
+ static void syntaxerr(const char *) MKSH_A_NORETURN;
+ static void nesting_push(struct nesting_state *, int);
+ static void nesting_pop(struct nesting_state *);
++static void scan_comsub_boundary(void);
++static int scan_comsub_redirection(struct ioword *);
++static char *reparse_comsub(char *);
+ static int inalias(struct source *) MKSH_A_PURE;
+ static Test_op dbtestp_isa(Test_env *, Test_meta);
+ static const char *dbtestp_getopnd(Test_env *, Test_op, bool);
+@@ -687,6 +708,9 @@
+ 	struct op *t;
+ 
+ 	sname = wdstrip(name, 0);
++	if (!ksh_func && !is_wdvarname(name, false))
++		yyerror(Tinvname, sname, Tfunction);
++
+ 	/*-
+ 	 * Check for valid characters in name. POSIX and AT&T ksh93 say
+ 	 * only allow [a-zA-Z_0-9] but this allows more as old pdkshs
+@@ -1115,9 +1136,224 @@
+ }
+ #endif
+ 
++static int
++scan_comsub_redirection(struct ioword *iop)
++{
++	bool ishere = (iop->ioflag & IOTYPE) == IOHERE;
++	int c;
++
++	if (iop->ioflag & IOHERESTR)
++		c = yylex(0);
++	else if (ishere && (c = yylex(HEREDELIM)) == ORD('\n')) {
++		yylval.cp = wdcopy(IONDELIM_delim, ATEMP);
++		iop->ioflag |= IOEVAL | IONDELIM;
++		c = LWORD;
++	} else if (!ishere)
++		c = yylex(0);
++
++	if (c != LWORD)
++		return (c);
++
++	if (ishere) {
++		iop->delim = yylval.cp;
++		if (*ident != 0 && !(iop->ioflag & IOHERESTR))
++			iop->ioflag |= IOEVAL;
++		if (herep > &heres[HERES - 1])
++			yyerror(Tf_toomany, "<<");
++		*herep++ = iop;
++	} else
++		iop->ioname = yylval.cp;
++
++	return (LWORD);
++}
++
++static void
++scan_comsub_boundary(void)
++{
++	struct comsub_case_state *case_state = NULL;
++	unsigned int parenthesis_depth = 0;
++	unsigned int test_parenthesis_depth = 0;
++	bool command_position = true;
++	bool in_double_bracket = false;
++	int c;
++	int lexer_flags;
++
++	while (/* CONSTCOND */ 1) {
++		if (in_double_bracket)
++			lexer_flags = CMDASN;
++		else if (case_state != NULL &&
++		    case_state->phase == COMSUB_CASE_IN)
++			lexer_flags = KEYWORD;
++		else if (case_state != NULL &&
++		    case_state->phase == COMSUB_CASE_PATTERN)
++			lexer_flags = KEYWORD | ESACONLY;
++		else
++			lexer_flags = command_position ? KEYWORD | CMDASN : 0;
++
++		c = yylex(lexer_flags);
++
++ process_token:
++		if (c == 0)
++			yyerror("missing closing parenthesis");
++
++		if (in_double_bracket) {
++			if (c == LWORD && strcmp(ident, "]]") == 0) {
++				in_double_bracket = false;
++				command_position = false;
++			} else if ((unsigned int)c == ORD('('))
++				++test_parenthesis_depth;
++			else if ((unsigned int)c == ORD(')')) {
++				if (test_parenthesis_depth != 0)
++					--test_parenthesis_depth;
++				else if (parenthesis_depth != 0)
++					--parenthesis_depth;
++				else
++					return;
++			}
++			continue;
++		}
++
++		if (case_state != NULL) {
++			if (case_state->phase == COMSUB_CASE_WORD &&
++			    (unsigned int)c != ORD(')')) {
++				if (c == LWORD)
++					case_state->phase = COMSUB_CASE_IN;
++				continue;
++			}
++			if (case_state->phase == COMSUB_CASE_IN &&
++			    (unsigned int)c != ORD(')')) {
++				if (c == IN || ((unsigned int)c == ORD('{'))) {
++					case_state->phase = COMSUB_CASE_PATTERN;
++					case_state->pattern_started = false;
++				}
++				continue;
++			}
++			if (case_state->phase == COMSUB_CASE_PATTERN) {
++				if (c == ESAC || (unsigned int)c == ORD('}')) {
++					struct comsub_case_state *closed_case = case_state;
++
++					case_state = closed_case->next;
++					afree(closed_case, ATEMP);
++					command_position = false;
++				} else if ((unsigned int)c == ORD(')')) {
++					case_state->phase = COMSUB_CASE_BODY;
++					command_position = true;
++				} else if ((unsigned int)c == ORD('(') &&
++				    !case_state->pattern_started)
++					case_state->pattern_started = true;
++				else if (c != ORD('\n'))
++					case_state->pattern_started = true;
++				continue;
++			}
++		}
++
++		if (c == REDIR) {
++			c = scan_comsub_redirection(yylval.iop);
++			if (c != LWORD)
++				goto process_token;
++			continue;
++		}
++
++		if (c == MDPAREN) {
++			c = yylex(LETEXPR);
++			if (c != LWORD)
++				goto process_token;
++			command_position = false;
++			continue;
++		}
++
++		if (c == DBRACKET) {
++			in_double_bracket = true;
++			test_parenthesis_depth = 0;
++			continue;
++		}
++
++		if (c == CASE) {
++			struct comsub_case_state *opened_case;
++
++			opened_case = alloc(sizeof(*opened_case), ATEMP);
++			opened_case->next = case_state;
++			opened_case->phase = COMSUB_CASE_WORD;
++			opened_case->pattern_started = false;
++			case_state = opened_case;
++			command_position = false;
++			continue;
++		}
++
++		if (case_state != NULL &&
++		    case_state->phase == COMSUB_CASE_BODY && c == ESAC) {
++			struct comsub_case_state *closed_case = case_state;
++
++			case_state = closed_case->next;
++			afree(closed_case, ATEMP);
++			command_position = false;
++			continue;
++		}
++
++		if (case_state != NULL &&
++		    case_state->phase == COMSUB_CASE_BODY &&
++		    (c == BREAK || c == BRKEV || c == BRKFT)) {
++			case_state->phase = COMSUB_CASE_PATTERN;
++			case_state->pattern_started = false;
++			command_position = true;
++			continue;
++		}
++
++		switch (c) {
++		case ORD('('):
++			++parenthesis_depth;
++			command_position = true;
++			break;
++		case ORD(')'):
++			if (parenthesis_depth != 0) {
++				--parenthesis_depth;
++				command_position = false;
++			} else
++				return;
++			break;
++		case ORD('\n'):
++		case ORD(';'):
++		case ORD('&'):
++		case LOGAND:
++		case LOGOR:
++		case ORD('|'):
++		case COPROC:
++			command_position = true;
++			break;
++		case IF:
++		case THEN:
++		case ELSE:
++		case ELIF:
++		case WHILE:
++		case UNTIL:
++		case DO:
++		case BANG:
++		case TIME:
++			command_position = true;
++			break;
++		case FOR:
++		case SELECT:
++		case FUNCTION:
++		case FI:
++		case DONE:
++			command_position = false;
++			break;
++		case LWORD:
++			if (strcmp(ident, "{") == 0)
++				command_position = true;
++			else if (!command_position || !is_wdvarassign(yylval.cp))
++				command_position = false;
++			break;
++		default:
++			command_position = false;
++			break;
++		}
++	}
++}
++
+ /*
+- * Helper function called from within lex.c:yylex() to parse
+- * a COMSUB recursively using the main shell parser and lexer
++ * Helper function called from within lex.c:yylex() to recognise and parse
++ * a command substitution without allowing alias text to move its boundary.
+  */
+ char *
+ yyrecursive(int subtype)
+@@ -1125,6 +1361,9 @@
+ 	struct op *t;
+ 	char *cp;
+ 	struct yyrecursive_state *ys;
++	bool capture_prepared;
++	bool recognition_only;
++	size_t captured_length;
+ 	unsigned int stok, etok;
+ 
+ 	if (subtype != COMSUB) {
+@@ -1135,6 +1374,7 @@
+ 		etok = ORD(')');
+ 	}
+ 
++	capture_prepared = subtype == COMSUB && source_capture_adopt_pending();
+ 	ys = alloc(sizeof(struct yyrecursive_state), ATEMP);
+ 
+ 	/* tell the lexer to accept a closing parenthesis as EOD */
+@@ -1150,14 +1390,89 @@
+ 	herep = heres;
+ 	ys->next = e->yyrecursive_statep;
+ 	e->yyrecursive_statep = ys;
+-	/* we use TPAREN as a helper container here */
+-	t = nested(TPAREN, stok, etok, ALIAS);
++	ys->old_source_capture = capture_prepared ? source_capture_parent() :
++	    source_capture_info;
++	ys->old_retrace_info = retrace_info;
++	ys->old_alias_suppression_depth = source_alias_suppression_depth;
++	ys->old_comsub_delimiter_source = comsub_delimiter_source;
++	ys->old_comsub_delimiter_position = comsub_delimiter_position;
++	recognition_only = source_alias_suppression_depth != 0;
++	if (subtype == COMSUB) {
++		if (!capture_prepared)
++			source_capture_begin();
++		++source_alias_suppression_depth;
++		scan_comsub_boundary();
++		t = NULL;
++	} else {
++		/* we use TPAREN as a helper container here */
++		t = nested(TPAREN, stok, etok, ALIAS);
++	}
++	if (subtype == COMSUB) {
++		cp = source_capture_finish();
++		captured_length = strlen(cp);
++		if (captured_length == 0 ||
++		    (unsigned int)cp[captured_length - 1] != etok)
++			internal_errorf("yyrecursive: missing captured delimiter");
++	}
+ 	yyrecursive_pop(false);
+ 
+-	/* t->left because nested(TPAREN, ...) hides our goodies there */
++	if (subtype != COMSUB) {
++		/* t->left because nested(TPAREN, ...) hides our goodies there */
++		cp = snptreef(NULL, 0, Tf_T, t->left);
++	} else if (recognition_only) {
++		cp[captured_length - 1] = '\0';
++	}
++	if (t != NULL)
++		tfree(t, ATEMP);
++	if (subtype == COMSUB && !recognition_only)
++		cp = reparse_comsub(cp);
++
++	return (cp);
++}
++
++static char *
++reparse_comsub(char *captured_source)
++{
++	Source *bounded_source;
++	Source *outer_source = source;
++	struct op *t;
++	struct yyrecursive_state *ys;
++	char *cp;
++	const char *physical_delimiter;
++
++	bounded_source = pushs(SSTRING, ATEMP);
++	bounded_source->start = bounded_source->str = captured_source;
++	physical_delimiter = captured_source + strlen(captured_source) - 1;
++	bounded_source->file = outer_source->file;
++	bounded_source->line = outer_source->line;
++	source = bounded_source;
++
++	ys = alloc(sizeof(struct yyrecursive_state), ATEMP);
++	ys->old_nesting_type = subshell_nesting_type;
++	subshell_nesting_type = ORD(')');
++	ys->old_reject = reject;
++	ys->old_symbol = symbol;
++	ACCEPT;
++	memcpy(ys->old_heres, heres, sizeof(heres));
++	ys->old_herep = herep;
++	herep = heres;
++	ys->old_source_capture = source_capture_info;
++	ys->old_retrace_info = retrace_info;
++	ys->old_alias_suppression_depth = source_alias_suppression_depth;
++	ys->old_comsub_delimiter_source = comsub_delimiter_source;
++	ys->old_comsub_delimiter_position = comsub_delimiter_position;
++	ys->next = e->yyrecursive_statep;
++	e->yyrecursive_statep = ys;
++	retrace_info = NULL;
++	comsub_delimiter_source = bounded_source;
++	comsub_delimiter_position = physical_delimiter;
++	subshell_nesting_type = COMSUB_END;
++
++	t = nested(TPAREN, ORD('('), COMSUB_END, ALIAS);
++	yyrecursive_pop(false);
++	source = outer_source;
+ 	cp = snptreef(NULL, 0, Tf_T, t->left);
+ 	tfree(t, ATEMP);
+-
+ 	return (cp);
+ }
+
+@@ -1176,6 +1491,11 @@
+ 	reject = ys->old_reject;
+ 	symbol = ys->old_symbol;
+ 
++	source_capture_info = ys->old_source_capture;
++	retrace_info = ys->old_retrace_info;
++	source_alias_suppression_depth = ys->old_alias_suppression_depth;
++	comsub_delimiter_source = ys->old_comsub_delimiter_source;
++	comsub_delimiter_position = ys->old_comsub_delimiter_position;
+ 	subshell_nesting_type = ys->old_nesting_type;
+ 
+ 	afree(ys, ATEMP);
+--- a/lex.c
++++ b/lex.c
+@@ -121,6 +121,7 @@
+ static void source_capture_record(Source *, const char *, int);
+ static void source_capture_unread(Source *, const char *, int);
+ static void source_capture_note_alias_lookup(const char *);
++static bool parse_redirection_unit(const char *, size_t, short *);
+ 
+ static int backslash_skip;
+ static int ignore_backslash_newline;
+@@ -411,6 +412,28 @@
+ #endif
+ }
+ 
++static bool
++parse_redirection_unit(const char *word, size_t length, short *unit)
++{
++	size_t index;
++	unsigned int digit;
++	unsigned int value = 0;
++
++	if (length == 0 || (length & 1) != 0)
++		return (false);
++	for (index = 0; index < length; index += 2) {
++		if (word[index] != CHAR ||
++		    !ctype(word[index + 1], C_DIGIT))
++			return (false);
++		digit = ksh_numdig(word[index + 1]);
++		if (value > ((unsigned int)NUFILE - 1U - digit) / 10U)
++			yyerror("file descriptor is out of range");
++		value = value * 10U + digit;
++	}
++	*unit = (short)value;
++	return (true);
++}
++
+ /**
+  * Lexical analyser
+  *
+@@ -424,6 +447,8 @@
+ {
+ 	Lex_state states[STATE_BSIZE], *statep, *s2, *base;
+ 	State_info state_info;
++	bool has_redirection_unit;
++	short redirection_unit;
+ 	int c, c2, state;
+ 	size_t cz;
+ 	XString ws;		/* expandable output word */
+@@ -1143,13 +1168,23 @@
+ 		state = SBASE;
+ 
+ 	dp = Xstring(ws, wp);
++	c2 = Xlength(ws, wp);
++	has_redirection_unit = false;
++	if (state == SBASE && ctype(c, C_ANGLE))
++		has_redirection_unit = parse_redirection_unit(dp, c2,
++		    &redirection_unit);
+ 	if (state == SBASE && (
+ 	    (c == '&' && !Flag(FSH) && !Flag(FPOSIX)) ||
+-	    ctype(c, C_ANGLE)) && ((c2 = Xlength(ws, wp)) == 0 ||
+-	    (c2 == 2 && dp[0] == CHAR && ctype(dp[1], C_DIGIT)))) {
++	    ctype(c, C_ANGLE)) && (c2 == 0 || has_redirection_unit ||
++	    (c == '&' && c2 == 2 && dp[0] == CHAR &&
++	    ctype(dp[1], C_DIGIT)))) {
+ 		struct ioword *iop = alloc(sizeof(struct ioword), ATEMP);
+ 
+-		iop->unit = c2 == 2 ? ksh_numdig(dp[1]) : c == '<' ? 0 : 1;
++		if (has_redirection_unit)
++			iop->unit = redirection_unit;
++		else
++			iop->unit = c2 == 2 ? ksh_numdig(dp[1]) :
++			    c == '<' ? 0 : 1;
+ 
+ 		if (c == '&') {
+ 			if ((unsigned int)(c2 = getsc()) != ORD('>')) {
+--- a/main.c
++++ b/main.c
+@@ -1544,8 +1544,8 @@
+ }
+ 
+ /*
+- * Move fd from user space (0 <= fd < 10) to shell space (fd >= 10),
+- * set close-on-exec flag. See FDBASE in sh.h, maybe 24 not 10 here.
++ * Move fd from user space (0 <= fd < NUFILE) to shell space
++ * (fd >= FDBASE), then set the close-on-exec flag.
+  */
+ short
+ savefd(int fd)
+@@ -1609,20 +1609,29 @@
+ int
+ check_fd(const char *name, int mode, const char **emsgp)
+ {
+-	int fd, fl;
++	const char *cp;
++	int digit, fd = 0, fl;
+ 
+-	if (!name[0] || name[1])
++	if (!name[0])
+ 		goto illegal_fd_name;
+-	if (name[0] == 'p')
++	if (name[0] == 'p' && !name[1])
+ 		return (coproc_getfd(mode, emsgp));
+-	if (!ctype(name[0], C_DIGIT)) {
++	for (cp = name; *cp; ++cp) {
++		if (!ctype(*cp, C_DIGIT))
++			goto illegal_fd_name;
++		digit = ksh_numdig(*cp);
++		if (fd > (NUFILE - 1 - digit) / 10)
++			goto illegal_fd_name;
++		fd = fd * 10 + digit;
++	}
++	if (fd >= NUFILE) {
+  illegal_fd_name:
+ 		if (emsgp)
+ 			*emsgp = "illegal file descriptor name";
+ 		return (-1);
+ 	}
+ 
+-	if ((fl = fcntl((fd = ksh_numdig(name[0])), F_GETFL, 0)) < 0) {
++	if ((fl = fcntl(fd, F_GETFL, 0)) < 0) {
+ 		if (emsgp)
+ 			*emsgp = "bad file descriptor";
+ 		return (-1);

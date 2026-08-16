@@ -6,7 +6,7 @@ This directory contains the integration of mksh (MirBSD Korn Shell) as the defau
 
 ## Source
 
-- **Upstream**: https://github.com/MirBSD/mksh  
+- **Upstream**: https://github.com/MirBSD/mksh
 - **License**: BSD-like (MirOS License)
 - **Version**: R59c (latest stable)
 
@@ -14,7 +14,7 @@ This directory contains the integration of mksh (MirBSD Korn Shell) as the defau
 
 ### 1. XINIM-Specific Syscall Layer
 
-File: `xinim_syscalls.c`
+File: `xinim_syscalls.cpp`
 
 Provides mksh with XINIM system call interface:
 - Process control (fork, exec, wait, exit)
@@ -64,14 +64,14 @@ sh Build.sh \
 
 ## Features Enabled
 
-- ✅ Command-line editing (emacs mode)
-- ✅ Command history
-- ✅ Tab completion
-- ✅ Job control
-- ✅ Aliases and functions
-- ✅ UTF-8 support
-- ✅ POSIX compliance mode
-- ✅ Bash compatibility extensions
+- Command-line editing (emacs mode)
+- Command history
+- Tab completion
+- Job control
+- Aliases and functions
+- UTF-8 support
+- POSIX compliance mode
+- Bash compatibility extensions
 
 ## Testing
 
@@ -112,7 +112,7 @@ User configuration file: `~/.mkshrc`
 ## Integration Status
 
 - [ ] Download mksh source
-- [x] Draft `xinim_syscalls.c`, `xinim_terminal.c`, and `xinim_job_control.c`
+- [x] Implement `xinim_syscalls.cpp`, `xinim_terminal.c`, and `xinim_job_control.c`
 - [x] Compile the integration layer in the native build as a reference artifact
 - [ ] Build mksh for XINIM
 - [ ] Run test suite

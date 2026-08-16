@@ -1,13 +1,13 @@
 # Current Reality
 
-Date: 2026-05-13
+Date: 2026-08-16
 
 This file is the short checkpoint for what the repository actually does today.
 
 ## i486 Lane -- Full-System Bring-Up Status
 
-The i486 lane has reached **Phase 3 completion** with Phase 4 networking
-infrastructure in place.
+The i486 lane has working full-system process, filesystem, terminal, utility,
+and initial networking infrastructure.
 
 ### Kernel (ring3.cpp ~4040 lines)
 
@@ -94,9 +94,54 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 
 ## x86_64 Lane
 
-- GRUB/Multiboot2 ISO reaches staged shell over COM2
-- Shell smoke test validates basic commands
-- Limine bootstrap for x86_64 image path
+The supported modern boot lane is the Limine x86_64 image on QEMU 11.1.0 with
+`-machine pc-q35-11.1`, `-cpu qemu64`, and `-smp 1`. The exact external gate
+boots real Ring 3 PID 1 `/bin/sh` and completes inside a hard 60-second
+timeout. A fallback shell, Ring 0 substitute, fake marker, enlarged bootfs,
+weakened assertion, or timeout masking is not part of this result.
+
+The exact gate passes 128 shell-grammar cases, the printf utility cases,
+command-substitution alias-boundary cases, 70 repeated process lifecycles, and
+40 repeated pipeline lifecycles. The finite conformance ledgers report:
+
+```text
+shell grammar:     125 closed,   0 open
+token recognition: 17 closed,   0 open
+shell language:      7 closed,  63 open
+POSIX.2 utilities:   1 closed, 174 open
+```
+
+The grammar and token ledgers are subordinate evidence for shell-language
+parents. Their row counts must not be added to the parent rows as if all rows
+were independent. The utility and shell-language rows remain separate
+denominators.
+
+### Bounded progress estimates
+
+These percentages are engineering estimates for the paused objective, not
+conformance claims:
+
+- Real x86_64 shell boot and core integration: approximately 90 percent. The
+  exact platform gate passes; the remaining work is primarily semantics and
+  breadth rather than reaching PID 1.
+- Shell-language conformance: approximately 35 percent. Grammar and token
+  recognition are closed, while 63 of 70 parent language rows remain open.
+- Complete POSIX.2 shell and utility conformance: approximately 20 percent.
+  Only `printf` is closed in the 175-utility denominator.
+- The full requested operating-system objective: approximately 15 percent.
+  This includes the remaining shell, utility, filesystem, process, signal,
+  terminal, modern-driver, and C++23 migration work.
+
+Driver completion is not assigned a stronger percentage because the
+repository does not yet carry a finite QEMU-device driver denominator. QEMU
+source paths and model details are retained in
+`docs/external_sources/QEMU_X86_PC_SOURCES.md`; guest drivers remain clean-room
+implementations rather than copied QEMU code.
+
+Project-owned implementation work uses C++23. Pinned mksh R59c and dietlibc
+0.35 sources retain upstream C provenance. C headers remain only at genuine C,
+assembly, firmware, libc, or external ABI boundaries and must remain valid C23
+where they are C-only.
 
 ## Verified Today
 
@@ -107,6 +152,8 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
   runs 68 userland utilities, has working signals/job control/time/ANSI
   terminal, and has a live virtio-net PCI device.
 - The i486 lane is verified on `pc-i440fx-10.2` and `isapc` with `-cpu 486`.
+- The x86_64 lane boots real Ring 3 PID 1 `/bin/sh` on the exact QEMU Q35 gate.
+- The x86_64 grammar and token-recognition denominators are completely closed.
 - `xorriso` is still a host prerequisite for ISO assembly.
 
 ## Not Verified Today
@@ -116,8 +163,9 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 - Full dietlibc static linking from TCC; current verified TCC runtime is a
   small XINIM-native shim for simple C programs.
 - pkgsrc bootstrap (pending)
-- Full POSIX.1-2008 conformance is not claimed; only the documented core
-  subset is working.
+- Full POSIX conformance is not claimed. The exact open rows are retained in
+  `docs/posix/posix_shell_language_ledger.tsv` and
+  `docs/posix/posix2_utility_ledger.tsv`.
 
 ## Architectural Truth
 

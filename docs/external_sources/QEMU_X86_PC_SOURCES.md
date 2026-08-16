@@ -1,14 +1,20 @@
 # QEMU x86 PC Source Index
 
-Date: 2026-05-13
-Purpose: Official QEMU source cache and driver-plan notes for the 32-bit
-XINIM `pc` machine lanes, especially the i686 CMOV-capable disk boot path.
+Date: 2026-08-15
+Purpose: Official QEMU source cache and driver-plan notes for the XINIM x86
+`pc` and `pc-q35-11.1` machine lanes.
 
 ## Cached Sources
 
 The HTML files are cached under `data/external/qemu/`; hashes and byte sizes are
 recorded in `data/external/qemu/PROVENANCE.json` and
 `data/external/qemu/SHA256SUMS`.
+
+The five retained HTML captures range from 14989 to 416377 bytes. They are
+hash-manifested source evidence and remain ordinary tracked Git files; Git LFS
+is unnecessary at these sizes. Generated QEMU disks, object files, traces, and
+logs belong under the ignored `build/` tree unless a separate evidence intake
+records their provenance and explicitly admits them.
 
 1. QEMU i440FX PC machine
    - URL: https://www.qemu.org/docs/master/system/i386/pc.html
@@ -45,7 +51,82 @@ recorded in `data/external/qemu/PROVENANCE.json` and
    - URL: https://www.qemu.org/docs/master/system/gdb.html
    - Cache: `data/external/qemu/qemu-master-gdb.html`
    - Why it matters: documents the `-s -S` debugging path and remote GDB stub
-     behavior used by `scripts/qemu_x86_32_debug.py --gdb`.
+   behavior used by `scripts/qemu_x86_32_debug.py --gdb`.
+
+## Validated x86_64 Q35 Contract
+
+The exact x86_64 gate runs installed `qemu-system-x86_64` 11.1.0 with:
+
+```text
+-machine pc-q35-11.1
+-cpu qemu64
+-smp 1
+-nodefaults
+-vga none
+-nic none
+```
+
+The local primary-source checkout used for this contract is QEMU commit
+`006a22cb26998998385b104db1ff9466ef2f3153`, described as
+`v11.1.0-rc1-33-g006a22cb26`.
+
+### Machine and interrupt topology
+
+- `hw/i386/pc_q35.c` registers `pc-q35-11.1` through
+  `DEFINE_Q35_MACHINE_AS_LATEST(11, 1)`. Its machine description is
+  `Standard PC (Q35 + ICH9, 2009)`.
+- `pc_q35_init()` creates the Q35 PCIe host bus, an ICH9 LPC function, the
+  LPC-owned `isa.0` child bus, 24 GSI lines, and an IOAPIC. The ICH9 LPC
+  routes ISA interrupts 0 through 15 and PCI PIRQ A through H to IOAPIC GSIs
+  16 through 23 in APIC mode.
+- `include/hw/intc/ioapic.h` fixes the primary IOAPIC MMIO base at
+  `0xfec00000` and its input count at 24. `hw/intc/ioapic.c` models the
+  redirection table and edge-versus-level delivery behavior the guest must
+  program and acknowledge correctly.
+- `hw/i386/acpi-common.c` emits the MADT with the local APIC base, the primary
+  IOAPIC at `0xfec00000`, the legacy IRQ0-to-GSI2 interrupt-source override,
+  and level-triggered PCI interrupt overrides. XINIM should consume MADT
+  topology as the authority and keep hard-coded addresses only as validated
+  early-boot defaults.
+
+### Timers and serial devices
+
+- `hw/i386/pc.c` enables HPET by default for PC machines. Q35 passes interrupt
+  capability mask `0xff0104`, which permits GSIs 16 through 23 plus IRQ8 and
+  IRQ2, and maps the HPET at `0xfed00000`.
+- `include/hw/timer/hpet.h` defines a 10 ns counter period. `hw/timer/hpet.c`
+  publishes that period in the capability register. XINIM's LAPIC calibration
+  therefore uses the emulated counter as a measured timebase, not a guessed
+  CPU frequency.
+- `hw/char/serial-isa.c` assigns COM1 through COM4 to I/O bases `0x3f8`,
+  `0x2f8`, `0x3e8`, and `0x2e8`, with IRQs 4, 3, 4, and 3. The XINIM gate
+  explicitly creates COM1 for kernel output and COM2 for the Ring 3 terminal,
+  so the driver must route IRQ4 and IRQ3 through the Q35 GSI/IOAPIC path.
+
+### CPU, storage, and explicit device absence
+
+- `target/i386/cpu.c` defines `qemu64` as an AMD-vendor family 15 model with
+  long mode, `SYSCALL`, NX, MTRR, CLFLUSH, MCA, PSE36, SSE3, CX16, LAHF in
+  long mode, and SVM. Drivers and userspace must stay within that declared
+  feature boundary; host CPU features are not part of the gate.
+- `pc_q35_init()` creates the six-port ICH9 AHCI controller when SATA is
+  enabled. `hw/ide/ich.c` registers the index/data port in PCI BAR4 and the
+  AHCI MMIO register block in PCI BAR5. A clean-room guest storage driver must
+  enumerate PCI, validate the ICH9 AHCI function, read BAR5, establish DMA
+  ownership, and test command/FIS/interrupt completion instead of assuming a
+  fixed BAR address.
+- QEMU's `qemu-options.hx` states that `-nodefaults` disables default serial,
+  parallel, console, monitor, VGA, floppy, CD-ROM, and other devices. It does
+  not remove machine-owned Q35 chipset functions created by `pc_q35_init()`.
+  The gate adds its two serial devices and CD-ROM explicitly.
+- Although Q35's class default NIC is E1000e, the gate also passes
+  `-nic none`. No E1000e or virtio-net device exists in this platform contract.
+  Network driver work must add one explicit `-device` plus `-netdev` pair and
+  a matching PCI and packet-I/O test before claiming that transport.
+
+These QEMU files are behavioral evidence, not guest implementation sources.
+Do not copy QEMU implementation code into XINIM. Build C++23 guest drivers from
+the device specifications and validate them against the versioned model.
 
 ## Driver And Subsystem Implications
 
@@ -82,8 +163,8 @@ recorded in `data/external/qemu/PROVENANCE.json` and
 
 ## Evidence Anchors
 
-- [X86CpuLanes.cmake](/home/eirikr/Github/XINIM/cmake/X86CpuLanes.cmake)
-- [qemu_i486.sh](/home/eirikr/Github/XINIM/scripts/qemu_i486.sh)
-- [qemu_matrix.py](/home/eirikr/Github/XINIM/scripts/qemu_matrix.py)
-- [qemu_x86_32_debug.py](/home/eirikr/Github/XINIM/scripts/qemu_x86_32_debug.py)
-- [QEMU_X86_32_DEBUGGING.md](/home/eirikr/Github/XINIM/docs/testing/QEMU_X86_32_DEBUGGING.md)
+- [X86CpuLanes.cmake](../../cmake/X86CpuLanes.cmake)
+- [qemu_i486.sh](../../scripts/qemu_i486.sh)
+- [qemu_matrix.py](../../scripts/qemu_matrix.py)
+- [qemu_x86_32_debug.py](../../scripts/qemu_x86_32_debug.py)
+- [QEMU_X86_32_DEBUGGING.md](../testing/QEMU_X86_32_DEBUGGING.md)

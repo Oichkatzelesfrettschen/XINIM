@@ -2,35 +2,35 @@
  * It was written by Adri Koppes.
  */
 
+#include "const.hpp"
+#include "glo.hpp"
+#include "panic.hpp"
+#include "proc.hpp"
+#include "sys/callnr.hpp"
+#include "sys/com.hpp"
+#include "sys/const.hpp"
+#include "sys/error.hpp"
+#include "sys/type.hpp"
+#include "type.hpp"
+
 #include <algorithm>
 #include <array>
 #include <cstddef>
 #include <cstdint>
-#include <span>
 #include <cstdio>
 #include <cstring>
-
-#include "sys/com.hpp"
-#include "sys/const.hpp"
-#include "sys/callnr.hpp"
-#include "sys/error.hpp"
-#include "sys/type.hpp"
-#include "const.hpp"
-#include "glo.hpp"
-#include "proc.hpp"
-#include "type.hpp"
-#include "panic.hpp"
+#include <span>
 
 // External kernel functions not in proc.hpp
 extern "C" {
-    unsigned char get_byte(unsigned int seg, unsigned int off) noexcept;
+unsigned char get_byte(unsigned int seg, unsigned int off) noexcept;
 }
 
 /* RAII helper ensuring critical sections use lock/unlock */
 class ScopedPortLock {
-  public:
+public:
     ScopedPortLock() { lock(); }
-    ~ScopedPortLock() { restore(); } 
+    ~ScopedPortLock() { restore(); }
 };
 
 /* I/O Ports used by winchester disk task. */
@@ -123,7 +123,7 @@ extern "C" void winchester_task() noexcept {
     while (TRUE) {
         ipc_receive(ANY, &w_mess);
         if (w_mess.m_source < 0) {
-            printf("winchester task got message from %d ", w_mess.m_source); 
+            printf("winchester task got message from %d ", w_mess.m_source);
             continue;
         }
         caller = w_mess.m_source;
@@ -149,15 +149,20 @@ static int w_do_rdwt(message *m_ptr) noexcept {
     int r, dev, errors = 0;
     int64_t sect;
     dev = device(*m_ptr);
-    if (dev < 0 || dev >= NR_DEVICES) return static_cast<int>(ErrorCode::EIO);
-    if (count(*m_ptr) != BLOCK_SIZE) return static_cast<int>(ErrorCode::EINVAL);
+    if (dev < 0 || dev >= NR_DEVICES)
+        return static_cast<int>(ErrorCode::EIO);
+    if (count(*m_ptr) != BLOCK_SIZE)
+        return static_cast<int>(ErrorCode::EINVAL);
     wn = &wini[dev];
     wn->wn_drive = dev / DEV_PER_DRIVE;
-    if (wn->wn_drive >= nr_drives) return static_cast<int>(ErrorCode::EIO);
+    if (wn->wn_drive >= nr_drives)
+        return static_cast<int>(ErrorCode::EIO);
     wn->wn_opcode = m_ptr->m_type;
-    if (position(*m_ptr) % BLOCK_SIZE != 0) return static_cast<int>(ErrorCode::EINVAL);
+    if (position(*m_ptr) % BLOCK_SIZE != 0)
+        return static_cast<int>(ErrorCode::EINVAL);
     sect = position(*m_ptr) / SECTOR_SIZE;
-    if ((sect + static_cast<int64_t>(BLOCK_SIZE / SECTOR_SIZE)) > static_cast<int64_t>(wn->wn_size)) return (EOF);
+    if ((sect + static_cast<int64_t>(BLOCK_SIZE / SECTOR_SIZE)) > static_cast<int64_t>(wn->wn_size))
+        return (EOF);
     sect += static_cast<int64_t>(wn->wn_low);
     wn->wn_cylinder = static_cast<int>(sect / (wn->wn_heads * NR_SECTORS));
     wn->wn_sector = static_cast<int>(sect % NR_SECTORS);
@@ -167,11 +172,14 @@ static int w_do_rdwt(message *m_ptr) noexcept {
     wn->wn_procnr = proc_nr(*m_ptr);
     while (errors <= MAX_ERRORS) {
         errors++;
-        if (errors >= MAX_ERRORS) return static_cast<int>(ErrorCode::EIO);
-        if (w_need_reset) w_reset();
+        if (errors >= MAX_ERRORS)
+            return static_cast<int>(ErrorCode::EIO);
+        if (w_need_reset)
+            w_reset();
         w_dma_setup(wn);
         r = w_transfer(*wn);
-        if (r == OK) break;
+        if (r == OK)
+            break;
     }
     return (r == OK ? BLOCK_SIZE : static_cast<int>(ErrorCode::EIO));
 }
@@ -189,9 +197,11 @@ static void w_dma_setup(struct wini *wn) noexcept {
     top_addr = static_cast<int>((user_phys >> 16) & 0xFF);
     low_ct = static_cast<int>((ct - 1) & 0xFF);
     high_ct = static_cast<int>(((ct - 1) >> 8) & 0xFF);
-    if (user_phys == 0) kpanic("FS gave winchester disk driver bad addr");
+    if (user_phys == 0)
+        kpanic("FS gave winchester disk driver bad addr");
     top_end = static_cast<int>(((user_phys + ct - 1) >> 16) & 0xFF);
-    if (top_end != top_addr) kpanic("Trying to DMA across 64K boundary");
+    if (top_end != top_addr)
+        kpanic("Trying to DMA across 64K boundary");
     {
         ScopedPortLock guard;
         port_out(DMA_M2, static_cast<unsigned>(mode));
@@ -211,12 +221,16 @@ static int w_transfer(struct wini &wn) noexcept {
     command[3] = (wn.wn_cylinder & 0xFF);
     command[4] = BLOCK_SIZE / SECTOR_SIZE;
     command[5] = CTRL_BYTE;
-    if (com_out(command, DMA_INT_VAL) != OK) return (ERR);
+    if (com_out(command, DMA_INT_VAL) != OK)
+        return (ERR);
     port_out(DMA_INIT, 3);
     ipc_receive(HARDWARE, &w_mess);
-    if (win_results(wn) == OK) return (OK);
-    if ((wn.wn_results[0] & 63) == 24) read_ecc();
-    else w_need_reset = TRUE;
+    if (win_results(wn) == OK)
+        return (OK);
+    if ((wn.wn_results[0] & 63) == 24)
+        read_ecc();
+    else
+        w_need_reset = TRUE;
     return (ERR);
 }
 
@@ -224,22 +238,29 @@ static int win_results(struct wini &wn) noexcept {
     unsigned int status;
     port_in(WIN_DATA, &status);
     port_out(WIN_DMA, 0);
-    if (!(status & 2)) return (OK);
+    if (!(status & 2))
+        return (OK);
     command[0] = WIN_SENSE;
     command[1] = (wn.wn_drive << 5);
-    if (com_out(command, NO_DMA_INT) != OK) return (ERR);
+    if (com_out(command, NO_DMA_INT) != OK)
+        return (ERR);
     for (auto &res : std::span<char, MAX_RESULTS>{wn.wn_results}) {
-        if (hd_wait(1) != OK) return (ERR);
+        if (hd_wait(1) != OK)
+            return (ERR);
         port_in(WIN_DATA, &status);
         res = static_cast<char>(status & 0xFF);
     }
-    if (wn.wn_results[0] & 63) return (ERR);
-    else return (OK);
+    if (wn.wn_results[0] & 63)
+        return (ERR);
+    else
+        return (OK);
 }
 
 static void win_out(int val) noexcept {
-    if (w_need_reset) return;
-    if (hd_wait(1) == OK) port_out(WIN_DATA, static_cast<unsigned>(val));
+    if (w_need_reset)
+        return;
+    if (hd_wait(1) == OK)
+        port_out(WIN_DATA, static_cast<unsigned>(val));
 }
 
 static int w_reset() noexcept {
@@ -247,9 +268,13 @@ static int w_reset() noexcept {
     port_out(WIN_STATUS, r);
     for (int i = 0; i < 10000; i++) {
         port_in(WIN_STATUS, &r);
-        if ((r & 01) == 0) break;
+        if ((r & 01) == 0)
+            break;
     }
-    if (r & 2) { printf("Hard disk won't reset\n"); return (ERR); }
+    if (r & 2) {
+        printf("Hard disk won't reset\n");
+        return (ERR);
+    }
     w_need_reset = FALSE;
     return (win_init());
 }
@@ -257,7 +282,8 @@ static int w_reset() noexcept {
 static int win_init() noexcept {
     command[0] = WIN_SPECIFY;
     command[1] = 0;
-    if (com_out(command, NO_DMA_INT) != OK) return (ERR);
+    if (com_out(command, NO_DMA_INT) != OK)
+        return (ERR);
     {
         ScopedPortLock guard;
         win_out(param0.nr_cyl >> 8);
@@ -269,10 +295,14 @@ static int win_init() noexcept {
         win_out(param0.wr_precomp & 0xFF);
         win_out(param0.max_ecc);
     }
-    if (check_init() != OK) { w_need_reset = TRUE; return (ERR); }
+    if (check_init() != OK) {
+        w_need_reset = TRUE;
+        return (ERR);
+    }
     if (nr_drives > 1) {
         command[1] = (1 << 5);
-        if (com_out(command, NO_DMA_INT) != OK) return (ERR);
+        if (com_out(command, NO_DMA_INT) != OK)
+            return (ERR);
         {
             ScopedPortLock guard;
             win_out(param1.nr_cyl >> 8);
@@ -284,15 +314,22 @@ static int win_init() noexcept {
             win_out(param1.wr_precomp & 0xFF);
             win_out(param1.max_ecc);
         }
-        if (check_init() != OK) { w_need_reset = TRUE; return (ERR); }
+        if (check_init() != OK) {
+            w_need_reset = TRUE;
+            return (ERR);
+        }
     }
     for (int i = 0; i < nr_drives; i++) {
         command[0] = WIN_RECALIBRATE;
         command[1] = i << 5;
         command[5] = CTRL_BYTE;
-        if (com_out(command, 2) != OK) return (ERR); // 2 is INT
+        if (com_out(command, 2) != OK)
+            return (ERR); // 2 is INT
         ipc_receive(HARDWARE, &w_mess);
-        if (win_results(wini[i * DEV_PER_DRIVE]) != OK) { w_need_reset = TRUE; return (ERR); }
+        if (win_results(wini[i * DEV_PER_DRIVE]) != OK) {
+            w_need_reset = TRUE;
+            return (ERR);
+        }
     }
     return (OK);
 }
@@ -301,8 +338,10 @@ static int check_init() noexcept {
     unsigned int r;
     if (hd_wait(2) == OK) {
         port_in(WIN_DATA, &r);
-        if (r & 2) return (ERR);
-        else return (OK);
+        if (r & 2)
+            return (ERR);
+        else
+            return (OK);
     }
     return (ERR);
 }
@@ -314,7 +353,8 @@ static int read_ecc() noexcept {
         port_in(WIN_DATA, &r);
         if (hd_wait(1) == OK) {
             port_in(WIN_DATA, &r);
-            if (r & 1) w_need_reset = TRUE;
+            if (r & 1)
+                w_need_reset = TRUE;
         }
     }
     return (ERR);
@@ -327,8 +367,11 @@ static int hd_wait(int bit) noexcept {
         port_in(WIN_STATUS, &r);
         r &= static_cast<unsigned>(bit);
     } while ((i++ < MAX_WIN_RETRY) && !r);
-    if (i >= MAX_WIN_RETRY) { w_need_reset = TRUE; return (ERR); }
-    else return (OK);
+    if (i >= MAX_WIN_RETRY) {
+        w_need_reset = TRUE;
+        return (ERR);
+    } else
+        return (OK);
 }
 
 static int com_out(std::span<const int> cmd, int mode) noexcept {
@@ -338,15 +381,23 @@ static int com_out(std::span<const int> cmd, int mode) noexcept {
     int i = 0;
     for (i = 0; i < MAX_WIN_RETRY; i++) {
         port_in(WIN_STATUS, &r);
-        if ((r & 0x0F) == 0x0D) break;
+        if ((r & 0x0F) == 0x0D)
+            break;
     }
-    if (i == MAX_WIN_RETRY) { w_need_reset = TRUE; return (ERR); }
+    if (i == MAX_WIN_RETRY) {
+        w_need_reset = TRUE;
+        return (ERR);
+    }
     {
         ScopedPortLock guard;
-        for (const auto val : cmd) port_out(WIN_DATA, static_cast<unsigned>(val));
+        for (const auto val : cmd)
+            port_out(WIN_DATA, static_cast<unsigned>(val));
     }
     port_in(WIN_STATUS, &r);
-    if (r & 1) { w_need_reset = TRUE; return (ERR); }
+    if (r & 1) {
+        w_need_reset = TRUE;
+        return (ERR);
+    }
     return (OK);
 }
 
@@ -362,27 +413,32 @@ static void init_params() noexcept {
     offset = static_cast<unsigned>(vec_table[2 * 0x41]);
     segment = static_cast<unsigned>(vec_table[2 * 0x41 + 1]);
     addr = (static_cast<uint64_t>(segment) << 4) + offset;
-    
-    uint64_t phys_buf = umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf), static_cast<std::size_t>(64));
-    phys_copy(reinterpret_cast<void*>(static_cast<uintptr_t>(phys_buf)), 
-              reinterpret_cast<const void*>(static_cast<uintptr_t>(addr)), 
-              64ULL);
-              
+
+    uint64_t phys_buf = umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf),
+                             static_cast<std::size_t>(64));
+    phys_copy(reinterpret_cast<void *>(static_cast<uintptr_t>(phys_buf)),
+              reinterpret_cast<const void *>(static_cast<uintptr_t>(addr)), 64ULL);
+
     copy_params((&buf[type_0 * 16]), &param0);
     copy_params((&buf[type_1 * 16]), &param1);
-    
-    uint64_t phys_buf_1 = umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf), static_cast<std::size_t>(1));
-    phys_copy(reinterpret_cast<void*>(static_cast<uintptr_t>(phys_buf_1)), 
-              reinterpret_cast<const void*>(0x475ULL), 
-              1ULL);
-              
+
+    uint64_t phys_buf_1 = umap(proc_addr(WINCHESTER), D, reinterpret_cast<std::size_t>(buf),
+                               static_cast<std::size_t>(1));
+    phys_copy(reinterpret_cast<void *>(static_cast<uintptr_t>(phys_buf_1)),
+              reinterpret_cast<const void *>(0x475ULL), 1ULL);
+
     nr_drives = static_cast<int>(*buf);
-    for (int i = 0; i < 5; i++) wini[i].wn_heads = param0.nr_heads;
+    for (int i = 0; i < 5; i++)
+        wini[i].wn_heads = param0.nr_heads;
     wini[0].wn_low = wini[5].wn_low = 0L;
-    wini[0].wn_size = static_cast<uint64_t>(param0.nr_cyl) * param0.nr_heads * NR_SECTORS;
-    for (int i = 5; i < 10; i++) wini[i].wn_heads = param1.nr_heads;
-    wini[5].wn_size = static_cast<uint64_t>(param1.nr_cyl) * param1.nr_heads * NR_SECTORS;
-    if ((nr_drives > 0) && (win_init() != OK)) nr_drives = 0;
+    wini[0].wn_size = static_cast<uint64_t>(param0.nr_cyl) *
+                      static_cast<uint64_t>(param0.nr_heads) * static_cast<uint64_t>(NR_SECTORS);
+    for (int i = 5; i < 10; i++)
+        wini[i].wn_heads = param1.nr_heads;
+    wini[5].wn_size = static_cast<uint64_t>(param1.nr_cyl) *
+                      static_cast<uint64_t>(param1.nr_heads) * static_cast<uint64_t>(NR_SECTORS);
+    if ((nr_drives > 0) && (win_init() != OK))
+        nr_drives = 0;
     for (int i = 0; i < nr_drives; i++) {
         device(w_mess) = i * 5;
         position(w_mess) = 0LL;
@@ -390,7 +446,8 @@ static void init_params() noexcept {
         address(w_mess) = reinterpret_cast<char *>(buf);
         proc_nr(w_mess) = WINCHESTER;
         w_mess.m_type = DISK_READ;
-        if (w_do_rdwt(&w_mess) != BLOCK_SIZE) kpanic("Can't read partition table");
+        if (w_do_rdwt(&w_mess) != BLOCK_SIZE)
+            kpanic("Can't read partition table");
         copy_prt(i * 5);
     }
 }
@@ -427,8 +484,10 @@ static void copy_prt(int drive) noexcept {
 static void sort(struct wini *wn) noexcept {
     for (int i = 0; i < 4; i++)
         for (int j = 0; j < 3; j++)
-            if ((wn[j].wn_low == 0) && (wn[j + 1].wn_low != 0)) swap(&wn[j], &wn[j + 1]);
-            else if (wn[j].wn_low > wn[j + 1].wn_low && wn[j + 1].wn_low != 0) swap(&wn[j], &wn[j + 1]);
+            if ((wn[j].wn_low == 0) && (wn[j + 1].wn_low != 0))
+                swap(&wn[j], &wn[j + 1]);
+            else if (wn[j].wn_low > wn[j + 1].wn_low && wn[j + 1].wn_low != 0)
+                swap(&wn[j], &wn[j + 1]);
 }
 
 static void swap(struct wini *first, struct wini *second) noexcept {

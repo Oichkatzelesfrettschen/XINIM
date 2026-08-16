@@ -150,7 +150,7 @@ run_build() {
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$BUILD_IMAGE" \
-        bash -c "cmake --preset debug && cmake --build build/Debug"
+        bash -c "cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug && cmake --build build/x86_64/Debug --target xinim_x86_64_image"
 
     echo -e "${GREEN}[SUCCESS]${NC} Build completed!"
 }
@@ -164,7 +164,7 @@ run_tests() {
         -v "${PROJECT_ROOT}:/xinim:Z" \
         -w /xinim \
         "$TEST_IMAGE" \
-        bash -c "cmake --preset debug && cmake --build build/Debug && ctest --output-on-failure --test-dir build/Debug -L unit"
+        bash -c "cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug && cmake --build build/x86_64/Debug && ctest --output-on-failure --test-dir build/x86_64/Debug -L unit"
 
     echo -e "${GREEN}[SUCCESS]${NC} Tests completed!"
 }
@@ -195,18 +195,14 @@ run_ci() {
         bash -c "
             set -e
             echo '=== Building XINIM ==='
-            cmake --preset debug
-            cmake --build build/Debug
+            cmake -S . -B build/x86_64/Debug -G Ninja -DXINIM_CPU_LANE=x86_64 -DCMAKE_BUILD_TYPE=Debug
+            cmake --build build/x86_64/Debug
 
             echo '=== Running Tests ==='
-            if ! ctest --output-on-failure --test-dir build/Debug -L unit; then
-                echo '[WARN] Some tests failed'
-            fi
+            ctest --output-on-failure --test-dir build/x86_64/Debug -L unit
 
             echo '=== Running Lint ==='
-            if ! run-clang-tidy -p build/Debug; then
-                echo '[WARN] Lint completed with warnings'
-            fi
+            run-clang-tidy -p build/x86_64/Debug
 
             echo '=== CI Pipeline Complete ==='
         "
@@ -232,8 +228,8 @@ run_shell() {
 run_qemu() {
     ensure_image "$TEST_IMAGE" "test"
 
-    # First build if kernel doesn't exist
-    if [[ ! -f "${PROJECT_ROOT}/build/Debug/xinim" ]]; then
+    local boot_image="${PROJECT_ROOT}/build/x86_64/Debug/images/x86_64/xinim-x86_64.iso"
+    if [[ ! -f "${boot_image}" ]]; then
         run_build
     fi
 
@@ -243,24 +239,31 @@ run_qemu() {
         -w /xinim \
         "$TEST_IMAGE" \
         qemu-system-x86_64 \
-            -kernel /xinim/build/Debug/xinim \
+            -machine pc-q35-11.1 \
+            -cdrom /xinim/build/x86_64/Debug/images/x86_64/xinim-x86_64.iso \
+            -boot d \
             -nographic \
+            -nodefaults \
+            -vga none \
+            -nic none \
+            -monitor none \
             -no-reboot \
             -m 512M \
             -cpu qemu64 \
-            -serial mon:stdio
+            -serial stdio
 }
 
 # Run QEMU with GDB debug server
 run_qemu_debug() {
     ensure_image "$DEBUG_IMAGE" "debug"
 
-    if [[ ! -f "${PROJECT_ROOT}/build/Debug/xinim" ]]; then
+    local boot_image="${PROJECT_ROOT}/build/x86_64/Debug/images/x86_64/xinim-x86_64.iso"
+    if [[ ! -f "${boot_image}" ]]; then
         run_build
     fi
 
     echo -e "${GREEN}[QEMU-DEBUG]${NC} Booting XINIM in QEMU with GDB server on port 1234..."
-    echo -e "${BLUE}[INFO]${NC} Connect with: gdb build/Debug/xinim -ex 'target remote localhost:1234'"
+    echo -e "${BLUE}[INFO]${NC} Connect with: gdb build/x86_64/Debug/xinim -ex 'target remote localhost:1234'"
 
     $CONTAINER_RT run --rm \
         -v "${PROJECT_ROOT}:/xinim:Z" \
@@ -268,12 +271,18 @@ run_qemu_debug() {
         -p 1234:1234 \
         "$DEBUG_IMAGE" \
         qemu-system-x86_64 \
-            -kernel /xinim/build/Debug/xinim \
+            -machine pc-q35-11.1 \
+            -cdrom /xinim/build/x86_64/Debug/images/x86_64/xinim-x86_64.iso \
+            -boot d \
             -nographic \
+            -nodefaults \
+            -vga none \
+            -nic none \
+            -monitor none \
             -no-reboot \
             -m 512M \
             -cpu qemu64 \
-            -serial mon:stdio \
+            -serial stdio \
             -s -S
 }
 

@@ -1,5 +1,5 @@
-#include "src/kernel/pipe.hpp"
 #include "src/kernel/pcb.hpp"
+#include "src/kernel/pipe.hpp"
 #include "src/kernel/scheduler.hpp"
 #include "src/kernel/signal.hpp"
 
@@ -11,75 +11,75 @@
 
 namespace {
 
-using xinim::kernel::BlockReason;
-using xinim::kernel::Pipe;
-using xinim::kernel::ProcessControlBlock;
-using xinim::kernel::ProcessState;
+    using xinim::kernel::BlockReason;
+    using xinim::kernel::Pipe;
+    using xinim::kernel::ProcessControlBlock;
+    using xinim::kernel::ProcessState;
 
-ProcessControlBlock* g_current_process = nullptr;
-ProcessControlBlock* g_last_signaled_process = nullptr;
-int g_last_signal = 0;
+    ProcessControlBlock *g_current_process = nullptr;
+    ProcessControlBlock *g_last_signaled_process = nullptr;
+    int g_last_signal = 0;
 
-bool expect(bool condition, const char* message, int& failures) {
-    if (!condition) {
-        std::println(std::cerr, "FAIL: {}", message);
-        ++failures;
-        return false;
+    bool expect(bool condition, const char *message, int &failures) {
+        if (!condition) {
+            std::println(std::cerr, "FAIL: {}", message);
+            ++failures;
+            return false;
+        }
+        return true;
     }
-    return true;
-}
 
-Pipe make_pipe() {
-    Pipe pipe{};
-    pipe.read_pos = 0;
-    pipe.write_pos = 0;
-    pipe.count = 0;
-    pipe.read_end_open = true;
-    pipe.write_end_open = true;
-    pipe.readers_head = nullptr;
-    pipe.writers_head = nullptr;
-    return pipe;
-}
+    Pipe make_pipe() {
+        Pipe pipe{};
+        pipe.read_pos = 0;
+        pipe.write_pos = 0;
+        pipe.count = 0;
+        pipe.read_end_open = true;
+        pipe.write_end_open = true;
+        pipe.readers_head = nullptr;
+        pipe.writers_head = nullptr;
+        return pipe;
+    }
 
-void reset_stub_state() {
-    g_current_process = nullptr;
-    g_last_signaled_process = nullptr;
-    g_last_signal = 0;
-}
+    void reset_stub_state() {
+        g_current_process = nullptr;
+        g_last_signaled_process = nullptr;
+        g_last_signal = 0;
+    }
 
 } // namespace
 
 namespace xinim::kernel {
 
-ProcessControlBlock* get_current_process() {
-    return ::g_current_process;
-}
-
-void schedule() {}
-
-void block_current_process(BlockReason reason, xinim::pid_t /*wait_source*/) {
-    if (::g_current_process == nullptr) {
-        return;
+    ProcessControlBlock *get_current_process() {
+        return ::g_current_process;
     }
 
-    ::g_current_process->state = ProcessState::BLOCKED;
-    ::g_current_process->blocked_on = reason;
-}
+    void schedule() {}
 
-void unblock_process(ProcessControlBlock* pcb) {
-    if (pcb == nullptr) {
-        return;
+    void block_current_process(BlockReason reason, xinim::pid_t /*wait_source*/) {
+        if (::g_current_process == nullptr) {
+            return;
+        }
+
+        ::g_current_process->state = ProcessState::BLOCKED;
+        ::g_current_process->blocked_on = reason;
     }
 
-    pcb->state = ProcessState::READY;
-    pcb->blocked_on = BlockReason::NONE;
-}
+    void unblock_process(ProcessControlBlock *pcb) {
+        if (pcb == nullptr) {
+            return;
+        }
 
-int send_signal(ProcessControlBlock* pcb, int signum) {
-    ::g_last_signaled_process = pcb;
-    ::g_last_signal = signum;
-    return 0;
-}
+        pcb->state = ProcessState::READY;
+        pcb->blocked_on = BlockReason::NONE;
+    }
+
+    int send_signal(ProcessControlBlock *process, int signal_number) noexcept {
+        ::g_last_signaled_process = process;
+        ::g_last_signal = signal_number;
+        return 0;
+    }
 
 } // namespace xinim::kernel
 
@@ -93,15 +93,12 @@ int main() {
         char out[sizeof(payload)]{};
 
         expect(pipe.write(payload, sizeof(payload)) == static_cast<ssize_t>(sizeof(payload)),
-               "write should store the full payload when space is available",
-               failures);
+               "write should store the full payload when space is available", failures);
         expect(pipe.count == sizeof(payload), "pipe count should track written bytes", failures);
         expect(pipe.read(out, sizeof(out)) == static_cast<ssize_t>(sizeof(out)),
-               "read should return the written payload length",
-               failures);
+               "read should return the written payload length", failures);
         expect(std::memcmp(out, payload, sizeof(payload)) == 0,
-               "read should preserve payload contents",
-               failures);
+               "read should preserve payload contents", failures);
         expect(pipe.is_empty(), "pipe should be empty after reading back all bytes", failures);
     }
 
@@ -115,10 +112,8 @@ int main() {
         expect(pipe.write("x", 1) == -EPIPE, "write should fail with EPIPE when readers are closed",
                failures);
         expect(g_last_signaled_process == &writer,
-               "write with closed readers should signal the current writer",
-               failures);
-        expect(g_last_signal == expected_sigpipe,
-               "write with closed readers should send SIGPIPE",
+               "write with closed readers should signal the current writer", failures);
+        expect(g_last_signal == expected_sigpipe, "write with closed readers should send SIGPIPE",
                failures);
     }
 
@@ -130,12 +125,12 @@ int main() {
         pipe.readers_head = &reader;
 
         pipe.close_write_end();
-        expect(pipe.readers_head == nullptr, "close_write_end should wake blocked readers", failures);
-        expect(reader.state == ProcessState::READY, "reader should move to READY on write-end close",
+        expect(pipe.readers_head == nullptr, "close_write_end should wake blocked readers",
                failures);
+        expect(reader.state == ProcessState::READY,
+               "reader should move to READY on write-end close", failures);
         expect(reader.blocked_on == BlockReason::NONE,
-               "reader block reason should clear on write-end close",
-               failures);
+               "reader block reason should clear on write-end close", failures);
         expect(pipe.read(nullptr, 0) == 0, "empty closed pipe should read as EOF", failures);
     }
 
@@ -147,12 +142,12 @@ int main() {
         pipe.writers_head = &writer;
 
         pipe.close_read_end();
-        expect(pipe.writers_head == nullptr, "close_read_end should wake blocked writers", failures);
+        expect(pipe.writers_head == nullptr, "close_read_end should wake blocked writers",
+               failures);
         expect(writer.state == ProcessState::READY, "writer should move to READY on read-end close",
                failures);
         expect(writer.blocked_on == BlockReason::NONE,
-               "writer block reason should clear on read-end close",
-               failures);
+               "writer block reason should clear on read-end close", failures);
     }
 
     {

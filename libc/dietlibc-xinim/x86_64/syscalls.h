@@ -29,10 +29,10 @@
 #define __NR_rmdir                              17
 #define __NR_chdir                              18
 #define __NR_getcwd                             19
-#define __NR_link                               20
+#define __NR_link                               -1
 #define __NR_unlink                             21
 #define __NR_rename                             22
-#define __NR_chmod                              23
+#define __NR_chmod                              -1
 #define __NR_chown                              24
 
 /* Process Management */
@@ -50,7 +50,7 @@
 #define __NR_brk                                34
 #define __NR_mmap                               35
 #define __NR_munmap                             36
-#define __NR_mprotect                           37
+#define __NR_mprotect                           -1
 
 /* IPC (XINIM Lattice IPC) */
 #define __NR_lattice_connect                    38
@@ -69,19 +69,19 @@
 #define __NR_geteuid                            47
 #define __NR_getgid                             48
 #define __NR_getegid                            49
-#define __NR_setuid                             50
-#define __NR_setgid                             51
+#define __NR_setuid                             -1
+#define __NR_setgid                             -1
 
 /* Unimplemented/TODO syscalls */
-#define __NR_lstat                              -1
+#define __NR_lstat                             108
 #define __NR_poll                               -1
 #define __NR_pread                              -1
 #define __NR_pwrite                             -1
 #define __NR_readv                              -1
 #define __NR_writev                             -1
-#define __NR_select                             -1
+#define __NR_select                             78
 #define __NR_sched_yield                        -1
-#define __NR_mremap                             -1
+#define __NR_mremap                             64
 #define __NR_msync                              -1
 #define __NR_mincore                            -1
 #define __NR_madvise                            -1
@@ -90,7 +90,7 @@
 #define __NR_shmctl                             -1
 #define __NR_pause                              -1
 #define __NR_getitimer                          -1
-#define __NR_alarm                              -1
+#define __NR_alarm                              52
 #define __NR_setitimer                          -1
 
 /* Networking syscalls - TODO: implement via VFS/network server */
@@ -114,7 +114,7 @@
 /* Process management - partially implemented */
 #define __NR_clone                              -1  /* TODO */
 #define __NR_vfork                              -1  /* TODO: use fork */
-#define __NR_uname                              -1  /* TODO */
+#define __NR_uname                              -1
 
 /* System V IPC - use XINIM lattice IPC instead */
 #define __NR_semget                             -1
@@ -127,45 +127,45 @@
 #define __NR_msgctl                             -1
 
 /* File operations - TODO */
-#define __NR_flock                              -1
+#define __NR_flock                             101
 #define __NR_fsync                              -1
 #define __NR_fdatasync                          -1
-#define __NR_truncate                           -1
-#define __NR_ftruncate                          -1
-#define __NR_getdents                           -1
+#define __NR_truncate                           74
+#define __NR_ftruncate                          75
+#define __NR_getdents                           63
 #define __NR_fchdir                             -1
 #define __NR_creat                              -1
-#define __NR_symlink                            -1
-#define __NR_readlink                           -1
+#define __NR_symlink                            69
+#define __NR_readlink                           70
 #define __NR_fchmod                             -1
-#define __NR_fchown                             -1
+#define __NR_fchown                             73
 #define __NR_lchown                             -1
-#define __NR_umask                              -1
+#define __NR_umask                              57
 
 /* Resource management - TODO */
-#define __NR_getrlimit                          -1
-#define __NR_getrusage                          -1
+#define __NR_getrlimit                          53
+#define __NR_getrusage                          55
 #define __NR_sysinfo                            -1
 #define __NR_times                              -1
 #define __NR_ptrace                             -1
 #define __NR_syslog                             -1
 
 /* Process groups - TODO */
-#define __NR_setpgid                            -1
-#define __NR_getpgrp                            -1
-#define __NR_setsid                             -1
+#define __NR_setpgid                            65
+#define __NR_getpgrp                            66
+#define __NR_setsid                             56
 #define __NR_setreuid                           -1
 #define __NR_setregid                           -1
 #define __NR_getgroups                          -1
-#define __NR_setgroups                          -1
-#define __NR_setresuid                          -1
+#define __NR_setgroups                         127
+#define __NR_setresuid                         128
 #define __NR_getresuid                          -1
-#define __NR_setresgid                          -1
+#define __NR_setresgid                         130
 #define __NR_getresgid                          -1
-#define __NR_getpgid                            -1
+#define __NR_getpgid                            62
 #define __NR_setfsuid                           -1
 #define __NR_setfsgid                           -1
-#define __NR_getsid                             -1
+#define __NR_getsid                             67
 #define __NR_capget                             -1
 #define __NR_capset                             -1
 
@@ -173,9 +173,9 @@
 #define __NR_rt_sigpending                      -1
 #define __NR_rt_sigtimedwait                    -1
 #define __NR_rt_sigqueueinfo                    -1
-#define __NR_rt_sigsuspend                      -1
-#define __NR_rt_sigprocmask                     -1
-#define __NR_rt_sigreturn                       -1
+#define __NR_rt_sigsuspend                      97
+#define __NR_rt_sigprocmask                     61
+#define __NR_rt_sigreturn                       80
 #define __NR_sigaltstack                        -1
 #define __NR_tkill                              -1
 #define __NR_tgkill                             -1
@@ -189,8 +189,8 @@
 #define __NR_sysfs                              -1
 
 /* Scheduling - TODO */
-#define __NR_getpriority                        -1
-#define __NR_setpriority                        -1
+#define __NR_getpriority                       132
+#define __NR_setpriority                       133
 #define __NR_sched_setparam                     -1
 #define __NR_sched_getparam                     -1
 #define __NR_sched_setscheduler                 -1
@@ -215,7 +215,7 @@
 #define __NR_prctl                              -1
 #define __NR_arch_prctl                         -1
 #define __NR_adjtimex                           -1
-#define __NR_setrlimit                          -1
+#define __NR_setrlimit                          54
 #define __NR_chroot                             -1
 #define __NR_sync                               -1
 #define __NR_acct                               -1
@@ -249,7 +249,7 @@
 /* Thread/process management - TODO */
 #define __NR_gettid                             -1
 #define __NR_set_tid_address                    -1
-#define __NR_exit_group                         -1
+#define __NR_exit_group                         25
 
 /* Extended attributes - TODO */
 #define __NR_readahead                          -1
@@ -280,7 +280,7 @@
 #define __NR_epoll_ctl_old                      -1
 #define __NR_epoll_wait_old                     -1
 #define __NR_remap_file_pages                   -1
-#define __NR_getdents64                         -1
+#define __NR_getdents64                         98
 #define __NR_restart_syscall                    -1
 #define __NR_semtimedop                         -1
 #define __NR_fadvise64                          -1

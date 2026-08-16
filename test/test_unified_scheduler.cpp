@@ -6,11 +6,30 @@
  * deadlock detection, block/unblock round-trip, bitmap consistency.
  */
 
+#include "signal.hpp"
 #include "unified_scheduler.hpp"
+
 #include <cassert>
 #include <cstring>
 
 using namespace xinim::kernel;
+
+namespace {
+
+    ProcessControlBlock *last_signaled_process = nullptr;
+    int last_signal_number = 0;
+
+} // namespace
+
+namespace xinim::kernel {
+
+    int send_signal(ProcessControlBlock *process, int signal_number) noexcept {
+        ::last_signaled_process = process;
+        ::last_signal_number = signal_number;
+        return 0;
+    }
+
+} // namespace xinim::kernel
 
 // Helper to create a minimal PCB for testing
 static ProcessControlBlock make_pcb(xinim::pid_t pid, uint32_t priority) {
@@ -41,7 +60,7 @@ static void test_single_process() {
     ProcessControlBlock pcb = make_pcb(1, PRIO_USER_NORM);
 
     s.add_process(&pcb);
-    auto* next = s.pick_next();
+    auto *next = s.pick_next();
     assert(next == &pcb);
     assert(s.current_pid() == 1);
 
@@ -51,22 +70,22 @@ static void test_single_process() {
 
 static void test_priority_ordering() {
     UnifiedScheduler s;
-    ProcessControlBlock low  = make_pcb(1, PRIO_USER_LOW);   // priority 32
-    ProcessControlBlock high = make_pcb(2, PRIO_SERVER_LO);  // priority 4
-    ProcessControlBlock mid  = make_pcb(3, PRIO_USER_NORM);  // priority 16
+    ProcessControlBlock low = make_pcb(1, PRIO_USER_LOW);   // priority 32
+    ProcessControlBlock high = make_pcb(2, PRIO_SERVER_LO); // priority 4
+    ProcessControlBlock mid = make_pcb(3, PRIO_USER_NORM);  // priority 16
 
     s.add_process(&low);
     s.add_process(&high);
     s.add_process(&mid);
 
     // Highest priority (lowest number) should be picked first
-    auto* first = s.pick_next();
+    auto *first = s.pick_next();
     assert(first->pid == 2); // PRIO_SERVER_LO = 4
 
-    auto* second = s.pick_next();
+    auto *second = s.pick_next();
     assert(second->pid == 3); // PRIO_USER_NORM = 16
 
-    auto* third = s.pick_next();
+    auto *third = s.pick_next();
     assert(third->pid == 1); // PRIO_USER_LOW = 32
 
     assert(s.pick_next() == nullptr);
@@ -129,7 +148,7 @@ static void test_deadlock_detection() {
 
     // Block b waiting for a -- should detect deadlock cycle
     bool ok2 = s.block(&b, BlockReason::IPC_RECV, 1);
-    assert(!ok2); // Deadlock! Must return false
+    assert(!ok2);                             // Deadlock! Must return false
     assert(b.state != ProcessState::BLOCKED); // b should NOT be blocked
 }
 
@@ -163,13 +182,13 @@ static void test_yield_to() {
     assert(s.current_pid() == 2);
 
     // a should be back in the queue
-    auto* next = s.pick_next();
+    auto *next = s.pick_next();
     assert(next->pid == 1);
 }
 
 static void test_quantum_values() {
     // Verify quantum table
-    assert(quantum_for_priority(0) == 0);  // System: unlimited
+    assert(quantum_for_priority(0) == 0); // System: unlimited
     assert(quantum_for_priority(3) == 0);
     assert(quantum_for_priority(4) == 20); // Server
     assert(quantum_for_priority(7) == 20);
@@ -204,6 +223,24 @@ static void test_timer_tick_quantum_expiry() {
     s.timer_tick();
     assert(s.current_pid() == 2); // b is now current
     assert(a.priority == PRIO_USER_NORM + 1);
+}
+
+static void test_timer_tick_delivers_expired_alarm() {
+    UnifiedScheduler scheduler;
+    ProcessControlBlock process = make_pcb(1, PRIO_USER_NORM);
+    process.alarm_deadline_tick = 2U;
+    last_signaled_process = nullptr;
+    last_signal_number = 0;
+
+    scheduler.add_process(&process);
+    scheduler.timer_tick(false);
+    assert(last_signaled_process == nullptr);
+    assert(process.alarm_deadline_tick == 2U);
+
+    scheduler.timer_tick(false);
+    assert(last_signaled_process == &process);
+    assert(last_signal_number == xinim::signals::SIGALRM);
+    assert(process.alarm_deadline_tick == 0U);
 }
 
 static void test_system_task_no_preemption() {
@@ -271,10 +308,10 @@ static void test_bitmap_consistency() {
     s.add_process(&b);
 
     // Both queues should have bits set
-    auto* p1 = s.pick_next();
+    auto *p1 = s.pick_next();
     assert(p1->pid == 1); // Priority 5 first
 
-    auto* p2 = s.pick_next();
+    auto *p2 = s.pick_next();
     assert(p2->pid == 2); // Priority 20 next
 
     // Both dequeued -- pick_next should return nullptr
@@ -302,6 +339,7 @@ int main() {
     test_yield_to();
     test_quantum_values();
     test_timer_tick_quantum_expiry();
+    test_timer_tick_delivers_expired_alarm();
     test_system_task_no_preemption();
     test_explicit_quantum_override();
     test_periodic_priority_rebalance();

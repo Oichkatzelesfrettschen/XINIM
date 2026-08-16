@@ -453,16 +453,16 @@ add_executable(xinim
     src/kernel/main.cpp
     src/kernel/kernel.cpp
     src/kernel/system.cpp
-    src/kernel/syscall.cpp
     src/kernel/proc.cpp
     src/kernel/schedule.cpp
     src/kernel/service.cpp
     src/kernel/tty.cpp
     src/kernel/panic.cpp
     src/boot/limine/shim.cpp
+    src/boot/limine/memory_map.cpp
     src/kernel/klib64.cpp
+    src/kernel/compiler_rt/unsigned_division.cpp
     src/kernel/heap.cpp
-    src/kernel/mpx64_stubs.S
     src/kernel/exception_stubs.cpp
     src/kernel/signal_stubs.cpp
     src/kernel/time_stubs.cpp
@@ -476,6 +476,7 @@ add_executable(xinim
     src/kernel/interrupts.cpp
     src/kernel/irq.cpp
     src/kernel/memory.cpp
+    src/kernel/uaccess.cpp
     src/kernel/paging.cpp
     src/mm/alloc.cpp
     src/kernel/scheduler.cpp
@@ -495,22 +496,40 @@ add_executable(xinim
     src/kernel/arch/x86_64/tss.cpp
     src/kernel/arch/x86_64/stub.cpp
     src/kernel/arch/x86_64/syscall_init.cpp
-    src/kernel/arch/x86_64/isr.S
+    src/kernel/arch/x86_64/exec_arguments.cpp
+    src/kernel/arch/x86_64/elf64_user_image.cpp
+    src/kernel/arch/x86_64/bootfs_syscalls.cpp
+    src/kernel/arch/x86_64/memory_syscalls.cpp
+    src/kernel/arch/x86_64/process_syscalls.cpp
+    src/kernel/arch/x86_64/realtime_clock.cpp
+    src/kernel/arch/x86_64/rtc_time_conversion.cpp
+    src/kernel/arch/x86_64/runtime_syscalls.cpp
+    src/kernel/arch/x86_64/select_syscalls.cpp
+    src/kernel/arch/x86_64/signal_syscalls.cpp
+    src/kernel/arch/x86_64/serial_terminal.cpp
+    src/kernel/arch/x86_64/user_address_space.cpp
+    src/kernel/arch/x86_64/userspace_abi.cpp
+    src/kernel/user_mapping_table.cpp
     src/arch/x86_64/gdt_load.S
     src/arch/x86_64/tss_load.S
     src/arch/x86_64/syscall_handler.S
-    src/arch/x86_64/context_switch.S
+    src/arch/x86_64/context_restore.S
     src/arch/x86_64/interrupts.S
     src/kernel/unified_scheduler.cpp
     src/kernel/process_lifecycle.cpp
     src/kernel/lattice_ipc.cpp
     src/kernel/abi/lattice_changer.cpp
     src/kernel/early/serial_16550.cpp
+    src/kernel/freestanding_format.cpp
+    src/kernel/fd_table.cpp
     src/kernel/bare_metal_stubs.cpp
     src/kernel/i486/bootfs.cpp
+    src/kernel/i486/tty.cpp
+    src/kernel/i486/vfs.cpp
+    src/kernel/i486/devfs.cpp
     src/kernel/x86_64/i486_runtime_compat.cpp
     src/hal/hal.cpp
-    # Bare-metal VFS subsystem (ADR-0009 / v1.3.0)
+    # Bare-metal VFS subsystem (ADR-0009)
     src/vfs/core_init.cpp
     src/vfs/inode_table.cpp
     src/vfs/vnode_table.cpp
@@ -545,7 +564,10 @@ xinim_set_warnings(xinim)
 # Bare-metal: disable hosted C++ runtime assumptions
 target_compile_options(xinim PRIVATE
     -ffreestanding
+    -fno-pic
+    -fno-pie
     -fno-stack-protector
+    -mno-red-zone
     -march=x86-64
     -mtune=generic
     -mcmodel=kernel
@@ -563,7 +585,13 @@ set_source_files_properties(src/crypto/sha2_hw.cpp PROPERTIES
 
 # Linker script for bare-metal kernel layout (1MB physical load)
 target_link_options(xinim PRIVATE -T ${CMAKE_SOURCE_DIR}/linker.ld)
-target_link_options(xinim PRIVATE -nostdlib -static -fno-stack-protector)
+target_link_options(xinim PRIVATE
+    -nostdlib
+    -static
+    -fno-stack-protector
+    LINKER:-no-pie
+    LINKER:--build-id=none
+)
 
 # No external runtime deps: crypto is vendored, kernel is freestanding.
 # target_link_libraries(xinim PRIVATE) -- intentionally empty
@@ -577,14 +605,25 @@ set(XINIM_X86_64_STAGE_DIR "${XINIM_X86_64_IMAGE_DIR}/staging")
 set(XINIM_X86_64_BOOT_IMAGE "${XINIM_X86_64_IMAGE_DIR}/xinim-x86_64.iso")
 set(XINIM_LIMINE_CONFIG "${CMAKE_SOURCE_DIR}/boot/limine/limine.cfg")
 
-add_custom_target(xinim_bootstrap_limine
+set(_XINIM_LIMINE_REQUIRED_FILES
+    "${XINIM_LIMINE_ROOT}/limine"
+    "${XINIM_LIMINE_ROOT}/limine-bios.sys"
+    "${XINIM_LIMINE_ROOT}/limine-bios-cd.bin"
+    "${XINIM_LIMINE_ROOT}/limine-uefi-cd.bin"
+    "${XINIM_LIMINE_ROOT}/BOOTX64.EFI"
+)
+
+add_custom_command(
+    OUTPUT ${_XINIM_LIMINE_REQUIRED_FILES}
     COMMAND ${CMAKE_COMMAND}
             -DXINIM_LIMINE_VERSION=${XINIM_LIMINE_VERSION}
             -DXINIM_LIMINE_ROOT=${XINIM_LIMINE_ROOT}
             -P ${CMAKE_SOURCE_DIR}/cmake/BootstrapLimine.cmake
+    DEPENDS ${CMAKE_SOURCE_DIR}/cmake/BootstrapLimine.cmake
     COMMENT "Bootstrapping Limine assets into the build-tree tools cache"
-    USES_TERMINAL
+    VERBATIM
 )
+add_custom_target(xinim_bootstrap_limine DEPENDS ${_XINIM_LIMINE_REQUIRED_FILES})
 add_dependencies(xinim_bootstrap_tools xinim_bootstrap_limine)
 
 if(XINIM_CPU_LANE STREQUAL "x86_64")
@@ -603,28 +642,729 @@ target_include_directories(xinim_x86_64_shell PRIVATE
 target_compile_features(xinim_x86_64_shell PRIVATE cxx_std_23)
 target_compile_options(xinim_x86_64_shell PRIVATE
     -ffreestanding
+    -fno-pic
+    -fno-pie
     -fno-stack-protector
 )
 target_link_options(xinim_x86_64_shell PRIVATE
-    -T ${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
     -nostdlib
     -static
     -fno-stack-protector
-    -no-pie
+    LINKER:-no-pie
 )
 xinim_set_warnings(xinim_x86_64_shell)
 
+add_executable(xinim_x86_64_true
+    userland/bin/true_x86_64.S
+)
+set_target_properties(xinim_x86_64_true PROPERTIES
+    OUTPUT_NAME true_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_true)
+target_include_directories(xinim_x86_64_true PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_true PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_true PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_true)
+
+add_executable(xinim_x86_64_echo
+    userland/bin/echo_x86_64.S
+)
+set_target_properties(xinim_x86_64_echo PROPERTIES
+    OUTPUT_NAME echo_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_echo)
+target_include_directories(xinim_x86_64_echo PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_echo PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_echo PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_echo)
+
+add_executable(xinim_x86_64_brk_check
+    userland/bin/brk_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_brk_check PROPERTIES
+    OUTPUT_NAME brk_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_brk_check)
+target_include_directories(xinim_x86_64_brk_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_brk_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_brk_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_brk_check)
+
+add_executable(xinim_x86_64_preempt_check
+    userland/bin/preempt_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_preempt_check PROPERTIES
+    OUTPUT_NAME preempt_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_preempt_check)
+target_include_directories(xinim_x86_64_preempt_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_preempt_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_preempt_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_preempt_check)
+
+add_executable(xinim_x86_64_mmap_check
+    userland/bin/mmap_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_mmap_check PROPERTIES
+    OUTPUT_NAME mmap_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_mmap_check)
+target_include_directories(xinim_x86_64_mmap_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_mmap_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_mmap_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_mmap_check)
+
+add_executable(xinim_x86_64_fs_abi_check
+    userland/bin/fs_abi_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_fs_abi_check PROPERTIES
+    OUTPUT_NAME fs_abi_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_fs_abi_check)
+target_include_directories(xinim_x86_64_fs_abi_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_fs_abi_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_fs_abi_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_fs_abi_check)
+
+add_executable(xinim_x86_64_runtime_check
+    userland/bin/runtime_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_runtime_check PROPERTIES
+    OUTPUT_NAME runtime_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_runtime_check)
+target_include_directories(xinim_x86_64_runtime_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_runtime_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_runtime_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_runtime_check)
+
+add_executable(xinim_x86_64_signal_check
+    userland/bin/signal_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_signal_check PROPERTIES
+    OUTPUT_NAME signal_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_signal_check)
+target_include_directories(xinim_x86_64_signal_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_signal_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_signal_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_signal_check)
+
+add_executable(xinim_x86_64_tty_abi_check
+    userland/bin/tty_abi_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_tty_abi_check PROPERTIES
+    OUTPUT_NAME tty_abi_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_tty_abi_check)
+target_include_directories(xinim_x86_64_tty_abi_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_tty_abi_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_tty_abi_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_tty_abi_check)
+
+add_executable(xinim_x86_64_select_check
+    userland/bin/select_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_select_check PROPERTIES
+    OUTPUT_NAME select_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_select_check)
+target_include_directories(xinim_x86_64_select_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_select_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_select_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_select_check)
+
+add_executable(xinim_x86_64_file_operations_check
+    userland/bin/file_operations_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_file_operations_check PROPERTIES
+    OUTPUT_NAME file_operations_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_file_operations_check)
+target_include_directories(xinim_x86_64_file_operations_check PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
+target_compile_options(xinim_x86_64_file_operations_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_file_operations_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_file_operations_check)
+
+endif()
+
+if(XINIM_CPU_LANE STREQUAL "x86_64")
+find_program(XINIM_PYTHON3_EXECUTABLE python3 REQUIRED)
+find_program(XINIM_X86_64_USER_GCC gcc REQUIRED)
+find_program(XINIM_X86_64_USER_GXX g++ REQUIRED)
+
+set(XINIM_MKSH_ARCHIVE "" CACHE FILEPATH
+    "Optional local mksh R59c archive; the pinned source URL is used when empty")
+set(XINIM_X86_64_DIETLIBC_BUILD_DIR
+    "${CMAKE_CURRENT_BINARY_DIR}/dietlibc-x86_64")
+set(XINIM_X86_64_DIETLIBC_TREE_DIR
+    "${XINIM_X86_64_DIETLIBC_BUILD_DIR}/tree")
+set(XINIM_X86_64_DIETLIBC_START
+    "${XINIM_X86_64_DIETLIBC_TREE_DIR}/bin-x86_64/start.o")
+set(XINIM_X86_64_DIETLIBC_ARCHIVE
+    "${XINIM_X86_64_DIETLIBC_TREE_DIR}/bin-x86_64/dietlibc.a")
+set(XINIM_X86_64_MKSH_ROOT "${CMAKE_CURRENT_BINARY_DIR}/mksh-R59c")
+set(XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR
+    "${XINIM_X86_64_MKSH_ROOT}/source")
+set(XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR
+    "${XINIM_X86_64_MKSH_ROOT}/patched-source")
+set(XINIM_X86_64_MKSH_PATCH
+    "${CMAKE_SOURCE_DIR}/third_party/patches/mksh-R59c-posix-lexer-conformance.patch")
+set(XINIM_X86_64_MKSH_PATCH_MANIFEST
+    "${CMAKE_SOURCE_DIR}/third_party/patches/mksh-R59c-posix-lexer-conformance.json")
+set(XINIM_X86_64_MKSH_BUILD_DIR "${XINIM_X86_64_MKSH_ROOT}/build-mksh")
+set(XINIM_X86_64_LKSH_BUILD_DIR "${XINIM_X86_64_MKSH_ROOT}/build-lksh")
+set(XINIM_X86_64_MKSH_BINARY "${XINIM_X86_64_MKSH_BUILD_DIR}/mksh")
+set(XINIM_X86_64_LKSH_BINARY "${XINIM_X86_64_LKSH_BUILD_DIR}/lksh")
+
+set(_XINIM_MKSH_ACQUIRE_ARGS
+    --source-dir "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}")
+if(XINIM_MKSH_ARCHIVE)
+    list(APPEND _XINIM_MKSH_ACQUIRE_ARGS --archive "${XINIM_MKSH_ARCHIVE}")
+endif()
+
+add_custom_command(
+    OUTPUT
+        "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}/Build.sh"
+        "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}/.xinim-source.json"
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        "${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py"
+        ${_XINIM_MKSH_ACQUIRE_ARGS}
+    DEPENDS "${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py"
+    COMMENT "Acquiring pinned mksh R59c source"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_mksh_source DEPENDS
+    "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}/Build.sh"
+    "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}/.xinim-source.json")
+
+add_custom_command(
+    OUTPUT
+        "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/Build.sh"
+        "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/.xinim-patched-source.json"
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        "${CMAKE_SOURCE_DIR}/scripts/prepare_mksh_source.py"
+        --source-dir "${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}"
+        --target-dir "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}"
+        --patch "${XINIM_X86_64_MKSH_PATCH}"
+        --manifest "${XINIM_X86_64_MKSH_PATCH_MANIFEST}"
+    DEPENDS
+        xinim_x86_64_mksh_source
+        "${CMAKE_SOURCE_DIR}/scripts/prepare_mksh_source.py"
+        "${XINIM_X86_64_MKSH_PATCH}"
+        "${XINIM_X86_64_MKSH_PATCH_MANIFEST}"
+    COMMENT "Preparing provenance-checked mksh R59c source"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_mksh_patched_source DEPENDS
+    "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/Build.sh"
+    "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/.xinim-patched-source.json")
+
+file(GLOB_RECURSE XINIM_X86_64_DIETLIBC_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_SOURCE_DIR}/libc/dietlibc-xinim/*")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_DIETLIBC_START}" "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_dietlibc.py"
+        --source-dir "${CMAKE_SOURCE_DIR}/libc/dietlibc-xinim"
+        --build-dir "${XINIM_X86_64_DIETLIBC_BUILD_DIR}"
+        --cc "${XINIM_X86_64_USER_GCC}"
+        --exec-limits-header
+            "${CMAKE_SOURCE_DIR}/include/xinim/abi/exec_limits.h"
+        --jobs 2
+    DEPENDS
+        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_dietlibc.py"
+        "${CMAKE_SOURCE_DIR}/include/xinim/abi/exec_limits.h"
+        ${XINIM_X86_64_DIETLIBC_SOURCES}
+    COMMENT "Building XINIM x86_64 dietlibc with GCC"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_dietlibc DEPENDS
+    "${XINIM_X86_64_DIETLIBC_START}"
+    "${XINIM_X86_64_DIETLIBC_ARCHIVE}")
+
+set(XINIM_X86_64_PRINTF_OBJECT
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/printf.o")
+set(XINIM_X86_64_PRINTF_BINARY
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/printf")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_PRINTF_BINARY}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
+    COMMAND ${XINIM_X86_64_USER_GXX}
+        -std=c++23
+        -O2
+        -Wall
+        -Wextra
+        -Werror
+        -ffreestanding
+        -fno-exceptions
+        -fno-rtti
+        -fno-asynchronous-unwind-tables
+        -fno-pie
+        -fno-pic
+        -fno-stack-protector
+        -nostdinc
+        -nostdinc++
+        -isystem "${XINIM_X86_64_DIETLIBC_TREE_DIR}/include"
+        -I "${CMAKE_SOURCE_DIR}/include"
+        -c "${CMAKE_SOURCE_DIR}/userland/bin/printf_i486.cpp"
+        -o "${XINIM_X86_64_PRINTF_OBJECT}"
+    COMMAND ${XINIM_X86_64_USER_GCC}
+        -nostdlib
+        -static
+        -no-pie
+        -Wl,--build-id=none
+        "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        -o "${XINIM_X86_64_PRINTF_BINARY}"
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_PRINTF_OBJECT}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        -lgcc
+    DEPENDS
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/userland/bin/printf_i486.cpp"
+        "${CMAKE_SOURCE_DIR}/userland/bin/printf_core.hpp"
+        "${CMAKE_SOURCE_DIR}/include/xinim/userland/dietlibc_cpp23.hpp"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building C++23 printf bootstrap utility for x86_64"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_printf DEPENDS
+    "${XINIM_X86_64_PRINTF_BINARY}")
+
+set(XINIM_X86_64_RM_OBJECT
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/rm.o")
+set(XINIM_X86_64_RM_BINARY
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/rm")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_RM_BINARY}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
+    COMMAND ${XINIM_X86_64_USER_GXX}
+        -std=c++23
+        -O2
+        -Wall
+        -Wextra
+        -Werror
+        -ffreestanding
+        -fno-exceptions
+        -fno-rtti
+        -fno-asynchronous-unwind-tables
+        -fno-pie
+        -fno-pic
+        -fno-stack-protector
+        -nostdinc
+        -nostdinc++
+        -isystem "${XINIM_X86_64_DIETLIBC_TREE_DIR}/include"
+        -I "${CMAKE_SOURCE_DIR}/include"
+        -c "${CMAKE_SOURCE_DIR}/userland/bin/rm_i486.cpp"
+        -o "${XINIM_X86_64_RM_OBJECT}"
+    COMMAND ${XINIM_X86_64_USER_GCC}
+        -nostdlib
+        -static
+        -no-pie
+        -Wl,--build-id=none
+        "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        -o "${XINIM_X86_64_RM_BINARY}"
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_RM_OBJECT}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        -lgcc
+    DEPENDS
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/userland/bin/rm_i486.cpp"
+        "${CMAKE_SOURCE_DIR}/include/xinim/userland/dietlibc_cpp23.hpp"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building C++23 rm utility for x86_64"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_rm DEPENDS
+    "${XINIM_X86_64_RM_BINARY}")
+
+set(XINIM_X86_64_MKDIR_OBJECT
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/mkdir.o")
+set(XINIM_X86_64_MKDIR_BINARY
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/mkdir")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_MKDIR_BINARY}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
+    COMMAND ${XINIM_X86_64_USER_GXX}
+        -std=c++23
+        -O2
+        -Wall
+        -Wextra
+        -Werror
+        -ffreestanding
+        -fno-exceptions
+        -fno-rtti
+        -fno-asynchronous-unwind-tables
+        -fno-pie
+        -fno-pic
+        -fno-stack-protector
+        -nostdinc
+        -nostdinc++
+        -isystem "${XINIM_X86_64_DIETLIBC_TREE_DIR}/include"
+        -I "${CMAKE_SOURCE_DIR}/include"
+        -c "${CMAKE_SOURCE_DIR}/userland/bin/mkdir_i486.cpp"
+        -o "${XINIM_X86_64_MKDIR_OBJECT}"
+    COMMAND ${XINIM_X86_64_USER_GCC}
+        -nostdlib
+        -static
+        -no-pie
+        -Wl,--build-id=none
+        "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        -o "${XINIM_X86_64_MKDIR_BINARY}"
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_MKDIR_OBJECT}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        -lgcc
+    DEPENDS
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/userland/bin/mkdir_i486.cpp"
+        "${CMAKE_SOURCE_DIR}/include/xinim/userland/dietlibc_cpp23.hpp"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building C++23 mkdir utility for x86_64"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_mkdir DEPENDS
+    "${XINIM_X86_64_MKDIR_BINARY}")
+
+set(XINIM_X86_64_BOOTFS_REUSE_CHECK_OBJECT
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/bootfs-reuse-check.o")
+set(XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/bootfs-reuse-check")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
+    COMMAND ${XINIM_X86_64_USER_GXX}
+        -std=c++23
+        -O2
+        -Wall
+        -Wextra
+        -Werror
+        -ffreestanding
+        -fno-exceptions
+        -fno-rtti
+        -fno-asynchronous-unwind-tables
+        -fno-pie
+        -fno-pic
+        -fno-stack-protector
+        -nostdinc
+        -nostdinc++
+        -isystem "${XINIM_X86_64_DIETLIBC_TREE_DIR}/include"
+        -I "${CMAKE_SOURCE_DIR}/include"
+        -c "${CMAKE_SOURCE_DIR}/userland/bin/bootfs_reuse_check.cpp"
+        -o "${XINIM_X86_64_BOOTFS_REUSE_CHECK_OBJECT}"
+    COMMAND ${XINIM_X86_64_USER_GCC}
+        -nostdlib
+        -static
+        -no-pie
+        -Wl,--build-id=none
+        "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        -o "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}"
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_BOOTFS_REUSE_CHECK_OBJECT}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        -lgcc
+    DEPENDS
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/userland/bin/bootfs_reuse_check.cpp"
+        "${CMAKE_SOURCE_DIR}/include/xinim/userland/dietlibc_cpp23.hpp"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building C++23 bootfs reuse checker for x86_64"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_bootfs_reuse_check DEPENDS
+    "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}")
+
+set(XINIM_X86_64_BYTE_ORACLE_OBJECT
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/byte-oracle.o")
+set(XINIM_X86_64_BYTE_ORACLE_BINARY
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/byte-oracle")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_BYTE_ORACLE_BINARY}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
+    COMMAND ${XINIM_X86_64_USER_GXX}
+        -std=c++23
+        -O2
+        -Wall
+        -Wextra
+        -Werror
+        -ffreestanding
+        -fno-exceptions
+        -fno-rtti
+        -fno-asynchronous-unwind-tables
+        -fno-pie
+        -fno-pic
+        -fno-stack-protector
+        -nostdinc
+        -nostdinc++
+        -isystem "${XINIM_X86_64_DIETLIBC_TREE_DIR}/include"
+        -I "${CMAKE_SOURCE_DIR}/include"
+        -c "${CMAKE_SOURCE_DIR}/userland/bin/byte_oracle.cpp"
+        -o "${XINIM_X86_64_BYTE_ORACLE_OBJECT}"
+    COMMAND ${XINIM_X86_64_USER_GCC}
+        -nostdlib
+        -static
+        -no-pie
+        -Wl,--build-id=none
+        "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        -o "${XINIM_X86_64_BYTE_ORACLE_BINARY}"
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_BYTE_ORACLE_OBJECT}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        -lgcc
+    DEPENDS
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/userland/bin/byte_oracle.cpp"
+        "${CMAKE_SOURCE_DIR}/include/xinim/userland/dietlibc_cpp23.hpp"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building C++23 Ring 3 byte oracle for x86_64"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_byte_oracle DEPENDS
+    "${XINIM_X86_64_BYTE_ORACLE_BINARY}")
+
+set(XINIM_X86_64_PRINTF_SIGNAL_ORACLE_OBJECT
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/printf-signal-oracle.o")
+set(XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY
+    "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64/printf-signal-oracle")
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}"
+    COMMAND ${CMAKE_COMMAND} -E make_directory
+        "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
+    COMMAND ${XINIM_X86_64_USER_GXX}
+        -std=c++23
+        -O2
+        -Wall
+        -Wextra
+        -Werror
+        -ffreestanding
+        -fno-exceptions
+        -fno-rtti
+        -fno-asynchronous-unwind-tables
+        -fno-pie
+        -fno-pic
+        -fno-stack-protector
+        -nostdinc
+        -nostdinc++
+        -isystem "${XINIM_X86_64_DIETLIBC_TREE_DIR}/include"
+        -I "${CMAKE_SOURCE_DIR}/include"
+        -c "${CMAKE_SOURCE_DIR}/userland/bin/printf_signal_oracle.cpp"
+        -o "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_OBJECT}"
+    COMMAND ${XINIM_X86_64_USER_GCC}
+        -nostdlib
+        -static
+        -no-pie
+        -Wl,--build-id=none
+        "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        -o "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}"
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_OBJECT}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        -lgcc
+    DEPENDS
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/userland/bin/printf_signal_oracle.cpp"
+        "${CMAKE_SOURCE_DIR}/include/xinim/userland/dietlibc_cpp23.hpp"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building C++23 printf signal oracle for x86_64"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_printf_signal_oracle DEPENDS
+    "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}")
+
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_MKSH_BINARY}"
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
+        --source-dir "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}"
+        --build-dir "${XINIM_X86_64_MKSH_BUILD_DIR}"
+        --cc "${XINIM_X86_64_USER_GCC}"
+        --start-o "${XINIM_X86_64_DIETLIBC_START}"
+        --dietlibc-a "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        --output "${XINIM_X86_64_MKSH_BINARY}"
+        --mode mksh
+    DEPENDS
+        xinim_x86_64_mksh_patched_source
+        "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/.xinim-patched-source.json"
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building full x86_64 mksh R59c"
+    VERBATIM
+)
+add_custom_command(
+    OUTPUT "${XINIM_X86_64_LKSH_BINARY}"
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
+        --source-dir "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}"
+        --build-dir "${XINIM_X86_64_LKSH_BUILD_DIR}"
+        --cc "${XINIM_X86_64_USER_GCC}"
+        --start-o "${XINIM_X86_64_DIETLIBC_START}"
+        --dietlibc-a "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+        --output "${XINIM_X86_64_LKSH_BINARY}"
+        --mode lksh
+    DEPENDS
+        xinim_x86_64_mksh_patched_source
+        "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}/.xinim-patched-source.json"
+        xinim_x86_64_dietlibc
+        "${XINIM_X86_64_DIETLIBC_START}"
+        "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
+        "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
+        "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
+    COMMENT "Building POSIX-oriented x86_64 lksh R59c"
+    VERBATIM
+)
+add_custom_target(xinim_x86_64_mksh DEPENDS
+    "${XINIM_X86_64_MKSH_BINARY}"
+    "${XINIM_X86_64_LKSH_BINARY}")
+
+add_library(xinim_x86_64_assembly_abi OBJECT
+    test/contract/x86_64_assembly_abi.cpp
+    src/arch/x86_64/gdt_load.S
+    src/arch/x86_64/tss_load.S
+    src/arch/x86_64/syscall_handler.S
+    src/arch/x86_64/context_restore.S
+    src/arch/x86_64/interrupts.S
+    userland/shell/xash/entry_x86_64.S
+)
+set_target_properties(xinim_x86_64_assembly_abi PROPERTIES
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_assembly_abi)
+xinim_set_warnings(xinim_x86_64_assembly_abi)
+target_compile_options(xinim_x86_64_assembly_abi PRIVATE
+    -ffreestanding
+    -fno-pic
+    -fno-pie
+    -fno-stack-protector
+    -mno-red-zone
+    -march=x86-64
+    -mtune=generic
+    -mcmodel=kernel
+)
+
+add_custom_target(xinim_assembly_abi_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/test/contract/verify_assembly_abi.py
+        --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
+        --objects $<TARGET_OBJECTS:xinim_x86_64_assembly_abi>
+    DEPENDS xinim_x86_64_assembly_abi
+    COMMAND_EXPAND_LISTS
+    VERBATIM
+)
+add_test(
+    NAME assembly_abi_verifier_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/test/contract/verify_assembly_abi.py
+        --self-test
+)
+add_test(
+    NAME assembly_abi_contract
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/test/contract/verify_assembly_abi.py
+        --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
+        --objects $<TARGET_OBJECTS:xinim_x86_64_assembly_abi>
+    COMMAND_EXPAND_LISTS
+)
+set_tests_properties(
+    assembly_abi_verifier_self_test
+    assembly_abi_contract
+    PROPERTIES LABELS "abi;assembly;contract" TIMEOUT 30
+)
 endif()
 
     if(XINIM_XORRISO_EXECUTABLE AND EXISTS "${XINIM_LIMINE_CONFIG}")
-    set(_XINIM_LIMINE_REQUIRED_FILES
-        "${XINIM_LIMINE_ROOT}/limine"
-        "${XINIM_LIMINE_ROOT}/limine-bios.sys"
-        "${XINIM_LIMINE_ROOT}/limine-bios-cd.bin"
-        "${XINIM_LIMINE_ROOT}/limine-uefi-cd.bin"
-        "${XINIM_LIMINE_ROOT}/BOOTX64.EFI"
-    )
-
     add_custom_command(
         OUTPUT "${XINIM_X86_64_BOOT_IMAGE}"
         COMMAND ${CMAKE_COMMAND} -E rm -rf "${XINIM_X86_64_STAGE_DIR}"
@@ -635,7 +1375,6 @@ endif()
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_X86_64_STAGE_DIR}/bin"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_X86_64_STAGE_DIR}/etc"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim>" "${XINIM_X86_64_STAGE_DIR}/boot/xinim"
-        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_shell>" "${XINIM_X86_64_STAGE_DIR}/boot/xash"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_ROOT}/limine-bios.sys" "${XINIM_X86_64_STAGE_DIR}/boot/limine-bios.sys"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_ROOT}/limine-bios-cd.bin" "${XINIM_X86_64_STAGE_DIR}/boot/limine-bios-cd.bin"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_ROOT}/limine-uefi-cd.bin" "${XINIM_X86_64_STAGE_DIR}/boot/limine-uefi-cd.bin"
@@ -649,8 +1388,28 @@ endif()
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_CONFIG}" "${XINIM_X86_64_STAGE_DIR}/boot/limine.conf"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_LIMINE_CONFIG}" "${XINIM_X86_64_STAGE_DIR}/boot/limine/limine.conf"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_shell>" "${XINIM_X86_64_STAGE_DIR}/bin/xash"
-        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_shell>" "${XINIM_X86_64_STAGE_DIR}/bin/sh"
-        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${XINIM_X86_64_STAGE_DIR}/etc/motd"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_true>" "${XINIM_X86_64_STAGE_DIR}/bin/true"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_echo>" "${XINIM_X86_64_STAGE_DIR}/bin/echo"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_PRINTF_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/printf"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_RM_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/rm"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_MKDIR_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/mkdir"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/bootfs-reuse-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_BYTE_ORACLE_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/byte-oracle"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/printf-signal-oracle"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_brk_check>" "${XINIM_X86_64_STAGE_DIR}/bin/brk-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_preempt_check>" "${XINIM_X86_64_STAGE_DIR}/bin/preempt-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_mmap_check>" "${XINIM_X86_64_STAGE_DIR}/bin/mmap-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_fs_abi_check>" "${XINIM_X86_64_STAGE_DIR}/bin/fs-abi-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_runtime_check>" "${XINIM_X86_64_STAGE_DIR}/bin/runtime-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_signal_check>" "${XINIM_X86_64_STAGE_DIR}/bin/signal-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_tty_abi_check>" "${XINIM_X86_64_STAGE_DIR}/bin/tty-abi-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_select_check>" "${XINIM_X86_64_STAGE_DIR}/bin/select-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_file_operations_check>" "${XINIM_X86_64_STAGE_DIR}/bin/file-operations-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_MKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/mksh"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_LKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/lksh"
+        COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_LKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/sh"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_mkshrc" "${XINIM_X86_64_STAGE_DIR}/etc/mkshrc"
+        COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_motd.txt" "${XINIM_X86_64_STAGE_DIR}/etc/motd"
         COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_X86_64_IMAGE_DIR}"
         COMMAND ${XINIM_XORRISO_EXECUTABLE}
             -as mkisofs
@@ -668,9 +1427,36 @@ endif()
         DEPENDS
             xinim
             xinim_x86_64_shell
+            xinim_x86_64_true
+            xinim_x86_64_echo
+            xinim_x86_64_printf
+            "${XINIM_X86_64_PRINTF_BINARY}"
+            xinim_x86_64_rm
+            "${XINIM_X86_64_RM_BINARY}"
+            xinim_x86_64_mkdir
+            "${XINIM_X86_64_MKDIR_BINARY}"
+            xinim_x86_64_bootfs_reuse_check
+            "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}"
+            xinim_x86_64_byte_oracle
+            "${XINIM_X86_64_BYTE_ORACLE_BINARY}"
+            xinim_x86_64_printf_signal_oracle
+            "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}"
+            xinim_x86_64_brk_check
+            xinim_x86_64_preempt_check
+            xinim_x86_64_mmap_check
+            xinim_x86_64_fs_abi_check
+            xinim_x86_64_runtime_check
+            xinim_x86_64_signal_check
+            xinim_x86_64_tty_abi_check
+            xinim_x86_64_select_check
+            xinim_x86_64_file_operations_check
+            xinim_x86_64_mksh
+            "${XINIM_X86_64_MKSH_BINARY}"
+            "${XINIM_X86_64_LKSH_BINARY}"
             xinim_bootstrap_limine
             "${XINIM_LIMINE_CONFIG}"
-            "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt"
+            "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_mkshrc"
+            "${CMAKE_SOURCE_DIR}/boot/limine/x86_64_motd.txt"
             ${_XINIM_LIMINE_REQUIRED_FILES}
         COMMENT "Generating XINIM x86_64 Limine boot image"
         VERBATIM
@@ -2246,11 +3032,14 @@ xinim_set_warnings(xinim_userland_hello_host)
 
 add_library(xinim_mksh_integration_reference STATIC
     userland/shell/mksh/integration/xinim_job_control.c
-    userland/shell/mksh/integration/xinim_syscalls.c
+    userland/shell/mksh/integration/xinim_syscalls.cpp
     userland/shell/mksh/integration/xinim_terminal.c
 )
-target_compile_features(xinim_mksh_integration_reference PRIVATE c_std_11)
+target_compile_features(xinim_mksh_integration_reference PRIVATE c_std_23 cxx_std_23)
 target_compile_definitions(xinim_mksh_integration_reference PRIVATE _GNU_SOURCE)
+target_include_directories(xinim_mksh_integration_reference PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+)
 xinim_set_warnings(xinim_mksh_integration_reference)
 
 add_custom_target(xinim_tools_hosted DEPENDS xinim_sh_host xinim_userland_hello_host xinim_mksh_integration_reference)
@@ -2509,6 +3298,13 @@ xinim_add_host_test(test_kyber_kem
 target_include_directories(test_kyber_kem PRIVATE ${CMAKE_SOURCE_DIR}/src/crypto/kyber_impl)
 set_tests_properties(test_kyber_kem PROPERTIES LABELS "unit;crypto")
 
+# --- POSIX printf Core Tests ---
+xinim_add_host_test(test_posix_printf
+    test/test_posix_printf.cpp
+)
+target_include_directories(test_posix_printf PRIVATE ${CMAKE_SOURCE_DIR})
+set_tests_properties(test_posix_printf PROPERTIES LABELS "unit;posix;commands")
+
 # --- Hardware Crypto (AES-NI + SHA-NI) Tests ---
 xinim_add_host_test(test_hw_crypto
     test/test_hw_crypto.cpp
@@ -2571,6 +3367,28 @@ xinim_add_host_test(test_heap_allocator
 )
 set_tests_properties(test_heap_allocator PROPERTIES LABELS "unit;kernel")
 
+# --- Physical Hole Allocator Tests ---
+xinim_add_host_test(test_physical_hole_allocator
+    test/test_physical_hole_allocator.cpp
+    src/mm/alloc.cpp
+)
+target_include_directories(test_physical_hole_allocator PRIVATE ${CMAKE_SOURCE_DIR}/src/mm)
+set_tests_properties(test_physical_hole_allocator PROPERTIES LABELS "unit;kernel;memory")
+
+xinim_add_host_test(test_freestanding_format
+    test/test_freestanding_format.cpp
+    src/kernel/freestanding_format.cpp
+)
+target_include_directories(test_freestanding_format PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel)
+set_tests_properties(test_freestanding_format PROPERTIES LABELS "unit;kernel;format")
+
+xinim_add_host_test(test_limine_memory_map
+    test/test_limine_memory_map.cpp
+    src/boot/limine/memory_map.cpp
+)
+target_include_directories(test_limine_memory_map PRIVATE ${CMAKE_SOURCE_DIR}/third_party/limine)
+set_tests_properties(test_limine_memory_map PROPERTIES LABELS "unit;boot;memory")
+
 # --- Process Lifecycle Tests ---
 xinim_add_host_test(test_process_lifecycle
     test/test_process_lifecycle.cpp
@@ -2581,6 +3399,32 @@ xinim_add_host_test(test_process_lifecycle
 )
 target_compile_definitions(test_process_lifecycle PRIVATE XINIM_ARCH_X86_64)
 set_tests_properties(test_process_lifecycle PROPERTIES LABELS "unit;kernel")
+
+xinim_add_host_test(test_user_mapping_table
+    test/test_user_mapping_table.cpp
+    src/kernel/user_mapping_table.cpp
+)
+set_tests_properties(test_user_mapping_table PROPERTIES LABELS "unit;kernel;memory")
+
+xinim_add_host_test(test_x86_64_userspace_abi
+    test/test_x86_64_userspace_abi.cpp
+    src/kernel/arch/x86_64/userspace_abi.cpp
+)
+set_tests_properties(test_x86_64_userspace_abi PROPERTIES LABELS "unit;kernel;abi")
+
+xinim_add_host_test(test_x86_64_exec_arguments
+    test/test_x86_64_exec_arguments.cpp
+    src/kernel/arch/x86_64/exec_arguments.cpp
+)
+set_tests_properties(test_x86_64_exec_arguments PROPERTIES
+    LABELS "unit;kernel;abi;posix"
+)
+
+xinim_add_host_test(test_rtc_time_conversion
+    test/test_rtc_time_conversion.cpp
+    src/kernel/arch/x86_64/rtc_time_conversion.cpp
+)
+set_tests_properties(test_rtc_time_conversion PROPERTIES LABELS "unit;kernel;rtc;time")
 
 # --- Lock Timeout Tests ---
 xinim_add_host_test(test_lock_timeout
@@ -2640,7 +3484,7 @@ target_include_directories(test_bare_vfs PRIVATE
 )
 set_tests_properties(test_bare_vfs PROPERTIES LABELS "unit;vfs;kernel")
 
-# --- VFS Extended Tests (v1.4.0: lseek, dup/dup2, arena free list) ---
+# --- VFS Extended Tests: lseek, dup/dup2, arena free list ---
 xinim_add_host_test(test_vfs_extended
     test/test_vfs_extended.cpp
     src/vfs/core_init.cpp
@@ -2663,6 +3507,9 @@ set_tests_properties(test_vfs_extended PROPERTIES LABELS "unit;vfs;kernel")
 xinim_add_host_test(test_bootfs_promote
     test/test_bootfs_promote.cpp
     src/kernel/i486/bootfs.cpp
+    src/kernel/i486/tty.cpp
+    src/kernel/i486/vfs.cpp
+    src/kernel/i486/devfs.cpp
     src/kernel/x86_64/i486_runtime_compat.cpp
     src/vfs/core_init.cpp
     src/vfs/inode_table.cpp
@@ -2676,6 +3523,7 @@ xinim_add_host_test(test_bootfs_promote
     src/vfs/fd_table.cpp
     src/vfs/buffer_cache.cpp
 )
+target_compile_definitions(test_bootfs_promote PRIVATE XINIM_ARCH_X86_64)
 target_include_directories(test_bootfs_promote PRIVATE
     ${CMAKE_SOURCE_DIR}/src/vfs
     ${CMAKE_SOURCE_DIR}/src/kernel
@@ -2723,6 +3571,281 @@ set_tests_properties(posix_language_check PROPERTIES
     TIMEOUT 15
 )
 
+set(XINIM_POSIX_ISSUE7_ARCHIVE
+    "${CMAKE_SOURCE_DIR}/build/_state/downloads/posix/susv4-2018.tgz")
+add_custom_target(xinim_posix_issue7_source_fetch
+    COMMAND ${CMAKE_SOURCE_DIR}/scripts/fetch_posix_sources.sh
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/fetch_posix_sources.sh
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix2_utility_ledger.tsv
+    USES_TERMINAL
+    VERBATIM
+)
+add_custom_target(xinim_posix_issue7_archive_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix2_utility_ledger.tsv
+    VERBATIM
+)
+add_test(
+    NAME posix_issue7_archive
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_issue7_archive_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --self-test
+)
+set_tests_properties(
+    posix_issue7_archive
+    posix_issue7_archive_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+)
+
+add_test(
+    NAME dietlibc_exec_limit_adapter_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/build_x86_64_dietlibc.py
+        --self-test
+)
+set_tests_properties(dietlibc_exec_limit_adapter_self_test PROPERTIES
+    LABELS "contract;external;posix;libc"
+    TIMEOUT 30
+)
+
+add_custom_target(xinim_posix2_utility_ledger_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix2_utility_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/printf_requirements.tsv
+    VERBATIM
+)
+add_test(
+    NAME posix2_utility_ledger
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME posix2_utility_ledger_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix2_utility_ledger.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --self-test
+)
+set_tests_properties(
+    posix2_utility_ledger
+    posix2_utility_ledger_self_test
+    PROPERTIES
+        LABELS "contract;docs;posix"
+        TIMEOUT 15
+)
+
+add_custom_target(xinim_posix_printf_requirements_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/printf_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    VERBATIM
+)
+add_test(
+    NAME posix_printf_requirements
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_printf_requirements_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_printf_requirements
+    posix_printf_requirements_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;commands"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+)
+
+add_custom_target(xinim_posix_shell_language_ledger_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_language_ledger.tsv
+    VERBATIM
+)
+add_test(
+    NAME posix_shell_language_ledger
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_shell_language_ledger_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_shell_language_ledger
+    posix_shell_language_ledger_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;shell"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+)
+
+add_custom_target(xinim_posix_shell_grammar_requirements_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_grammar_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_grammar_requirements.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_grammar_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    VERBATIM
+)
+add_test(
+    NAME posix_shell_grammar_requirements
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_grammar_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_shell_grammar_requirements_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_grammar_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_shell_grammar_requirements
+    posix_shell_grammar_requirements_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;shell"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+)
+
+add_custom_target(xinim_posix_token_recognition_requirements_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_token_recognition_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_token_recognition_requirements.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_grammar_requirements.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_token_recognition_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_grammar_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    VERBATIM
+)
+add_test(
+    NAME posix_token_recognition_requirements
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_token_recognition_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_token_recognition_requirements_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_token_recognition_requirements.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_token_recognition_requirements
+    posix_token_recognition_requirements_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;shell"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+)
+
+if(TARGET xinim_x86_64_mksh_patched_source)
+    add_test(
+        NAME dietlibc_setjmp_contract
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/test/contract/verify_dietlibc_setjmp.py
+            --header ${CMAKE_SOURCE_DIR}/libc/dietlibc-xinim/include/setjmp.h
+    )
+    add_test(
+        NAME dietlibc_setjmp_contract_self_test
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/test/contract/verify_dietlibc_setjmp.py
+            --header ${CMAKE_SOURCE_DIR}/libc/dietlibc-xinim/include/setjmp.h
+            --self-test
+    )
+    add_test(
+        NAME mksh_patch_pipeline_self_test
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/scripts/prepare_mksh_source.py
+            --self-test
+            --source-dir ${XINIM_X86_64_MKSH_PRISTINE_SOURCE_DIR}
+            --patch ${XINIM_X86_64_MKSH_PATCH}
+            --manifest ${XINIM_X86_64_MKSH_PATCH_MANIFEST}
+    )
+    add_test(
+        NAME mksh_command_substitution_boundary
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/test/host/mksh_command_substitution_boundary_test.py
+            --source-dir ${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}
+            --cc clang
+    )
+    set_tests_properties(
+        dietlibc_setjmp_contract
+        dietlibc_setjmp_contract_self_test
+        mksh_patch_pipeline_self_test
+        mksh_command_substitution_boundary
+        PROPERTIES
+            LABELS "contract;external;posix;shell"
+            TIMEOUT 60
+    )
+endif()
+
 xinim_add_host_test(test_exec_stack
     test/test_exec_stack.cpp
     src/kernel/exec_stack.cpp
@@ -2743,6 +3866,17 @@ xinim_add_host_test(test_monotonic
     src/kernel/time/monotonic.cpp
 )
 set_tests_properties(test_monotonic PROPERTIES LABELS "unit;kernel;time")
+
+xinim_add_host_test(test_apic_calibration
+    test/test_apic_calibration.cpp
+)
+set_tests_properties(test_apic_calibration PROPERTIES LABELS "unit;kernel;time;apic;hpet")
+
+xinim_add_host_test(test_unsigned_division
+    test/test_unsigned_division.cpp
+    src/kernel/compiler_rt/unsigned_division.cpp
+)
+set_tests_properties(test_unsigned_division PROPERTIES LABELS "unit;kernel;compiler-rt")
 
 xinim_add_host_test(test_uaccess
     test/test_uaccess.cpp
