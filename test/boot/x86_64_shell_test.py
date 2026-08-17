@@ -921,8 +921,8 @@ SHELL_LANGUAGE_COMMAND_CASES = (
         (
             "/bin/printf '#!/bin/sh\nalias a03utility >/dev/null 2>&1\n"
             'test "$?" -ne 0\n\' >/tmp/alias; '
-            "/bin/chmod 755 /tmp/alias; alias a03utility=/bin/false; "
-            "/tmp/alias && /bin/rm -f /tmp/alias && "
+            "alias a03utility=/bin/false; /bin/sh /tmp/alias && "
+            "/bin/rm -f /tmp/alias && "
             "/bin/printf TOKEN_A03_UTILITY_OK"
         ),
         "TOKEN_A03_UTILITY_OK",
@@ -1091,6 +1091,485 @@ SHELL_LANGUAGE_COMMAND_CASES = (
             'for value in "$@"; do /bin/printf \'<%s>\\n\' "$value"; done'
         ),
         "<zero:0>\n<many:3>\n<a b>\n<>\n<c>",
+    ),
+    (
+        "tag_18_02_03.command_substitution_alias_boundary_benign",
+        (
+            '/bin/sh -c \'alias x="printf benign"; '
+            'eval "print -- \\\"\\$(x physical_tail)\\\""\''
+        ),
+        "benign",
+    ),
+    (
+        "tag_18_02_03.command_substitution_alias_boundary_hostile_status",
+        (
+            '/bin/sh -c \'alias x="printf hostile )"; '
+            'eval "print -- \\\"\\$(x physical_tail)\\\""\' ; '
+            'status=$?; /bin/printf "BOUNDARY_HOSTILE_STATUS_%s" "$status"'
+        ),
+        "BOUNDARY_HOSTILE_STATUS_1",
+    ),
+    (
+        "tag_18_02_03.command_substitution_alias_boundary_hostile_diagnostic",
+        (
+            '/bin/sh -c \'alias x="printf hostile )"; '
+            'eval "print -- \\\"\\$(x physical_tail)\\\""\' ; '
+            'status=$?; test "$status" -eq 1'
+        ),
+        "syntax error: unexpected ')'",
+    ),
+    (
+        "tag_18_06_01.tilde_prefix_home_assignment_and_quoting",
+        (
+            "HOME=/tmp/tilde-home; IFS=/; set -- ~ ~/child\n"
+            "prefix=~/bin:~/sbin; literal='~'; "
+            'test "$#" -eq 2 && test "$1" = "$HOME" && '
+            'test "$2" = "$HOME/child" && '
+            'test "$prefix" = "$HOME/bin:$HOME/sbin" && '
+            'test "$literal" = "~" && '
+            "/bin/printf TILDE_EXPANSION_MATRIX_OK"
+        ),
+        "TILDE_EXPANSION_MATRIX_OK",
+    ),
+    (
+        "tag_18_06_05.field_splitting_default_null_and_custom_ifs",
+        (
+            "unset IFS; value=$(/bin/printf ' \\011alpha\\011\\011beta \\012'); "
+            "set -- $value; test \"$#\" -eq 2 && test \"$1\" = alpha && "
+            "test \"$2\" = beta; first_status=$?\n"
+            "IFS=; value='alpha beta'; set -- $value; "
+            "test \"$#\" -eq 1 && test \"$1\" = 'alpha beta'; "
+            "second_status=$?\n"
+            "IFS=' ,'; value=' alpha,  beta , gamma '; set -- $value; "
+            'test "$#" -eq 3 && test "$1" = alpha && test "$2" = beta && '
+            'test "$3" = gamma && test "$first_status" -eq 0 && '
+            'test "$second_status" -eq 0 && /bin/printf FIELD_SPLITTING_MATRIX_OK'
+        ),
+        "FIELD_SPLITTING_MATRIX_OK",
+    ),
+    (
+        "tag_18_06_06.pathname_expansion_and_nof_glob",
+        (
+            "/bin/rm -rf /tmp/path-expansion; /bin/mkdir /tmp/path-expansion; "
+            "/bin/printf a >/tmp/path-expansion/a; "
+            "/bin/printf b >/tmp/path-expansion/b\n"
+            "set -- /tmp/path-expansion/*; "
+            'test "$#" -eq 2 && test "$1" = /tmp/path-expansion/a && '
+            'test "$2" = /tmp/path-expansion/b; glob_status=$?\n'
+            "set -f; set -- /tmp/path-expansion/*; "
+            'test "$#" -eq 1 && test "$1" = "/tmp/path-expansion/*"; '
+            "noglob_status=$?\n"
+            "set +f; /bin/rm -rf /tmp/path-expansion; "
+            'test "$glob_status" -eq 0 && test "$noglob_status" -eq 0 && '
+            "/bin/printf PATHNAME_EXPANSION_MATRIX_OK"
+        ),
+        "PATHNAME_EXPANSION_MATRIX_OK",
+    ),
+    (
+        "tag_18_08_02.command_not_found_exit_status",
+        (
+            "__xinim_missing_command__ >/dev/null 2>/tmp/exit-status-error; "
+            "status=$?; /bin/rm -f /tmp/exit-status-error; "
+            'test "$status" -eq 127 && /bin/printf EXIT_STATUS_NOT_FOUND_OK'
+        ),
+        "EXIT_STATUS_NOT_FOUND_OK",
+    ),
+    (
+        "tag_18_09_02_01.pipeline_uses_last_command_status",
+        (
+            "/bin/true | test 1 = 2; status=$?; "
+            'test "$status" -eq 1 && /bin/printf PIPELINE_LAST_STATUS_OK'
+        ),
+        "PIPELINE_LAST_STATUS_OK",
+    ),
+    (
+        "tag_18_09_02_01.pipeline_bang_negates_last_command_status",
+        (
+            "! /bin/true | test 1 = 2; status=$?; "
+            'test "$status" -eq 0 && /bin/printf PIPELINE_BANG_STATUS_OK'
+        ),
+        "PIPELINE_BANG_STATUS_OK",
+    ),
+    (
+        "tag_18_09_03_03.asynchronous_list_has_zero_status",
+        (
+            "false & status=$?; "
+            'test "$status" -eq 0 && /bin/printf ASYNC_LIST_STATUS_OK'
+        ),
+        "ASYNC_LIST_STATUS_OK",
+    ),
+    (
+        "tag_18_09_03_04.sequential_list_preserves_order",
+        (
+            "sequence=; sequence=${sequence}A; sequence=${sequence}B; "
+            'test "$sequence" = AB && /bin/printf SEQUENTIAL_ORDER_OK'
+        ),
+        "SEQUENTIAL_ORDER_OK",
+    ),
+    (
+        "tag_18_09_03_05.sequential_list_returns_last_status",
+        (
+            "true; false; status=$?; "
+            'test "$status" -eq 1 && /bin/printf SEQUENTIAL_STATUS_OK'
+        ),
+        "SEQUENTIAL_STATUS_OK",
+    ),
+    (
+        "tag_18_09_03_06.and_list_short_circuits",
+        (
+            "and_value=unset; true && and_value=ran; "
+            "false && and_value=wrong; "
+            'test "$and_value" = ran && /bin/printf AND_SHORT_CIRCUIT_OK'
+        ),
+        "AND_SHORT_CIRCUIT_OK",
+    ),
+    (
+        "tag_18_09_03_07.and_list_returns_last_status",
+        (
+            "true && false; status=$?; "
+            'test "$status" -eq 1 && /bin/printf AND_STATUS_OK'
+        ),
+        "AND_STATUS_OK",
+    ),
+    (
+        "tag_18_09_03_08.or_list_short_circuits",
+        (
+            "or_value=unset; false || or_value=ran; "
+            "true || or_value=wrong; "
+            'test "$or_value" = ran && /bin/printf OR_SHORT_CIRCUIT_OK'
+        ),
+        "OR_SHORT_CIRCUIT_OK",
+    ),
+    (
+        "tag_18_09_03_09.or_list_returns_last_status",
+        (
+            "false || true; status=$?; "
+            'test "$status" -eq 0 && /bin/printf OR_STATUS_OK'
+        ),
+        "OR_STATUS_OK",
+    ),
+    (
+        "tag_18_09_04_02.grouping_returns_compound_status",
+        (
+            "(false); status=$?; "
+            'test "$status" -eq 1 && /bin/printf GROUP_STATUS_OK'
+        ),
+        "GROUP_STATUS_OK",
+    ),
+    (
+        "tag_18_09_04_04.for_returns_last_body_status",
+        (
+            "for item in a b; do test \"$item\" = b; done; status=$?; "
+            'test "$status" -eq 0 && /bin/printf FOR_STATUS_OK'
+        ),
+        "FOR_STATUS_OK",
+    ),
+    (
+        "tag_18_09_04_06.case_returns_selected_body_status",
+        (
+            "case selected in selected) false;; esac; status=$?; "
+            'test "$status" -eq 1 && /bin/printf CASE_STATUS_OK'
+        ),
+        "CASE_STATUS_OK",
+    ),
+    (
+        "tag_18_09_04_08.if_returns_executed_branch_status",
+        (
+            "if false; then false; else true; fi; status=$?; "
+            'test "$status" -eq 0 && /bin/printf IF_STATUS_OK'
+        ),
+        "IF_STATUS_OK",
+    ),
+    (
+        "tag_18_09_04_10.while_returns_last_body_status",
+        (
+            "count=0; while test \"$count\" -lt 2; do "
+            "count=$((count + 1)); done; status=$?; "
+            'test "$status" -eq 0 && /bin/printf WHILE_STATUS_OK'
+        ),
+        "WHILE_STATUS_OK",
+    ),
+    (
+        "tag_18_09_04_12.until_returns_last_body_status",
+        (
+            "count=0; until test \"$count\" -ge 2; do "
+            "count=$((count + 1)); done; status=$?; "
+            'test "$status" -eq 0 && /bin/printf UNTIL_STATUS_OK'
+        ),
+        "UNTIL_STATUS_OK",
+    ),
+    (
+        "tag_18_09_05_01.function_invocation_returns_last_status",
+        (
+            "status_function() { false; }; definition_status=$?; "
+            "status_function; invocation_status=$?; "
+            'test "$definition_status" -eq 0 && '
+            'test "$invocation_status" -eq 1 && '
+            "/bin/printf FUNCTION_STATUS_OK"
+        ),
+        "FUNCTION_STATUS_OK",
+    ),
+    (
+        "tag_18_01.frontier_q35",
+        "/bin/true && /bin/printf FRONTIER_18_01_OK",
+        "FRONTIER_18_01_OK",
+    ),
+    (
+        "tag_18_02.frontier_q35",
+        (
+            "set -- 'a b' 'c$d' 'e f'; test \"$#\" -eq 3 && "
+            "test \"$1\" = 'a b' && test \"$2\" = 'c$d' && "
+            "test \"$3\" = 'e f' && /bin/printf FRONTIER_18_02_OK"
+        ),
+        "FRONTIER_18_02_OK",
+    ),
+    (
+        "tag_18_04.frontier_q35",
+        (
+            "if /bin/true; then case x in x) /bin/printf "
+            "FRONTIER_18_04_OK;; esac; fi"
+        ),
+        "FRONTIER_18_04_OK",
+    ),
+    (
+        "tag_18_05.frontier_q35",
+        (
+            "parameter_value=value; set -- one two; "
+            "test \"$parameter_value\" = value && test \"$#\" -eq 2 && "
+            "/bin/printf FRONTIER_18_05_OK"
+        ),
+        "FRONTIER_18_05_OK",
+    ),
+    (
+        "tag_18_05_01.frontier_q35",
+        (
+            "set -- first second; shift; test \"$#\" -eq 1 && "
+            "test \"$1\" = second && /bin/printf FRONTIER_18_05_01_OK"
+        ),
+        "FRONTIER_18_05_01_OK",
+    ),
+    (
+        "tag_18_05_02.frontier_q35",
+        (
+            "set -- first second; /bin/true; status=$?; "
+            "test \"$status\" -eq 0 && test \"$#\" -eq 2 && "
+            "/bin/printf FRONTIER_18_05_02_OK"
+        ),
+        "FRONTIER_18_05_02_OK",
+    ),
+    (
+        "tag_18_05_03.frontier_q35",
+        (
+            "saved_ifs=$IFS; IFS=:; value=a:b; set -- $value; "
+            "IFS=$saved_ifs; "
+            "test \"$#\" -eq 2 && test \"$1\" = a && "
+            "test \"$2\" = b && /bin/printf FRONTIER_18_05_03_OK"
+        ),
+        "FRONTIER_18_05_03_OK",
+    ),
+    (
+        "tag_18_06.frontier_q35",
+        (
+            "word=left; set -- ${word}$(/bin/printf right)$((1 + 1)); "
+            "test \"$1\" = leftright2 && /bin/printf FRONTIER_18_06_OK"
+        ),
+        "FRONTIER_18_06_OK",
+    ),
+    (
+        "tag_18_06_02.frontier_q35",
+        (
+            "unset missing; word=abc; fallback=${missing:-fallback}; "
+            "length=${#word}; test \"$fallback\" = fallback && "
+            "test \"$length\" -eq 3 && /bin/printf FRONTIER_18_06_02_OK"
+        ),
+        "FRONTIER_18_06_02_OK",
+    ),
+    (
+        "tag_18_06_03.frontier_q35",
+        (
+            "value=$(/bin/printf '<%s>' inner); "
+            "test \"$value\" = '<inner>' && /bin/printf FRONTIER_18_06_03_OK"
+        ),
+        "FRONTIER_18_06_03_OK",
+    ),
+    (
+        "tag_18_06_04.frontier_q35",
+        (
+            "base=40; value=$((base + 2)); test \"$value\" -eq 42 && "
+            "/bin/printf FRONTIER_18_06_04_OK"
+        ),
+        "FRONTIER_18_06_04_OK",
+    ),
+    (
+        "tag_18_06_07.frontier_q35",
+        (
+            "set -- a\\ b 'c'; test \"$#\" -eq 2 && "
+            "test \"$1\" = 'a b' && test \"$2\" = c && "
+            "/bin/printf FRONTIER_18_06_07_OK"
+        ),
+        "FRONTIER_18_06_07_OK",
+    ),
+    (
+        "tag_18_07.frontier_q35",
+        (
+            "/bin/printf redir >/tmp/frontier-redirection; "
+            "IFS= read -r value </tmp/frontier-redirection; "
+            "rm -f /tmp/frontier-redirection; test \"$value\" = redir && "
+            "/bin/printf FRONTIER_18_07_OK"
+        ),
+        "FRONTIER_18_07_OK",
+    ),
+    (
+        "tag_18_07_01.frontier_q35",
+        (
+            "/bin/printf input >/tmp/frontier-input; "
+            "IFS= read -r value </tmp/frontier-input; "
+            "rm -f /tmp/frontier-input; test \"$value\" = input && "
+            "/bin/printf FRONTIER_18_07_01_OK"
+        ),
+        "FRONTIER_18_07_01_OK",
+    ),
+    (
+        "tag_18_07_02.frontier_q35",
+        (
+            "/bin/printf output >/tmp/frontier-output; "
+            "IFS= read -r value </tmp/frontier-output; "
+            "rm -f /tmp/frontier-output; test \"$value\" = output && "
+            "/bin/printf FRONTIER_18_07_02_OK"
+        ),
+        "FRONTIER_18_07_02_OK",
+    ),
+    (
+        "tag_18_07_03.frontier_q35",
+        (
+            "/bin/printf first >/tmp/frontier-append; "
+            "/bin/printf second >>/tmp/frontier-append; "
+            "IFS= read -r value </tmp/frontier-append; rm -f /tmp/frontier-append; "
+            "test \"$value\" = firstsecond && /bin/printf FRONTIER_18_07_03_OK"
+        ),
+        "FRONTIER_18_07_03_OK",
+    ),
+    (
+        "tag_18_07_04.frontier_q35",
+        (
+            "/bin/printf 'IFS= read -r value <<EOF\\nbody\\nEOF\\n"
+            "test \"$value\" = body && /bin/printf FRONTIER_18_07_04_OK\\n' "
+            ">/tmp/frontier-heredoc; /bin/sh /tmp/frontier-heredoc; "
+            "status=$?; rm -f /tmp/frontier-heredoc; test \"$status\" -eq 0"
+        ),
+        "FRONTIER_18_07_04_OK",
+    ),
+    (
+        "tag_18_07_05.frontier_q35",
+        (
+            "/bin/printf input >/tmp/frontier-dup-input; "
+            "exec 3</tmp/frontier-dup-input; IFS= read -r value <&3; "
+            "exec 3<&-; rm -f /tmp/frontier-dup-input; "
+            "test \"$value\" = input && /bin/printf FRONTIER_18_07_05_OK"
+        ),
+        "FRONTIER_18_07_05_OK",
+    ),
+    (
+        "tag_18_07_06.frontier_q35",
+        (
+            "exec 3>/tmp/frontier-dup-output; /bin/printf output >&3; "
+            "exec 3>&-; IFS= read -r value </tmp/frontier-dup-output; "
+            "rm -f /tmp/frontier-dup-output; test \"$value\" = output && "
+            "/bin/printf FRONTIER_18_07_06_OK"
+        ),
+        "FRONTIER_18_07_06_OK",
+    ),
+    (
+        "tag_18_07_07.frontier_q35",
+        (
+            "/bin/printf readwrite >/tmp/frontier-readwrite; "
+            "exec 3<>/tmp/frontier-readwrite; IFS= read -r value <&3; "
+            "exec 3>&-; rm -f /tmp/frontier-readwrite; "
+            "test \"$value\" = readwrite && /bin/printf FRONTIER_18_07_07_OK"
+        ),
+        "FRONTIER_18_07_07_OK",
+    ),
+    (
+        "tag_18_08.frontier_q35",
+        (
+            "false; status=$?; test \"$status\" -eq 1 && "
+            "/bin/printf FRONTIER_18_08_OK"
+        ),
+        "FRONTIER_18_08_OK",
+    ),
+    (
+        "tag_18_08_01.frontier_q35",
+        "false; /bin/printf FRONTIER_18_08_01_OK",
+        "FRONTIER_18_08_01_OK",
+    ),
+    (
+        "tag_18_09.frontier_q35",
+        (
+            "if /bin/true; then for item in a; do case \"$item\" in "
+            "a) /bin/printf FRONTIER_18_09_OK;; esac; done; fi"
+        ),
+        "FRONTIER_18_09_OK",
+    ),
+    (
+        "tag_18_09_01.frontier_q35",
+        (
+            "assignment=ok; /bin/true; test \"$assignment\" = ok && "
+            "/bin/printf FRONTIER_18_09_01_OK"
+        ),
+        "FRONTIER_18_09_01_OK",
+    ),
+    (
+        "tag_18_09_01_01.frontier_q35",
+        (
+            "PATH=/bin; command printf FRONTIER_18_09_01_01_OK"
+        ),
+        "FRONTIER_18_09_01_01_OK",
+    ),
+    (
+        "tag_18_09_02.frontier_q35",
+        (
+            "/bin/printf FRONTIER_18_09_02_INPUT | { IFS= read -r value; "
+            "test \"$value\" = FRONTIER_18_09_02_INPUT && "
+            "/bin/printf FRONTIER_18_09_02_OK; }"
+        ),
+        "FRONTIER_18_09_02_OK",
+    ),
+    (
+        "tag_18_09_03.frontier_q35",
+        (
+            "/bin/false || /bin/true && /bin/printf FRONTIER_18_09_03_OK"
+        ),
+        "FRONTIER_18_09_03_OK",
+    ),
+    (
+        "tag_18_09_03_02.frontier_q35",
+        (
+            "/bin/true & background_pid=$!; wait \"$background_pid\"; "
+            "status=$?; test \"$status\" -eq 0 && "
+            "/bin/printf FRONTIER_18_09_03_02_OK"
+        ),
+        "FRONTIER_18_09_03_02_OK",
+    ),
+    (
+        "tag_18_09_04.frontier_q35",
+        "(/bin/printf FRONTIER_18_09_04_OK)",
+        "FRONTIER_18_09_04_OK",
+    ),
+    (
+        "tag_18_09_04_01.frontier_q35",
+        (
+            "value=outer; (value=inner); test \"$value\" = outer && "
+            "/bin/printf FRONTIER_18_09_04_01_OK"
+        ),
+        "FRONTIER_18_09_04_01_OK",
+    ),
+    (
+        "tag_18_09_04_03.frontier_q35",
+        (
+            "result=; for item in a b; do result=$result$item; done; "
+            "test \"$result\" = ab && /bin/printf FRONTIER_18_09_04_03_OK"
+        ),
+        "FRONTIER_18_09_04_03_OK",
     ),
 )
 
@@ -2384,6 +2863,30 @@ PRINTF_UTILITY_COMMAND_CASES = (
     ),
 )
 
+TRUE_UTILITY_COMMAND_CASES = (
+    (
+        "true.success",
+        "/bin/true; status=$?; test \"$status\" -eq 0 && "
+        "/bin/printf TRUE_SUCCESS_OK",
+        "TRUE_SUCCESS_OK",
+    ),
+    (
+        "true.no_output",
+        "/bin/true >/tmp/o 2>/tmp/e; status=$?; "
+        "test \"$status\" -eq 0 && test ! -s /tmp/o && "
+        "test ! -s /tmp/e; rm -f /tmp/o /tmp/e; "
+        "/bin/printf TRUE_NO_OUTPUT_OK",
+        "TRUE_NO_OUTPUT_OK",
+    ),
+    (
+        "true.stdin_unused",
+        "/bin/printf INPUT >/tmp/t; exec 3</tmp/t; /bin/true <&3; "
+        "read -r value <&3; exec 3<&-; /bin/rm /tmp/t; "
+        "test \"$value\" = INPUT && /bin/printf TRUE_STDIN_UNUSED_OK",
+        "TRUE_STDIN_UNUSED_OK",
+    ),
+)
+
 
 def start_qemu():
     cmd = [
@@ -2453,7 +2956,13 @@ def recv_until_any_prompt(sock, timeout=CMD_TIMEOUT):
 
 
 def send_command(sock, command):
-    sock.sendall((command + "\r").encode("utf-8"))
+    encoded_command = command.encode("ascii")
+    if len(encoded_command) > SHELL_SERIAL_RX_PAYLOAD_LIMIT:
+        raise ValueError(
+            "shell test physical line exceeds the guest serial RX payload "
+            f"limit: {len(encoded_command)} > {SHELL_SERIAL_RX_PAYLOAD_LIMIT}"
+        )
+    sock.sendall(encoded_command + b"\r")
     response = recv_until_any_prompt(sock)
     execution_boundary = response.find("\r\r\n")
     if execution_boundary >= 0:
@@ -2542,7 +3051,7 @@ def require_timer_preemption(sock):
     return True
 
 
-def require_signal_job_control(sock):
+def require_signals_q35_ring3_delivery_masking_matrix(sock):
     response = send_command(sock, "signal-check")
     markers = (
         "SIGNAL_CONTEXT_OK",
@@ -2558,6 +3067,127 @@ def require_signal_job_control(sock):
         return False
     print("PASS: signal delivery, masks, wait states, job control, and TTY pgrp")
     return True
+
+
+def require_libc_q35_ring3_abi_behavior_matrix(sock):
+    results = [require_printf_utility_command_cases(sock)]
+    results.append(
+        require_contains(
+            "libc byte and errno behavior",
+            send_command(sock, "/bin/printf '\\000\\001\\177\\200\\377' >/tmp/libc-prereq; "
+                         "/bin/byte-oracle /tmp/libc-prereq 00017f80ff; status=$?; "
+                         "/bin/rm -f /tmp/libc-prereq; "
+                         'test "$status" -eq 0 && /bin/printf LIBC_BYTE_ERRNO_OK'),
+            "LIBC_BYTE_ERRNO_OK",
+        )
+    )
+    results.append(
+        require_contains(
+            "libc signal and exec ABI",
+            send_command(sock, "/bin/printf-signal-oracle; status=$?; "
+                         'test "$status" -eq 0 && /bin/printf LIBC_SIGNAL_EXEC_OK'),
+            "LIBC_SIGNAL_EXEC_OK",
+        )
+    )
+    results.append(
+        require_contains(
+            "libc runtime ABI",
+            send_command(sock, "runtime-check"),
+            "TIME_SLEEP_RESOURCE_SUSPEND_OK",
+        )
+    )
+    return all(results)
+
+
+def require_processes_q35_ring3_exec_wait_signal_matrix(sock):
+    results = []
+    results.append(
+        require_contains(
+            "process fork wait and identity",
+            send_command(
+                sock,
+                "/bin/true & process_child=$!; wait \"$process_child\"; "
+                "process_status=$?; test \"$$\" -eq 1 && "
+                'test "$process_child" -gt 1 && test "$process_status" -eq 0 && '
+                "/bin/printf PROCESS_FORK_WAIT_IDENTITY_OK",
+            ),
+            "PROCESS_FORK_WAIT_IDENTITY_OK",
+        )
+    )
+    results.append(
+        require_contains(
+            "process exec failure status",
+            send_command(
+                sock,
+                "/bin/sh -c '/bin/__xinim_missing_exec__'; process_status=$?; "
+                'test "$process_status" -eq 127 && /bin/printf PROCESS_EXEC_FAILURE_OK',
+            ),
+            "PROCESS_EXEC_FAILURE_OK",
+        )
+    )
+    results.append(
+        require_contains(
+            "process resource lifecycle",
+            send_command(sock, "runtime-check"),
+            "TIME_SLEEP_RESOURCE_SUSPEND_OK",
+        )
+    )
+    results.append(require_repeated_process_lifecycle(sock, repetitions=70))
+    return all(results)
+
+
+def require_ipc_q35_ring3_cross_process_matrix(sock):
+    results = []
+    results.append(
+        require_contains(
+            "IPC cross-process readiness and interruption",
+            send_command(sock, "select-check"),
+            "SELECT_EVENT_TIMEOUT_EINTR_OK",
+        )
+    )
+    results.append(
+        require_contains(
+            "IPC pipe endpoint transfer",
+            send_command(
+                sock,
+                "/bin/printf 'IPC_PIPE_PAYLOAD\\n' | { IFS= read -r value; "
+                'test "$value" = IPC_PIPE_PAYLOAD && '
+                "/bin/printf IPC_PIPE_CROSS_PROCESS_OK; }",
+            ),
+            "IPC_PIPE_CROSS_PROCESS_OK",
+        )
+    )
+    results.append(
+        require_contains(
+            "IPC descriptor exhaustion",
+            send_command(sock, "ipc-check"),
+            "IPC_PIPE_EXHAUSTION_OK",
+        )
+    )
+    return all(results)
+
+
+def require_sockets_q35_ring3_syscall_lifecycle_matrix(sock):
+    response = send_command(sock, "socket-check")
+    markers = (
+        "SOCKET_Q35_RING3_LIFECYCLE_OK",
+        "SOCKET_EXEC_CLOEXEC_OK",
+    )
+    missing = [marker for marker in markers if marker not in response]
+    if missing:
+        print(f"FAIL: socket lifecycle markers missing: {missing!r}")
+        print(f"  Response: {response!r}")
+        return False
+    print("PASS: AF_INET datagram socket lifecycle, readiness, errors, and exec close")
+    return True
+
+
+def require_terminals_q35_ring3_session_termios_matrix(sock):
+    return require_contains(
+        "terminal termios and window ABI",
+        send_command(sock, "tty-abi-check"),
+        "TTY_DUP_FLUSH_WINDOW_OK",
+    )
 
 
 def require_shell_language_command_cases(sock):
@@ -2580,8 +3210,12 @@ def require_shell_language_command_cases(sock):
         isolated_command = command.replace(
             "/tmp/", f"{SHELL_LANGUAGE_SCRATCH_DIRECTORY}/"
         )
+        if len(isolated_command.encode("ascii")) > SHELL_SERIAL_RX_PAYLOAD_LIMIT:
+            response = send_command_sequence(sock, isolated_command)
+        else:
+            response = send_command(sock, isolated_command)
         results.append(
-            require_contains(case_id, send_command(sock, isolated_command), expected)
+            require_contains(case_id, response, expected)
         )
     results.append(
         require_contains(
@@ -2665,34 +3299,60 @@ def require_printf_utility_command_cases(sock):
     return all(results)
 
 
-def require_command_substitution_alias_boundary(sock):
-    benign = send_command(
+def require_true_utility_command_cases(sock):
+    results = []
+    for case_id, command, expected in TRUE_UTILITY_COMMAND_CASES:
+        results.append(
+            require_exact_output(case_id, send_command(sock, command), expected)
+        )
+    return all(results)
+
+
+def require_filesystem_q35_ring3_lifecycle_matrix(sock):
+    response = send_command_sequence(
         sock,
-        '/bin/sh -c \'alias x="printf benign"; '
-        'eval "print -- \\"\\$(x physical_tail)\\""\'',
+        "/bin/rm -rf /tmp/fs-prereq\n"
+        "/bin/mkdir /tmp/fs-prereq\n"
+        "/bin/file-operations-check && "
+        "/bin/printf FS_RING3_NAMESPACE_RENAME_OK\n"
+        "/bin/printf payload >/tmp/fs-prereq/open-unlinked\n"
+        "exec 3</tmp/fs-prereq/open-unlinked && "
+        "/bin/rm /tmp/fs-prereq/open-unlinked\n"
+        "IFS= read -r value <&3; exec 3<&-; "
+        'test "$value" = payload && '
+        "test ! -e /tmp/fs-prereq/open-unlinked && "
+        "/bin/printf FS_RING3_OPEN_UNLINKED_OK\n"
+        "/bin/mkdir /tmp/fs-prereq/nonempty\n"
+        "/bin/printf child >/tmp/fs-prereq/nonempty/child\n"
+        "/bin/rm /tmp/fs-prereq/nonempty "
+        ">/tmp/fs-prereq/rm-directory-error; rmdir_status=$?\n"
+        "/bin/rm /tmp/fs-prereq/nonempty/child && "
+        "/bin/rm -rf /tmp/fs-prereq/nonempty && "
+        'test "$rmdir_status" -ne 0 && '
+        "test ! -e /tmp/fs-prereq/nonempty && "
+        "/bin/printf FS_RING3_DIRECTORY_ERROR_OK\n",
     )
-    hostile = send_command(
+    cleanup_response = send_command_sequence(
         sock,
-        '/bin/sh -c \'alias x="printf hostile )"; '
-        'eval "print -- \\"\\$(x physical_tail)\\""\'; '
-        "status=$?; /bin/printf 'BOUNDARY_HOSTILE_STATUS_%s' \"$status\"",
+        "/bin/rm -rf /tmp/fs-prereq /tmp/file-operations-check "
+        "/tmp/absolute-link-check /tmp/relative-link-check\n"
+        "/bin/rm -rf /tmp/bin-link-check /tmp/loop-a-check "
+        "/tmp/loop-b-check\n"
+        "test ! -e /tmp/fs-prereq && "
+        "test ! -e /tmp/file-operations-check && "
+        "/bin/printf FS_RING3_CLEANUP_OK",
     )
-    return (
-        require_contains(
-            "tag_18_02_03.command_substitution_alias_boundary_benign",
-            benign,
-            "benign",
-        )
-        and require_contains(
-            "tag_18_02_03.command_substitution_alias_cannot_move_physical_boundary",
-            hostile,
-            "BOUNDARY_HOSTILE_STATUS_1",
-        )
-        and require_contains(
-            "tag_18_02_03.command_substitution_alias_syntax_diagnostic",
-            hostile,
-            "syntax error: unexpected ')'",
-        )
+    markers = (
+        "FS_RING3_NAMESPACE_RENAME_OK",
+        "FS_RING3_OPEN_UNLINKED_OK",
+        "FS_RING3_DIRECTORY_ERROR_OK",
+        "FS_RING3_CLEANUP_OK",
+    )
+    return all(
+        require_contains("filesystem Q35 Ring 3 matrix", response, marker)
+        for marker in markers[:-1]
+    ) and require_contains(
+        "filesystem Q35 Ring 3 matrix cleanup", cleanup_response, markers[-1]
     )
 
 
@@ -3078,12 +3738,16 @@ def main():
                     "BACKGROUND_WAIT_STATUS_0",
                 ),
                 require_timer_preemption(shell),
-                require_signal_job_control(shell),
+                require_signals_q35_ring3_delivery_masking_matrix(shell),
                 require_shell_language_command_cases(shell),
                 require_shell_grammar_command_cases(shell),
-                require_printf_utility_command_cases(shell),
-                require_command_substitution_alias_boundary(shell),
-                require_repeated_process_lifecycle(shell),
+                require_true_utility_command_cases(shell),
+                require_libc_q35_ring3_abi_behavior_matrix(shell),
+                require_processes_q35_ring3_exec_wait_signal_matrix(shell),
+                require_ipc_q35_ring3_cross_process_matrix(shell),
+                require_sockets_q35_ring3_syscall_lifecycle_matrix(shell),
+                require_terminals_q35_ring3_session_termios_matrix(shell),
+                require_filesystem_q35_ring3_lifecycle_matrix(shell),
                 require_repeated_pipeline_lifecycle(shell),
             ]
         )

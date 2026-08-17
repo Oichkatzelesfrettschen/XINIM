@@ -1,13 +1,14 @@
+// XINIM-owned userspace implementation; compile as freestanding C++23.
 #include <unistd.h>
 #include <sys/wait.h>
 #include <string.h>
 
 static void write_str(const char *s) { write(1, s, strlen(s)); }
 static void write_num(int n) {
-    char buf[12]; int pos = 0;
+    char buf[12]; size_t pos = 0;
     if (n == 0) buf[pos++] = '0';
     else { while (n > 0) { buf[pos++] = (char)('0' + n % 10); n /= 10; } }
-    for (int i = 0; i < pos/2; ++i) { char t=buf[i]; buf[i]=buf[pos-1-i]; buf[pos-1-i]=t; }
+    for (size_t i = 0; i < pos / 2; ++i) { char t=buf[i]; buf[i]=buf[pos-1-i]; buf[pos-1-i]=t; }
     write(1, buf, pos);
 }
 
@@ -27,7 +28,8 @@ int main(void) {
         }
         if (pid == 0) {
             /* Child: exec /bin/true */
-            char *argv[] = {"/bin/true", 0};
+            char true_path[] = "/bin/true";
+            char *argv[] = {true_path, nullptr};
             execve("/bin/true", argv, 0);
             _exit(127); /* exec failed */
         }

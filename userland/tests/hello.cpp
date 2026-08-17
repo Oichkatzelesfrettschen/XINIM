@@ -1,5 +1,5 @@
 /**
- * @file hello.c
+ * @file hello.cpp
  * @brief Simple "Hello World" test for XINIM
  *
  * This test validates basic system functionality:
@@ -13,7 +13,7 @@
  *   My PID: <number>
  *
  * Build:
- *   x86_64-linux-gnu-gcc -c hello.c -o hello.o \
+ *   x86_64-linux-gnu-g++ -std=c++23 -c hello.cpp -o hello.o \
  *       -I../../libc/dietlibc-xinim/include \
  *       -nostdlib -fno-builtin -static
  *
@@ -23,7 +23,6 @@
  *       -nostdlib -static
  *
  * @author XINIM Test Suite
- * @date November 2025
  */
 
 #include <stdio.h>

@@ -1,3 +1,4 @@
+// C++23 implementation behind mksh's narrow C ABI wrappers.
 /**
  * @file xinim_terminal.c
  * @brief XINIM terminal integration for mksh

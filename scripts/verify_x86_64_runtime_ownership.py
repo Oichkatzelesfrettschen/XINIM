@@ -32,11 +32,13 @@ SYSCALL_ONLY_BINARIES = frozenset(
         "echo",
         "file-operations-check",
         "fs-abi-check",
+        "ipc-check",
         "mmap-check",
         "preempt-check",
         "runtime-check",
         "select-check",
         "signal-check",
+        "socket-check",
         "true",
         "tty-abi-check",
     }

@@ -316,6 +316,7 @@ add_compile_options(
 # =============================================================================
 
 enable_testing()
+find_program(XINIM_PYTHON3_EXECUTABLE python3 REQUIRED)
 
 # =============================================================================
 # Include Directories
@@ -506,6 +507,7 @@ add_executable(xinim
     src/kernel/arch/x86_64/runtime_syscalls.cpp
     src/kernel/arch/x86_64/select_syscalls.cpp
     src/kernel/arch/x86_64/signal_syscalls.cpp
+    src/kernel/arch/x86_64/socket_syscalls.cpp
     src/kernel/arch/x86_64/serial_terminal.cpp
     src/kernel/arch/x86_64/user_address_space.cpp
     src/kernel/arch/x86_64/userspace_abi.cpp
@@ -835,6 +837,42 @@ target_link_options(xinim_x86_64_select_check PRIVATE
 )
 xinim_set_warnings(xinim_x86_64_select_check)
 
+add_executable(xinim_x86_64_ipc_check
+    userland/bin/ipc_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_ipc_check PROPERTIES
+    OUTPUT_NAME ipc_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_ipc_check)
+target_include_directories(xinim_x86_64_ipc_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_ipc_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_ipc_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_ipc_check)
+
+add_executable(xinim_x86_64_socket_check
+    userland/bin/socket_check_x86_64.S
+)
+set_target_properties(xinim_x86_64_socket_check PROPERTIES
+    OUTPUT_NAME socket_check_x86_64
+    XINIM_TARGET_ARCH x86_64
+)
+xinim_apply_target_defaults(xinim_x86_64_socket_check)
+target_include_directories(xinim_x86_64_socket_check PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(xinim_x86_64_socket_check PRIVATE
+    -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+)
+target_link_options(xinim_x86_64_socket_check PRIVATE
+    -T ${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld
+    -nostdlib -static -fno-stack-protector LINKER:-no-pie
+)
+xinim_set_warnings(xinim_x86_64_socket_check)
+
 add_executable(xinim_x86_64_file_operations_check
     userland/bin/file_operations_check_x86_64.S
 )
@@ -858,7 +896,6 @@ xinim_set_warnings(xinim_x86_64_file_operations_check)
 endif()
 
 if(XINIM_CPU_LANE STREQUAL "x86_64")
-find_program(XINIM_PYTHON3_EXECUTABLE python3 REQUIRED)
 find_program(XINIM_X86_64_USER_GCC gcc REQUIRED)
 find_program(XINIM_X86_64_USER_GXX g++ REQUIRED)
 find_program(XINIM_READELF_EXECUTABLE readelf REQUIRED)
@@ -1355,11 +1392,13 @@ string(CONCAT XINIM_X86_64_RUNTIME_PROVIDER_MANIFEST_CONTENT
     "syscall-only\techo\t$<TARGET_FILE:xinim_x86_64_echo>\n"
     "syscall-only\tfile-operations-check\t$<TARGET_FILE:xinim_x86_64_file_operations_check>\n"
     "syscall-only\tfs-abi-check\t$<TARGET_FILE:xinim_x86_64_fs_abi_check>\n"
+    "syscall-only\tipc-check\t$<TARGET_FILE:xinim_x86_64_ipc_check>\n"
     "syscall-only\tmmap-check\t$<TARGET_FILE:xinim_x86_64_mmap_check>\n"
     "syscall-only\tpreempt-check\t$<TARGET_FILE:xinim_x86_64_preempt_check>\n"
     "syscall-only\truntime-check\t$<TARGET_FILE:xinim_x86_64_runtime_check>\n"
     "syscall-only\tselect-check\t$<TARGET_FILE:xinim_x86_64_select_check>\n"
     "syscall-only\tsignal-check\t$<TARGET_FILE:xinim_x86_64_signal_check>\n"
+    "syscall-only\tsocket-check\t$<TARGET_FILE:xinim_x86_64_socket_check>\n"
     "syscall-only\ttrue\t$<TARGET_FILE:xinim_x86_64_true>\n"
     "syscall-only\ttty-abi-check\t$<TARGET_FILE:xinim_x86_64_tty_abi_check>\n"
 )
@@ -1407,6 +1446,8 @@ file(GENERATE
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_signal_check>" "${XINIM_X86_64_STAGE_DIR}/bin/signal-check"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_tty_abi_check>" "${XINIM_X86_64_STAGE_DIR}/bin/tty-abi-check"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_select_check>" "${XINIM_X86_64_STAGE_DIR}/bin/select-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_ipc_check>" "${XINIM_X86_64_STAGE_DIR}/bin/ipc-check"
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_socket_check>" "${XINIM_X86_64_STAGE_DIR}/bin/socket-check"
         COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:xinim_x86_64_file_operations_check>" "${XINIM_X86_64_STAGE_DIR}/bin/file-operations-check"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_MKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/mksh"
         COMMAND ${CMAKE_COMMAND} -E copy "${XINIM_X86_64_MKSH_BINARY}" "${XINIM_X86_64_STAGE_DIR}/bin/sh"
@@ -1455,6 +1496,8 @@ file(GENERATE
             xinim_x86_64_signal_check
             xinim_x86_64_tty_abi_check
             xinim_x86_64_select_check
+            xinim_x86_64_ipc_check
+            xinim_x86_64_socket_check
             xinim_x86_64_file_operations_check
             xinim_x86_64_mksh
             "${XINIM_X86_64_MKSH_BINARY}"
@@ -1911,8 +1954,18 @@ function(xinim_add_x86_32_lane lane)
 
     add_custom_command(
         OUTPUT "${_diethello_binary}"
-        COMMAND ${CMAKE_C_COMPILER}
+        COMMAND ${CMAKE_CXX_COMPILER}
             -m32
+            -std=c++23
+            -fno-exceptions
+            -fno-rtti
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Werror
+            -Wshadow
+            -Wconversion
+            -Wsign-conversion
             -I"${_dietlibc_tree_dir}/include"
             -I"${CMAKE_SOURCE_DIR}/include"
             -O2
@@ -1923,14 +1976,14 @@ function(xinim_add_x86_32_lane lane)
             -static
             -Wl,--build-id=none
             -o "${_diethello_binary}"
-            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.c"
+            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
             "${_dietlibc_start}"
             "${_dietlibc_archive}"
             -lgcc
         DEPENDS
             ${_dietlibc_target}
-            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.c"
-        COMMENT "Building dietlibc-linked i486 guest utility for ${lane}"
+            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
+        COMMENT "Building C++23 dietlibc-linked i486 guest utility for ${lane}"
         VERBATIM
     )
     add_custom_target(${_diethello_target} ALL DEPENDS "${_diethello_binary}")
@@ -1955,20 +2008,26 @@ function(xinim_add_x86_32_lane lane)
         set(_util_target "${_util}_${lane}")
         set(_${_util}_binary "${_util_binary}")
         set(_${_util}_target "${_util_target}")
-        # Prefer C++23 source; fall back to C
+        # Every project-owned utility is compiled as freestanding C++23.
         set(_util_source_cpp "${CMAKE_SOURCE_DIR}/userland/bin/${_util}_i486.cpp")
-        set(_util_source_c "${CMAKE_SOURCE_DIR}/userland/bin/${_util}_i486.c")
-        if(EXISTS "${_util_source_cpp}")
-            set(_util_source "${_util_source_cpp}")
-            set(_util_compiler ${CMAKE_CXX_COMPILER})
-            set(_util_lang_flags -std=c++23 -fno-exceptions -fno-rtti)
-            set(_util_lang_label "C++23")
-        else()
-            set(_util_source "${_util_source_c}")
-            set(_util_compiler ${CMAKE_C_COMPILER})
-            set(_util_lang_flags "")
-            set(_util_lang_label "C")
+        if(NOT EXISTS "${_util_source_cpp}")
+            message(FATAL_ERROR
+                "Missing C++23 source for project-owned utility ${_util}: ${_util_source_cpp}")
         endif()
+        set(_util_source "${_util_source_cpp}")
+        set(_util_compiler ${CMAKE_CXX_COMPILER})
+        set(_util_lang_flags
+            -std=c++23
+            -fno-exceptions
+            -fno-rtti
+            -Wall
+            -Wextra
+            -Wpedantic
+            -Werror
+            -Wshadow
+            -Wconversion
+            -Wsign-conversion)
+        set(_util_lang_label "C++23")
         # Split _util_arch_flags (a space-separated string) into list for COMMAND
         separate_arguments(_util_arch_list UNIX_COMMAND "${_util_arch_flags}")
         add_custom_command(
@@ -2933,6 +2992,13 @@ endif()
 
 xinim_write_x86_lane_manifest("${CMAKE_BINARY_DIR}/x86_cpu_lanes.json" "${XINIM_CPU_LANE}")
 
+set(XINIM_POSIX_ISSUE7_ARCHIVE
+    "${CMAKE_SOURCE_DIR}/data/external/posix/susv4-2018.tgz")
+set(XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER
+    "${CMAKE_SOURCE_DIR}/scripts/verify_posix_true_requirements.py")
+set(XINIM_POSIX_SHELL_FRONTIER_VERIFIER
+    "${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_frontier.py")
+
 add_custom_target(xinim_audit_build_coverage
     COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_ARTIFACT_ROOT}/analysis"
     COMMAND python3
@@ -3040,21 +3106,21 @@ target_include_directories(xinim_sh_host PRIVATE
 )
 
 add_executable(xinim_userland_hello_host
-    userland/tests/hello.c
+    userland/tests/hello.cpp
 )
 set_target_properties(xinim_userland_hello_host PROPERTIES
     OUTPUT_NAME xinim-hello
     RUNTIME_OUTPUT_DIRECTORY "${XINIM_HOST_COMMAND_RUNTIME_DIR}"
 )
-target_compile_features(xinim_userland_hello_host PRIVATE c_std_11)
+target_compile_features(xinim_userland_hello_host PRIVATE cxx_std_23)
 xinim_set_warnings(xinim_userland_hello_host)
 
 add_library(xinim_mksh_integration_reference STATIC
-    userland/shell/mksh/integration/xinim_job_control.c
+    userland/shell/mksh/integration/xinim_job_control.cpp
     userland/shell/mksh/integration/xinim_syscalls.cpp
-    userland/shell/mksh/integration/xinim_terminal.c
+    userland/shell/mksh/integration/xinim_terminal.cpp
 )
-target_compile_features(xinim_mksh_integration_reference PRIVATE c_std_23 cxx_std_23)
+target_compile_features(xinim_mksh_integration_reference PRIVATE cxx_std_23)
 target_compile_definitions(xinim_mksh_integration_reference PRIVATE _GNU_SOURCE)
 target_include_directories(xinim_mksh_integration_reference PRIVATE
     ${CMAKE_SOURCE_DIR}/include
@@ -3590,8 +3656,6 @@ set_tests_properties(posix_language_check PROPERTIES
     TIMEOUT 15
 )
 
-set(XINIM_POSIX_ISSUE7_ARCHIVE
-    "${CMAKE_SOURCE_DIR}/data/external/posix/susv4-2018.tgz")
 add_custom_target(xinim_posix_issue7_source_fetch
     COMMAND ${CMAKE_SOURCE_DIR}/scripts/fetch_posix_sources.sh
     DEPENDS
@@ -3665,6 +3729,8 @@ add_custom_target(xinim_posix_issue7_utility_ledger_check
         ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix_printf_requirements.py
         ${CMAKE_SOURCE_DIR}/docs/posix/printf_requirements.tsv
+        ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/docs/posix/true_requirements.tsv
     VERBATIM
 )
 add_test(
@@ -3724,6 +3790,42 @@ set_tests_properties(
         TIMEOUT 30
 )
 
+add_custom_target(xinim_posix_true_requirements_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/true_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    VERBATIM
+)
+add_test(
+    NAME posix_true_requirements
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_true_requirements_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_true_requirements
+    posix_true_requirements_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;commands"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 30
+)
+
 add_custom_target(xinim_posix_shell_language_ledger_check
     COMMAND ${XINIM_PYTHON3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
@@ -3757,6 +3859,61 @@ set_tests_properties(
         LABELS "contract;docs;external;posix;shell"
         SKIP_RETURN_CODE 77
         TIMEOUT 30
+)
+
+add_custom_target(xinim_posix_shell_frontier_derive
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --derive
+    DEPENDS
+        ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_language_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Deriving the next 31 SUSv4 shell-language parent rows"
+    VERBATIM
+)
+add_custom_target(xinim_posix_shell_frontier_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_frontier_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_frontier_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Verifying recursive source and Q35 witnesses for 31 shell parents"
+    VERBATIM
+)
+add_test(
+    NAME posix_shell_frontier
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_shell_frontier_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_shell_frontier
+    posix_shell_frontier_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;shell"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 60
 )
 
 add_custom_target(xinim_posix_shell_grammar_requirements_check
@@ -4168,6 +4325,226 @@ if(TARGET xinim_x86_64_image)
     )
 endif()
 endif()
+
+add_custom_target(xinim_cpp23_c23_assembly_ownership_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_cpp23_c23_assembly_ownership.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --manifest ${CMAKE_SOURCE_DIR}/docs/ownership/cpp23_c23_assembly_ownership.tsv
+        --cmake ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+        --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
+    DEPENDS
+        ${CMAKE_SOURCE_DIR}/scripts/verify_cpp23_c23_assembly_ownership.py
+        ${CMAKE_SOURCE_DIR}/docs/ownership/cpp23_c23_assembly_ownership.tsv
+        ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+    VERBATIM
+)
+add_test(
+    NAME cpp23_c23_assembly_ownership
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_cpp23_c23_assembly_ownership.py
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --manifest ${CMAKE_SOURCE_DIR}/docs/ownership/cpp23_c23_assembly_ownership.tsv
+        --cmake ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+        --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
+)
+add_test(
+    NAME cpp23_c23_assembly_ownership_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_cpp23_c23_assembly_ownership.py
+        --self-test
+)
+set_tests_properties(
+    cpp23_c23_assembly_ownership
+    cpp23_c23_assembly_ownership_self_test
+    PROPERTIES
+        LABELS "contract;build;language;abi"
+        TIMEOUT 30
+)
+
+# =============================================================================
+# POSIX Standards Denominators and Closure Contracts
+# =============================================================================
+
+set(XINIM_POSIX_BASE_SYSTEM_VERIFIER
+    "${CMAKE_SOURCE_DIR}/scripts/verify_posix_base_system_ledgers.py")
+set(XINIM_POSIX_PREREQUISITES_VERIFIER
+    "${CMAKE_SOURCE_DIR}/scripts/verify_posix_system_prerequisites.py")
+set(XINIM_POSIX_CONFORMANCE_VERIFIER
+    "${CMAKE_SOURCE_DIR}/scripts/verify_posix_conformance_closure.py")
+
+set(XINIM_POSIX_BASE_SYSTEM_LEDGER_INPUTS
+    ${XINIM_POSIX_BASE_SYSTEM_VERIFIER}
+    ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+    ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_base_definitions_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_base_definitions_clause_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_interfaces_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_interfaces_clause_ledger.tsv
+)
+
+add_custom_target(xinim_posix_base_system_ledgers_derive
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_BASE_SYSTEM_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --derive
+    DEPENDS ${XINIM_POSIX_BASE_SYSTEM_LEDGER_INPUTS}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Deriving SUSv4 Base Definitions and System Interfaces ledgers"
+    VERBATIM
+)
+
+add_custom_target(xinim_posix_base_system_ledgers_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_BASE_SYSTEM_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS ${XINIM_POSIX_BASE_SYSTEM_LEDGER_INPUTS}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Verifying SUSv4 Base Definitions and System Interfaces ledgers"
+    VERBATIM
+)
+
+add_custom_target(xinim_posix_system_prerequisites_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_PREREQUISITES_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+    DEPENDS
+        ${XINIM_POSIX_PREREQUISITES_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_prerequisites.tsv
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Verifying POSIX Ring 3 system prerequisites"
+    VERBATIM
+)
+
+set(XINIM_POSIX_CONFORMANCE_INPUTS
+    ${XINIM_POSIX_CONFORMANCE_VERIFIER}
+    ${XINIM_POSIX_BASE_SYSTEM_VERIFIER}
+    ${XINIM_POSIX_PREREQUISITES_VERIFIER}
+    ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+    ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_utility_ledger.py
+    ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+    ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+    ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
+    ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/true_requirements.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_language_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_frontier_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_frontier_requirements.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_prerequisites.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_base_definitions_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_base_definitions_clause_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_interfaces_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_interfaces_clause_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+)
+
+add_custom_target(xinim_posix_conformance_status_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_CONFORMANCE_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+    DEPENDS ${XINIM_POSIX_CONFORMANCE_INPUTS}
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Reporting bounded and expanded SUSv4 conformance closure status"
+    VERBATIM
+)
+
+# These targets are explicit closure gates.  They must remain failing while
+# their required finite denominators contain open rows.
+add_custom_target(xinim_posix_issue7_closure_gate
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_CONFORMANCE_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --require-bounded-closure
+    DEPENDS xinim_posix_conformance_status_check
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Requiring 245/245 Issue 7 parent rows and all system prerequisites"
+    VERBATIM
+)
+
+add_custom_target(xinim_posix_full_conformance_gate
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_CONFORMANCE_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --require-full-closure
+    DEPENDS xinim_posix_conformance_status_check
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Requiring complete expanded SUSv4/POSIX closure"
+    VERBATIM
+)
+
+add_test(
+    NAME posix_base_system_ledgers
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_BASE_SYSTEM_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_base_system_ledgers_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_BASE_SYSTEM_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_base_system_ledgers
+    posix_base_system_ledgers_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;standards"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 60
+)
+
+add_test(
+    NAME posix_system_prerequisites
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_PREREQUISITES_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME posix_system_prerequisites_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_PREREQUISITES_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --self-test
+)
+set_tests_properties(
+    posix_system_prerequisites
+    posix_system_prerequisites_self_test
+    PROPERTIES
+        LABELS "contract;docs;posix;prerequisites"
+        TIMEOUT 15
+)
+
+add_test(
+    NAME posix_conformance_closure
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_CONFORMANCE_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+)
+add_test(
+    NAME posix_conformance_closure_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_CONFORMANCE_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --self-test
+)
+set_tests_properties(
+    posix_conformance_closure
+    posix_conformance_closure_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;conformance"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 90
+)
 
 # =============================================================================
 # Documentation Target (Doxygen)

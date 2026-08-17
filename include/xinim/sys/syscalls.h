@@ -113,7 +113,7 @@ enum xinim_syscall_no {
     SYS_poll = 79,
     SYS_rt_sigreturn = 80,
 
-    // Socket syscalls (stubs return -ENOSYS until networking is wired)
+    // Socket syscalls (x86_64 currently provides AF_INET datagram loopback)
     SYS_socket = 81,
     SYS_bind = 82,
     SYS_listen = 83,
