@@ -117,6 +117,7 @@ system prerequisites: 7 closed, 0 open
 Base Definitions:    0/95 parent, 0/1,483 clause rows
 System Interfaces:   0/1,195 parent, 0/15,740 clause rows
 expanded standards:  0/18,513 rows
+active recursive frontier: 31 open parents, 2,644 open assertions
 ```
 
 The grammar and token ledgers are subordinate evidence for shell-language
@@ -129,6 +130,14 @@ frontier in `docs/posix/posix_shell_frontier_ledger.tsv` and
 `docs/posix/posix_shell_frontier_requirements.tsv`: 724 ordered Chapter 2
 assertions, 31 exact Q35 probe IDs, and 31 open parents. The probe cases are
 coverage evidence, not parent closure; bounded Issue 7 remains 29/245.
+
+The next queue slice is retained in
+`docs/posix/posix_issue7_recursive_frontier_ledger.tsv` and
+`docs/posix/posix_issue7_recursive_frontier_requirements.tsv`: 12 remaining
+shell-language parents, 19 utility parents, and 2,644 open recursive
+assertions. Its 31 exact Q35 probe IDs are executable coverage evidence; no
+parent or recursive assertion is closed by the snapshot, and the bounded
+Issue 7 count remains 29/245.
 
 The staged x86_64 runtime has one shell implementation and one libc provider.
 One mksh R59c source build uses the upstream legacy POSIX profile and is

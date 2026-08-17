@@ -2998,6 +2998,8 @@ set(XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER
     "${CMAKE_SOURCE_DIR}/scripts/verify_posix_true_requirements.py")
 set(XINIM_POSIX_SHELL_FRONTIER_VERIFIER
     "${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_frontier.py")
+set(XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER
+    "${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_recursive_frontier.py")
 
 add_custom_target(xinim_audit_build_coverage
     COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_ARTIFACT_ROOT}/analysis"
@@ -3916,6 +3918,63 @@ set_tests_properties(
         TIMEOUT 60
 )
 
+add_custom_target(xinim_posix_recursive_frontier_derive
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --derive
+    DEPENDS
+        ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_language_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Deriving the next 31 recursive Issue 7 shell and utility parent rows"
+    VERBATIM
+)
+add_custom_target(xinim_posix_recursive_frontier_check
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+    DEPENDS
+        ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
+        ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_archive.py
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_language_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_recursive_frontier_ledger.tsv
+        ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_recursive_frontier_requirements.tsv
+        ${CMAKE_SOURCE_DIR}/test/boot/x86_64_shell_test.py
+    WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
+    COMMENT "Verifying the next 31 recursive Issue 7 shell and utility rows"
+    VERBATIM
+)
+add_test(
+    NAME posix_recursive_frontier
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+)
+add_test(
+    NAME posix_recursive_frontier_self_test
+    COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+        ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
+        --repo-root ${CMAKE_SOURCE_DIR}
+        --archive ${XINIM_POSIX_ISSUE7_ARCHIVE}
+        --self-test
+)
+set_tests_properties(
+    posix_recursive_frontier
+    posix_recursive_frontier_self_test
+    PROPERTIES
+        LABELS "contract;docs;external;posix;shell;utilities"
+        SKIP_RETURN_CODE 77
+        TIMEOUT 60
+)
+
 add_custom_target(xinim_posix_shell_grammar_requirements_check
     COMMAND ${XINIM_PYTHON3_EXECUTABLE}
         ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_grammar_requirements.py
@@ -4426,6 +4485,7 @@ set(XINIM_POSIX_CONFORMANCE_INPUTS
     ${CMAKE_SOURCE_DIR}/scripts/verify_posix_issue7_utility_ledger.py
     ${XINIM_POSIX_TRUE_REQUIREMENTS_VERIFIER}
     ${XINIM_POSIX_SHELL_FRONTIER_VERIFIER}
+    ${XINIM_POSIX_RECURSIVE_FRONTIER_VERIFIER}
     ${CMAKE_SOURCE_DIR}/scripts/verify_posix_shell_language_ledger.py
     ${XINIM_POSIX_ISSUE7_ARCHIVE}
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_utility_ledger.tsv
@@ -4433,6 +4493,8 @@ set(XINIM_POSIX_CONFORMANCE_INPUTS
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_language_ledger.tsv
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_frontier_ledger.tsv
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_shell_frontier_requirements.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_recursive_frontier_ledger.tsv
+    ${CMAKE_SOURCE_DIR}/docs/posix/posix_issue7_recursive_frontier_requirements.tsv
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_system_prerequisites.tsv
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_base_definitions_ledger.tsv
     ${CMAKE_SOURCE_DIR}/docs/posix/posix_base_definitions_clause_ledger.tsv
