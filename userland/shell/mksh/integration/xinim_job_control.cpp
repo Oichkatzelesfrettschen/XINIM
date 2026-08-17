@@ -1,3 +1,4 @@
+// C++23 implementation behind mksh's narrow C ABI wrappers.
 #ifndef _GNU_SOURCE
 #define _GNU_SOURCE
 #endif

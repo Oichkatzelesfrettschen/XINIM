@@ -1,0 +1,13 @@
+# authority: XINIM Ring 3 prerequisite closure contract for SUSv4 Issue 7
+# source-archive: susv4-2018.tgz, sha256 ab6636bca53c7d71d33d2c5149ede574d598fe6ec97fa8b08e0459ef7bcfc104
+# denominator: libc, filesystem, processes, signals, terminals, IPC, and sockets
+# key-sha256: f5ef3c3f693787e0e6b4bd31eb49dd026a47283959c328879d422989739eb01c
+# state invariant: every prerequisite is exactly one of open or closed
+prerequisite	state	evidence	witness	next_action
+filesystem	closed	tests:test/test_bare_vfs.cpp,test/test_vfs_extended.cpp,test/test_bootfs_promote.cpp	tests:test/boot/x86_64_shell_test.py#require_filesystem_q35_ring3_lifecycle_matrix	-
+ipc	closed	tests:test/test_ipc_channel.cpp,test/test_ipc_blocking.cpp,test/test_ipc_exhaustion.cpp	tests:test/boot/x86_64_shell_test.py#require_ipc_q35_ring3_cross_process_matrix	-
+libc	closed	tests:docs/posix/C_LANGUAGE_LIBC_SHELL_ALIGNMENT.md,test/contract/verify_dietlibc_setjmp.py	tests:test/boot/x86_64_shell_test.py#require_libc_q35_ring3_abi_behavior_matrix	-
+processes	closed	tests:test/test_process_lifecycle.cpp,test/boot/x86_64_shell_test.py	tests:test/boot/x86_64_shell_test.py#require_processes_q35_ring3_exec_wait_signal_matrix	-
+signals	closed	tests:test/signal/test_signal_comprehensive.cpp,test/boot/x86_64_shell_test.py	tests:test/boot/x86_64_shell_test.py#require_signals_q35_ring3_delivery_masking_matrix	-
+sockets	closed	tests:test/test_net_driver_loopback.cpp,test/test_net_driver_tcp.cpp,test/test_poll_network.cpp,test/boot/x86_64_shell_test.py	tests:test/boot/x86_64_shell_test.py#require_sockets_q35_ring3_syscall_lifecycle_matrix	-
+terminals	closed	tests:test/boot/x86_64_shell_test.py,docs/guides/ASSEMBLY_ABI.md	tests:test/boot/x86_64_shell_test.py#require_terminals_q35_ring3_session_termios_matrix	-

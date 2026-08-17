@@ -10,6 +10,7 @@
 #include "../arch/x86_64/select_syscalls.hpp"
 #include "../arch/x86_64/serial_terminal.hpp"
 #include "../arch/x86_64/signal_syscalls.hpp"
+#include "../arch/x86_64/socket_syscalls.hpp"
 #include "../arch/x86_64/syscall_frame.hpp"
 #include "../early/serial_16550.hpp"
 #include "../lattice_ipc.hpp"
@@ -164,6 +165,55 @@ extern "C" uint64_t xinim_syscall_dispatch(uint64_t no, uint64_t a0, uint64_t a1
     case SYS_select:
         return static_cast<uint64_t>(
             xinim::kernel::x86_64::process_select(static_cast<int>(a0), a1, a2, a3, a4));
+
+    // --- Native AF_INET datagram sockets ---
+    case SYS_socket:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_create(
+            static_cast<int>(a0), static_cast<int>(a1), static_cast<int>(a2)));
+    case SYS_bind:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_bind(
+            static_cast<int>(a0), a1, static_cast<uint32_t>(a2)));
+    case SYS_listen:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_listen(
+            static_cast<int>(a0), static_cast<int>(a1)));
+    case SYS_accept:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_accept(
+            static_cast<int>(a0), a1, a2));
+    case SYS_connect:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_connect(
+            static_cast<int>(a0), a1, static_cast<uint32_t>(a2)));
+    case SYS_sendto:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_sendto(
+            static_cast<int>(a0), a1, static_cast<uint32_t>(a2), static_cast<int>(a3), a4,
+            static_cast<uint32_t>(a5)));
+    case SYS_recvfrom:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_recvfrom(
+            static_cast<int>(a0), a1, static_cast<uint32_t>(a2), static_cast<int>(a3), a4, a5));
+    case SYS_shutdown:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_shutdown(
+            static_cast<int>(a0), static_cast<int>(a1)));
+    case SYS_setsockopt:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_setsockopt(
+            static_cast<int>(a0), static_cast<int>(a1), static_cast<int>(a2), a3,
+            static_cast<uint32_t>(a4)));
+    case SYS_getsockopt:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_getsockopt(
+            static_cast<int>(a0), static_cast<int>(a1), static_cast<int>(a2), a3, a4));
+    case SYS_getsockname:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_getsockname(
+            static_cast<int>(a0), a1, a2));
+    case SYS_getpeername:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_getpeername(
+            static_cast<int>(a0), a1, a2));
+    case SYS_sendmsg:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_sendmsg(
+            static_cast<int>(a0), a1, static_cast<int>(a2)));
+    case SYS_recvmsg:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_recvmsg(
+            static_cast<int>(a0), a1, static_cast<int>(a2)));
+    case SYS_socketpair:
+        return static_cast<uint64_t>(xinim::kernel::x86_64::socket_socketpair(
+            static_cast<int>(a0), static_cast<int>(a1), static_cast<int>(a2), a3));
 
     // --- Routed to VFS server ---
     // Each case packs the message with the correct VFS_* type constant

@@ -41,8 +41,12 @@ and initial networking infrastructure.
   DMA-backed virtqueue ring allocation, TX/RX paths, DRIVER_OK set
 - **PCI subsystem**: initialized in i486 main.cpp
 - **QEMU**: virtio-net-pci device attached
-- **Socket syscalls**: 15 numbers reserved (81-95), returning -ENOSYS
-- **Next**: lwIP integration for TCP/IP
+- **Socket syscalls**: native x86_64 AF_INET loopback datagrams cover socket,
+  bind, connect, getsockname/getpeername, send/receive, select readiness,
+  dup/dup2, fork/exec close-on-exec, shutdown, and teardown/error paths
+  (syscalls 81-95; unsupported families and stream operations remain explicit
+  errors)
+- **Next**: lwIP integration and native TCP/IP stream semantics
 
 ### Utilities (68 total: 52 in bin/ + 16 in tests/)
 
@@ -107,8 +111,12 @@ command-substitution alias-boundary cases, 70 repeated process lifecycles, and
 ```text
 shell grammar:     125 closed,   0 open
 token recognition: 17 closed,   0 open
-shell language:      7 closed,  63 open
-SUSv4 Issue 7 utilities: 1 closed, 174 open
+shell language:     27 closed,  43 open
+SUSv4 Issue 7 utilities: 2 closed, 173 open
+system prerequisites: 7 closed, 0 open
+Base Definitions:    0/95 parent, 0/1,483 clause rows
+System Interfaces:   0/1,195 parent, 0/15,740 clause rows
+expanded standards:  0/18,513 rows
 ```
 
 The grammar and token ledgers are subordinate evidence for shell-language
@@ -134,10 +142,11 @@ conformance claims:
 - Real x86_64 shell boot and core integration: approximately 90 percent. The
   exact platform gate passes; the remaining work is primarily semantics and
   breadth rather than reaching PID 1.
-- Shell-language conformance: approximately 35 percent. Grammar and token
-  recognition are closed, while 63 of 70 parent language rows remain open.
+- Shell-language conformance: approximately 39 percent. Grammar and token
+  recognition are closed, while 43 of 70 parent language rows remain open.
 - Complete SUSv4 Issue 7 Shell and Utilities conformance: approximately 20 percent.
-  Only `printf` is closed in the 175-utility denominator.
+  `printf` and `true` are closed in the 175-utility denominator; the remaining
+  utility rows require their own source-derived subledgers and witnesses.
 - The full requested operating-system objective: approximately 15 percent.
   This includes the remaining shell, utility, filesystem, process, signal,
   terminal, modern-driver, and C++23 migration work.
@@ -169,13 +178,19 @@ where they are C-only.
 ## Not Verified Today
 
 - lwIP TCP/IP stack integration (pending)
-- Socket syscalls beyond -ENOSYS stubs (pending)
+- Full socket semantics beyond the verified AF_INET loopback datagram scope,
+  including TCP/IP, AF_UNIX, stream listen/accept, ancillary messages, and
+  socket pairs (pending)
 - Full dietlibc static linking from TCC; current verified TCC runtime is a
   small XINIM-native shim for simple C programs.
 - pkgsrc bootstrap (pending)
 - Full POSIX conformance is not claimed. The exact open rows are retained in
-  `docs/posix/posix_shell_language_ledger.tsv` and
-  `docs/posix/posix_issue7_utility_ledger.tsv`.
+  `docs/posix/posix_shell_language_ledger.tsv`,
+  `docs/posix/posix_issue7_utility_ledger.tsv`,
+  `docs/posix/posix_system_prerequisites.tsv`, and the expanded Base
+  Definitions/System Interfaces ledgers. Bounded Issue 7 closure requires
+  245/245 parent rows plus all seven prerequisites; full SUSv4/POSIX closure
+  additionally requires all 18,513 expanded rows.
 
 ## Architectural Truth
 

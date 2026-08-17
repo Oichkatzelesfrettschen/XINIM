@@ -1,3 +1,4 @@
+// XINIM-owned userspace implementation; compile as freestanding C++23.
 #include <unistd.h>
 #include <sys/wait.h>
 #include <string.h>
