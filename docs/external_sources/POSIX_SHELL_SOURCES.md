@@ -23,11 +23,12 @@ https://pubs.opengroup.org/onlinepubs/9699919799/download/index.html
 https://pubs.opengroup.org/onlinepubs/9699919799/download/susv4-2018.tgz
 ```
 
-Historical POSIX.2-1992 is not the implementation target. Shell and Utilities
-was merged into the unified POSIX.1 specification. Issue 8 / POSIX.1-2024 is
-also not the target because it postdates both mksh R59c and dietlibc 0.35.
-Issue 7 is the newest mutually defensible specification baseline for this
-specific shell and libc pair.
+The active target is the modern unified Issue 7 Shell and Utilities
+specification. It supersedes historical POSIX.2/POSIXv2 requirements for this
+repository; those historical requirements are not admitted as conformance
+rows. Issue 8 / POSIX.1-2024 is also not the target because it postdates both
+mksh R59c and dietlibc 0.35. Issue 7 is the newest mutually defensible
+specification baseline for this specific shell and libc pair.
 
 ## Reproducible acquisition
 
@@ -58,7 +59,13 @@ regular files: 1668
 directories: 12
 ```
 
-The retained local paths are:
+The canonical versioned source object is:
+
+```text
+data/external/posix/susv4-2018.tgz
+```
+
+The derived build-local paths are:
 
 ```text
 build/_state/downloads/posix/susv4-2018.tgz
@@ -66,15 +73,11 @@ build/_state/downloads/posix/susv4-2018.response.log
 build/_state/cache/posix/susv4-2018/
 ```
 
-These build-state paths are intentionally ignored by Git. The official page
-grants download for local installation and personal use only, and the archive
-copyright page forbids reproduction in an electronic retrieval system without
-prior written permission from both copyright holders. The 4,976,241-byte file
-is below GitHub's object-size limit, and the XINIM remote is private, but size
-and visibility do not override those terms. Git or LFS retention requires
-written permission from IEEE and The Open Group. XINIM therefore tracks the
-acquisition mechanism, immutable identity, response facts, and derived key
-hashes while retaining the full reference artifact locally.
+The build-state paths remain intentionally ignored by Git. This private
+repository versions the exact archive at the canonical source path above as
+the immutable SUSv4 authority for its conformance program. The extracted HTML
+tree and HTTP response log remain derived evidence; they are regenerated from
+the versioned archive and are not independent standards sources.
 
 ## OCR decision
 
@@ -105,7 +108,7 @@ full key sha256: e1c7db29258b2e7e869d9183306e2462261a87d598750d457722824f7b655e7
 ```
 
 `scripts/verify_posix_issue7_archive.py` requires exact equality between that
-official set and `docs/posix/posix2_utility_ledger.tsv`. Its mutation test
+official set and `docs/posix/posix_issue7_utility_ledger.tsv`. Its mutation test
 proves rejection of an altered archive hash, a missing utility page, an
 unexpected utility page, and a missing special built-in anchor.
 

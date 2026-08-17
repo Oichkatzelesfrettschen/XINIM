@@ -1501,13 +1501,18 @@ void set_service_state(SupervisedService* service,
     const bootfs::FileRecord* file = nullptr;
     if (ext2_reader::load_runtime_executable(path, &image, &image_size) && image != nullptr) {
         ext2_file = {
-            path,
-            const_cast<uint8_t*>(image),
-            image_size,
-            image_size,
-            true,
-            true,
-            false,
+            .path = path,
+            .data = const_cast<uint8_t*>(image),
+            .size = image_size,
+            .capacity = image_size,
+            .read_only = true,
+            .executable = true,
+            .is_directory = false,
+            .is_symlink = false,
+            .user_id = 0U,
+            .group_id = 0U,
+            .exclusive_lock_owner = 0U,
+            .shared_lock_count = 0U,
         };
         file = &ext2_file;
     } else {

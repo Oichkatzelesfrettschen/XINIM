@@ -151,7 +151,7 @@ touch	open	missing:full_ring3_conformance	Implement or validate the specified be
 tput	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.
 tr	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.
 trap	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.
-true	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.
+true	closed	tests:docs/posix/true_requirements.tsv,scripts/verify_posix_true_requirements.py,test/boot/x86_64_shell_test.py	-
 tsort	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.
 tty	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.
 type	open	missing:full_ring3_conformance	Implement or validate the specified behavior and add exact Q35 Ring 3 tests.

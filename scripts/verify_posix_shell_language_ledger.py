@@ -62,7 +62,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--archive",
         type=pathlib.Path,
-        default=pathlib.Path("build/_state/downloads/posix") / ARCHIVE_NAME,
+        default=pathlib.Path("data/external/posix") / ARCHIVE_NAME,
     )
     parser.add_argument(
         "--ledger",

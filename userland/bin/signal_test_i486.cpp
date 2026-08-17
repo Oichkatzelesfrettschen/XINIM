@@ -1,3 +1,4 @@
+// XINIM-owned userspace implementation; compile as freestanding C++23.
 #include <signal.h>
 #include <unistd.h>
 #include <sys/wait.h>
@@ -8,12 +9,12 @@ static volatile int g_sigchld_count = 0;
 
 static void sigusr1_handler(int sig) {
     (void)sig;
-    ++g_sigusr1_count;
+    g_sigusr1_count = g_sigusr1_count + 1;
 }
 
 static void sigchld_handler(int sig) {
     (void)sig;
-    ++g_sigchld_count;
+    g_sigchld_count = g_sigchld_count + 1;
 }
 
 static void write_str(const char *s) {

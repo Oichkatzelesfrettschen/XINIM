@@ -1,0 +1,46 @@
+# authority: XINIM AGENTS.md Language Ownership and the C/C++-assembly ABI contract
+# policy: project-owned implementation logic is C++23; C23 is reserved for genuine ABI headers; assembly owns instruction-level entry and transfer
+# cmake values: required is a literal source reference, generated is selected by a CMake source rule, header is an ABI header, forbidden is retired wiring
+path	language	role	cmake	assembly_contract
+include/xinim/abi/native_syscall_numbers.h	c23	shared-abi-header	header	-
+include/xinim/abi/x86_64_syscall_frame.h	c23	shared-abi-header	header	-
+include/xinim/sys/syscalls.h	c23	shared-abi-header	header	-
+userland/bin/ctrlc_test_i486.cpp	cpp23	utility	generated	-
+userland/bin/ext2_stress_i486.cpp	cpp23	utility	generated	-
+userland/bin/forkexec_test_i486.cpp	cpp23	utility	generated	-
+userland/bin/pipe_test_i486.cpp	cpp23	utility	generated	-
+userland/bin/posix_tests_i486.cpp	cpp23	utility	generated	-
+userland/bin/preempt_test_i486.cpp	cpp23	utility	generated	-
+userland/bin/printf_test_i486.cpp	cpp23	utility	generated	-
+userland/bin/signal_test_i486.cpp	cpp23	utility	generated	-
+userland/shell/mksh/integration/xinim_job_control.cpp	cpp23	mksh-abi-adapter	required	-
+userland/shell/mksh/integration/xinim_terminal.cpp	cpp23	mksh-abi-adapter	required	-
+userland/tests/diethello_i486.cpp	cpp23	utility	required	-
+userland/tests/hello.cpp	cpp23	host-test	required	-
+src/arch/x86_64/context_restore.S	assembly	live	required	public-symbols
+src/arch/x86_64/gdt_load.S	assembly	live	required	public-symbols
+src/arch/x86_64/interrupts.S	assembly	live	required	public-symbols
+src/arch/x86_64/syscall_handler.S	assembly	live	required	public-symbols
+src/arch/x86_64/tss_load.S	assembly	live	required	public-symbols
+src/boot/multiboot2/entry.S	assembly	live	required	public-symbols
+src/kernel/arch/x86_64/isr.S	assembly	retired	forbidden	-
+src/kernel/i486/ring3_entry.S	assembly	live	required	public-symbols
+src/kernel/i686/irq_stubs.S	assembly	live	required	public-symbols
+src/kernel/i686/sysenter_entry.S	assembly	live	required	public-symbols
+src/kernel/minix/boot.S	assembly	retired	forbidden	-
+src/kernel/mpx64_stubs.S	assembly	retired	forbidden	-
+userland/bin/brk_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/echo_x86_64.S	assembly	live	required	public-symbols
+userland/bin/file_operations_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/fs_abi_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/ipc_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/mmap_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/preempt_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/runtime_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/select_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/signal_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/socket_check_x86_64.S	assembly	live	required	public-symbols
+userland/bin/true_x86_64.S	assembly	live	required	public-symbols
+userland/bin/tty_abi_check_x86_64.S	assembly	live	required	public-symbols
+userland/shell/xash/entry_i486.S	assembly	live	required	public-symbols
+userland/shell/xash/entry_x86_64.S	assembly	live	required	public-symbols

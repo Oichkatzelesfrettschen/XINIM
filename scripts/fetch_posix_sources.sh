@@ -10,6 +10,7 @@ ARCHIVE_NAME=susv4-2018.tgz
 MOZILLA_USER_AGENT='Mozilla/5.0 (X11; Linux x86_64; rv:141.0) Gecko/20100101 Firefox/141.0'
 DOWNLOAD_DIRECTORY=$REPOSITORY_ROOT/build/_state/downloads/posix
 EXTRACT_ROOT=$REPOSITORY_ROOT/build/_state/cache/posix
+TRACKED_ARCHIVE_PATH=$REPOSITORY_ROOT/data/external/posix/$ARCHIVE_NAME
 ARCHIVE_PATH=$DOWNLOAD_DIRECTORY/$ARCHIVE_NAME
 RESPONSE_LOG=$DOWNLOAD_DIRECTORY/susv4-2018.response.log
 OFFLINE=0
@@ -57,6 +58,11 @@ done
 
 mkdir -p -- "$DOWNLOAD_DIRECTORY" "$EXTRACT_ROOT"
 
+if [ "$OFFLINE" -eq 1 ] && [ ! -f "$ARCHIVE_PATH" ] &&
+   [ -f "$TRACKED_ARCHIVE_PATH" ]; then
+    ARCHIVE_PATH=$TRACKED_ARCHIVE_PATH
+fi
+
 if [ "$OFFLINE" -eq 0 ]; then
     PARTIAL_ARCHIVE=$DOWNLOAD_DIRECTORY/.susv4-2018.tgz.partial.$$
     PARTIAL_RESPONSE=$DOWNLOAD_DIRECTORY/.susv4-2018.response.partial.$$
@@ -92,5 +98,5 @@ python3 "$SCRIPT_DIRECTORY/verify_posix_issue7_archive.py" \
     --extract
 
 printf '%s\n' \
-    "Retained personal-use archive: $ARCHIVE_PATH" \
+    "Verified SUSv4 Issue 7 archive: $ARCHIVE_PATH" \
     "Verified extracted corpus: $EXTRACT_ROOT/susv4-2018"

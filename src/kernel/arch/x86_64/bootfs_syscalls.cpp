@@ -6,6 +6,7 @@
 #include "../../uaccess.hpp"
 #include "process_syscalls.hpp"
 #include "serial_terminal.hpp"
+#include "socket_syscalls.hpp"
 #include "userspace_abi.hpp"
 
 #include <cerrno>
@@ -108,22 +109,27 @@ namespace xinim::kernel::x86_64 {
             FileDescriptor *descriptor = process.fd_table.get_fd(descriptor_number);
 
             int close_result = 0;
-            BootfsOpenDescription *description = open_description(*descriptor);
-            if (description != nullptr) {
-                if (description->reference_count == 0U) {
-                    return -EIO;
-                }
-                --description->reference_count;
-                if (description->reference_count == 0U) {
-                    if (description->lock_mode != 0) {
-                        static_cast<void>(bootfs::update_file_lock(
-                            description->backend_descriptor,
-                            reinterpret_cast<uintptr_t>(description), description->lock_mode, 0));
-                        description->lock_mode = 0;
-                        wake_io_waiters();
+            if (socket_descriptor_is_socket(*descriptor)) {
+                socket_descriptor_release(*descriptor);
+            } else {
+                BootfsOpenDescription *description = open_description(*descriptor);
+                if (description != nullptr) {
+                    if (description->reference_count == 0U) {
+                        return -EIO;
                     }
-                    close_result = bootfs::close(description->backend_descriptor);
-                    free(description);
+                    --description->reference_count;
+                    if (description->reference_count == 0U) {
+                        if (description->lock_mode != 0) {
+                            static_cast<void>(bootfs::update_file_lock(
+                                description->backend_descriptor,
+                                reinterpret_cast<uintptr_t>(description), description->lock_mode,
+                                0));
+                            description->lock_mode = 0;
+                            wake_io_waiters();
+                        }
+                        close_result = bootfs::close(description->backend_descriptor);
+                        free(description);
+                    }
                 }
             }
             const int descriptor_close_result = process.fd_table.close_fd(descriptor_number);
@@ -332,9 +338,13 @@ namespace xinim::kernel::x86_64 {
         for (size_t index = 0U; index < MAX_FDS_PER_PROCESS; ++index) {
             if (child.fd_table.is_valid_fd(static_cast<int>(index))) {
                 FileDescriptor *descriptor = child.fd_table.get_fd(static_cast<int>(index));
-                BootfsOpenDescription *description = open_description(*descriptor);
-                if (description != nullptr) {
-                    ++description->reference_count;
+                if (socket_descriptor_is_socket(*descriptor)) {
+                    socket_descriptor_retain(*descriptor);
+                } else {
+                    BootfsOpenDescription *description = open_description(*descriptor);
+                    if (description != nullptr) {
+                        ++description->reference_count;
+                    }
                 }
             }
         }
@@ -385,6 +395,9 @@ namespace xinim::kernel::x86_64 {
                 : nullptr;
         if (process_descriptor == nullptr) {
             return -EBADF;
+        }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return socket_read(descriptor, buffer, count);
         }
         if (is_terminal_input(*process_descriptor)) {
             return serial_terminal_read(0U, buffer, count);
@@ -442,6 +455,9 @@ namespace xinim::kernel::x86_64 {
         if (process_descriptor == nullptr) {
             return -EBADF;
         }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return socket_write(descriptor, buffer, count);
+        }
         if (is_terminal_output(*process_descriptor)) {
             return serial_terminal_write(1U, buffer, count);
         }
@@ -494,6 +510,9 @@ namespace xinim::kernel::x86_64 {
                 : nullptr;
         if (process_descriptor == nullptr) {
             return -EBADF;
+        }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return -ESPIPE;
         }
         const BootfsOpenDescription *description = open_description(*process_descriptor);
         return description != nullptr
@@ -563,9 +582,13 @@ namespace xinim::kernel::x86_64 {
         FileDescriptor *destination = process->fd_table.get_fd(duplicate);
         *destination = *source;
         destination->flags = 0U;
-        BootfsOpenDescription *description = open_description(*destination);
-        if (description != nullptr) {
-            ++description->reference_count;
+        if (socket_descriptor_is_socket(*destination)) {
+            socket_descriptor_retain(*destination);
+        } else {
+            BootfsOpenDescription *description = open_description(*destination);
+            if (description != nullptr) {
+                ++description->reference_count;
+            }
         }
         return duplicate;
     }
@@ -615,6 +638,9 @@ namespace xinim::kernel::x86_64 {
                                             : 0U;
             return 0;
         case kFcntlGetStatusFlags: {
+            if (socket_descriptor_is_socket(*process_descriptor)) {
+                return process_descriptor->file_flags;
+            }
             const BootfsOpenDescription *description = open_description(*process_descriptor);
             return description != nullptr ? description->status_flags
                                           : process_descriptor->file_flags;
@@ -622,6 +648,11 @@ namespace xinim::kernel::x86_64 {
         case kFcntlSetStatusFlags: {
             const uint32_t mutable_flags =
                 static_cast<uint32_t>(argument) & (kStatusAppend | kStatusNonBlock);
+            if (socket_descriptor_is_socket(*process_descriptor)) {
+                process_descriptor->file_flags =
+                    (process_descriptor->file_flags & ~kStatusNonBlock) | mutable_flags;
+                return 0;
+            }
             BootfsOpenDescription *description = open_description(*process_descriptor);
             if (description == nullptr) {
                 process_descriptor->file_flags =
@@ -666,6 +697,9 @@ namespace xinim::kernel::x86_64 {
         if (process_descriptor == nullptr) {
             return false;
         }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return socket_descriptor_read_ready(descriptor);
+        }
         if (is_terminal_input(*process_descriptor)) {
             return serial_terminal_has_input();
         }
@@ -685,6 +719,9 @@ namespace xinim::kernel::x86_64 {
                 : nullptr;
         if (process_descriptor == nullptr) {
             return false;
+        }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return socket_descriptor_write_ready(descriptor);
         }
         if (is_terminal_output(*process_descriptor)) {
             return true;
@@ -796,6 +833,9 @@ namespace xinim::kernel::x86_64 {
         if (process_descriptor == nullptr) {
             return -EBADF;
         }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return -EBADF;
+        }
         const BootfsOpenDescription *description = open_description(*process_descriptor);
         bootfs::FileStatus record{};
         int result = 0;
@@ -823,6 +863,9 @@ namespace xinim::kernel::x86_64 {
                 : nullptr;
         if (process_descriptor == nullptr) {
             return -EBADF;
+        }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return -ENOTDIR;
         }
         BootfsOpenDescription *description = open_description(*process_descriptor);
         if (description == nullptr) {
@@ -924,6 +967,9 @@ namespace xinim::kernel::x86_64 {
         if (length < 0) {
             return -EINVAL;
         }
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return -EBADF;
+        }
         const BootfsOpenDescription *description = open_description(*process_descriptor);
         if (description == nullptr) {
             return -EBADF;
@@ -983,6 +1029,9 @@ namespace xinim::kernel::x86_64 {
             return -EINVAL;
         }
         const FileDescriptor *process_descriptor = process->fd_table.get_fd(descriptor);
+        if (socket_descriptor_is_socket(*process_descriptor)) {
+            return -EBADF;
+        }
         const BootfsOpenDescription *description = open_description(*process_descriptor);
         return description != nullptr && bootfs::chown_fd(description->backend_descriptor,
                                                           decoded_user_id, decoded_group_id) == 0
@@ -1006,6 +1055,9 @@ namespace xinim::kernel::x86_64 {
             process != nullptr && process->fd_table.is_valid_fd(descriptor)
                 ? process->fd_table.get_fd(descriptor)
                 : nullptr;
+        if (process_descriptor != nullptr && socket_descriptor_is_socket(*process_descriptor)) {
+            return -EBADF;
+        }
         BootfsOpenDescription *description =
             process_descriptor != nullptr ? open_description(*process_descriptor) : nullptr;
         if (description == nullptr) {

@@ -1,3 +1,4 @@
+// XINIM-owned userspace implementation; compile as freestanding C++23.
 #include <fcntl.h>
 #include <unistd.h>
 #include <string.h>

@@ -10,6 +10,7 @@
 .type _start, @function
 
 _start:
+    xor %r14d, %r14d
     xor %edi, %edi
     xor %esi, %esi
     mov $10, %edx
@@ -38,6 +39,7 @@ _start:
     jne .failure
     cmpw $80, 2+original_window(%rip)
     jne .failure
+    mov $1, %r14d
 
     mov %r12, %rdi
     mov $TIOCSWINSZ, %esi
@@ -88,12 +90,35 @@ _start:
     syscall
     test %rax, %rax
     jne .failure
+    xor %r15d, %r15d
+    jmp .restore_and_report
+
+.failure:
+    mov $1, %r15d
+
+.restore_and_report:
+    test %r14d, %r14d
+    jz .report_result
+    mov %r12, %rdi
+    mov $TIOCSWINSZ, %esi
+    lea original_window(%rip), %rdx
+    mov $XINIM_NATIVE_SYS_IOCTL, %rax
+    syscall
+    test %rax, %rax
+    jne .restore_failed
+
     mov %r12, %rdi
     mov $XINIM_NATIVE_SYS_CLOSE, %rax
     syscall
     test %rax, %rax
-    jne .failure
+    je .report_result
 
+.restore_failed:
+    mov $1, %r15d
+
+.report_result:
+    test %r15d, %r15d
+    jnz .emit_failure
     mov $1, %edi
     lea success_message(%rip), %rsi
     mov $success_message_size, %edx
@@ -102,7 +127,7 @@ _start:
     xor %edi, %edi
     jmp .exit
 
-.failure:
+.emit_failure:
     mov $2, %edi
     lea failure_message(%rip), %rsi
     mov $failure_message_size, %edx

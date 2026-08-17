@@ -1,0 +1,20 @@
+# authority: IEEE Std 1003.1-2017 and The Open Group Base Specifications Issue 7, 2018 edition
+# source: utilities/true.html from pinned susv4-2018.tgz
+# snapshot-count: 13
+# required-count: 6
+# excluded-scope-count: 7
+# ordered-source-sha256: cc0afbaeecb841c6257a7470e37ecf0a14cb3d25afedf12f801ae244130a35ff
+requirement	title	source_ref	source_sha256	applicability	state	witness	next_action
+true.description.exit_zero	Return true with exit code zero	susv4-2018/utilities/true.html#up:1	72e6c0e16e1b595b15f2d120e29e181cdc1f070aafdf91e751240e2333190e48	required	closed	tests:test/boot/x86_64_shell_test.py#true.success	-
+true.options.none	No utility-specific options	susv4-2018/utilities/true.html#up:2	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-
+true.operands.none	No operands	susv4-2018/utilities/true.html#up:3	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-
+true.stdin.unused	Standard input is not used	susv4-2018/utilities/true.html#up:4	ebbc304fb6a0235d0c7d8b2c69491f61b0b4d3ee72bd84b998cafc2799ce5b29	required	closed	tests:test/boot/x86_64_shell_test.py#true.stdin_unused	-
+true.input_files.none	No input files	susv4-2018/utilities/true.html#up:5	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-
+true.environment.none	No environment variables	susv4-2018/utilities/true.html#up:6	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-
+true.async.default	Default asynchronous-event behavior	susv4-2018/utilities/true.html#up:7	df324cf0dd55811739de9296ba43f61ee6290a63b6d56c4843530429ddee1dc5	required	closed	tests:test/boot/x86_64_shell_test.py#true.success	-
+true.stdout.unused	Standard output is not used	susv4-2018/utilities/true.html#up:8	ebbc304fb6a0235d0c7d8b2c69491f61b0b4d3ee72bd84b998cafc2799ce5b29	required	closed	tests:test/boot/x86_64_shell_test.py#true.no_output	-
+true.stderr.unused	Standard error is not used	susv4-2018/utilities/true.html#up:9	ebbc304fb6a0235d0c7d8b2c69491f61b0b4d3ee72bd84b998cafc2799ce5b29	required	closed	tests:test/boot/x86_64_shell_test.py#true.no_output	-
+true.output_files.none	No output files	susv4-2018/utilities/true.html#up:10	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-
+true.extended.none	No extended description	susv4-2018/utilities/true.html#up:11	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-
+true.exit.zero	Zero exit status	susv4-2018/utilities/true.html#up:12	c971be1a1e4940335c695de956be2adfe37dc604891bd7865bd737d7b15cf013	required	closed	tests:test/boot/x86_64_shell_test.py#true.success	-
+true.errors.none	No consequences of errors	susv4-2018/utilities/true.html#up:13	903ea500e7ccf842c1312b6c2f964e3e98ff146456cecec717e9a0e122bf735f	none	excluded	scope:none	-

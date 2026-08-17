@@ -69,7 +69,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--archive",
         type=Path,
-        default=Path("build/_state/downloads/posix") / ARCHIVE_NAME,
+        default=Path("data/external/posix") / ARCHIVE_NAME,
     )
     parser.add_argument(
         "--extract-root",
@@ -79,7 +79,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--ledger",
         type=Path,
-        default=Path("docs/posix/posix2_utility_ledger.tsv"),
+        default=Path("docs/posix/posix_issue7_utility_ledger.tsv"),
     )
     parser.add_argument("--extract", action="store_true")
     parser.add_argument("--self-test", action="store_true")
