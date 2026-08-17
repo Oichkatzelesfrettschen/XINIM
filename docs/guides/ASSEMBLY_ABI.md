@@ -160,7 +160,8 @@ proves that the xash entry object has no data, BSS, or syscall-number symbol.
 Its syscall, interrupt, exception-vector, context-restore, FPU-preservation,
 and storage checks are calibrated with known-good and known-bad fixtures.
 
-The i486 and i686 kernel plus xash targets provide full compile and link gates.
+The i486 and i686 kernel plus their userspace shell targets provide full compile
+and link gates.
 The current x86_64 boot reaches the staged POSIX shell through the Ring 3
 userspace handoff. `test/boot/x86_64_shell_test.py` requires the Ring 3
 sentinel, the exact Q35 machine and CPU, and shell-visible syscall results.

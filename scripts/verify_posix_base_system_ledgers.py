@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import html
 import re
@@ -66,6 +67,8 @@ TITLE_PATTERN = re.compile(r"<title>(?P<title>.*?)</title>", re.IGNORECASE | re.
 TAG_PATTERN = re.compile(r"<[^>]+>")
 CLAUSE_PATTERN = re.compile(r"tag_[0-9]+(?:_[0-9]+)*")
 QEMU_RING3_WITNESS = "test/boot/x86_64_shell_test.py"
+QEMU_RING3_CASE_GROUP = "SHELL_LANGUAGE_COMMAND_CASES"
+QEMU_RING3_CASE = "tag_18_03.rule02_operator_continuation.and_if"
 VERIFIER_PATH = "scripts/verify_posix_base_system_ledgers.py"
 
 
@@ -419,22 +422,78 @@ def derive_ledgers(repository_root: Path, archive_path: Path, spec: VolumeSpec) 
     write_ledger(spec.clause_ledger, CLAUSE_COLUMNS, clause_comments, clause_rows)
 
 
-def validate_witness(owner: str, witness: str, repository_root: Path) -> list[str]:
+def read_executable_case_ids(repository_root: Path) -> set[str]:
+    test_path = repository_root / QEMU_RING3_WITNESS
+    try:
+        syntax_tree = ast.parse(test_path.read_text(encoding="ascii"), filename=str(test_path))
+    except (OSError, UnicodeDecodeError, SyntaxError) as error:
+        raise VerificationError(f"cannot parse ASCII Q35 shell test {test_path}: {error}") from error
+    assignment = next(
+        (
+            statement
+            for statement in syntax_tree.body
+            if isinstance(statement, ast.Assign)
+            and any(
+                isinstance(target, ast.Name)
+                and target.id == QEMU_RING3_CASE_GROUP
+                for target in statement.targets
+            )
+        ),
+        None,
+    )
+    if assignment is None:
+        raise VerificationError(f"{test_path}: missing {QEMU_RING3_CASE_GROUP}")
+    try:
+        cases = ast.literal_eval(assignment.value)
+    except (ValueError, TypeError) as error:
+        raise VerificationError(f"{test_path}: Q35 case group is not an ASCII literal") from error
+    if not isinstance(cases, tuple):
+        raise VerificationError(f"{test_path}: Q35 case group must be a tuple")
+    case_ids: set[str] = set()
+    for case in cases:
+        if not isinstance(case, tuple) or len(case) != 3 or not all(isinstance(value, str) for value in case):
+            raise VerificationError(f"{test_path}: malformed Q35 shell case")
+        case_id, command, expected = case
+        if not case_id or not command or not expected:
+            raise VerificationError(f"{test_path}: Q35 shell case has an empty field")
+        if case_id in case_ids:
+            raise VerificationError(f"{test_path}: duplicate Q35 shell case ID: {case_id}")
+        case_ids.add(case_id)
+    return case_ids
+
+
+def validate_witness(
+    owner: str,
+    witness: str,
+    repository_root: Path,
+    executable_case_ids: set[str],
+) -> list[str]:
     if not witness.startswith("tests:"):
         return [f"{owner}: closed witness must start with 'tests:'"]
     references = witness.removeprefix("tests:").split(",")
     if not references or any(not reference for reference in references):
         return [f"{owner}: closed witness has no test paths"]
     failures: list[str] = []
+    exact_q35_case = False
     for reference in references:
-        candidate = PurePosixPath(reference)
+        witness_path, separator, case_id = reference.partition("#")
+        candidate = PurePosixPath(witness_path)
         if candidate.is_absolute() or ".." in candidate.parts:
             failures.append(f"{owner}: invalid witness path: {reference}")
             continue
         if not (repository_root / candidate).is_file():
-            failures.append(f"{owner}: missing witness file: {reference}")
-    if QEMU_RING3_WITNESS not in references:
-        failures.append(f"{owner}: closed witness must include exact Q35 Ring 3 test {QEMU_RING3_WITNESS}")
+            failures.append(f"{owner}: missing witness file: {witness_path}")
+        if witness_path == QEMU_RING3_WITNESS:
+            if not separator or not case_id or case_id not in executable_case_ids:
+                failures.append(f"{owner}: Q35 witness case is not executable: {reference}")
+            else:
+                exact_q35_case = True
+        elif separator:
+            failures.append(f"{owner}: non-Q35 witness cannot include a case selector: {reference}")
+    if not exact_q35_case:
+        failures.append(
+            f"{owner}: closed witness must include an exact Q35 Ring 3 case from {QEMU_RING3_WITNESS}"
+        )
     if VERIFIER_PATH not in references:
         failures.append(f"{owner}: closed witness must include source verifier {VERIFIER_PATH}")
     return failures
@@ -448,6 +507,7 @@ def validate_state_partition(
     next_action_index: int,
     repository_root: Path,
     owner_label: str,
+    executable_case_ids: set[str],
     composite_owner: bool = False,
 ) -> list[str]:
     failures: list[str] = []
@@ -476,7 +536,9 @@ def validate_state_partition(
                 failures.append(f"{owner}: open row lacks a next action")
         else:
             closed_keys.add(owner)
-            failures.extend(validate_witness(owner, witness, repository_root))
+            failures.extend(
+                validate_witness(owner, witness, repository_root, executable_case_ids)
+            )
             if next_action != "-":
                 failures.append(f"{owner}: closed row next_action must be '-'")
     if open_keys & closed_keys:
@@ -492,6 +554,7 @@ def validate_volume(
     sources: list[ParentSource],
     parent_rows: list[tuple[str, ...]],
     clause_rows: list[tuple[str, ...]],
+    executable_case_ids: set[str],
 ) -> list[str]:
     failures: list[str] = []
     expected_parent_identity = [
@@ -528,7 +591,18 @@ def validate_volume(
         failures.append(f"{spec.name}: clause key hash mismatch: expected {spec.clause_key_sha256}, got {clause_key_hash}")
     if clause_row_hash != spec.clause_row_sha256:
         failures.append(f"{spec.name}: clause row hash mismatch: expected {spec.clause_row_sha256}, got {clause_row_hash}")
-    failures.extend(validate_state_partition(parent_rows, 0, 6, 7, 8, repository_root, f"{spec.name} parent ledger"))
+    failures.extend(
+        validate_state_partition(
+            parent_rows,
+            0,
+            6,
+            7,
+            8,
+            repository_root,
+            f"{spec.name} parent ledger",
+            executable_case_ids,
+        )
+    )
     failures.extend(
         validate_state_partition(
             clause_rows,
@@ -538,6 +612,7 @@ def validate_volume(
             6,
             repository_root,
             f"{spec.name} clause ledger",
+            executable_case_ids,
             composite_owner=True,
         )
     )
@@ -557,11 +632,21 @@ def verify_ledgers(repository_root: Path, archive_path: Path, specs: tuple[Volum
         verify_archive_identity(archive_path, expected_sha256=ARCHIVE_SHA256)
         results: dict[str, tuple[list[tuple[str, ...]], list[tuple[str, ...]]]] = {}
         failures: list[str] = []
+        executable_case_ids = read_executable_case_ids(repository_root)
         for spec in specs:
             sources = derive_parent_sources(archive_path, spec.name)
             parent_rows = parse_ledger(spec.parent_ledger, PARENT_COLUMNS)
             clause_rows = parse_ledger(spec.clause_ledger, CLAUSE_COLUMNS)
-            failures.extend(validate_volume(repository_root, spec, sources, parent_rows, clause_rows))
+            failures.extend(
+                validate_volume(
+                    repository_root,
+                    spec,
+                    sources,
+                    parent_rows,
+                    clause_rows,
+                    executable_case_ids,
+                )
+            )
             results[spec.name] = (parent_rows, clause_rows)
         return failures, results
     except (OSError, tarfile.TarError, VerificationError) as error:
@@ -580,17 +665,32 @@ def run_self_test(repository_root: Path, archive_path: Path, specs: tuple[Volume
     base_spec = specs[0]
     base_sources = derive_parent_sources(archive_path, base_spec.name)
     parent_rows, clause_rows = results[base_spec.name]
+    executable_case_ids = read_executable_case_ids(repository_root)
 
     duplicate_parent = parent_rows + [parent_rows[0]]
     expect_failure(
         "duplicate parent",
-        validate_volume(repository_root, base_spec, base_sources, duplicate_parent, clause_rows),
+        validate_volume(
+            repository_root,
+            base_spec,
+            base_sources,
+            duplicate_parent,
+            clause_rows,
+            executable_case_ids,
+        ),
         "parent denominator mismatch",
     )
     missing_clause = clause_rows[1:]
     expect_failure(
         "missing clause",
-        validate_volume(repository_root, base_spec, base_sources, parent_rows, missing_clause),
+        validate_volume(
+            repository_root,
+            base_spec,
+            base_sources,
+            parent_rows,
+            missing_clause,
+            executable_case_ids,
+        ),
         "clause source identity differs",
     )
     changed_title = list(parent_rows[0])
@@ -598,17 +698,31 @@ def run_self_test(repository_root: Path, archive_path: Path, specs: tuple[Volume
     mutated_parent_rows = [tuple(changed_title), *parent_rows[1:]]
     expect_failure(
         "source title mutation",
-        validate_volume(repository_root, base_spec, base_sources, mutated_parent_rows, clause_rows),
+        validate_volume(
+            repository_root,
+            base_spec,
+            base_sources,
+            mutated_parent_rows,
+            clause_rows,
+            executable_case_ids,
+        ),
         "parent source identity differs",
     )
     closed_parent = list(parent_rows[0])
     closed_parent[6] = "closed"
-    closed_parent[7] = f"tests:{QEMU_RING3_WITNESS},{VERIFIER_PATH}"
+    closed_parent[7] = f"tests:{QEMU_RING3_WITNESS}#{QEMU_RING3_CASE},{VERIFIER_PATH}"
     closed_parent[8] = "-"
     mutated_closed_rows = [tuple(closed_parent), *parent_rows[1:]]
     expect_failure(
         "parent dependency mutation",
-        validate_volume(repository_root, base_spec, base_sources, mutated_closed_rows, clause_rows),
+        validate_volume(
+            repository_root,
+            base_spec,
+            base_sources,
+            mutated_closed_rows,
+            clause_rows,
+            executable_case_ids,
+        ),
         "parent is closed while clauses remain open",
     )
     print("SUSv4 Base Definitions/System Interfaces ledger mutation self-test passed.")
