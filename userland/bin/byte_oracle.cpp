@@ -67,7 +67,9 @@ namespace {
 
 } // namespace
 
-int main(int argument_count, char **arguments) {
+extern "C" int xinim_user_main(int argument_count, char **arguments) asm("main");
+
+extern "C" int xinim_user_main(int argument_count, char **arguments) {
     if (argument_count != 3) {
         report("byte-oracle: expected PATH HEX-BYTES\n");
         return 2;

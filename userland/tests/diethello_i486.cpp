@@ -4,7 +4,9 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-int main(void) {
+extern "C" int xinim_user_main(void) asm("main");
+
+extern "C" int xinim_user_main(void) {
     char cwd[16];
     if (getcwd(cwd, sizeof(cwd)) == NULL) {
         puts("diethello: getcwd failed");

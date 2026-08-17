@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ARCHIVED: historical GCC-based dietlibc path. Use the CMake-owned Clang
+# recipe for the supported build lanes.
 # XINIM dietlibc Build Script
 # Builds dietlibc 0.34 for x86_64-xinim-elf target
 # Part of Week 2: dietlibc Integration

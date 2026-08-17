@@ -168,7 +168,6 @@ bool eval_expr() {
 int main(int argc, char** argv) {
     // If invoked as "[", strip trailing "]"
     if (argc > 0) {
-        int namelen = slen(argv[0]);
         // Check if basename is "["
         const char* base = argv[0];
         for (const char* p = argv[0]; *p; ++p)

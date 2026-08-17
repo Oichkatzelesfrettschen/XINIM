@@ -1,7 +1,7 @@
 # Makefile for XINIM Lock Framework Benchmarks
 
-CXX = g++
-CXXFLAGS = -std=c++17 -O3 -Wall -Wextra -pthread
+CXX = clang++
+CXXFLAGS = -std=c++23 -O3 -Wall -Wextra -pthread
 INCLUDES = -I../../src/kernel
 
 # Targets

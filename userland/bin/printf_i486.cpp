@@ -32,7 +32,9 @@ namespace {
 
 } // namespace
 
-int main(int argument_count, char **arguments) {
+extern "C" int xinim_user_main(int argument_count, char **arguments) asm("main");
+
+extern "C" int xinim_user_main(int argument_count, char **arguments) {
     if (argument_count < 2) {
         static_cast<void>(write_literal(2, "printf: format operand is required\n"));
         return 1;

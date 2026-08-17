@@ -1,5 +1,8 @@
 #!/usr/bin/env bash
 #
+# ARCHIVED: validates the historical GCC/libgcc sysroot, not the supported
+# CMake build. Use the CMake compiler-ownership verifier for current lanes.
+#
 # validate_toolchain.sh - Validate XINIM cross-compiler toolchain installation
 #
 # This script validates that the x86_64-xinim-elf toolchain was built correctly

@@ -92,8 +92,8 @@ int main(int argc, char** argv) {
     int status = 0;
     for (int i = 2; i < argc; ++i) {
         // Use -1 cast to uid_t/gid_t to mean "no change" per POSIX
-        auto u = static_cast<unsigned>(uid);
-        auto g = static_cast<unsigned>(gid);
+        auto u = static_cast<uid_t>(uid);
+        auto g = static_cast<gid_t>(gid);
         if (chown(argv[i], u, g) < 0) {
             err2("chown", argv[i], "cannot change owner");
             status = 1;

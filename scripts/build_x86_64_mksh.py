@@ -145,6 +145,7 @@ def main() -> int:
     parser.add_argument("--source-dir", required=True)
     parser.add_argument("--build-dir", required=True)
     parser.add_argument("--cc", required=True)
+    parser.add_argument("--compiler-runtime", required=True)
     parser.add_argument("--start-o", required=True)
     parser.add_argument("--dietlibc-a", required=True)
     parser.add_argument("--linker-script", required=True)
@@ -218,7 +219,7 @@ def main() -> int:
     link_arguments = compiler_arguments + [
         "-nostdlib",
         "-static",
-        "-no-pie",
+        "-Wl,-no-pie",
         "-Wl,--build-id=none",
         "-Wl,--cref",
         "-Wl,-Map," + str(link_map_path),
@@ -228,7 +229,7 @@ def main() -> int:
         str(start_object),
         *object_files,
         str(dietlibc_archive),
-        "-lgcc",
+        str(Path(arguments.compiler_runtime).resolve()),
     ]
     run(link_arguments, build_directory)
     return 0

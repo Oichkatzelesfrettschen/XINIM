@@ -1,20 +1,27 @@
-clang (from LLVM) can be used to compile against dietlibc, but it can
-not be used to compile dietlibc itself.  The reason is that dietlibc
-uses gas (the GNU assembler, part of binutils) features in the assembly
-parts that are not yet supported by clang.
+XINIM builds the pinned dietlibc tree with the same Clang C driver used by
+the kernel and project-owned userland. The optional `cross-elf` lane adds a
+target triple to that driver; target binutils provide only archiving, GNU
+assembly syntax, stripping, preprocessing, and ELF inspection.
 
-The build process compensates by passing -fno-integrated-as to clang,
-but that makes compilation with clang much slower than compilation with
-gcc.
+The build passes `-fno-integrated-as` for the vendor assembly sources so the
+GNU assembler syntax remains supported. The builder injects the exact
+configured binutils paths into the copied vendor Makefile; it does not use
+ambient host tools.
 
-Still, the end result appears to work.
-
-Note that the resulting binaries are larger. Here is the diet binary
-for comparison. Compiled with gcc 5.2:
-
--rwxr-xr-x    1 root     root         8176 Jul  4 20:43 diet
-
-Compiled with clang 3.6.2:
-
--rwxr-xr-x    1 leitner  users        8560 Jul 29 14:49 bin-x86_64/diet-i
-
+The pinned tree contains the GCC-only
+`__attribute__((optimize("no-stack-protector")))` annotation in
+`lib/stackgap-common.h`. Clang already receives `-fno-stack-protector`, so
+the vendor-only `-Wno-unknown-attributes` flag keeps this redundant annotation
+from failing the vendor build. The same narrow compatibility flags disable
+Clang's `-Wdeprecated-non-prototype` diagnostic for the tree's legacy K&R
+definitions. XINIM-owned sources retain `-Werror` without these vendor
+exceptions.
+The vendor-only `-Wno-int-in-bool-context` flag likewise covers an upstream
+syslog bit-mask expression whose integer truth conversion is intentional.
+The vendor-only `-Wno-null-pointer-subtraction` flag covers the tree's
+pointer-to-integer alignment idiom in the cryptographic routines.
+The vendor-only `-Wno-switch` flag preserves the upstream regex parser's
+intentional fall-through handling for its sentinel enum value.
+The vendor-only `-fno-builtin-bcmp` flag preserves dietlibc's weak `bcmp`
+alias next to `memcmp`; Clang otherwise treats the legacy alias declaration as
+a builtin redeclaration and omits the symbol from the archive.

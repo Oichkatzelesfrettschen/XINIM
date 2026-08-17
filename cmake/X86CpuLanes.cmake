@@ -76,7 +76,7 @@ function(xinim_get_x86_lane_property lane property out_var)
             -mno-mmx
             -mno-sse
         )
-        # Arch flags for userland utilities and external build tools (gcc -m32 ...)
+        # Arch flags for userland utilities and external build tools (Clang -m32 ...)
         set(_util_arch_flags "-march=i486 -mtune=i486 -mno-mmx -mno-sse")
         set(_image_target "xinim_i486_image")
         set(_prepare_test "prepare_i486_image")

@@ -3,6 +3,9 @@
 
 cmake_minimum_required(VERSION 3.28)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON CACHE BOOL
+    "Export compiler commands for ownership verification" FORCE)
+
 set(XINIM_CPU_LANE "${XINIM_CPU_LANE}" CACHE STRING
     "Active XINIM CPU lane for this build tree")
 if(NOT XINIM_CPU_LANE)
@@ -20,7 +23,67 @@ endif()
 set(XINIM_X86_ELF_TOOLCHAIN_TRIPLE "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}" CACHE STRING
     "Optional ELF cross-toolchain triple for 32-bit cross-elf builds")
 set(XINIM_X86_ELF_TOOLCHAIN_ROOT "${XINIM_X86_ELF_TOOLCHAIN_ROOT}" CACHE PATH
-    "Optional root or bin directory containing <triple>-gcc style cross tools")
+    "Optional root or bin directory containing target ELF binutils")
+
+if(CMAKE_C_COMPILER)
+    set(_xinim_requested_c_compiler "${CMAKE_C_COMPILER}")
+    if(NOT IS_ABSOLUTE "${_xinim_requested_c_compiler}")
+        find_program(_xinim_found_c_compiler
+            NAMES "${_xinim_requested_c_compiler}" REQUIRED NO_CACHE)
+        set(_xinim_requested_c_compiler "${_xinim_found_c_compiler}")
+    endif()
+else()
+    find_program(_xinim_requested_c_compiler clang REQUIRED)
+endif()
+if(CMAKE_CXX_COMPILER)
+    set(_xinim_requested_cxx_compiler "${CMAKE_CXX_COMPILER}")
+    if(NOT IS_ABSOLUTE "${_xinim_requested_cxx_compiler}")
+        find_program(_xinim_found_cxx_compiler
+            NAMES "${_xinim_requested_cxx_compiler}" REQUIRED NO_CACHE)
+        set(_xinim_requested_cxx_compiler "${_xinim_found_cxx_compiler}")
+    endif()
+else()
+    find_program(_xinim_requested_cxx_compiler clang++ REQUIRED)
+endif()
+if(CMAKE_ASM_COMPILER)
+    set(_xinim_requested_asm_compiler "${CMAKE_ASM_COMPILER}")
+    if(NOT IS_ABSOLUTE "${_xinim_requested_asm_compiler}")
+        find_program(_xinim_found_asm_compiler
+            NAMES "${_xinim_requested_asm_compiler}" REQUIRED NO_CACHE)
+        set(_xinim_requested_asm_compiler "${_xinim_found_asm_compiler}")
+    endif()
+else()
+    set(_xinim_requested_asm_compiler "${_xinim_requested_c_compiler}")
+endif()
+
+foreach(_xinim_compiler_driver IN ITEMS
+        _xinim_requested_c_compiler
+        _xinim_requested_cxx_compiler
+        _xinim_requested_asm_compiler)
+    get_filename_component(_xinim_compiler_name
+        "${${_xinim_compiler_driver}}" NAME)
+    if(_xinim_compiler_driver STREQUAL "_xinim_requested_cxx_compiler")
+        set(_xinim_compiler_pattern "^clang\\+\\+(-[0-9]+([.][0-9]+)*)?$")
+    else()
+        set(_xinim_compiler_pattern "^clang(-[0-9]+([.][0-9]+)*)?$")
+    endif()
+    if(NOT _xinim_compiler_name MATCHES "${_xinim_compiler_pattern}")
+        message(FATAL_ERROR
+            "XINIM requires Clang for project-owned ${_xinim_compiler_driver}; "
+            "received '${${_xinim_compiler_driver}}'.")
+    endif()
+endforeach()
+
+set(XINIM_CLANG_EXECUTABLE "${_xinim_requested_c_compiler}" CACHE FILEPATH
+    "Clang C compiler driver for all project-owned C and assembly sources" FORCE)
+set(XINIM_CLANGXX_EXECUTABLE "${_xinim_requested_cxx_compiler}" CACHE FILEPATH
+    "Clang C++ compiler driver for all project-owned C++ sources" FORCE)
+set(CMAKE_C_COMPILER "${XINIM_CLANG_EXECUTABLE}" CACHE FILEPATH
+    "Clang C compiler driver" FORCE)
+set(CMAKE_CXX_COMPILER "${XINIM_CLANGXX_EXECUTABLE}" CACHE FILEPATH
+    "Clang C++ compiler driver" FORCE)
+set(CMAKE_ASM_COMPILER "${_xinim_requested_asm_compiler}" CACHE FILEPATH
+    "Clang assembly compiler driver" FORCE)
 set(XINIM_VFS_PROFILE "${XINIM_VFS_PROFILE}" CACHE STRING
     "Bare-metal VFS resident-memory profile: auto, default, or tiny")
 if(NOT XINIM_VFS_PROFILE)
@@ -89,12 +152,62 @@ if(NOT XINIM_CPU_LANE STREQUAL "x86_64" AND
     endif()
 
     # Keep host distro optimization flags and libc++ selection from leaking into
-    # freestanding ELF cross-compiler detection.
+    # freestanding ELF cross-compiler detection.  Clang remains the only
+    # compiler driver; target binutils provide the non-compiler ELF tools.
     set(ENV{CFLAGS} "")
     set(ENV{CXXFLAGS} "")
     set(ENV{LDFLAGS} "")
     set(CMAKE_C_FLAGS_INIT "" CACHE STRING "Initial C flags for XINIM cross-elf mode" FORCE)
-    set(CMAKE_CXX_FLAGS_INIT "" CACHE STRING "Initial CXX flags for XINIM cross-elf mode" FORCE)
+    set(XINIM_CLANG_CXX_INCLUDE_DIR "${XINIM_CLANG_CXX_INCLUDE_DIR}" CACHE PATH
+        "C++ headers used with the Clang cross-ELF driver")
+    if(NOT XINIM_CLANG_CXX_INCLUDE_DIR)
+        find_path(_xinim_clang_cxx_include_dir cstddef
+            PATHS /usr/include/c++/v1 /usr/local/include/c++/v1
+            NO_DEFAULT_PATH
+        )
+        if(NOT _xinim_clang_cxx_include_dir)
+            message(FATAL_ERROR
+                "Clang cross-ELF mode requires a libc++ C++ header root containing cstddef. "
+                "Set XINIM_CLANG_CXX_INCLUDE_DIR explicitly.")
+        endif()
+        set(XINIM_CLANG_CXX_INCLUDE_DIR "${_xinim_clang_cxx_include_dir}" CACHE PATH
+            "C++ headers used with the Clang cross-ELF driver" FORCE)
+    endif()
+    set(_xinim_libcxx_config_dir "${CMAKE_BINARY_DIR}/xinim-libcxx-config")
+    file(MAKE_DIRECTORY "${_xinim_libcxx_config_dir}")
+    file(WRITE "${_xinim_libcxx_config_dir}/__config_site" [=[
+#ifndef _LIBCPP___CONFIG_SITE
+#define _LIBCPP___CONFIG_SITE
+#define _LIBCPP_ABI_VERSION 1
+#define _LIBCPP_ABI_NAMESPACE __1
+#define _LIBCPP_ABI_FORCE_ITANIUM 0
+#define _LIBCPP_ABI_FORCE_MICROSOFT 0
+#define _LIBCPP_HAS_THREADS 0
+#define _LIBCPP_HAS_MONOTONIC_CLOCK 0
+#define _LIBCPP_HAS_TERMINAL 0
+#define _LIBCPP_HAS_MUSL_LIBC 0
+#define _LIBCPP_HAS_THREAD_API_PTHREAD 0
+#define _LIBCPP_HAS_THREAD_API_EXTERNAL 0
+#define _LIBCPP_HAS_THREAD_API_WIN32 0
+#define _LIBCPP_HAS_THREAD_API_C11 0
+#define _LIBCPP_HAS_VENDOR_AVAILABILITY_ANNOTATIONS 0
+#define _LIBCPP_HAS_FILESYSTEM 0
+#define _LIBCPP_HAS_RANDOM_DEVICE 0
+#define _LIBCPP_HAS_LOCALIZATION 0
+#define _LIBCPP_HAS_UNICODE 0
+#define _LIBCPP_HAS_WIDE_CHARACTERS 0
+#define _LIBCPP_HAS_TIME_ZONE_DATABASE 0
+#define _LIBCPP_INSTRUMENTED_WITH_ASAN 0
+#define _LIBCPP_PSTL_BACKEND_SERIAL
+#define _LIBCPP_HARDENING_MODE_DEFAULT 2
+#define _LIBCPP_ASSERTION_SEMANTIC_DEFAULT 2
+#define _LIBCPP_LIBC_PICOLIBC 0
+#define _LIBCPP_LIBC_NEWLIB 0
+#endif
+]=])
+    set(CMAKE_CXX_FLAGS_INIT
+        "-nostdinc++ -isystem ${_xinim_libcxx_config_dir} -isystem ${XINIM_CLANG_CXX_INCLUDE_DIR}"
+        CACHE STRING "Initial CXX flags for XINIM cross-elf mode" FORCE)
     set(CMAKE_EXE_LINKER_FLAGS_INIT "" CACHE STRING
         "Initial executable linker flags for XINIM cross-elf mode" FORCE)
     set(CMAKE_SHARED_LINKER_FLAGS_INIT "" CACHE STRING
@@ -130,31 +243,31 @@ if(NOT XINIM_CPU_LANE STREQUAL "x86_64" AND
         endif()
     endmacro()
 
-    _xinim_find_cross_tool(_xinim_cross_cc gcc)
-    _xinim_find_cross_tool(_xinim_cross_cxx g++)
     _xinim_find_cross_tool(_xinim_cross_ar ar)
     _xinim_find_cross_tool(_xinim_cross_as as)
+    _xinim_find_cross_tool(_xinim_cross_cpp cpp)
     _xinim_find_cross_tool(_xinim_cross_ld ld)
+    _xinim_find_cross_tool(_xinim_cross_nm nm)
     _xinim_find_cross_tool(_xinim_cross_ranlib ranlib)
     _xinim_find_cross_tool(_xinim_cross_objcopy objcopy)
     _xinim_find_cross_tool(_xinim_cross_objdump objdump)
     _xinim_find_cross_tool(_xinim_cross_strip strip)
 
     set(_xinim_missing_cross_tools "")
-    if(NOT _xinim_cross_cc)
-        list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-gcc")
-    endif()
-    if(NOT _xinim_cross_cxx)
-        list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-g++")
-    endif()
     if(NOT _xinim_cross_ar)
         list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-ar")
     endif()
     if(NOT _xinim_cross_as)
         list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-as")
     endif()
+    if(NOT _xinim_cross_cpp)
+        list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-cpp")
+    endif()
     if(NOT _xinim_cross_ld)
         list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-ld")
+    endif()
+    if(NOT _xinim_cross_nm)
+        list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-nm")
     endif()
     if(NOT _xinim_cross_ranlib)
         list(APPEND _xinim_missing_cross_tools "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}-ranlib")
@@ -174,7 +287,7 @@ if(NOT XINIM_CPU_LANE STREQUAL "x86_64" AND
         message(FATAL_ERROR
             "Unable to enable the optional ELF cross-toolchain lane for ${XINIM_CPU_LANE}. "
             "Missing tools: ${_xinim_missing_cross_tools_message}. "
-            "Install the matching ${XINIM_X86_ELF_TOOLCHAIN_TRIPLE} GCC/binutils package set, "
+            "Install host Clang and the matching ${XINIM_X86_ELF_TOOLCHAIN_TRIPLE} binutils package set, "
             "set XINIM_X86_ELF_TOOLCHAIN_ROOT to its install prefix or bin directory, "
             "or switch back to -DXINIM_X86_32_TOOLCHAIN_MODE=clang-m32.")
     endif()
@@ -182,25 +295,57 @@ if(NOT XINIM_CPU_LANE STREQUAL "x86_64" AND
     set(CMAKE_SYSTEM_NAME Generic CACHE STRING "Target system name for ELF cross builds" FORCE)
     set(CMAKE_SYSTEM_PROCESSOR "${XINIM_CPU_LANE}" CACHE STRING
         "Target processor for ELF cross builds" FORCE)
-    set(CMAKE_C_COMPILER "${_xinim_cross_cc}" CACHE FILEPATH
-        "ELF cross C compiler" FORCE)
-    set(CMAKE_CXX_COMPILER "${_xinim_cross_cxx}" CACHE FILEPATH
-        "ELF cross C++ compiler" FORCE)
-    set(CMAKE_ASM_COMPILER "${_xinim_cross_cc}" CACHE FILEPATH
-        "ELF cross assembler compiler driver" FORCE)
+    set(CMAKE_C_COMPILER "${XINIM_CLANG_EXECUTABLE}" CACHE FILEPATH
+        "Clang C compiler for ELF cross builds" FORCE)
+    set(CMAKE_CXX_COMPILER "${XINIM_CLANGXX_EXECUTABLE}" CACHE FILEPATH
+        "Clang C++ compiler for ELF cross builds" FORCE)
+    set(CMAKE_ASM_COMPILER "${XINIM_CLANG_EXECUTABLE}" CACHE FILEPATH
+        "Clang assembler compiler driver for ELF cross builds" FORCE)
+    set(CMAKE_C_COMPILER_TARGET "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}" CACHE STRING
+        "Clang C target triple for ELF cross builds" FORCE)
+    set(CMAKE_CXX_COMPILER_TARGET "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}" CACHE STRING
+        "Clang C++ target triple for ELF cross builds" FORCE)
+    set(CMAKE_ASM_COMPILER_TARGET "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}" CACHE STRING
+        "Clang assembler target triple for ELF cross builds" FORCE)
     set(CMAKE_AR "${_xinim_cross_ar}" CACHE FILEPATH "ELF cross archiver" FORCE)
     set(CMAKE_LINKER "${_xinim_cross_ld}" CACHE FILEPATH "ELF cross linker" FORCE)
+    set(CMAKE_NM "${_xinim_cross_nm}" CACHE FILEPATH "ELF cross nm" FORCE)
     set(CMAKE_RANLIB "${_xinim_cross_ranlib}" CACHE FILEPATH "ELF cross ranlib" FORCE)
     set(CMAKE_OBJCOPY "${_xinim_cross_objcopy}" CACHE FILEPATH "ELF cross objcopy" FORCE)
     set(CMAKE_OBJDUMP "${_xinim_cross_objdump}" CACHE FILEPATH "ELF cross objdump" FORCE)
     set(CMAKE_STRIP "${_xinim_cross_strip}" CACHE FILEPATH "ELF cross strip" FORCE)
 
+    # Use the target linker directly so the cross-ELF lane has no compiler
+    # driver dependency at link time either.
+    set(CMAKE_C_LINK_EXECUTABLE
+        "<CMAKE_LINKER> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    set(CMAKE_CXX_LINK_EXECUTABLE
+        "<CMAKE_LINKER> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+    set(CMAKE_ASM_LINK_EXECUTABLE
+        "<CMAKE_LINKER> <LINK_FLAGS> <OBJECTS> -o <TARGET> <LINK_LIBRARIES>")
+
     message(STATUS
         "XINIM optional 32-bit ELF cross-toolchain mode enabled for ${XINIM_CPU_LANE}: "
-        "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE} via ${_xinim_cross_cc}")
+        "${XINIM_X86_ELF_TOOLCHAIN_TRIPLE} binutils via Clang ${XINIM_CLANG_EXECUTABLE}")
 endif()
 
 project(XINIM VERSION 1.0.0 LANGUAGES C CXX ASM)
+
+foreach(_xinim_language C CXX ASM)
+    if(NOT CMAKE_${_xinim_language}_COMPILER_ID STREQUAL "Clang")
+        message(FATAL_ERROR
+            "XINIM requires Clang for project-owned ${_xinim_language} sources; "
+            "CMAKE_${_xinim_language}_COMPILER_ID is "
+            "'${CMAKE_${_xinim_language}_COMPILER_ID}'.")
+    endif()
+endforeach()
+
+set(XINIM_C_COMPILER_ID "${CMAKE_C_COMPILER_ID}" CACHE STRING
+    "Resolved C compiler identifier" FORCE)
+set(XINIM_CXX_COMPILER_ID "${CMAKE_CXX_COMPILER_ID}" CACHE STRING
+    "Resolved CXX compiler identifier" FORCE)
+set(XINIM_ASM_COMPILER_ID "${CMAKE_ASM_COMPILER_ID}" CACHE STRING
+    "Resolved ASM compiler identifier" FORCE)
 
 # =============================================================================
 # Build Layout
@@ -305,6 +450,64 @@ endif()
 
 xinim_get_x86_lane_property(${XINIM_CPU_LANE} family XINIM_ACTIVE_LANE_FAMILY)
 xinim_get_x86_lane_property(${XINIM_CPU_LANE} target_arch XINIM_ACTIVE_TARGET_ARCH)
+
+if(XINIM_CPU_LANE STREQUAL "x86_64")
+    set(_xinim_clang_builtins_arch "x86_64")
+else()
+    set(_xinim_clang_builtins_arch "i386")
+endif()
+set(XINIM_CLANG_RESOURCE_DIR "${XINIM_CLANG_RESOURCE_DIR}" CACHE PATH
+    "Clang resource directory containing compiler-rt builtins")
+if(NOT XINIM_CLANG_RESOURCE_DIR)
+    execute_process(
+        COMMAND "${XINIM_CLANG_EXECUTABLE}" -print-resource-dir
+        OUTPUT_VARIABLE _xinim_clang_resource_dir
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE _xinim_clang_resource_result
+    )
+    if(NOT _xinim_clang_resource_result EQUAL 0 OR
+       NOT _xinim_clang_resource_dir)
+        message(FATAL_ERROR
+            "Unable to resolve the resource directory for ${XINIM_CLANG_EXECUTABLE}.")
+    endif()
+    set(XINIM_CLANG_RESOURCE_DIR "${_xinim_clang_resource_dir}" CACHE PATH
+        "Clang resource directory containing compiler-rt builtins" FORCE)
+endif()
+set(XINIM_CLANG_BUILTINS_ARCHIVE "${XINIM_CLANG_BUILTINS_ARCHIVE}" CACHE FILEPATH
+    "Clang compiler-rt builtins archive for the active XINIM lane")
+if(NOT XINIM_CLANG_BUILTINS_ARCHIVE)
+    set(XINIM_CLANG_BUILTINS_ARCHIVE
+        "${XINIM_CLANG_RESOURCE_DIR}/lib/linux/libclang_rt.builtins-${_xinim_clang_builtins_arch}.a"
+        CACHE FILEPATH "Clang compiler-rt builtins archive for the active XINIM lane" FORCE)
+endif()
+if(NOT EXISTS "${XINIM_CLANG_BUILTINS_ARCHIVE}")
+    message(FATAL_ERROR
+        "Clang compiler-rt builtins archive is missing for ${_xinim_clang_builtins_arch}: "
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}. Set XINIM_CLANG_BUILTINS_ARCHIVE to a "
+        "Clang-built compiler-rt archive for the active architecture.")
+endif()
+message(STATUS "XINIM compiler-rt builtins: ${XINIM_CLANG_BUILTINS_ARCHIVE}")
+
+if(XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
+    set(XINIM_VENDOR_AR_EXECUTABLE "${_xinim_cross_ar}" CACHE FILEPATH
+        "Archiver used for pinned vendor sources" FORCE)
+    set(XINIM_VENDOR_RANLIB_EXECUTABLE "${_xinim_cross_ranlib}" CACHE FILEPATH
+        "Ranlib used for pinned vendor sources" FORCE)
+    set(XINIM_VENDOR_STRIP_EXECUTABLE "${_xinim_cross_strip}" CACHE FILEPATH
+        "Strip tool used for pinned vendor sources" FORCE)
+    set(XINIM_VENDOR_AS_EXECUTABLE "${_xinim_cross_as}" CACHE FILEPATH
+        "Assembler used for pinned vendor sources" FORCE)
+    set(XINIM_VENDOR_CPP_EXECUTABLE "${_xinim_cross_cpp}" CACHE FILEPATH
+        "Preprocessor used for pinned vendor sources" FORCE)
+else()
+    find_program(XINIM_VENDOR_AR_EXECUTABLE ar REQUIRED)
+    find_program(XINIM_VENDOR_RANLIB_EXECUTABLE ranlib REQUIRED)
+    find_program(XINIM_VENDOR_STRIP_EXECUTABLE strip REQUIRED)
+    find_program(XINIM_VENDOR_AS_EXECUTABLE as REQUIRED)
+    find_program(XINIM_VENDOR_CPP_EXECUTABLE cpp REQUIRED)
+endif()
+message(STATUS "XINIM vendor archiver: ${XINIM_VENDOR_AR_EXECUTABLE}")
+message(STATUS "XINIM vendor assembler: ${XINIM_VENDOR_AS_EXECUTABLE}")
 
 add_compile_options(
     $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions>
@@ -896,8 +1099,8 @@ xinim_set_warnings(xinim_x86_64_file_operations_check)
 endif()
 
 if(XINIM_CPU_LANE STREQUAL "x86_64")
-find_program(XINIM_X86_64_USER_GCC gcc REQUIRED)
-find_program(XINIM_X86_64_USER_GXX g++ REQUIRED)
+set(XINIM_X86_64_USER_CLANG "${XINIM_CLANG_EXECUTABLE}")
+set(XINIM_X86_64_USER_CLANGXX "${XINIM_CLANGXX_EXECUTABLE}")
 find_program(XINIM_READELF_EXECUTABLE readelf REQUIRED)
 
 set(XINIM_MKSH_ARCHIVE "" CACHE FILEPATH
@@ -973,7 +1176,12 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_dietlibc.py"
         --source-dir "${CMAKE_SOURCE_DIR}/libc/dietlibc-xinim"
         --build-dir "${XINIM_X86_64_DIETLIBC_BUILD_DIR}"
-        --cc "${XINIM_X86_64_USER_GCC}"
+        --cc "${XINIM_X86_64_USER_CLANG}"
+        --ar "${XINIM_VENDOR_AR_EXECUTABLE}"
+        --ranlib "${XINIM_VENDOR_RANLIB_EXECUTABLE}"
+        --strip "${XINIM_VENDOR_STRIP_EXECUTABLE}"
+        --assembler "${XINIM_VENDOR_AS_EXECUTABLE}"
+        --preprocessor "${XINIM_VENDOR_CPP_EXECUTABLE}"
         --exec-limits-header
             "${CMAKE_SOURCE_DIR}/include/xinim/abi/exec_limits.h"
         --jobs 2
@@ -981,7 +1189,7 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_dietlibc.py"
         "${CMAKE_SOURCE_DIR}/include/xinim/abi/exec_limits.h"
         ${XINIM_X86_64_DIETLIBC_SOURCES}
-    COMMENT "Building XINIM x86_64 dietlibc with GCC"
+    COMMENT "Building XINIM x86_64 dietlibc with Clang"
     VERBATIM
 )
 add_custom_target(xinim_x86_64_dietlibc DEPENDS
@@ -996,7 +1204,7 @@ add_custom_command(
     OUTPUT "${XINIM_X86_64_PRINTF_BINARY}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
-    COMMAND ${XINIM_X86_64_USER_GXX}
+    COMMAND ${XINIM_X86_64_USER_CLANGXX}
         -std=c++23
         -O2
         -Wall
@@ -1015,17 +1223,17 @@ add_custom_command(
         -I "${CMAKE_SOURCE_DIR}/include"
         -c "${CMAKE_SOURCE_DIR}/userland/bin/printf_i486.cpp"
         -o "${XINIM_X86_64_PRINTF_OBJECT}"
-    COMMAND ${XINIM_X86_64_USER_GCC}
+    COMMAND ${XINIM_X86_64_USER_CLANG}
         -nostdlib
         -static
-        -no-pie
+        -Wl,-no-pie
         -Wl,--build-id=none
         "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         -o "${XINIM_X86_64_PRINTF_BINARY}"
         "${XINIM_X86_64_DIETLIBC_START}"
         "${XINIM_X86_64_PRINTF_OBJECT}"
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        -lgcc
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     DEPENDS
         xinim_x86_64_dietlibc
         "${XINIM_X86_64_DIETLIBC_START}"
@@ -1048,7 +1256,7 @@ add_custom_command(
     OUTPUT "${XINIM_X86_64_RM_BINARY}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
-    COMMAND ${XINIM_X86_64_USER_GXX}
+    COMMAND ${XINIM_X86_64_USER_CLANGXX}
         -std=c++23
         -O2
         -Wall
@@ -1067,17 +1275,17 @@ add_custom_command(
         -I "${CMAKE_SOURCE_DIR}/include"
         -c "${CMAKE_SOURCE_DIR}/userland/bin/rm_i486.cpp"
         -o "${XINIM_X86_64_RM_OBJECT}"
-    COMMAND ${XINIM_X86_64_USER_GCC}
+    COMMAND ${XINIM_X86_64_USER_CLANG}
         -nostdlib
         -static
-        -no-pie
+        -Wl,-no-pie
         -Wl,--build-id=none
         "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         -o "${XINIM_X86_64_RM_BINARY}"
         "${XINIM_X86_64_DIETLIBC_START}"
         "${XINIM_X86_64_RM_OBJECT}"
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        -lgcc
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     DEPENDS
         xinim_x86_64_dietlibc
         "${XINIM_X86_64_DIETLIBC_START}"
@@ -1099,7 +1307,7 @@ add_custom_command(
     OUTPUT "${XINIM_X86_64_MKDIR_BINARY}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
-    COMMAND ${XINIM_X86_64_USER_GXX}
+    COMMAND ${XINIM_X86_64_USER_CLANGXX}
         -std=c++23
         -O2
         -Wall
@@ -1118,17 +1326,17 @@ add_custom_command(
         -I "${CMAKE_SOURCE_DIR}/include"
         -c "${CMAKE_SOURCE_DIR}/userland/bin/mkdir_i486.cpp"
         -o "${XINIM_X86_64_MKDIR_OBJECT}"
-    COMMAND ${XINIM_X86_64_USER_GCC}
+    COMMAND ${XINIM_X86_64_USER_CLANG}
         -nostdlib
         -static
-        -no-pie
+        -Wl,-no-pie
         -Wl,--build-id=none
         "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         -o "${XINIM_X86_64_MKDIR_BINARY}"
         "${XINIM_X86_64_DIETLIBC_START}"
         "${XINIM_X86_64_MKDIR_OBJECT}"
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        -lgcc
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     DEPENDS
         xinim_x86_64_dietlibc
         "${XINIM_X86_64_DIETLIBC_START}"
@@ -1150,7 +1358,7 @@ add_custom_command(
     OUTPUT "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
-    COMMAND ${XINIM_X86_64_USER_GXX}
+    COMMAND ${XINIM_X86_64_USER_CLANGXX}
         -std=c++23
         -O2
         -Wall
@@ -1169,17 +1377,17 @@ add_custom_command(
         -I "${CMAKE_SOURCE_DIR}/include"
         -c "${CMAKE_SOURCE_DIR}/userland/bin/bootfs_reuse_check.cpp"
         -o "${XINIM_X86_64_BOOTFS_REUSE_CHECK_OBJECT}"
-    COMMAND ${XINIM_X86_64_USER_GCC}
+    COMMAND ${XINIM_X86_64_USER_CLANG}
         -nostdlib
         -static
-        -no-pie
+        -Wl,-no-pie
         -Wl,--build-id=none
         "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         -o "${XINIM_X86_64_BOOTFS_REUSE_CHECK_BINARY}"
         "${XINIM_X86_64_DIETLIBC_START}"
         "${XINIM_X86_64_BOOTFS_REUSE_CHECK_OBJECT}"
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        -lgcc
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     DEPENDS
         xinim_x86_64_dietlibc
         "${XINIM_X86_64_DIETLIBC_START}"
@@ -1201,7 +1409,7 @@ add_custom_command(
     OUTPUT "${XINIM_X86_64_BYTE_ORACLE_BINARY}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
-    COMMAND ${XINIM_X86_64_USER_GXX}
+    COMMAND ${XINIM_X86_64_USER_CLANGXX}
         -std=c++23
         -O2
         -Wall
@@ -1220,17 +1428,17 @@ add_custom_command(
         -I "${CMAKE_SOURCE_DIR}/include"
         -c "${CMAKE_SOURCE_DIR}/userland/bin/byte_oracle.cpp"
         -o "${XINIM_X86_64_BYTE_ORACLE_OBJECT}"
-    COMMAND ${XINIM_X86_64_USER_GCC}
+    COMMAND ${XINIM_X86_64_USER_CLANG}
         -nostdlib
         -static
-        -no-pie
+        -Wl,-no-pie
         -Wl,--build-id=none
         "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         -o "${XINIM_X86_64_BYTE_ORACLE_BINARY}"
         "${XINIM_X86_64_DIETLIBC_START}"
         "${XINIM_X86_64_BYTE_ORACLE_OBJECT}"
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        -lgcc
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     DEPENDS
         xinim_x86_64_dietlibc
         "${XINIM_X86_64_DIETLIBC_START}"
@@ -1252,7 +1460,7 @@ add_custom_command(
     OUTPUT "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}"
     COMMAND ${CMAKE_COMMAND} -E make_directory
         "${CMAKE_CURRENT_BINARY_DIR}/userland-x86_64"
-    COMMAND ${XINIM_X86_64_USER_GXX}
+    COMMAND ${XINIM_X86_64_USER_CLANGXX}
         -std=c++23
         -O2
         -Wall
@@ -1271,17 +1479,17 @@ add_custom_command(
         -I "${CMAKE_SOURCE_DIR}/include"
         -c "${CMAKE_SOURCE_DIR}/userland/bin/printf_signal_oracle.cpp"
         -o "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_OBJECT}"
-    COMMAND ${XINIM_X86_64_USER_GCC}
+    COMMAND ${XINIM_X86_64_USER_CLANG}
         -nostdlib
         -static
-        -no-pie
+        -Wl,-no-pie
         -Wl,--build-id=none
         "-Wl,-T,${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
         -o "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_BINARY}"
         "${XINIM_X86_64_DIETLIBC_START}"
         "${XINIM_X86_64_PRINTF_SIGNAL_ORACLE_OBJECT}"
         "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
-        -lgcc
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     DEPENDS
         xinim_x86_64_dietlibc
         "${XINIM_X86_64_DIETLIBC_START}"
@@ -1301,7 +1509,8 @@ add_custom_command(
         "${CMAKE_SOURCE_DIR}/scripts/build_x86_64_mksh.py"
         --source-dir "${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}"
         --build-dir "${XINIM_X86_64_MKSH_BUILD_DIR}"
-        --cc "${XINIM_X86_64_USER_GCC}"
+        --cc "${XINIM_X86_64_USER_CLANG}"
+        --compiler-runtime "${XINIM_CLANG_BUILTINS_ARCHIVE}"
         --start-o "${XINIM_X86_64_DIETLIBC_START}"
         --dietlibc-a "${XINIM_X86_64_DIETLIBC_ARCHIVE}"
         --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_x86_64_user.ld"
@@ -1682,12 +1891,23 @@ function(xinim_x86_32_user_exe exe_name target_name sources_var lane banner_name
     target_compile_definitions(${target_name} PRIVATE
         XINIM_BOOT_LANE_NAME="${banner_name}"
     )
-    target_link_options(${target_name} PRIVATE
-        -T "${linker_script}"
-        -nostdlib
-        -static
-        -fno-stack-protector
-        ${_arg_LINK_ARCH_OPTIONS}
+    if(XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
+        target_link_options(${target_name} PRIVATE
+            -T "${linker_script}"
+            -m elf_i386
+            --build-id=none
+        )
+    else()
+        target_link_options(${target_name} PRIVATE
+            -T "${linker_script}"
+            -nostdlib
+            -static
+            -fno-stack-protector
+            ${_arg_LINK_ARCH_OPTIONS}
+        )
+    endif()
+    target_link_libraries(${target_name} PRIVATE
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     )
     xinim_set_warnings(${target_name})
 endfunction()
@@ -1719,10 +1939,19 @@ function(xinim_add_x86_32_lane lane)
         -m32
         -Wl,-m,elf_i386
     )
+    set(_lane_user_cc "${XINIM_CLANG_EXECUTABLE} -m32")
+    set(_lane_user_cxx "${XINIM_CLANGXX_EXECUTABLE} -m32")
+    set(_lane_link_arguments)
     if(XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
         list(REMOVE_ITEM _lane_compile_options -m32)
         set(_lane_link_arch_options)
+        set(_lane_user_cc
+            "${XINIM_CLANG_EXECUTABLE} --target=${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}")
+        set(_lane_user_cxx
+            "${XINIM_CLANGXX_EXECUTABLE} --target=${XINIM_X86_ELF_TOOLCHAIN_TRIPLE}")
+        set(_lane_link_arguments --ld "${CMAKE_LINKER}")
     endif()
+    separate_arguments(_lane_user_cxx_args UNIX_COMMAND "${_lane_user_cxx}")
 
     set(_kernel_target "xinim_${lane}")
     set(_shell_target "xash_${lane}")
@@ -1794,14 +2023,22 @@ function(xinim_add_x86_32_lane lane)
     if(XINIM_EFFECTIVE_VFS_PROFILE STREQUAL "tiny")
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_VFS_PROFILE_TINY=1)
     endif()
-    target_link_options(${_kernel_target} PRIVATE
-        -T ${CMAKE_SOURCE_DIR}/linker_i486_multiboot2.ld
-        -nostdlib
-        -static
-        -fno-stack-protector
-        LINKER:--build-id=none
-        ${_lane_link_arch_options}
-    )
+    if(XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
+        target_link_options(${_kernel_target} PRIVATE
+            -T ${CMAKE_SOURCE_DIR}/linker_i486_multiboot2.ld
+            -m elf_i386
+            --build-id=none
+        )
+    else()
+        target_link_options(${_kernel_target} PRIVATE
+            -T ${CMAKE_SOURCE_DIR}/linker_i486_multiboot2.ld
+            -nostdlib
+            -static
+            -fno-stack-protector
+            LINKER:--build-id=none
+            ${_lane_link_arch_options}
+        )
+    endif()
     # Release: use Thin LTO (-flto=thin) instead of CMake's default full -flto.
     # WHY: Thin LTO provides most of the IPO benefit with a fraction of the
     # link-time memory and latency.  We disable the CMake IPO property so that
@@ -1820,15 +2057,10 @@ function(xinim_add_x86_32_lane lane)
         )
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_PGO_DUMP_ENABLED=1)
     endif()
-    # i486 kernel needs libgcc for 64-bit integer operations (__udivdi3 etc.)
-    execute_process(
-        COMMAND gcc -m32 -print-libgcc-file-name
-        OUTPUT_VARIABLE _libgcc_path
-        OUTPUT_STRIP_TRAILING_WHITESPACE
+    # Clang's compiler-rt supplies compiler support routines such as __udivdi3.
+    target_link_libraries(${_kernel_target} PRIVATE
+        "${XINIM_CLANG_BUILTINS_ARCHIVE}"
     )
-    if(_libgcc_path)
-        target_link_libraries(${_kernel_target} PRIVATE "${_libgcc_path}")
-    endif()
 
     xinim_x86_32_user_exe(xash ${_shell_target} XINIM_X86_32_XASH_SOURCES
         ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
@@ -1836,6 +2068,8 @@ function(xinim_add_x86_32_lane lane)
         LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
     set(_mksh_source_dir "${CMAKE_SOURCE_DIR}/.scratch/mksh")
+    set(_mksh_source_metadata "${_mksh_source_dir}/.xinim-source.json")
+    set(_mksh_source_target "xinim_${lane}_mksh_source")
     set(_mksh_build_dir "${CMAKE_CURRENT_BINARY_DIR}/mksh-${lane}")
     set(_mksh_binary "${_mksh_build_dir}/mksh")
     set(_mksh_arch_flags "-march=i486 -mtune=i486 -mno-mmx -mno-sse")
@@ -1847,20 +2081,31 @@ function(xinim_add_x86_32_lane lane)
     set(_diethello_binary "${CMAKE_CURRENT_BINARY_DIR}/diethello-${lane}")
 
     add_custom_command(
+        OUTPUT "${_mksh_source_dir}/Build.sh" "${_mksh_source_metadata}"
+        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py
+            --source-dir "${_mksh_source_dir}"
+        DEPENDS "${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py"
+        COMMENT "Acquiring pinned mksh R59c source for ${lane}"
+        VERBATIM
+    )
+    add_custom_target(${_mksh_source_target} DEPENDS
+        "${_mksh_source_dir}/Build.sh" "${_mksh_source_metadata}")
+
+    add_custom_command(
         OUTPUT "${_mksh_binary}"
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
             --source-dir "${_mksh_source_dir}"
             --build-dir "${_mksh_build_dir}"
-            --cc "gcc -m32 ${_mksh_arch_flags}"
+            --cc "${_lane_user_cc} ${_mksh_arch_flags}"
+            ${_lane_link_arguments}
+            --compiler-runtime "${XINIM_CLANG_BUILTINS_ARCHIVE}"
             --start-o "${_dietlibc_start}"
             --dietlibc-a "${_dietlibc_archive}"
             --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             --output "${_mksh_binary}"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py"
-            "${_mksh_source_dir}/Makefrag.inc"
-            "${_mksh_source_dir}/sh.h"
-            "${_mksh_source_dir}/Build.sh"
+            ${_mksh_source_target}
             "${_dietlibc_start}"
             "${_dietlibc_archive}"
             "${_dietlibc_source_dir}/i386/syscalls.h"
@@ -1877,7 +2122,12 @@ function(xinim_add_x86_32_lane lane)
         COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i386_dietlibc.py
             --source-dir "${_dietlibc_source_dir}"
             --build-dir "${_dietlibc_build_dir}"
-            --cc "gcc -m32 ${_util_arch_flags}"
+            --cc "${_lane_user_cc} ${_util_arch_flags}"
+            --ar "${XINIM_VENDOR_AR_EXECUTABLE}"
+            --ranlib "${XINIM_VENDOR_RANLIB_EXECUTABLE}"
+            --strip "${XINIM_VENDOR_STRIP_EXECUTABLE}"
+            --assembler "${XINIM_VENDOR_AS_EXECUTABLE}"
+            --preprocessor "${XINIM_VENDOR_CPP_EXECUTABLE}"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/build_i386_dietlibc.py"
             "${_dietlibc_source_dir}/Makefile"
@@ -1902,13 +2152,20 @@ function(xinim_add_x86_32_lane lane)
         set(_tcc_target "tcc_${lane}")
         set(_tcc_binary "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}")
         set(_tcc_build_dir "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}-build")
+        set(_tcc_stub_source "${_tcc_build_dir}/xinim_stubs.c")
+        set(_tcc_config_header "${_tcc_build_dir}/config.h")
         set(_tcc_runtime_dir "${CMAKE_CURRENT_BINARY_DIR}/tcc-runtime-${lane}")
         set(_tcc_runtime_marker "${_tcc_runtime_dir}/.xinim-tcc-runtime-ready")
         add_custom_command(
-            OUTPUT "${_tcc_binary}" "${_tcc_runtime_marker}"
+            OUTPUT "${_tcc_binary}" "${_tcc_runtime_marker}" "${_tcc_stub_source}" "${_tcc_config_header}"
             COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_tcc.py
                 --source-dir "${CMAKE_SOURCE_DIR}/.scratch/tcc"
                 --build-dir "${_tcc_build_dir}"
+                --stubs-source "${_tcc_stub_source}"
+                --config-header "${_tcc_config_header}"
+                --cc "${_lane_user_cc} ${_util_arch_flags}"
+                ${_lane_link_arguments}
+                --compiler-runtime "${XINIM_CLANG_BUILTINS_ARCHIVE}"
                 --start-o "${_dietlibc_start}"
                 --dietlibc-a "${_dietlibc_archive}"
                 --runtime-dir "${_tcc_runtime_dir}"
@@ -1916,12 +2173,12 @@ function(xinim_add_x86_32_lane lane)
             DEPENDS
                 ${_dietlibc_target}
                 "${CMAKE_SOURCE_DIR}/scripts/build_i486_tcc.py"
-                "${CMAKE_SOURCE_DIR}/.scratch/tcc/xinim_stubs.c"
                 "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             COMMENT "Building in-guest TinyCC compiler for ${lane}"
             VERBATIM
         )
-        add_custom_target(${_tcc_target} ALL DEPENDS "${_tcc_binary}" "${_tcc_runtime_marker}")
+        add_custom_target(${_tcc_target} ALL DEPENDS
+            "${_tcc_binary}" "${_tcc_runtime_marker}" "${_tcc_stub_source}" "${_tcc_config_header}")
         list(APPEND _guest_tool_targets ${_tcc_target})
         list(APPEND _guest_tool_bins --guest-bin "${_tcc_binary}:/bin/tcc")
         list(APPEND _guest_tcc_runtime_args --tcc-runtime-dir "${_tcc_runtime_dir}")
@@ -1931,31 +2188,48 @@ function(xinim_add_x86_32_lane lane)
         set(_bmake_target "bmake_${lane}")
         set(_bmake_binary "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}")
         set(_bmake_build_dir "${CMAKE_CURRENT_BINARY_DIR}/bmake-${lane}-build")
+        set(_bmake_compat_header "${_bmake_build_dir}/xinim_compat.h")
+        set(_bmake_config_header "${_bmake_build_dir}/config.h")
         add_custom_command(
-            OUTPUT "${_bmake_binary}"
+            OUTPUT "${_bmake_binary}" "${_bmake_compat_header}" "${_bmake_config_header}"
             COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_bmake.py
                 --source-dir "${CMAKE_SOURCE_DIR}/.scratch/bmake"
                 --build-dir "${_bmake_build_dir}"
+                --compat-header "${_bmake_compat_header}"
+                --config-header "${_bmake_config_header}"
+                --cc "${_lane_user_cc} ${_util_arch_flags}"
+                ${_lane_link_arguments}
+                --compiler-runtime "${XINIM_CLANG_BUILTINS_ARCHIVE}"
                 --start-o "${_dietlibc_start}"
                 --dietlibc-a "${_dietlibc_archive}"
                 --output "${_bmake_binary}"
             DEPENDS
                 ${_dietlibc_target}
                 "${CMAKE_SOURCE_DIR}/scripts/build_i486_bmake.py"
-                "${CMAKE_SOURCE_DIR}/.scratch/bmake/xinim_compat.h"
                 "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             COMMENT "Building in-guest bmake for ${lane}"
             VERBATIM
         )
-        add_custom_target(${_bmake_target} ALL DEPENDS "${_bmake_binary}")
+        add_custom_target(${_bmake_target} ALL DEPENDS
+            "${_bmake_binary}" "${_bmake_compat_header}" "${_bmake_config_header}")
         list(APPEND _guest_tool_targets ${_bmake_target})
         list(APPEND _guest_tool_bins --guest-bin "${_bmake_binary}:/bin/bmake")
     endif()
 
-    add_custom_command(
-        OUTPUT "${_diethello_binary}"
-        COMMAND ${CMAKE_CXX_COMPILER}
-            -m32
+    if(XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
+        add_executable(${_diethello_target}
+            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
+        )
+        set_target_properties(${_diethello_target} PROPERTIES
+            OUTPUT_NAME "diethello-${lane}"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        )
+        target_include_directories(${_diethello_target} PRIVATE
+            "${_dietlibc_tree_dir}/include"
+            "${CMAKE_SOURCE_DIR}/include"
+        )
+        target_compile_options(${_diethello_target} PRIVATE
+            ${_lane_compile_options}
             -std=c++23
             -fno-exceptions
             -fno-rtti
@@ -1966,27 +2240,62 @@ function(xinim_add_x86_32_lane lane)
             -Wshadow
             -Wconversion
             -Wsign-conversion
-            -I"${_dietlibc_tree_dir}/include"
-            -I"${CMAKE_SOURCE_DIR}/include"
+            # Pinned dietlibc's sys/types.h uses a temporary keyword macro to
+            # preserve its historical ssize_t width selection.
+            -Wno-keyword-macro
+            -Wno-unused-function
             -O2
             -fno-pie
             -fno-pic
             -fno-stack-protector
-            -nostdlib
-            -static
-            -Wl,--build-id=none
-            -o "${_diethello_binary}"
-            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
+        )
+        target_link_options(${_diethello_target} PRIVATE
+            -T "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+            -m elf_i386
+            --build-id=none
+        )
+        target_link_libraries(${_diethello_target} PRIVATE
             "${_dietlibc_start}"
             "${_dietlibc_archive}"
-            -lgcc
-        DEPENDS
-            ${_dietlibc_target}
-            "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
-        COMMENT "Building C++23 dietlibc-linked i486 guest utility for ${lane}"
-        VERBATIM
-    )
-    add_custom_target(${_diethello_target} ALL DEPENDS "${_diethello_binary}")
+            "${XINIM_CLANG_BUILTINS_ARCHIVE}"
+        )
+        add_dependencies(${_diethello_target} ${_dietlibc_target})
+    else()
+        add_custom_command(
+            OUTPUT "${_diethello_binary}"
+            COMMAND ${_lane_user_cxx_args}
+                -std=c++23
+                -fno-exceptions
+                -fno-rtti
+                -Wall
+                -Wextra
+                -Wpedantic
+                -Werror
+                -Wshadow
+                -Wconversion
+                -Wsign-conversion
+                -I"${_dietlibc_tree_dir}/include"
+                -I"${CMAKE_SOURCE_DIR}/include"
+                -O2
+                -fno-pie
+                -fno-pic
+                -fno-stack-protector
+                -nostdlib
+                -static
+                -Wl,--build-id=none
+                -o "${_diethello_binary}"
+                "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
+                "${_dietlibc_start}"
+                "${_dietlibc_archive}"
+                "${XINIM_CLANG_BUILTINS_ARCHIVE}"
+            DEPENDS
+                ${_dietlibc_target}
+                "${CMAKE_SOURCE_DIR}/userland/tests/diethello_i486.cpp"
+            COMMENT "Building C++23 dietlibc-linked i486 guest utility for ${lane}"
+            VERBATIM
+        )
+        add_custom_target(${_diethello_target} ALL DEPENDS "${_diethello_binary}")
+    endif()
 
     # -- Tier 1 POSIX utilities (dietlibc-linked) --
     set(_posix_util_sources
@@ -2015,7 +2324,6 @@ function(xinim_add_x86_32_lane lane)
                 "Missing C++23 source for project-owned utility ${_util}: ${_util_source_cpp}")
         endif()
         set(_util_source "${_util_source_cpp}")
-        set(_util_compiler ${CMAKE_CXX_COMPILER})
         set(_util_lang_flags
             -std=c++23
             -fno-exceptions
@@ -2026,41 +2334,59 @@ function(xinim_add_x86_32_lane lane)
             -Werror
             -Wshadow
             -Wconversion
-            -Wsign-conversion)
+            -Wsign-conversion
+            # Pinned dietlibc's sys/types.h uses a temporary keyword macro to
+            # preserve its historical ssize_t width selection.
+            -Wno-keyword-macro
+            -Wno-unused-function)
         set(_util_lang_label "C++23")
         # Split _util_arch_flags (a space-separated string) into list for COMMAND
         separate_arguments(_util_arch_list UNIX_COMMAND "${_util_arch_flags}")
-        add_custom_command(
-            OUTPUT "${_util_binary}"
-            COMMAND ${_util_compiler}
+        set(_util_compile_arch_list ${_util_arch_list})
+        if(NOT XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
+            list(PREPEND _util_compile_arch_list -m32)
+        endif()
+        add_executable(${_util_target} "${_util_source}")
+        set_target_properties(${_util_target} PROPERTIES
+            OUTPUT_NAME "${_util}-${lane}"
+            RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
+        )
+        target_include_directories(${_util_target} PRIVATE
+            "${_dietlibc_tree_dir}/include"
+            "${CMAKE_SOURCE_DIR}/include"
+        )
+        target_compile_options(${_util_target} PRIVATE
+            ${_util_compile_arch_list}
+            ${_util_lang_flags}
+            -O2
+            -fno-pie
+            -fno-pic
+            -fno-stack-protector
+            -fno-builtin-bcmp
+        )
+        if(XINIM_X86_32_TOOLCHAIN_MODE STREQUAL "cross-elf")
+            target_link_options(${_util_target} PRIVATE
+                -T "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+                -m elf_i386
+                --build-id=none
+            )
+        else()
+            target_link_options(${_util_target} PRIVATE
                 -m32
-                ${_util_arch_list}
-                ${_util_lang_flags}
-                -I"${_dietlibc_tree_dir}/include"
-                -I"${CMAKE_SOURCE_DIR}/include"
-                -O2
-                -fno-pie
-                -fno-pic
-                -fno-stack-protector
-                -fno-builtin-bcmp
+                -T "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
                 -nostdlib
                 -static
-                -Wl,--build-id=none
-                -T "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
-                -o "${_util_binary}"
-                "${_util_source}"
-                "${_dietlibc_start}"
-                "${_dietlibc_archive}"
-                -lgcc
-                -lstdc++
-            DEPENDS
-                ${_dietlibc_target}
-                "${_util_source}"
-                "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
-            COMMENT "Building dietlibc-linked ${_util} (${_util_lang_label}) for ${lane}"
-            VERBATIM
+                -fno-stack-protector
+                LINKER:--build-id=none
+            )
+        endif()
+        target_link_libraries(${_util_target} PRIVATE
+            "${_dietlibc_start}"
+            "${_dietlibc_archive}"
+            "${XINIM_CLANG_BUILTINS_ARCHIVE}"
         )
-        add_custom_target(${_util_target} ALL DEPENDS "${_util_binary}")
+        add_dependencies(${_util_target} ${_dietlibc_target})
+        xinim_set_warnings(${_util_target})
         list(APPEND _posix_util_binaries "${_util_binary}")
         list(APPEND _posix_util_targets "${_util_target}")
     endforeach()
@@ -4079,7 +4405,7 @@ if(TARGET xinim_x86_64_mksh_patched_source)
         COMMAND ${XINIM_PYTHON3_EXECUTABLE}
             ${CMAKE_SOURCE_DIR}/test/host/mksh_command_substitution_boundary_test.py
             --source-dir ${XINIM_X86_64_MKSH_PATCHED_SOURCE_DIR}
-            --cc clang
+            --cc ${XINIM_CLANG_EXECUTABLE}
     )
     set_tests_properties(
         dietlibc_setjmp_contract
@@ -4391,6 +4717,7 @@ add_custom_target(xinim_cpp23_c23_assembly_ownership_check
         --repo-root ${CMAKE_SOURCE_DIR}
         --manifest ${CMAKE_SOURCE_DIR}/docs/ownership/cpp23_c23_assembly_ownership.tsv
         --cmake ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+        --cmake-cache ${CMAKE_BINARY_DIR}/CMakeCache.txt
         --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
     DEPENDS
         ${CMAKE_SOURCE_DIR}/scripts/verify_cpp23_c23_assembly_ownership.py
@@ -4405,6 +4732,7 @@ add_test(
         --repo-root ${CMAKE_SOURCE_DIR}
         --manifest ${CMAKE_SOURCE_DIR}/docs/ownership/cpp23_c23_assembly_ownership.tsv
         --cmake ${CMAKE_SOURCE_DIR}/CMakeLists.txt
+        --cmake-cache ${CMAKE_BINARY_DIR}/CMakeCache.txt
         --compile-commands ${CMAKE_BINARY_DIR}/compile_commands.json
 )
 add_test(

@@ -91,8 +91,9 @@ ctest --test-dir build/i486-cross/Debug --output-on-failure
 
 Cross-lane notes:
 - The default 32-bit flow remains `clang -m32`.
-- The optional `cross-elf` flow switches the 32-bit guest build tree to an ELF
-  cross compiler before `project()`.
+- The optional `cross-elf` flow keeps the host `clang` and `clang++`
+  drivers and supplies `--target=<triple>`; target binutils provide only the
+  linker and binary utilities.
 - The low-RAM VFS profile is selectable with `-DXINIM_VFS_PROFILE=auto|default|tiny`.
 - `auto` resolves to `tiny` on x86_32 lanes and `default` on x86_64.
 - `i486` and `i586` default to `i386-elf`.

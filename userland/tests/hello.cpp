@@ -13,7 +13,7 @@
  *   My PID: <number>
  *
  * Build:
- *   x86_64-linux-gnu-g++ -std=c++23 -c hello.cpp -o hello.o \
+ *   clang++ --target=x86_64-unknown-elf -std=c++23 -c hello.cpp -o hello.o \
  *       -I../../libc/dietlibc-xinim/include \
  *       -nostdlib -fno-builtin -static
  *

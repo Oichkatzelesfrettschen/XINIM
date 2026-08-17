@@ -65,7 +65,7 @@ int main(int argc, char** argv) {
 
     int status = 0;
     for (int i = 2; i < argc; ++i) {
-        if (chmod(argv[i], static_cast<unsigned>(mode)) < 0) {
+        if (chmod(argv[i], static_cast<mode_t>(mode)) < 0) {
             err2("chmod", argv[i], "cannot change mode");
             status = 1;
         }

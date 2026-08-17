@@ -39,7 +39,6 @@ int main(int argc, char** argv) {
     int lines_per_file = 1000;
     const char* prefix = "x";
     const char* inpath = nullptr;
-    int first = 1;
 
     // Parse options
     for (int i = 1; i < argc; ++i) {
@@ -51,18 +50,15 @@ int main(int argc, char** argv) {
                     lines_per_file = lines_per_file * 10 + (argv[i][j] - '0');
                 if (lines_per_file < 1) lines_per_file = 1;
             }
-            first = i + 1;
         } else if (argv[i][0] == '-' && argv[i][1] == '\0') {
             // stdin, handled below
             inpath = nullptr;
-            first = i + 1;
         } else if (argv[i][0] != '-') {
             if (!inpath) {
                 inpath = argv[i];
             } else {
                 prefix = argv[i];
             }
-            first = i + 1;
         }
     }
 

@@ -4,7 +4,11 @@ import argparse
 import os
 from pathlib import Path
 import shlex
+import shutil
 import subprocess
+
+
+GENERATED_OPTION_FILES = ("rlimits.opt", "sh_flags.opt", "ulimits.opt")
 
 
 MKSH_OVERRIDES = {
@@ -37,8 +41,63 @@ MKSH_EXTRA_DEFINES = [
 ]
 
 
-def run(args: list[str], cwd: Path) -> None:
-    subprocess.run(args, cwd=cwd, check=True)
+def run(
+    args: list[str],
+    cwd: Path,
+    environment: dict[str, str] | None = None,
+) -> None:
+    subprocess.run(args, cwd=cwd, env=environment, check=True)
+
+
+def run_logged(
+    args: list[str], cwd: Path, log_path: Path, environment: dict[str, str]
+) -> None:
+    with log_path.open("wb") as log_file:
+        result = subprocess.run(
+            args,
+            cwd=cwd,
+            env=environment,
+            stdout=log_file,
+            stderr=subprocess.STDOUT,
+            check=False,
+        )
+    if result.returncode != 0:
+        log_lines = log_path.read_text(encoding="utf-8", errors="replace").splitlines()
+        raise RuntimeError(
+            "mksh feature configuration failed:\n" + "\n".join(log_lines[-80:])
+        )
+
+
+def generate_makefrag(
+    source_dir: Path, configure_dir: Path, compiler: str
+) -> Path:
+    configure_dir.mkdir(parents=True, exist_ok=True)
+    environment = os.environ.copy()
+    environment.update(
+        {
+            "CC": compiler,
+            "CFLAGS": "-O2 -Wall -Wextra -Werror",
+            "CPPFLAGS": "-DMKSH_BINSHPOSIX",
+            "LC_ALL": "C",
+            "TARGET_OS": "Linux",
+        }
+    )
+    run_logged(
+        ["sh", str(source_dir / "Build.sh"), "-M"],
+        configure_dir,
+        configure_dir / "configure.log",
+        environment,
+    )
+    for option_file in GENERATED_OPTION_FILES:
+        option_environment = environment.copy()
+        option_environment.update(
+            {
+                "BUILDSH_RUN_GENOPT": "1",
+                "srcfile": str(source_dir / option_file),
+            }
+        )
+        run(["sh", str(source_dir / "Build.sh")], configure_dir, option_environment)
+    return configure_dir / "Makefrag.inc"
 
 
 def patch_source_for_i486(src_path: Path, dest_path: Path, cppflags: list[str]) -> Path:
@@ -80,7 +139,16 @@ def parse_makefrag(makefrag: Path) -> tuple[list[str], list[str]]:
 
 def filtered_cppflags(cppflags: list[str]) -> list[str]:
     result: list[str] = []
+    skip_next = False
     for flag in cppflags:
+        if skip_next:
+            skip_next = False
+            continue
+        if flag == "-I":
+            skip_next = True
+            continue
+        if flag.startswith("-I"):
+            continue
         if not flag.startswith("-D"):
             result.append(flag)
             continue
@@ -98,22 +166,33 @@ def main() -> int:
     parser.add_argument("--source-dir", required=True)
     parser.add_argument("--build-dir", required=True)
     parser.add_argument("--cc", required=True)
+    parser.add_argument("--ld", default="")
+    parser.add_argument("--compiler-runtime", required=True)
     parser.add_argument("--start-o", required=True)
     parser.add_argument("--dietlibc-a", required=True)
     parser.add_argument("--linker-script", required=True)
     parser.add_argument("--output", required=True)
+    parser.add_argument("--mode", choices=("mksh", "lksh"), default="mksh")
     args = parser.parse_args()
 
     source_dir = Path(args.source_dir).resolve()
     build_dir = Path(args.build_dir).resolve()
-    build_dir.mkdir(parents=True, exist_ok=True)
-
-    srcs, base_cppflags = parse_makefrag(source_dir / "Makefrag.inc")
-    cppflags = filtered_cppflags(base_cppflags)
+    configure_dir = build_dir / "configure"
+    object_dir = build_dir / "objects"
+    for generated_dir in (configure_dir, object_dir):
+        if generated_dir.exists():
+            shutil.rmtree(generated_dir)
+    object_dir.mkdir(parents=True, exist_ok=True)
 
     cc = shlex.split(args.cc)
+    if not cc:
+        raise RuntimeError("empty C compiler command")
+    makefrag_path = generate_makefrag(source_dir, configure_dir, cc[0])
+    srcs, base_cppflags = parse_makefrag(makefrag_path)
+    cppflags = filtered_cppflags(base_cppflags)
+
     common_flags = [
-        "-m32",
+        "-std=gnu11",
         "-Os",
         "-Wall",
         "-Wextra",
@@ -122,10 +201,14 @@ def main() -> int:
         "-fno-pie",
         "-fno-pic",
         "-fno-stack-protector",
+        "-fno-strict-aliasing",
         "-fwrapv",
+        "-nostdinc",
+        "-I",
+        str(configure_dir),
         "-I",
         str(source_dir),
-        "-I",
+        "-isystem",
         str(Path(args.start_o).resolve().parent.parent / "include"),
     ]
 
@@ -135,26 +218,36 @@ def main() -> int:
         patched_src_path = build_dir / src
         patched_src_path.parent.mkdir(parents=True, exist_ok=True)
         compile_src = patch_source_for_i486(src_path, patched_src_path, cppflags)
-        obj_path = build_dir / (Path(src).stem + ".o")
+        obj_path = object_dir / (Path(src).stem + ".o")
         command = cc + common_flags + cppflags + ["-c", str(compile_src), "-o", str(obj_path)]
-        run(command, build_dir)
+        run(command, object_dir)
         object_files.append(str(obj_path))
 
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)
-    link_command = cc + [
-        "-m32",
-        "-nostdlib",
-        "-static",
-        "-no-pie",
-        "-Wl,-T," + str(Path(args.linker_script).resolve()),
-        "-o",
-        str(output),
-    ] + object_files + [
+    link_inputs = object_files + [
         str(Path(args.start_o).resolve()),
         str(Path(args.dietlibc_a).resolve()),
-        "-lgcc",
+        str(Path(args.compiler_runtime).resolve()),
     ]
+    if args.ld:
+        link_command = shlex.split(args.ld) + [
+            "-m",
+            "elf_i386",
+            "-T",
+            str(Path(args.linker_script).resolve()),
+            "-o",
+            str(output),
+        ] + link_inputs
+    else:
+        link_command = cc + [
+            "-nostdlib",
+            "-static",
+            "-Wl,-no-pie",
+            "-Wl,-T," + str(Path(args.linker_script).resolve()),
+            "-o",
+            str(output),
+        ] + link_inputs
     run(link_command, build_dir)
     return 0
 

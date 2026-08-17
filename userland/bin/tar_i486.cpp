@@ -171,7 +171,7 @@ int do_extract(int afd, bool verbose) noexcept {
         if (typeflag == '5' || (typeflag == '0' && path[str_len(path) - 1] == '/')) {
             // Directory entry
             make_parent_dirs(path);
-            mkdir(path, static_cast<int>(mode & 0777U));
+            mkdir(path, static_cast<mode_t>(mode & 0777U));
         } else if (typeflag == '0' || typeflag == '7') {
             // Regular file
             make_parent_dirs(path);

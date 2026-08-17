@@ -186,7 +186,9 @@ namespace {
 
 } // namespace
 
-int main() {
+extern "C" int xinim_user_main() asm("main");
+
+extern "C" int xinim_user_main() {
     remove_numbered_nodes();
     if (!require_full_capacity("BOOTFS_REUSE_INITIAL_CAPACITY_")) {
         return 1;

@@ -45,9 +45,6 @@ enum class BodyType { ALL, NON_EMPTY };
 
 int nl_fd(int fd, BodyType body, unsigned& line_num) {
     char buf[kBufSize];
-    // We process character-by-character, tracking line starts
-    bool at_line_start = true;
-    bool blank_line = true; // track if current line is blank (for -b t)
 
     // We need to look ahead to know if a line is empty.
     // Strategy: buffer each line, then decide whether to number it.

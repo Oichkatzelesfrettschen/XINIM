@@ -10,10 +10,41 @@ import tempfile
 from pathlib import Path
 
 VENDOR_C_DIALECT = "-std=gnu11"
+VENDOR_CLANG_COMPAT_FLAGS = (
+    "-Wno-unknown-attributes",
+    "-Wno-deprecated-non-prototype",
+    "-Wno-int-in-bool-context",
+    "-Wno-null-pointer-subtraction",
+    "-Wno-switch",
+    "-fno-builtin-bcmp",
+)
 
 
 def run(arguments: list[str], working_directory: Path) -> None:
     subprocess.run(arguments, cwd=working_directory, check=True)
+
+
+def configure_vendor_binutils(
+    makefile_path: Path,
+    ar_path: Path,
+    strip_path: Path,
+    assembler_path: Path,
+    preprocessor_path: Path,
+) -> None:
+    makefile_text = makefile_path.read_text()
+    substitutions = {
+        "$(CROSS)ar": "$(XINIM_AR)",
+        "$(CROSS)strip": "$(XINIM_STRIP)",
+        "$(CROSS)as": "$(XINIM_AS)",
+        "$(CROSS)cpp": "$(XINIM_CPP)",
+    }
+    for source_token, replacement in substitutions.items():
+        if source_token not in makefile_text:
+            raise RuntimeError(
+                f"dietlibc Makefile no longer exposes the expected {source_token} tool boundary"
+            )
+        makefile_text = makefile_text.replace(source_token, replacement)
+    makefile_path.write_text(makefile_text)
 
 
 def configure_features(features_path: Path) -> None:
@@ -101,6 +132,11 @@ def main() -> int:
     parser.add_argument("--source-dir")
     parser.add_argument("--build-dir")
     parser.add_argument("--cc")
+    parser.add_argument("--ar")
+    parser.add_argument("--ranlib")
+    parser.add_argument("--strip")
+    parser.add_argument("--assembler")
+    parser.add_argument("--preprocessor")
     parser.add_argument("--exec-limits-header")
     parser.add_argument("--jobs", type=int, default=max(1, os.cpu_count() or 1))
     parser.add_argument("--self-test", action="store_true")
@@ -113,6 +149,11 @@ def main() -> int:
         "--source-dir": arguments.source_dir,
         "--build-dir": arguments.build_dir,
         "--cc": arguments.cc,
+        "--ar": arguments.ar,
+        "--ranlib": arguments.ranlib,
+        "--strip": arguments.strip,
+        "--assembler": arguments.assembler,
+        "--preprocessor": arguments.preprocessor,
         "--exec-limits-header": arguments.exec_limits_header,
     }
     missing = [name for name, value in required_arguments.items() if value is None]
@@ -127,6 +168,18 @@ def main() -> int:
         shutil.rmtree(tree_directory)
     tree_directory.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_directory, tree_directory)
+    ar_path = Path(arguments.ar).resolve()
+    ranlib_path = Path(arguments.ranlib).resolve()
+    strip_path = Path(arguments.strip).resolve()
+    assembler_path = Path(arguments.assembler).resolve()
+    preprocessor_path = Path(arguments.preprocessor).resolve()
+    configure_vendor_binutils(
+        tree_directory / "Makefile",
+        ar_path,
+        strip_path,
+        assembler_path,
+        preprocessor_path,
+    )
     configure_features(tree_directory / "dietfeatures.h")
     configure_exec_argument_limit(
         tree_directory / "include" / "limits.h",
@@ -141,8 +194,13 @@ def main() -> int:
         f"CC={compiler}",
         (
             "EXTRACFLAGS="
-            f"{VENDOR_C_DIALECT} -Werror -fno-stack-protector -fno-pie -fno-pic"
+            f"{VENDOR_C_DIALECT} -Werror {' '.join(VENDOR_CLANG_COMPAT_FLAGS)} "
+            "-fno-stack-protector -fno-pie -fno-pic"
         ),
+        f"XINIM_AR={ar_path}",
+        f"XINIM_STRIP={strip_path}",
+        f"XINIM_AS={assembler_path}",
+        f"XINIM_CPP={preprocessor_path}",
         "bin-x86_64/start.o",
         "bin-x86_64/dietlibc.a",
     ]
@@ -166,6 +224,7 @@ def main() -> int:
                 "-D_REENTRANT",
                 "-D__dietlibc__",
                 "-Werror",
+                *VENDOR_CLANG_COMPAT_FLAGS,
                 "-fno-stack-protector",
                 "-fno-pie",
                 "-fno-pic",
@@ -180,9 +239,10 @@ def main() -> int:
             extra_objects.append(str(object_path))
     if extra_objects:
         run(
-            ["ar", "rcs", "bin-x86_64/dietlibc.a", *extra_objects],
+            [str(ar_path), "rcs", "bin-x86_64/dietlibc.a", *extra_objects],
             tree_directory,
         )
+    run([str(ranlib_path), "bin-x86_64/dietlibc.a"], tree_directory)
     return 0
 
 

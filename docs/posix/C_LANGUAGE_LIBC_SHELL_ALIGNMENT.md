@@ -38,22 +38,24 @@ implement that interface behind narrow `extern "C"` ABI boundaries.
 
 GNU C11 is selected for the unchanged upstream dietlibc and mksh C sources
 because both trees use implementation extensions and because an explicit mode
-prevents host GCC defaults from drifting. GNU C11 is not described as the
-POSIX conformance level.
+prevents host compiler defaults from drifting. Those sources still compile
+with the project Clang driver. GNU C11 is not described as the POSIX
+conformance level.
 
 ## Libc ownership
 
 The supported x86_64 guest has one libc provider: the pinned XINIM dietlibc
 tree. A syscall-only assembly executable may use no libc. No executable may
 use glibc, musl, another static libc, a dynamic loader, or a shared library.
-`libgcc` is an explicitly linked compiler runtime and is not a libc.
+Clang compiler-rt builtins are an explicitly linked compiler runtime and are
+not a libc.
 
 The build establishes this through all of these constraints:
 
 1. Pinned dietlibc and mksh sources retain upstream provenance.
 2. Dietlibc and mksh compile with `-nostdinc` and the built dietlibc headers.
 3. Dietlibc consumers link with `-nostdlib -static`, explicit `start.o`, the
-   explicit `dietlibc.a`, and `libgcc`.
+   explicit `dietlibc.a`, and the Clang compiler-rt builtins archive.
 4. A CMake-generated manifest binds each provider row to its exact build
    artifact, and the image verifier requires byte identity with the staged
    executable.

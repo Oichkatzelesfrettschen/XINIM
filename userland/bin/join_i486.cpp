@@ -12,7 +12,6 @@ namespace {
 
 constexpr int kBufSize = 32768;
 constexpr int kMaxLines = 4096;
-constexpr int kLineMax = 4096;
 
 void write_all(int fd, const char* buf, int len) {
     while (len > 0) {
