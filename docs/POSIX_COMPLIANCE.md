@@ -28,6 +28,8 @@ The canonical state ledgers are:
 - `docs/posix/posix_shell_language_ledger.tsv`
 - `docs/posix/posix_shell_frontier_ledger.tsv`
 - `docs/posix/posix_shell_frontier_requirements.tsv`
+- `docs/posix/posix_issue7_recursive_frontier_ledger.tsv`
+- `docs/posix/posix_issue7_recursive_frontier_requirements.tsv`
 - `docs/posix/posix_shell_grammar_requirements.tsv`
 - `docs/posix/printf_requirements.tsv`
 - `docs/posix/posix_system_prerequisites.tsv`
@@ -82,6 +84,17 @@ drift, missing Q35 probe IDs, false parent closure, and mutations that remove
 an assertion or its dependency evidence. This frontier changes the evidence
 surface from generic parent TODOs to an executable finite queue; it does not
 change the bounded Issue 7 count, which remains 29/245.
+
+The following queue slice is retained separately in
+`docs/posix/posix_issue7_recursive_frontier_ledger.tsv` and
+`docs/posix/posix_issue7_recursive_frontier_requirements.tsv`. It selects the
+next 31 open parent rows after that first shell frontier: 12 shell-language
+parents and the first 19 utility parents, with 2,644 source-derived recursive
+assertions. `scripts/verify_posix_issue7_recursive_frontier.py` derives the
+slice from the canonical open queue, binds every parent to one exact Q35 Ring 3
+probe ID, and rejects source, key-order, witness, dependency, and mutation
+drift. All 31 parents and all 2,644 recursive assertions remain open; these
+probes are evidence for the active queue, not parent-closure transitions.
 
 ## Expanded SUSv4 denominator
 

@@ -1571,6 +1571,273 @@ SHELL_LANGUAGE_COMMAND_CASES = (
         ),
         "FRONTIER_18_09_04_03_OK",
     ),
+    (
+        "shell:tag_18_09_04_05.q35",
+        (
+            "value=selected; case \"$value\" in selected) "
+            "/bin/printf NEXT_SHELL_18_09_04_05_OK;; *) exit 1;; esac"
+        ),
+        "NEXT_SHELL_18_09_04_05_OK",
+    ),
+    (
+        "shell:tag_18_09_04_07.q35",
+        (
+            "if test 1 -eq 2; then exit 1; elif test 1 -eq 1; then "
+            "/bin/printf NEXT_SHELL_18_09_04_07_OK; else exit 1; fi"
+        ),
+        "NEXT_SHELL_18_09_04_07_OK",
+    ),
+    (
+        "shell:tag_18_09_04_09.q35",
+        (
+            "count=0; while test \"$count\" -lt 2; do "
+            "count=$((count + 1)); done; test \"$count\" -eq 2 && "
+            "/bin/printf NEXT_SHELL_18_09_04_09_OK"
+        ),
+        "NEXT_SHELL_18_09_04_09_OK",
+    ),
+    (
+        "shell:tag_18_09_04_11.q35",
+        (
+            "count=0; until test \"$count\" -ge 2; do "
+            "count=$((count + 1)); done; test \"$count\" -eq 2 && "
+            "/bin/printf NEXT_SHELL_18_09_04_11_OK"
+        ),
+        "NEXT_SHELL_18_09_04_11_OK",
+    ),
+    (
+        "shell:tag_18_09_05.q35",
+        (
+            "next_function() { /bin/printf NEXT_SHELL_18_09_05_OK; }; "
+            "next_function"
+        ),
+        "NEXT_SHELL_18_09_05_OK",
+    ),
+    (
+        "shell:tag_18_11.q35",
+        (
+            "handled=0; trap 'handled=1' USR1; kill -USR1 $$; "
+            "test \"$handled\" -eq 1 && /bin/printf NEXT_SHELL_18_11_OK"
+        ),
+        "NEXT_SHELL_18_11_OK",
+    ),
+    (
+        "shell:tag_18_12.q35",
+        (
+            "value=outer; (value=inner); test \"$value\" = outer && "
+            "/bin/printf NEXT_SHELL_18_12_OK"
+        ),
+        "NEXT_SHELL_18_12_OK",
+    ),
+    (
+        "shell:tag_18_13.q35",
+        (
+            "value=abc; case \"$value\" in a?c) /bin/printf "
+            "NEXT_SHELL_18_13_OK;; *) exit 1;; esac"
+        ),
+        "NEXT_SHELL_18_13_OK",
+    ),
+    (
+        "shell:tag_18_13_01.q35",
+        (
+            "value=b; case \"$value\" in [a-c]) /bin/printf "
+            "NEXT_SHELL_18_13_01_OK;; *) exit 1;; esac"
+        ),
+        "NEXT_SHELL_18_13_01_OK",
+    ),
+    (
+        "shell:tag_18_13_02.q35",
+        (
+            "value=abc; case \"$value\" in a*c) /bin/printf "
+            "NEXT_SHELL_18_13_02_OK;; *) exit 1;; esac"
+        ),
+        "NEXT_SHELL_18_13_02_OK",
+    ),
+    (
+        "shell:tag_18_13_03.q35",
+        (
+            'directory=/tmp/p;rm -rf "$directory";mkdir "$directory";'
+            '/bin/printf x>"$directory/a";set -- "$directory"/*;'
+            'status=$?;rm -rf "$directory";test "$status" -eq 0&&'
+            'test "$#" -eq 1&&test "$1" = "$directory/a"&&'
+            "/bin/printf NEXT_SHELL_18_13_03_OK"
+        ),
+        "NEXT_SHELL_18_13_03_OK",
+    ),
+    (
+        "shell:tag_18_14.q35",
+        (
+            "NEXT_SPECIAL=ok export NEXT_SPECIAL; "
+            "test \"$NEXT_SPECIAL\" = ok && /bin/printf NEXT_SHELL_18_14_OK"
+        ),
+        "NEXT_SHELL_18_14_OK",
+    ),
+    (
+        "utility:admin.q35",
+        (
+            "if command -v admin >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_ADMIN_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_ADMIN_OPEN; fi"
+        ),
+        "NEXT_UTILITY_ADMIN_OPEN",
+    ),
+    (
+        "utility:alias.q35",
+        (
+            "alias next_alias='/bin/printf NEXT_UTILITY_ALIAS_OK'\n"
+            "next_alias\n"
+            "status=$?\n"
+            "unalias next_alias\n"
+            "test \"$status\" -eq 0"
+        ),
+        "NEXT_UTILITY_ALIAS_OK",
+    ),
+    (
+        "utility:ar.q35",
+        (
+            "if command -v ar >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_AR_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_AR_OPEN; fi"
+        ),
+        "NEXT_UTILITY_AR_OPEN",
+    ),
+    (
+        "utility:asa.q35",
+        (
+            "if command -v asa >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_ASA_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_ASA_OPEN; fi"
+        ),
+        "NEXT_UTILITY_ASA_OPEN",
+    ),
+    (
+        "utility:at.q35",
+        (
+            "if command -v at >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_AT_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_AT_OPEN; fi"
+        ),
+        "NEXT_UTILITY_AT_OPEN",
+    ),
+    (
+        "utility:awk.q35",
+        (
+            "if command -v awk >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_AWK_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_AWK_OPEN; fi"
+        ),
+        "NEXT_UTILITY_AWK_OPEN",
+    ),
+    (
+        "utility:basename.q35",
+        (
+            "if command -v basename >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_BASENAME_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_BASENAME_OPEN; fi"
+        ),
+        "NEXT_UTILITY_BASENAME_OPEN",
+    ),
+    (
+        "utility:batch.q35",
+        (
+            "if command -v batch >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_BATCH_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_BATCH_OPEN; fi"
+        ),
+        "NEXT_UTILITY_BATCH_OPEN",
+    ),
+    (
+        "utility:bc.q35",
+        (
+            "if command -v bc >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_BC_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_BC_OPEN; fi"
+        ),
+        "NEXT_UTILITY_BC_OPEN",
+    ),
+    (
+        "utility:bg.q35",
+        (
+            "command -v bg >/dev/null 2>&1 && "
+            "/bin/printf NEXT_UTILITY_BG_OPEN"
+        ),
+        "NEXT_UTILITY_BG_OPEN",
+    ),
+    (
+        "utility:break.q35",
+        (
+            "count=0; while test \"$count\" -lt 2; do count=1; break; done; "
+            "test \"$count\" -eq 1 && /bin/printf NEXT_UTILITY_BREAK_OK"
+        ),
+        "NEXT_UTILITY_BREAK_OK",
+    ),
+    (
+        "utility:c99.q35",
+        (
+            "if command -v c99 >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_C99_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_C99_OPEN; fi"
+        ),
+        "NEXT_UTILITY_C99_OPEN",
+    ),
+    (
+        "utility:cal.q35",
+        (
+            "if command -v cal >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_CAL_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_CAL_OPEN; fi"
+        ),
+        "NEXT_UTILITY_CAL_OPEN",
+    ),
+    (
+        "utility:cat.q35",
+        "/bin/printf NEXT_UTILITY_CAT_OK | cat",
+        "NEXT_UTILITY_CAT_OK",
+    ),
+    (
+        "utility:cd.q35",
+        (
+            "cd /tmp; status=$?; test \"$status\" -eq 0 && "
+            "/bin/printf NEXT_UTILITY_CD_OK"
+        ),
+        "NEXT_UTILITY_CD_OK",
+    ),
+    (
+        "utility:cflow.q35",
+        (
+            "if command -v cflow >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_CFLOW_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_CFLOW_OPEN; fi"
+        ),
+        "NEXT_UTILITY_CFLOW_OPEN",
+    ),
+    (
+        "utility:chgrp.q35",
+        (
+            "if command -v chgrp >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_CHGRP_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_CHGRP_OPEN; fi"
+        ),
+        "NEXT_UTILITY_CHGRP_OPEN",
+    ),
+    (
+        "utility:chmod.q35",
+        (
+            "if command -v chmod >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_CHMOD_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_CHMOD_OPEN; fi"
+        ),
+        "NEXT_UTILITY_CHMOD_OPEN",
+    ),
+    (
+        "utility:chown.q35",
+        (
+            "if command -v chown >/dev/null 2>&1; then "
+            "/bin/printf NEXT_UTILITY_CHOWN_PRESENT; else "
+            "/bin/printf NEXT_UTILITY_CHOWN_OPEN; fi"
+        ),
+        "NEXT_UTILITY_CHOWN_OPEN",
+    ),
 )
 
 SHELL_GRAMMAR_COMMAND_CASES = (
