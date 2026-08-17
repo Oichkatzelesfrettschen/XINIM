@@ -161,8 +161,8 @@ Its syscall, interrupt, exception-vector, context-restore, FPU-preservation,
 and storage checks are calibrated with known-good and known-bad fixtures.
 
 The i486 and i686 kernel plus xash targets provide full compile and link gates.
-The current x86_64 boot enters a non-returning staged in-kernel shell before
-initializing the IDT or SYSCALL path. Therefore the existing x86_64 shell test
-does not constitute runtime evidence for userspace entry, interrupts, context
-switching, or SYSCALL. Full runtime canary tests require making that userspace
-handoff reachable first.
+The current x86_64 boot reaches the staged POSIX shell through the Ring 3
+userspace handoff. `test/boot/x86_64_shell_test.py` requires the Ring 3
+sentinel, the exact Q35 machine and CPU, and shell-visible syscall results.
+The assembly contract remains a structural gate; the shell test is the runtime
+evidence for userspace entry, interrupts, context switching, and SYSCALL.

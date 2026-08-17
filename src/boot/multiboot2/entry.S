@@ -1,6 +1,7 @@
 .section .multiboot2_header, "a"
 .align 8
 .global multiboot2_header_start
+.type multiboot2_header_start, @object
 multiboot2_header_start:
     .long 0xe85250d6
     .long 0

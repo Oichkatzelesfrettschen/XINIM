@@ -92,6 +92,7 @@ kernel_syscall_stack_top:
 
 .section .data
 .globl syscall_kernel_stack_top
+.type syscall_kernel_stack_top, @object
 .p2align 3
 syscall_kernel_stack_top:
     .quad kernel_syscall_stack_top

@@ -335,6 +335,12 @@ inline uint32_t uname(void* buf) noexcept {
         static_cast<uint32_t>(reinterpret_cast<uintptr_t>(buf)));
 }
 
+inline uint32_t dup(int oldfd) noexcept {
+    return syscall1(
+        static_cast<uint32_t>(SYS_dup),
+        static_cast<uint32_t>(oldfd));
+}
+
 inline uint32_t dup2(int oldfd, int newfd) noexcept {
     return syscall2(
         static_cast<uint32_t>(SYS_dup2),
