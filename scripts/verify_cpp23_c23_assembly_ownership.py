@@ -7,6 +7,7 @@ import argparse
 import json
 import pathlib
 import re
+import shlex
 import subprocess
 import sys
 import tempfile
@@ -33,6 +34,18 @@ SOURCE_PATH_PATTERN = re.compile(
 )
 GLOBAL_PATTERN = re.compile(r"^\s*\.(?:global|globl)\s+(?P<symbol>[^\s#]+)")
 TYPE_PATTERN = re.compile(r"^\s*\.type\s+(?P<symbol>[^,\s]+)")
+CLANG_C_DRIVER_PATTERN = re.compile(r"(?:^|/)clang(?:-[0-9]+(?:\.[0-9]+)*)?$")
+CLANG_CXX_DRIVER_PATTERN = re.compile(
+    r"(?:^|/)clang\+\+(?:-[0-9]+(?:\.[0-9]+)*)?$"
+)
+FORBIDDEN_COMPILER_PATTERN = re.compile(
+    r"(?:^|[/\s'\"])(?:[^/\s'\"]+-)?(?:gcc|g\+\+)(?:-[0-9]+(?:\.[0-9]+)*)?(?=$|[/\s'\"])",
+    re.IGNORECASE,
+)
+FORBIDDEN_RUNTIME_PATTERN = re.compile(
+    r"(?:libgcc|libstdc\+\+|-l(?:gcc|stdc\+\+)|-stdlib=libstdc\+\+)",
+    re.IGNORECASE,
+)
 
 
 @dataclass(frozen=True)
@@ -56,6 +69,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--cmake", type=pathlib.Path, default=pathlib.Path("CMakeLists.txt")
     )
+    parser.add_argument(
+        "--cmake-cache",
+        type=pathlib.Path,
+        help="configured CMakeCache.txt whose compiler ownership is verified",
+    )
     parser.add_argument("--compile-commands", type=pathlib.Path)
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
@@ -65,6 +83,125 @@ def resolve_path(repository_root: pathlib.Path, candidate: pathlib.Path) -> path
     if candidate.is_absolute():
         return candidate.resolve()
     return (repository_root / candidate).resolve()
+
+
+def parse_cmake_cache(cache_text: str) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for line in cache_text.splitlines():
+        if not line or line.startswith(("//", "#")):
+            continue
+        match = re.match(r"^(?P<key>[^:]+):[^=]*=(?P<value>.*)$", line)
+        if match is not None:
+            values[match.group("key")] = match.group("value")
+    return values
+
+
+def clang_driver_matches(value: str, cxx: bool) -> bool:
+    candidate = value.strip()
+    pattern = CLANG_CXX_DRIVER_PATTERN if cxx else CLANG_C_DRIVER_PATTERN
+    return pattern.fullmatch(pathlib.PurePosixPath(candidate).name) is not None
+
+
+def validate_cmake_cache(
+    cmake_cache_path: pathlib.Path,
+) -> tuple[list[str], dict[str, str]]:
+    try:
+        cache_values = parse_cmake_cache(read_text(cmake_cache_path))
+    except RuntimeError as error:
+        return [str(error)], {}
+
+    failures: list[str] = []
+    compiler_keys = {
+        "C": ("CMAKE_C_COMPILER", False),
+        "CXX": ("CMAKE_CXX_COMPILER", True),
+        "ASM": ("CMAKE_ASM_COMPILER", False),
+    }
+    for language, (key, cxx) in compiler_keys.items():
+        value = cache_values.get(key, "")
+        if not value:
+            failures.append(f"{key} is missing from the configured CMake cache")
+        elif not clang_driver_matches(value, cxx):
+            failures.append(f"{key} is not a Clang driver: {value}")
+        compiler_id = cache_values.get(f"{key}_ID") or cache_values.get(
+            f"XINIM_{language}_COMPILER_ID", ""
+        )
+        if compiler_id != "Clang":
+            failures.append(
+                f"CMAKE_{language}_COMPILER_ID must be Clang, got {compiler_id or '<missing>'}"
+            )
+
+    if cache_values.get("XINIM_X86_32_TOOLCHAIN_MODE") == "cross-elf":
+        triple = cache_values.get("XINIM_X86_ELF_TOOLCHAIN_TRIPLE", "")
+        if not triple:
+            failures.append(
+                "XINIM_X86_ELF_TOOLCHAIN_TRIPLE is missing for cross-ELF mode"
+            )
+        target_keys = (
+            "CMAKE_C_COMPILER_TARGET",
+            "CMAKE_CXX_COMPILER_TARGET",
+            "CMAKE_ASM_COMPILER_TARGET",
+        )
+        for key in target_keys:
+            value = cache_values.get(key, "")
+            if not value:
+                failures.append(f"{key} is missing for cross-ELF mode")
+            elif triple and value != triple:
+                failures.append(
+                    f"{key} target triple {value} does not match {triple}"
+                )
+        for key in (
+            "CMAKE_AR",
+            "CMAKE_LINKER",
+            "CMAKE_NM",
+            "CMAKE_RANLIB",
+            "CMAKE_OBJCOPY",
+            "CMAKE_OBJDUMP",
+            "CMAKE_STRIP",
+        ):
+            value = cache_values.get(key, "")
+            if triple and value and not pathlib.PurePosixPath(value).name.startswith(
+                f"{triple}-"
+            ):
+                failures.append(
+                    f"{key} must be supplied by the {triple} binutils set: {value}"
+                )
+
+    return failures, cache_values
+
+
+def compile_command_text(entry: object) -> str:
+    if not isinstance(entry, dict):
+        return ""
+    arguments = entry.get("arguments")
+    if isinstance(arguments, list):
+        return " ".join(str(argument) for argument in arguments)
+    return str(entry.get("command", ""))
+
+
+def command_tokens(command: str) -> list[str]:
+    try:
+        return shlex.split(command)
+    except ValueError:
+        return []
+
+
+def command_uses_clang(command: str) -> bool:
+    for token in command_tokens(command):
+        basename = pathlib.PurePosixPath(token).name
+        if clang_driver_matches(basename, basename.startswith("clang++")):
+            return True
+    return False
+
+
+def command_has_target(command: str, target: str) -> bool:
+    tokens = command_tokens(command)
+    for index, token in enumerate(tokens):
+        if token in {f"--target={target}", f"-target={target}"}:
+            return True
+        if token in {"--target", "-target"} and index + 1 < len(tokens):
+            if tokens[index + 1] == target:
+                return True
+    return False
 
 
 def parse_manifest_text(manifest_text: str) -> tuple[list[OwnershipRow], list[str]]:
@@ -195,6 +332,7 @@ def validate_compile_commands(
     compile_commands_path: pathlib.Path,
     repository_root: pathlib.Path,
     rows: list[OwnershipRow],
+    cache_values: dict[str, str] | None = None,
 ) -> list[str]:
     try:
         compile_commands = json.loads(read_text(compile_commands_path))
@@ -204,6 +342,34 @@ def validate_compile_commands(
         return ["compile_commands.json is not an array"]
 
     failures: list[str] = []
+    cross_target = None
+    if cache_values is not None:
+        if cache_values.get("XINIM_X86_32_TOOLCHAIN_MODE") == "cross-elf":
+            cross_target = cache_values.get("XINIM_X86_ELF_TOOLCHAIN_TRIPLE")
+
+    for index, entry in enumerate(compile_commands):
+        command = compile_command_text(entry)
+        if not command:
+            failures.append(f"compile command {index} is missing a command")
+            continue
+        if FORBIDDEN_COMPILER_PATTERN.search(command):
+            failures.append(
+                f"compile command {index} invokes a forbidden GCC driver: {command}"
+            )
+        if FORBIDDEN_RUNTIME_PATTERN.search(command):
+            failures.append(
+                f"compile command {index} references GCC runtime or libstdc++: {command}"
+            )
+        if not command_uses_clang(command):
+            failures.append(
+                f"compile command {index} does not invoke a Clang driver: {command}"
+            )
+        if cross_target and not command_has_target(command, cross_target):
+            failures.append(
+                f"compile command {index} lacks the cross-ELF target {cross_target}: "
+                f"{command}"
+            )
+
     for row in rows:
         if row.language != "cpp23":
             continue
@@ -212,7 +378,7 @@ def validate_compile_commands(
         for entry in compile_commands:
             if not isinstance(entry, dict):
                 continue
-            command = str(entry.get("command", ""))
+            command = compile_command_text(entry)
             file_name = str(entry.get("file", ""))
             if str(source_path) in command or file_name == str(source_path):
                 matches.append(command)
@@ -240,6 +406,7 @@ def validate_repository(
     repository_root: pathlib.Path,
     manifest_path: pathlib.Path,
     cmake_path: pathlib.Path,
+    cmake_cache_path: pathlib.Path | None = None,
     compile_commands_path: pathlib.Path | None = None,
     explicit_tracked_paths: list[str] | None = None,
 ) -> list[str]:
@@ -292,6 +459,10 @@ def validate_repository(
         cmake_text = read_text(cmake_path)
     except RuntimeError as error:
         return [str(error)]
+    cache_values: dict[str, str] | None = None
+    if cmake_cache_path is not None:
+        cache_failures, cache_values = validate_cmake_cache(cmake_cache_path)
+        failures.extend(cache_failures)
     cmake_c_paths, cmake_failures = cmake_c_references(cmake_text)
     failures.extend(cmake_failures)
     if re.search(r"(?<![A-Za-z0-9_])_util_source_c(?![A-Za-z0-9_])", cmake_text):
@@ -363,7 +534,12 @@ def validate_repository(
 
     if compile_commands_path is not None:
         failures.extend(
-            validate_compile_commands(compile_commands_path, repository_root, rows)
+            validate_compile_commands(
+                compile_commands_path,
+                repository_root,
+                rows,
+                cache_values,
+            )
         )
     return failures
 
@@ -398,14 +574,118 @@ def run_self_test() -> None:
         )
         manifest_path = root / "manifest.tsv"
         cmake_path = root / "CMakeLists.txt"
+        cmake_cache_path = root / "CMakeCache.txt"
+        compile_commands_path = root / "compile_commands.json"
         manifest_path.write_text(manifest, encoding="ascii")
         cmake_path.write_text(cmake, encoding="ascii")
+        cache_text = (
+            "CMAKE_C_COMPILER:FILEPATH=/usr/bin/clang\n"
+            "CMAKE_CXX_COMPILER:FILEPATH=/usr/bin/clang++\n"
+            "CMAKE_ASM_COMPILER:FILEPATH=/usr/bin/clang\n"
+            "CMAKE_C_COMPILER_ID:STRING=Clang\n"
+            "CMAKE_CXX_COMPILER_ID:STRING=Clang\n"
+            "CMAKE_ASM_COMPILER_ID:STRING=Clang\n"
+            "XINIM_X86_32_TOOLCHAIN_MODE:STRING=cross-elf\n"
+            "XINIM_X86_ELF_TOOLCHAIN_TRIPLE:STRING=i386-elf\n"
+            "CMAKE_C_COMPILER_TARGET:STRING=i386-elf\n"
+            "CMAKE_CXX_COMPILER_TARGET:STRING=i386-elf\n"
+            "CMAKE_ASM_COMPILER_TARGET:STRING=i386-elf\n"
+            "CMAKE_AR:FILEPATH=/usr/bin/i386-elf-ar\n"
+            "CMAKE_LINKER:FILEPATH=/usr/bin/i386-elf-ld\n"
+            "CMAKE_NM:FILEPATH=/usr/bin/i386-elf-nm\n"
+            "CMAKE_RANLIB:FILEPATH=/usr/bin/i386-elf-ranlib\n"
+            "CMAKE_OBJCOPY:FILEPATH=/usr/bin/i386-elf-objcopy\n"
+            "CMAKE_OBJDUMP:FILEPATH=/usr/bin/i386-elf-objdump\n"
+            "CMAKE_STRIP:FILEPATH=/usr/bin/i386-elf-strip\n"
+        )
+        cmake_cache_path.write_text(cache_text, encoding="ascii")
+        compile_commands_path.write_text(
+            json.dumps(
+                [
+                    {
+                        "directory": str(root),
+                        "command": (
+                            f"/usr/bin/clang++ --target=i386-elf -std=c++23 "
+                            f"-c {root / 'fixture.cpp'} -o fixture.o"
+                        ),
+                        "file": str(root / "fixture.cpp"),
+                    }
+                ]
+            ),
+            encoding="ascii",
+        )
         tracked = ["fixture.cpp", "fixture.h", "fixture.S"]
         good = validate_repository(
-            root, manifest_path, cmake_path, explicit_tracked_paths=tracked
+            root,
+            manifest_path,
+            cmake_path,
+            cmake_cache_path,
+            compile_commands_path,
+            explicit_tracked_paths=tracked,
         )
         if good:
             raise AssertionError(f"known-good ownership fixture failed: {good}")
+
+        bad_cache_path = root / "bad-CMakeCache.txt"
+        bad_cache_path.write_text(
+            cache_text.replace(
+                "CMAKE_C_COMPILER:FILEPATH=/usr/bin/clang\n",
+                "CMAKE_C_COMPILER:FILEPATH=/usr/bin/gcc\n",
+            ),
+            encoding="ascii",
+        )
+        bad_cache = validate_repository(
+            root,
+            manifest_path,
+            cmake_path,
+            bad_cache_path,
+            compile_commands_path,
+            explicit_tracked_paths=tracked,
+        )
+        require_failure(
+            "GCC cache mutation",
+            bad_cache,
+            "CMAKE_C_COMPILER is not a Clang driver",
+        )
+
+        bad_target_path = root / "bad-target-CMakeCache.txt"
+        bad_target_path.write_text(
+            cache_text.replace(
+                "CMAKE_CXX_COMPILER_TARGET:STRING=i386-elf",
+                "CMAKE_CXX_COMPILER_TARGET:STRING=i686-elf",
+            ),
+            encoding="ascii",
+        )
+        bad_target = validate_repository(
+            root,
+            manifest_path,
+            cmake_path,
+            bad_target_path,
+            compile_commands_path,
+            explicit_tracked_paths=tracked,
+        )
+        require_failure("target triple mutation", bad_target, "target triple")
+
+        bad_command_path = root / "bad-compile_commands.json"
+        bad_command_path.write_text(
+            compile_commands_path.read_text(encoding="ascii").replace(
+                "/usr/bin/clang++", "/usr/bin/g++"
+            ),
+            encoding="ascii",
+        )
+        bad_command = validate_repository(
+            root,
+            manifest_path,
+            cmake_path,
+            cmake_cache_path,
+            bad_command_path,
+            explicit_tracked_paths=tracked,
+        )
+        require_failure(
+            "GCC compile command mutation",
+            bad_command,
+            "forbidden GCC driver",
+        )
 
         bad_c = validate_repository(
             root,
@@ -451,6 +731,11 @@ def main() -> int:
     repository_root = args.repo_root.resolve()
     manifest_path = resolve_path(repository_root, args.manifest)
     cmake_path = resolve_path(repository_root, args.cmake)
+    cmake_cache_path = (
+        resolve_path(repository_root, args.cmake_cache)
+        if args.cmake_cache is not None
+        else None
+    )
     compile_commands_path = (
         resolve_path(repository_root, args.compile_commands)
         if args.compile_commands is not None
@@ -461,6 +746,7 @@ def main() -> int:
             repository_root,
             manifest_path,
             cmake_path,
+            cmake_cache_path,
             compile_commands_path,
         )
     except RuntimeError as error:

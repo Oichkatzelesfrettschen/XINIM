@@ -9,6 +9,16 @@ import shutil
 import subprocess
 
 
+VENDOR_CLANG_COMPAT_FLAGS = (
+    "-Wno-unknown-attributes",
+    "-Wno-deprecated-non-prototype",
+    "-Wno-int-in-bool-context",
+    "-Wno-null-pointer-subtraction",
+    "-Wno-switch",
+    "-fno-builtin-bcmp",
+)
+
+
 SYSNO_MAP = {
     "__NR_open": 3,
     "__NR_close": 4,
@@ -96,11 +106,39 @@ def run(args: list[str], cwd: Path) -> None:
     subprocess.run(args, cwd=cwd, check=True)
 
 
+def configure_vendor_binutils(
+    makefile_path: Path,
+    ar_path: Path,
+    strip_path: Path,
+    assembler_path: Path,
+    preprocessor_path: Path,
+) -> None:
+    makefile_text = makefile_path.read_text()
+    substitutions = {
+        "$(CROSS)ar": "$(XINIM_AR)",
+        "$(CROSS)strip": "$(XINIM_STRIP)",
+        "$(CROSS)as": "$(XINIM_AS)",
+        "$(CROSS)cpp": "$(XINIM_CPP)",
+    }
+    for source_token, replacement in substitutions.items():
+        if source_token not in makefile_text:
+            raise RuntimeError(
+                f"dietlibc Makefile no longer exposes the expected {source_token} tool boundary"
+            )
+        makefile_text = makefile_text.replace(source_token, replacement)
+    makefile_path.write_text(makefile_text)
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--source-dir", required=True)
     parser.add_argument("--build-dir", required=True)
     parser.add_argument("--cc", required=True)
+    parser.add_argument("--ar", required=True)
+    parser.add_argument("--ranlib", required=True)
+    parser.add_argument("--strip", required=True)
+    parser.add_argument("--assembler", required=True)
+    parser.add_argument("--preprocessor", required=True)
     parser.add_argument("--jobs", type=int, default=max(1, os.cpu_count() or 1))
     parsed = parser.parse_args()
 
@@ -112,6 +150,18 @@ def main() -> int:
     tree_dir.parent.mkdir(parents=True, exist_ok=True)
     shutil.copytree(source_dir, tree_dir)
 
+    ar_path = Path(parsed.ar).resolve()
+    ranlib_path = Path(parsed.ranlib).resolve()
+    strip_path = Path(parsed.strip).resolve()
+    assembler_path = Path(parsed.assembler).resolve()
+    preprocessor_path = Path(parsed.preprocessor).resolve()
+    configure_vendor_binutils(
+        tree_dir / "Makefile",
+        ar_path,
+        strip_path,
+        assembler_path,
+        preprocessor_path,
+    )
     patch_i386_syscalls(tree_dir / "i386" / "syscalls.h")
     patch_dietfeatures(tree_dir / "dietfeatures.h")
 
@@ -121,7 +171,15 @@ def main() -> int:
         f"-j{parsed.jobs}",
         "ARCH=i386",
         f"CC={' '.join(cc)}",
-        "EXTRACFLAGS=-Werror -fno-stack-protector -fno-pie -fno-pic",
+        (
+            "EXTRACFLAGS=-std=gnu11 -Werror "
+            f"{' '.join(VENDOR_CLANG_COMPAT_FLAGS)} "
+            "-fno-stack-protector -fno-pie -fno-pic"
+        ),
+        f"XINIM_AR={ar_path}",
+        f"XINIM_STRIP={strip_path}",
+        f"XINIM_AS={assembler_path}",
+        f"XINIM_CPP={preprocessor_path}",
         "bin-i386/start.o",
         "bin-i386/dietlibc.a",
     ]
@@ -138,8 +196,10 @@ def main() -> int:
             compile_cmd = cc + [
                 "-I" + str(tree_dir),
                 "-isystem", str(tree_dir / "include"),
+                "-std=gnu11",
                 "-pipe", "-nostdinc", "-D_REENTRANT",
-                "-Werror", "-fno-stack-protector", "-fno-pie", "-fno-pic",
+                "-Werror", *VENDOR_CLANG_COMPAT_FLAGS,
+                "-fno-stack-protector", "-fno-pie", "-fno-pic",
                 "-O2", "-fomit-frame-pointer",
                 "-c", str(src), "-o", str(obj),
                 "-D__dietlibc__",
@@ -148,8 +208,10 @@ def main() -> int:
             extra_sources.append(str(obj))
 
     if extra_sources:
-        ar_cmd = ["ar", "rcs", "bin-i386/dietlibc.a"] + extra_sources
+        ar_cmd = [str(ar_path), "rcs", "bin-i386/dietlibc.a"] + extra_sources
         run(ar_cmd, tree_dir)
+
+    run([str(ranlib_path), "bin-i386/dietlibc.a"], tree_dir)
 
     return 0
 

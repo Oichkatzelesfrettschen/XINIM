@@ -6,6 +6,18 @@ This directory contains automated build scripts for the XINIM cross-compiler too
 
 ## Quick Start
 
+The supported kernel and userland build is the CMake flow documented in
+`docs/BUILD.md`. It uses Clang and Clang++ for every project-owned C, C++,
+and assembly compile. The optional cross-ELF lane adds target binutils and a
+Clang target triple; it does not use GCC drivers, libgcc, or libstdc++.
+
+```bash
+cmake --preset i486-standalone
+cmake --build build/i486/Debug --target i486_boot_disk
+```
+
+## Historical bootstrap flow (archived)
+
 ```bash
 # 1. Setup build environment
 sudo ./setup_build_environment.sh
@@ -24,7 +36,10 @@ source /opt/xinim-toolchain/xinim-env.sh
 
 ---
 
-## Scripts Overview
+The commands below provision a superseded custom GCC sysroot and are retained
+only for source archaeology. They are not a supported build path.
+
+## Scripts Overview (historical)
 
 ### 1. `setup_build_environment.sh` ⚙️
 

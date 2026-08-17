@@ -125,7 +125,9 @@ namespace {
 
 } // namespace
 
-int main(int argument_count, char **arguments) {
+extern "C" int xinim_user_main(int argument_count, char **arguments) asm("main");
+
+extern "C" int xinim_user_main(int argument_count, char **arguments) {
     bool recursive = false;
     bool force = false;
     int first_operand_index = 1;

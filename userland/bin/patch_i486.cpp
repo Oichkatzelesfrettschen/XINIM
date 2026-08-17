@@ -220,7 +220,7 @@ bool apply_hunk(const Hunk& h, LineBuf& in, int& in_cursor, OutBuf& out,
                 ++scan;
             }
         }
-        if (ok) { target = target; break; }
+        if (ok) break;
         ++fuzz; ++target;
         if (fuzz > 5) {
             write_str(2, "patch: hunk failed at line ");
@@ -307,7 +307,6 @@ int main(int argc, char** argv) {
 
     // Parse patch: iterate over diff sections (--- / +++ header pairs)
     const char* p = g_patch_buf;
-    int n_applied = 0;
     int n_failed  = 0;
 
     while (*p) {
@@ -366,13 +365,10 @@ int main(int argc, char** argv) {
         // Apply all hunks for this file
         int in_cursor = 0;
         bool file_ok = true;
-        int hunk_n = 0;
-
         while (*p && p[0] == '@' && p[1] == '@') {
             Hunk& h = g_hunk;
             h.nlines = 0;
             if (!parse_hunk_header(p, h)) { write_str(2, "patch: malformed hunk header\n"); break; }
-            ++hunk_n;
 
             // Read hunk body lines
             while (*p && !(p[0] == '@' && p[1] == '@') &&
@@ -406,7 +402,6 @@ int main(int argc, char** argv) {
         }
 
         if (file_ok) {
-            ++n_applied;
             if (!dry_run) {
                 if (write_file(target, g_out.data, g_out.len) < 0) {
                     write_str(2, "patch: cannot write: "); write_str(2, target); write_str(2, "\n");

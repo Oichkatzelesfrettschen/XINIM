@@ -8,7 +8,8 @@
 #   ./scripts/build_i486.sh --test   # Build + run VBox test suite
 #
 # Prerequisites:
-#   - CMake 3.28+, Ninja, Clang 18+, GCC (for dietlibc cross-compile)
+#   - CMake 3.28+, Ninja, Clang 18+
+#   - Optional cross-ELF lane: i386-elf-binutils or i686-elf-binutils
 #   - grub-mkimage, mke2fs, qemu-img
 set -euo pipefail
 

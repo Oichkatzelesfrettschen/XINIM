@@ -1,17 +1,21 @@
 #!/usr/bin/env bash
-# [ARCHIVED - Use system Clang + Conan instead]
+# ARCHIVED: this script provisions a superseded custom GCC toolchain and is
+# not part of the supported build. Use system Clang/Clang++ and CMake presets.
 #
 # This script was written for a GCC 13 + dietlibc cross-compiler approach
-# that is no longer used. The current toolchain is:
-#   - Clang 21+ (system package on CachyOS/Arch)
-#   - CMake 4.2+ with CMakePresets.json
-#   - Conan 2.24+ with conan/profiles/xinim-clang
+# that is no longer used. The supported toolchain is:
+#   - Clang 18+ (system package on CachyOS/Arch)
+#   - CMake 3.28+ with CMakePresets.json
+#   - target binutils only for the optional cross-ELF lane
 #
 # Setup on CachyOS/Arch:
 #   yay -S clang cmake conan ninja doxygen qemu-system-x86
 #   conan install . -s build_type=Debug -of build/Debug --build=missing \
 #       -pr conan/profiles/xinim-clang
 #   cmake --preset debug && cmake --build --preset debug
+#
+# The historical commands above are retained only for source archaeology. They
+# must not be used to build the kernel or userland.
 #
 # Original description:
 # XINIM Build Environment Setup Script

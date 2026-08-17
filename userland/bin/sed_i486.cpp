@@ -212,8 +212,6 @@ int process_stream(int fd) {
         char* cur = line;
         int cur_len = line_len;
         bool deleted = false;
-        bool printed = false;
-        bool quit = false;
 
         for (int c = 0; c < g_ncmds; ++c) {
             if (!addr_matches(g_cmds[c], line_no)) continue;
@@ -234,7 +232,6 @@ int process_stream(int fd) {
             case kPrint:
                 write_all(1, cur, cur_len);
                 write_all(1, "\n", 1);
-                printed = true;
                 break;
             case kDelete:
                 deleted = true;

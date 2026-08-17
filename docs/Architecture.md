@@ -120,9 +120,12 @@ non-associativity assumptions.
 ---
 
 Build systems: policy
-- Primary build: Meson (meson setup build && meson compile -C build).
-- Secondary build: CMake for IDE/tooling parity (keep compile options in sync).
-- Compiler: Clang 18 is the reference; CI also exercises GCC to catch portability drift.
+- Primary build: CMake with the versioned presets and lane-specific build trees.
+- Compiler: Clang 18 or newer is the sole C, C++, and assembly compiler-driver
+  family for the kernel and userland.
+- The optional `cross-elf` lane adds only target `<triple>-*` binutils and
+  passes `--target=<triple>` to the same Clang drivers. GCC, libgcc, and
+  libstdc++ are not portability-build inputs.
 
 ---
 

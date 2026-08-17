@@ -113,8 +113,8 @@ Run `bash scripts/x86_32_full_gate.sh` for the serial 32-bit build, boot, and
 image-check gate.
 
 Optional 32-bit ELF cross-toolchain tools:
-- `i386-elf-gcc` plus `i386-elf-binutils` for `i486` and `i586`
-- `i686-elf-gcc` plus `i686-elf-binutils` for `i686` and the higher 32-bit lanes
+- `i386-elf-binutils` for `i486` and `i586`
+- `i686-elf-binutils` for `i686` and the higher 32-bit lanes
 
 Documentation tools:
 - Doxygen
@@ -182,8 +182,8 @@ locally.
 Optional Arch / AUR cross-toolchain packages:
 
 ```bash
-yay -S --needed i386-elf-gcc i386-elf-binutils
-yay -S --needed i686-elf-gcc i686-elf-binutils
+yay -S --needed i386-elf-binutils
+yay -S --needed i686-elf-binutils
 ```
 
 Ubuntu / Debian:
@@ -333,8 +333,9 @@ ctest --test-dir build/i486-cross/Debug --output-on-failure
 ```
 
 Cross-lane note:
-- The optional `cross-elf` mode switches the freestanding 32-bit guest tree to
-  the ELF cross compiler inside CMake before `project()`.
+- The optional `cross-elf` mode keeps the Clang and Clang++ drivers, passes
+  `--target=<triple>`, and uses the target `<triple>-*` binutils only for
+  ELF linking and binary utilities.
 
 ## Related Documentation
 

@@ -116,7 +116,6 @@ int main(int argc, char** argv) {
 
     // Build and execute commands
     int batch = (max_args > 0) ? max_args : line_count;
-    int base_argc = using_default ? 1 : cmd_argc;
 
     for (int i = 0; i < line_count; i += batch) {
         int count = batch;

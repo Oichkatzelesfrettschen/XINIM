@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+# ARCHIVED: historical GCC bootstrap path. The canonical kernel and userland
+# build uses Clang/Clang++ and target binutils through CMake.
 # XINIM GCC Stage 2 Build Script
 # Builds GCC 13.2 Stage 2 (full compiler with libc) for x86_64-xinim-elf
 # Part of Week 3: Full Toolchain Completion

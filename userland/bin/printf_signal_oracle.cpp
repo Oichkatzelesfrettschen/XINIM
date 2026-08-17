@@ -39,7 +39,9 @@ namespace {
 
 } // namespace
 
-int main() {
+extern "C" int xinim_user_main() asm("main");
+
+extern "C" int xinim_user_main() {
     int descriptors[2];
     if (pipe(descriptors) != 0) {
         report("printf-signal-oracle: pipe failed\n");

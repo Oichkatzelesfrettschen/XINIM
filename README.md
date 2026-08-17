@@ -10,7 +10,7 @@ file I/O, and a C compiler (TCC).
 ### Requirements
 
 - Linux host (tested on CachyOS/Arch)
-- Clang 18+ and GCC (for cross-compiling dietlibc and utilities)
+- Clang 18+ and the matching target binutils package for optional cross-ELF builds
 - CMake 3.28+, Ninja
 - GRUB tools: `grub-mkimage` (package: `grub`)
 - Filesystem tools: `mke2fs` (package: `e2fsprogs`)

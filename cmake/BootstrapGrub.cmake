@@ -78,14 +78,14 @@ file(MAKE_DIRECTORY "${XINIM_GRUB_BUILD_DIR}")
 
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
-            CC=gcc
-            CXX=g++
+            CC=clang
+            CXX=clang++
             CFLAGS=
             CXXFLAGS=
             CPPFLAGS=
             LDFLAGS=
-            "TARGET_CC=gcc -fuse-ld=bfd"
-            "TARGET_CCAS=gcc -fuse-ld=bfd"
+            "TARGET_CC=clang"
+            "TARGET_CCAS=clang"
             "${XINIM_GRUB_SOURCE_DIR}/configure"
             --prefix=${XINIM_GRUB_INSTALL_ROOT}
             --disable-werror
@@ -114,8 +114,8 @@ endif()
 
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
-            CC=gcc
-            CXX=g++
+            CC=clang
+            CXX=clang++
             CFLAGS=
             CXXFLAGS=
             CPPFLAGS=
@@ -127,8 +127,8 @@ execute_process(
 
 execute_process(
     COMMAND "${CMAKE_COMMAND}" -E env
-            CC=gcc
-            CXX=g++
+            CC=clang
+            CXX=clang++
             CFLAGS=
             CXXFLAGS=
             CPPFLAGS=
