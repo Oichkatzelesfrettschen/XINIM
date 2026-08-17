@@ -57,6 +57,19 @@ acceptable substitute for fixing the responsible subsystem.
 
 ## Build and Verification
 
+The default CMake and kernel compiler lane is Clang: `clang` and `clang++`
+from `CMakePresets.json`, with C++23 enabled for project-owned C++ and
+`XINIM_ENABLE_WERROR=ON`. Verify the resolved paths and versions from the
+build-tree cache or emitted command line before diagnosing a compiler issue;
+the host installation is not a substitute for the configured lane. The
+default 32-bit lane is Clang with `-m32`. `cross-elf` is an explicit 32-bit
+alternative that resolves the selected `<triple>-gcc` and `<triple>-g++`
+tools. The x86_64 dietlibc and pinned mksh userland recipes are separate,
+intentional GCC/G++ build boundaries in `CMakeLists.txt`; that exception does
+not change the kernel CMake compiler policy. Vendor C uses the explicit GNU
+C11 profile, while Issue 7 C tests use strict C99 and their documented
+feature-test macros.
+
 Configure and build the x86_64 debug lane with warnings enabled as errors. For
 the active boot and userspace boundary, use these focused gates:
 

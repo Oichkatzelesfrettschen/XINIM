@@ -19,7 +19,6 @@ from verify_posix_issue7_archive import (
     verify_archive_identity,
 )
 
-
 QUEUE_OFFSET = 31
 FRONTIER_SIZE = 31
 QEMU_TEST_PATH = PurePosixPath("test/boot/x86_64_shell_test.py")
@@ -117,6 +116,7 @@ REQUIREMENT_COLUMNS = (
     "assertion",
     "assertion_sha256",
     "implementation_requirement",
+    "q35_case",
     "state",
     "witness",
     "next_action",
@@ -522,6 +522,7 @@ def requirement_rows(sources: list[ParentSource]) -> list[tuple[str, ...]]:
                     assertion.text,
                     assertion.source_sha256,
                     requirement_text,
+                    f"{source.row}.q35",
                     "open",
                     f"missing:{assertion.requirement}_q35_ring3_witness",
                     "Add an exact Q35 Ring 3 case for this assertion, then run the mutation falsifier before closing it.",
@@ -559,6 +560,7 @@ def generated_ledgers(sources: list[ParentSource]) -> tuple[str, str]:
         "# derivation: every prose, list, and definition assertion in each selected source section, excluding Examples sections",
         f"# snapshot-count: {len(requirements)}",
         f"# ordered-requirement-sha256: {ordered_sha256([row[0] for row in requirements])}",
+        "# q35_case invariant: open rows retain their parent probe; closed rows require an assertion-specific executable case",
         "# state invariant: every recursive requirement is exactly open or closed and every open row has a falsifier",
     ]
     return (
@@ -634,6 +636,36 @@ def read_executable_case_ids(repository_root: Path) -> set[str]:
     return case_ids
 
 
+def validate_q35_witness(
+    owner: str,
+    q35_case: str,
+    witness: str,
+    executable_case_ids: set[str],
+    require_assertion_case: bool,
+) -> list[str]:
+    failures: list[str] = []
+    if q35_case not in executable_case_ids:
+        failures.append(f"{owner}: q35 case is not executable: {q35_case}")
+    if require_assertion_case and not q35_case.startswith(f"{owner}."):
+        failures.append(
+            f"{owner}: closed q35 case must be assertion-specific: {q35_case}"
+        )
+    if not witness.startswith("tests:"):
+        failures.append(f"{owner}: closed witness must start with 'tests:'")
+        return failures
+    references = witness.removeprefix("tests:").split(",")
+    expected_reference = f"{QEMU_TEST_PATH}#{q35_case}"
+    if expected_reference not in references:
+        failures.append(
+            f"{owner}: closed witness must name exact Q35 case {expected_reference}"
+        )
+    for reference in references:
+        witness_path, separator, case_id = reference.partition("#")
+        if not separator or witness_path != str(QEMU_TEST_PATH) or not case_id:
+            failures.append(f"{owner}: invalid Q35 witness reference: {reference}")
+    return failures
+
+
 def validate_parent_rows(
     rows: list[tuple[str, ...]],
     sources: list[ParentSource],
@@ -660,39 +692,62 @@ def validate_parent_rows(
                 failures.append(f"{owner}: open row lacks its missing recursive witness")
             if not row[11] or row[11] == "-":
                 failures.append(f"{owner}: open row lacks a next action")
-        elif not row[10].startswith("tests:"):
-            failures.append(f"{owner}: closed parent requires a complete tests witness")
+        else:
+            failures.extend(
+                validate_q35_witness(
+                    owner,
+                    row[8],
+                    row[10],
+                    executable_case_ids,
+                    require_assertion_case=False,
+                )
+            )
     return failures
 
 
 def validate_requirement_rows(
     rows: list[tuple[str, ...]],
     sources: list[ParentSource],
+    executable_case_ids: set[str],
 ) -> list[str]:
     failures: list[str] = []
     expected = requirement_rows(sources)
     if len(rows) != len(expected):
         return [
-            "recursive requirement denominator mismatch: "
-            f"expected {len(expected)}, got {len(rows)}"
+            (
+                "recursive requirement denominator mismatch: "
+                f"expected {len(expected)}, got {len(rows)}"
+            )
         ]
     if [row[0] for row in rows] != [row[0] for row in expected]:
         failures.append("recursive requirement keys are missing, duplicated, or out of order")
     for row, expected_row in zip(rows, expected):
         requirement = row[0]
-        if row[1:8] != expected_row[1:8]:
+        if row[1:9] != expected_row[1:9]:
             failures.append(f"{requirement}: source assertion or implementation requirement changed")
-        if row[8] not in VALID_STATES:
-            failures.append(f"{requirement}: invalid state {row[8]}")
-        if row[8] == "open":
-            if not row[9].startswith(f"missing:{requirement}"):
+        if row[9] not in VALID_STATES:
+            failures.append(f"{requirement}: invalid state {row[9]}")
+        if row[9] == "open":
+            if row[8] != expected_row[8]:
+                failures.append(
+                    f"{requirement}: open q35 case must retain parent probe {expected_row[8]}"
+                )
+            if not row[10].startswith(f"missing:{requirement}"):
                 failures.append(f"{requirement}: open row lacks an exact missing witness")
-            if not row[10] or row[10] == "-":
+            if not row[11] or row[11] == "-":
                 failures.append(f"{requirement}: open row lacks a next action")
-            if not row[11] or requirement not in row[11]:
+            if not row[12] or requirement not in row[12]:
                 failures.append(f"{requirement}: open row lacks its mutation falsifier")
-        elif not row[9].startswith("tests:"):
-            failures.append(f"{requirement}: closed row requires a tests witness")
+        else:
+            failures.extend(
+                validate_q35_witness(
+                    requirement,
+                    row[8],
+                    row[10],
+                    executable_case_ids,
+                    require_assertion_case=True,
+                )
+            )
     return failures
 
 
@@ -702,7 +757,7 @@ def validate_dependencies(
 ) -> list[str]:
     open_requirements_by_row: dict[str, int] = {}
     for row in requirement_rows_value:
-        if row[8] == "open":
+        if row[9] == "open":
             open_requirements_by_row[row[1]] = open_requirements_by_row.get(row[1], 0) + 1
     failures: list[str] = []
     for row in parent_rows_value:
@@ -749,7 +804,7 @@ def run_self_test(
     mutated_rows[0] = tuple(mutated_fields)
     require_failure(
         "mutated assertion",
-        validate_requirement_rows(mutated_rows, sources),
+        validate_requirement_rows(mutated_rows, sources, executable_case_ids),
         "source assertion or implementation requirement changed",
     )
     mutated_parent = parent_rows_value.copy()
@@ -760,6 +815,47 @@ def run_self_test(
         "mutated Q35 witness",
         validate_parent_rows(mutated_parent, sources, executable_case_ids),
         "q35 case changed",
+    )
+    mutated_requirement_probe = requirement_rows_value.copy()
+    mutated_probe_fields = list(mutated_requirement_probe[0])
+    mutated_probe_fields[8] = f"{mutated_probe_fields[8]}.missing"
+    mutated_requirement_probe[0] = tuple(mutated_probe_fields)
+    require_failure(
+        "mutated recursive Q35 probe",
+        validate_requirement_rows(
+            mutated_requirement_probe, sources, executable_case_ids
+        ),
+        "open q35 case must retain parent probe",
+    )
+    closed_requirement = requirement_rows_value.copy()
+    closed_requirement_fields = list(closed_requirement[0])
+    closed_requirement_fields[8] = f"{closed_requirement_fields[0]}.missing"
+    closed_requirement_fields[9] = "closed"
+    closed_requirement_fields[10] = (
+        f"tests:{QEMU_TEST_PATH}#{closed_requirement_fields[8]}"
+    )
+    closed_requirement[0] = tuple(closed_requirement_fields)
+    require_failure(
+        "closed recursive Q35 witness",
+        validate_requirement_rows(
+            closed_requirement, sources, executable_case_ids
+        ),
+        "q35 case is not executable",
+    )
+    mismatched_closed_requirement = requirement_rows_value.copy()
+    mismatched_closed_fields = list(mismatched_closed_requirement[0])
+    mismatched_closed_fields[8] = mismatched_closed_fields[1] + ".q35"
+    mismatched_closed_fields[9] = "closed"
+    mismatched_closed_fields[10] = (
+        f"tests:{QEMU_TEST_PATH}#{mismatched_closed_fields[8]}"
+    )
+    mismatched_closed_requirement[0] = tuple(mismatched_closed_fields)
+    require_failure(
+        "non-assertion-specific recursive Q35 witness",
+        validate_requirement_rows(
+            mismatched_closed_requirement, sources, executable_case_ids
+        ),
+        "closed q35 case must be assertion-specific",
     )
     closed_parent = parent_rows_value.copy()
     closed_fields = list(closed_parent[0])
@@ -800,14 +896,18 @@ def main() -> int:
         requirement_rows_value = parse_ledger(requirement_path, REQUIREMENT_COLUMNS)
         executable_case_ids = read_executable_case_ids(repository_root)
         failures = validate_parent_rows(parent_rows_value, sources, executable_case_ids)
-        failures.extend(validate_requirement_rows(requirement_rows_value, sources))
+        failures.extend(
+            validate_requirement_rows(
+                requirement_rows_value, sources, executable_case_ids
+            )
+        )
         failures.extend(validate_dependencies(parent_rows_value, requirement_rows_value))
         if failures:
             raise VerificationError("\n".join(failures))
         if arguments.self_test:
             run_self_test(parent_path, requirement_path, sources, executable_case_ids)
         parent_open = sum(row[9] == "open" for row in parent_rows_value)
-        requirement_open = sum(row[8] == "open" for row in requirement_rows_value)
+        requirement_open = sum(row[9] == "open" for row in requirement_rows_value)
         shell_count = sum(row.domain == "shell" for row in sources)
         utility_count = sum(row.domain == "utility" for row in sources)
         print(
