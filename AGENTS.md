@@ -1,5 +1,9 @@
 # XINIM Agent Guidance
 
+## Instruction source
+
+`AGENTS.md` is the root instruction file for XINIM and owns its rules. Every agent and contributor reads it directly. `CLAUDE.md` is a tracked, repository-relative symbolic link to `AGENTS.md`, so Claude Code receives the canonical rules through the same bytes and the body lives in one place. A tool that requires a differently named loader references this file rather than copying doctrine that can drift.
+
 ## Scope
 
 XINIM is a freestanding operating-system project. The supported modern boot
