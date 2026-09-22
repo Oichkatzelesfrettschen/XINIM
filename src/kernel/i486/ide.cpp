@@ -1,6 +1,8 @@
 #include "ide.hpp"
 
 #include "console.hpp"
+#include "io_port.hpp"
+#include "pit_deadline.hpp"
 #include "storage.hpp"
 
 namespace xinim::i486::ide {
@@ -28,7 +30,7 @@ constexpr uint8_t kStatusDfq = 0x20U;
 constexpr uint8_t kStatusDrdy = 0x40U;
 constexpr uint8_t kStatusBusy = 0x80U;
 
-constexpr uint32_t kPollIterations = 100000U;
+constexpr uint32_t kCommandBudgetTicks = 3U * pit_deadline::kInputHz;
 constexpr uint32_t kSectorSize = 512U;
 constexpr uint32_t kIdentifyWordCount = 256U;
 constexpr uint32_t kModelWordStart = 27U;
@@ -42,6 +44,12 @@ constexpr uint16_t kExt2SuperblockMagic = 0xEF53U;
 
 DeviceInfo g_primary_master = {false, true, 0U, {}};
 bool g_initialized = false;
+bool g_io_available = false;
+
+using io_port::inb;
+using io_port::inw;
+using io_port::outb;
+using io_port::outw;
 
 struct __attribute__((packed)) MbrPartitionEntry {
     uint8_t status;
@@ -80,26 +88,6 @@ struct __attribute__((packed)) Ext2Superblock {
     uint16_t def_resgid;
 };
 
-inline void outb(uint16_t port, uint8_t value) noexcept {
-    asm volatile("outb %0, %1" : : "a"(value), "Nd"(port));
-}
-
-inline uint8_t inb(uint16_t port) noexcept {
-    uint8_t value = 0U;
-    asm volatile("inb %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
-
-inline uint16_t inw(uint16_t port) noexcept {
-    uint16_t value = 0U;
-    asm volatile("inw %1, %0" : "=a"(value) : "Nd"(port));
-    return value;
-}
-
-inline void outw(uint16_t port, uint16_t value) noexcept {
-    asm volatile("outw %0, %1" : : "a"(value), "Nd"(port));
-}
-
 void delay_400ns() noexcept {
     (void)inb(static_cast<uint16_t>(kPrimaryControlBase));
     (void)inb(static_cast<uint16_t>(kPrimaryControlBase));
@@ -112,23 +100,54 @@ void select_primary_master() noexcept {
     delay_400ns();
 }
 
-bool wait_while_busy() noexcept {
-    for (uint32_t attempt = 0U; attempt < kPollIterations; ++attempt) {
-        const uint8_t status = inb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand));
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+void trace_io_failure(const char* stage, uint32_t lba, uint8_t status) noexcept {
+    console::write_string("ATA failure stage=");
+    console::write_string(stage);
+    console::write_string(" lba=");
+    console::write_hex32(lba);
+    console::write_string(" status=");
+    console::write_hex32(status);
+    console::newline();
+}
+#endif
+
+void retire_timed_out_device() noexcept {
+    // An outstanding PIO command retains the task file until reset. Reject
+    // further requests instead of treating its late data as a new transfer.
+    g_io_available = false;
+    g_primary_master.present = false;
+    storage::clear_boot_storage();
+}
+
+bool wait_while_busy(pit_deadline::Deadline& deadline,
+                     [[maybe_unused]] uint32_t lba = UINT32_MAX) noexcept {
+    uint8_t status = 0U;
+    do {
+        status = inb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand));
         if ((status & kStatusBusy) == 0U) {
             return true;
         }
-    }
+    } while (!deadline.expired());
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+    trace_io_failure("busy-timeout", lba, status);
+#endif
+    retire_timed_out_device();
     return false;
 }
 
-bool wait_for_data_request() noexcept {
-    for (uint32_t attempt = 0U; attempt < kPollIterations; ++attempt) {
-        const uint8_t status = inb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand));
+bool wait_for_data_request(pit_deadline::Deadline& deadline,
+                           [[maybe_unused]] uint32_t lba = UINT32_MAX) noexcept {
+    uint8_t status = 0U;
+    do {
+        status = inb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand));
         if ((status & kStatusBusy) != 0U) {
             continue;
         }
         if ((status & kStatusErr) != 0U || (status & kStatusDfq) != 0U) {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+            trace_io_failure("device-error", lba, status);
+#endif
             return false;
         }
         if ((status & kStatusDrq) != 0U) {
@@ -137,7 +156,27 @@ bool wait_for_data_request() noexcept {
         if ((status & kStatusDrdy) == 0U) {
             continue;
         }
-    }
+    } while (!deadline.expired());
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+    trace_io_failure("drq-timeout", lba, status);
+#endif
+    retire_timed_out_device();
+    return false;
+}
+
+bool wait_for_idle(pit_deadline::Deadline& deadline,
+                   [[maybe_unused]] uint32_t lba = UINT32_MAX) noexcept {
+    uint8_t status = 0U;
+    do {
+        status = inb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand));
+        if ((status & (kStatusBusy | kStatusDrq)) == 0U) {
+            return (status & (kStatusErr | kStatusDfq)) == 0U;
+        }
+    } while (!deadline.expired());
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+    trace_io_failure("idle-timeout", lba, status);
+#endif
+    retire_timed_out_device();
     return false;
 }
 
@@ -188,6 +227,7 @@ void parse_identify_model(const uint16_t* identify_words, char* out_model) noexc
 
 bool identify_primary_master(DeviceInfo& info) noexcept {
     clear_info(info);
+    pit_deadline::Deadline deadline(kCommandBudgetTicks);
     select_primary_master();
 
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterSectorCount), 0U);
@@ -202,7 +242,7 @@ bool identify_primary_master(DeviceInfo& info) noexcept {
         return false;
     }
 
-    if (!wait_while_busy()) {
+    if (!wait_while_busy(deadline)) {
         return false;
     }
 
@@ -212,12 +252,15 @@ bool identify_primary_master(DeviceInfo& info) noexcept {
         return false;
     }
 
-    if (!wait_for_data_request()) {
+    if (!wait_for_data_request(deadline)) {
         return false;
     }
 
     uint16_t identify_words[kIdentifyWordCount]{};
     read_words(identify_words, kIdentifyWordCount);
+    if (!wait_for_idle(deadline)) {
+        return false;
+    }
 
     info.present = true;
     info.read_only = false;
@@ -229,10 +272,11 @@ bool identify_primary_master(DeviceInfo& info) noexcept {
 }
 
 bool read_sector_internal(uint32_t lba, uint8_t* buffer) noexcept {
-    if (buffer == nullptr || lba >= 0x10000000U) {
+    if (!g_io_available || buffer == nullptr || lba >= 0x10000000U) {
         return false;
     }
 
+    pit_deadline::Deadline deadline(kCommandBudgetTicks);
     select_primary_master();
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterSectorCount), 1U);
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterLbaLow),
@@ -246,7 +290,7 @@ bool read_sector_internal(uint32_t lba, uint8_t* buffer) noexcept {
     delay_400ns();
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand), kCommandReadSectors);
 
-    if (!wait_while_busy() || !wait_for_data_request()) {
+    if (!wait_while_busy(deadline, lba) || !wait_for_data_request(deadline, lba)) {
         return false;
     }
 
@@ -255,14 +299,15 @@ bool read_sector_internal(uint32_t lba, uint8_t* buffer) noexcept {
         buffer[index] = static_cast<uint8_t>(value & 0xFFU);
         buffer[index + 1U] = static_cast<uint8_t>((value >> 8U) & 0xFFU);
     }
-    return true;
+    return wait_for_idle(deadline, lba);
 }
 
 bool write_sector_internal(uint32_t lba, const uint8_t* buffer) noexcept {
-    if (buffer == nullptr || lba >= 0x10000000U) {
+    if (!g_io_available || buffer == nullptr || lba >= 0x10000000U) {
         return false;
     }
 
+    pit_deadline::Deadline deadline(kCommandBudgetTicks);
     select_primary_master();
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterSectorCount), 1U);
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterLbaLow),
@@ -276,7 +321,7 @@ bool write_sector_internal(uint32_t lba, const uint8_t* buffer) noexcept {
     delay_400ns();
     outb(static_cast<uint16_t>(kPrimaryIoBase + kRegisterStatusCommand), kCommandWriteSectors);
 
-    if (!wait_while_busy() || !wait_for_data_request()) {
+    if (!wait_while_busy(deadline, lba) || !wait_for_data_request(deadline, lba)) {
         return false;
     }
 
@@ -288,7 +333,7 @@ bool write_sector_internal(uint32_t lba, const uint8_t* buffer) noexcept {
     }
 
     delay_400ns();
-    return wait_while_busy();
+    return wait_for_idle(deadline, lba);
 }
 
 void log_sector_zero_preview() noexcept {
@@ -365,7 +410,9 @@ void register_boot_partition() noexcept {
     MbrPartitionEntry entry{};
     if (!read_partition_entry(entry) || entry.partition_type == 0U ||
         entry.first_lba == 0U || entry.sector_count == 0U) {
-        storage::register_boot_storage(device, {false, 0U, 0U, 0U});
+        if (g_io_available) {
+            storage::register_boot_storage(device, {false, 0U, 0U, 0U});
+        }
         return;
     }
 
@@ -423,6 +470,8 @@ void initialize() noexcept {
         return;
     }
     g_initialized = true;
+    pit_deadline::initialize();
+    g_io_available = true;
 
     write_key("ATA primary master");
     console::write_string("probing");

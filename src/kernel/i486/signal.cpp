@@ -40,11 +40,28 @@ void send_signal_to_process(Process* target, uint32_t signum) noexcept {
         return;
     }
     target->signals.pending |= (1U << signum);
+    if (signum == kSigCont && target->state == ProcessState::Stopped) {
+        target->state = ProcessState::Runnable;
+    }
     if (target->state == ProcessState::Waiting) {
         target->state = ProcessState::Runnable;
         target->wait_reason = WaitReason::None;
         target->wake_tick = 0U;
     }
+}
+
+bool has_interrupting_signal(const Process& process) noexcept {
+    const uint32_t pending = process.signals.pending & ~process.signals.blocked;
+    for (uint32_t signum = 1U; signum < kMaxSignals; ++signum) {
+        if ((pending & (1U << signum)) == 0U) {
+            continue;
+        }
+        const uint32_t handler = process.signals.handlers[signum].handler;
+        if (handler != kSigIgn && !(handler == kSigDfl && is_default_ignore(signum))) {
+            return true;
+        }
+    }
+    return false;
 }
 
 bool deliver_one_signal(Process* process) noexcept {
@@ -80,7 +97,8 @@ bool deliver_one_signal(Process* process) noexcept {
         if (is_default_ignore(signum)) {
             return false;
         }
-        if (signum == kSigStop || signum == kSigTstp) {
+        if (signum == kSigStop || signum == kSigTstp ||
+            signum == kSigTtin || signum == kSigTtou) {
             process->state = ProcessState::Stopped;
             process->exit_status = (signum << 8U) | 0x7FU;
             Process* parent = find_process(process->ppid);
@@ -92,16 +110,8 @@ bool deliver_one_signal(Process* process) noexcept {
             }
             return true;
         }
-        if (signum == kSigCont) {
-            if (process->state == ProcessState::Stopped) {
-                process->state = ProcessState::Runnable;
-            }
-            return false;
-        }
         if (is_default_terminate(signum)) {
-            process->exit_status = 128U + signum;
-            process->state = ProcessState::Exited;
-            return true;
+            terminate_current_process_from_signal(128U + signum);
         }
         return false;
     }
@@ -113,9 +123,7 @@ bool deliver_one_signal(Process* process) noexcept {
 
     uint8_t* frame_dest = nullptr;
     if (!translate_user_region(process, new_esp, frame_size, &frame_dest)) {
-        process->exit_status = 128U + signum;
-        process->state = ProcessState::Exited;
-        return true;
+        terminate_current_process_from_signal(128U + kSigSegv);
     }
 
     auto* sig_frame = reinterpret_cast<SignalFrame32*>(frame_dest);
@@ -242,10 +250,7 @@ uint32_t sys_kill_impl(Process* process, RegisterFrame* frame) noexcept {
     uint8_t* raw = nullptr;
     if (!translate_user_region(process, frame_addr,
                                static_cast<uint32_t>(sizeof(SignalFrame32)), &raw)) {
-        process->exit_status = 128U + kSigSegv;
-        process->state = ProcessState::Exited;
-        dispatch_next_runnable("sigreturn failed to read signal frame");
-        __builtin_unreachable();
+        terminate_current_process_from_signal(128U + kSigSegv);
     }
 
     const auto* sig_frame = reinterpret_cast<const SignalFrame32*>(raw);

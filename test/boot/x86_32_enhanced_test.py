@@ -57,6 +57,7 @@ BOOT_IMAGE = os.environ.get(
 QEMU_BIN = os.environ.get("XINIM_QEMU_SYSTEM_BIN", "qemu-system-i386")
 QEMU_MACHINE = os.environ.get("XINIM_QEMU_MACHINE", "pc")
 QEMU_CPU = os.environ.get("XINIM_QEMU_CPU", DEFAULT_CPU_BY_LANE.get(LANE_NAME, "486"))
+QEMU_ICOUNT = os.environ.get("XINIM_QEMU_ICOUNT", "")
 QEMU_MEMORY = os.environ.get("XINIM_QEMU_MEMORY", DEFAULT_MEMORY_BY_LANE.get(LANE_NAME, "32M"))
 QEMU_VGA = os.environ.get("XINIM_QEMU_VGA", "std")
 QEMU_DISK_IMAGE = os.environ.get("XINIM_QEMU_DISK_IMAGE", "")
@@ -92,6 +93,8 @@ def start_qemu():
     ]
     if QEMU_DISK_IMAGE and os.path.isfile(QEMU_DISK_IMAGE):
         cmd.extend(["-drive", f"file={QEMU_DISK_IMAGE},format=raw,index=0,media=disk"])
+    if QEMU_ICOUNT:
+        cmd.extend(["-icount", QEMU_ICOUNT])
     return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
@@ -238,12 +241,12 @@ def main():
         shell = connect_shell(retries=int(BOOT_TIMEOUT / 0.5))
         prompt = recv_until_prompt(shell, timeout=BOOT_TIMEOUT)
         if not contains_prompt(prompt):
-            print(f"FAIL: no shell prompt")
+            print("FAIL: no shell prompt")
             sys.exit(1)
         shell.sendall(f"echo {READY_MARKER}\r".encode())
         initial = recv_until_text(shell, READY_MARKER, timeout=BOOT_TIMEOUT)
         if READY_MARKER not in initial:
-            print(f"FAIL: no ready marker")
+            print("FAIL: no ready marker")
             sys.exit(1)
         recv_until_prompt(shell, timeout=1.0)
 
@@ -284,14 +287,34 @@ def main():
                 print("SKIP: tcc not present in this image")
         else:
             send_command(shell, "rm -f /persist/enh_t /persist/enh_t.c")
-            send_command(shell, "echo 'int main(){return 0;}' > /persist/enh_t.c")
-            r = send_command(shell, "tcc -static -Wl,-Ttext=0x00400000 -o /persist/enh_t /persist/enh_t.c")
+            # C99 is input to the pinned C compiler under test, an external
+            # language boundary. The program checks the staged libc and CRT ABI.
+            source_lines = (
+                "#include <stdio.h>",
+                "#include <stdlib.h>",
+                "#include <string.h>",
+                "int main(int argc, char **argv) {",
+                'if (argc != 2 || strcmp(argv[1], "runtime-ok") != 0 ||',
+                'getenv("PATH") == 0) return 9;',
+                'printf("tcc-runtime argc=%d arg=%s env=present\\n", argc, argv[1]);',
+                "return 0;",
+                "}",
+            )
+            for line_number, source_line in enumerate(source_lines, start=1):
+                redirect = ">" if line_number == 1 else ">>"
+                source_command = f"printf '%s\\n' '{source_line}' {redirect} /persist/enh_t.c"
+                response = send_command(shell, source_command)
+                if not check_status_zero(f"tcc source line {line_number}", response):
+                    raise RuntimeError("TCC source creation failed")
+            r = send_command(shell, "tcc -std=c99 -static -Wl,-Ttext=0x00400000 -o /persist/enh_t /persist/enh_t.c")
             results.append(check("tcc compile", r, "__XINIM_ENH_"))
             results.append(check_status_zero("tcc compile status", r))
             results.append(check_absent("tcc compile clean", r, "error:"))
             send_command(shell, "chmod 755 /persist/enh_t")
             results.append(check("tcc output", send_command(shell, "ls -l /persist/enh_t"), "-rwxr-xr-x"))
-            r = send_command(shell, "/persist/enh_t; echo exit=$?")
+            r = send_command(shell, "/persist/enh_t runtime-ok; echo exit=$?")
+            results.append(check("tcc CRT and libc", r,
+                                 "tcc-runtime argc=2 arg=runtime-ok env=present"))
             results.append(check("tcc run", r, "exit=0"))
 
         # --- Symlink tests ---

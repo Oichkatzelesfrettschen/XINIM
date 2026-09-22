@@ -1923,6 +1923,10 @@ namespace xinim::kernel::bootfs {
         return g_foreground_pgrp;
     }
 
+    void set_foreground_pgrp(int pgid) noexcept {
+        g_foreground_pgrp = pgid;
+    }
+
     bool consume_pipe_eof_event() noexcept {
         if (g_pipe_eof_event) {
             g_pipe_eof_event = false;

@@ -11,6 +11,7 @@ PHDRS
 SECTIONS
 {
     . = 1M;
+    __xinim_kernel_start = .;
 
     .multiboot2_header ALIGN(8) : {
         KEEP(*(.multiboot2_header))
@@ -32,6 +33,7 @@ SECTIONS
         *(COMMON)
         *(.bss .bss.*)
     } :data
+    __xinim_kernel_end = .;
 
     /DISCARD/ : {
         *(.comment)

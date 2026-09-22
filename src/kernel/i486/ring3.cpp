@@ -666,6 +666,8 @@ void set_service_state(SupervisedService* service,
     }
 
     reset_fd_map_to_console(process);
+    initialize_supervised_session(*process, string_equals(service->name, "init-shell"));
+    init_signal_state(process);
     process->state = ProcessState::Runnable;
     process->exit_status = 0U;
     process->saved_kernel_esp = 0U;
@@ -818,14 +820,7 @@ void set_service_state(SupervisedService* service,
         }
     }
 
-    // SIGHUP: when session leader exits, send SIGHUP to process group
-    if (process->ctty_slot >= 0) {
-        for (auto& peer : g_processes) {
-            if (peer.in_use && peer.pgid == process->pgid && &peer != process) {
-                send_signal_to_process(&peer, kSigHup);
-            }
-        }
-    }
+    release_controlling_terminal(*process);
 
     // Reparent orphaned children to PID 1 (init)
     for (auto& child : g_processes) {
@@ -907,7 +902,7 @@ void set_service_state(SupervisedService* service,
 
     // SIGTTIN: background process reading from console gets stopped
     const bool reading_console = (fd >= 0 && bootfs::is_console_fd(fd)) || (user_fd == 0 && fd < 0);
-    if (reading_console) {
+    if (reading_console && owns_controlling_terminal(*process)) {
         const int fg_pgrp = bootfs::foreground_pgrp();
         if (fg_pgrp > 0 && process->pgid != static_cast<uint32_t>(fg_pgrp)) {
             send_signal_to_process(process, kSigTtin);
@@ -1110,6 +1105,9 @@ void set_service_state(SupervisedService* service,
     if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
         return kErrnoFault;
     }
+    if (string_equals(path, "/dev/tty") && !owns_controlling_terminal(*process)) {
+        return static_cast<uint32_t>(-6); // ENXIO: caller has no controlling terminal.
+    }
     const int global_slot = bootfs::open(path, frame->ecx, frame->edx);
 #ifdef XINIM_X86_32_TTY_TRACE
     static uint32_t g_open_trace_budget = 48U;
@@ -1136,9 +1134,10 @@ void set_service_state(SupervisedService* service,
         bootfs::close(global_slot);
         return kErrnoNoMem;
     }
-    // Set controlling terminal when opening /dev/tty or /dev/console
-    if (process->ctty_slot < 0 && bootfs::is_console_fd(global_slot)) {
-        process->ctty_slot = global_slot;
+    constexpr uint32_t open_no_controlling_terminal = 0x0100U;
+    if (!owns_controlling_terminal(*process) && bootfs::is_console_fd(global_slot) &&
+        (frame->ecx & open_no_controlling_terminal) == 0U) {
+        static_cast<void>(acquire_controlling_terminal(*process));
     }
     return static_cast<uint32_t>(local_fd);
 }
@@ -1309,6 +1308,40 @@ void set_service_state(SupervisedService* service,
         return kErrnoBadF;
     }
 
+    constexpr uint32_t tty_acquire = 0x540EU;
+    constexpr uint32_t tty_get_group = 0x540FU;
+    constexpr uint32_t tty_set_group = 0x5410U;
+    constexpr uint32_t tty_detach = 0x5422U;
+    constexpr uint32_t tty_get_session = 0x5429U;
+    const uint32_t command = frame->ecx;
+    if (command == tty_acquire || command == tty_detach || command == tty_get_group ||
+        command == tty_set_group || command == tty_get_session) {
+        if (!bootfs::is_console_fd(fd)) {
+            return kErrnoNoTTY;
+        }
+        if (command == tty_acquire) {
+            return acquire_controlling_terminal(*process);
+        }
+        if (!owns_controlling_terminal(*process)) {
+            return kErrnoNoTTY;
+        }
+        if (command == tty_detach) {
+            release_controlling_terminal(*process, true);
+            return 0U;
+        }
+        uint8_t* translated = nullptr;
+        if (!translate_user_region(process, frame->edx, sizeof(uint32_t), &translated)) {
+            return kErrnoFault;
+        }
+        auto* value = reinterpret_cast<uint32_t*>(translated);
+        if (command == tty_set_group) {
+            return set_terminal_foreground(*process, static_cast<int32_t>(*value));
+        }
+        *value = command == tty_get_session ? process->session_id
+                                            : static_cast<uint32_t>(bootfs::foreground_pgrp());
+        return 0U;
+    }
+
     const uintptr_t argument = static_cast<uintptr_t>(frame->edx);
     if (argument != 0U) {
         uint8_t* translated = nullptr;
@@ -1459,8 +1492,7 @@ void set_service_state(SupervisedService* service,
     copy_region(reinterpret_cast<uint8_t*>(child->signals.handlers),
                 reinterpret_cast<const uint8_t*>(process->signals.handlers),
                 static_cast<uint32_t>(sizeof(process->signals.handlers)));
-    child->pgid = process->pgid;
-    child->ctty_slot = process->ctty_slot;
+    inherit_process_session(*child, *process);
     copy_c_string(child->cwd, static_cast<uint32_t>(sizeof(child->cwd)), process->cwd);
     // Copy per-process fd table and per-fd flags; increment refcounts on shared global slots
     for (int fdi = 0; fdi < kMaxFds; ++fdi) {
@@ -1520,6 +1552,16 @@ void set_service_state(SupervisedService* service,
     }
 
     if (file == nullptr || !file->executable || !load_process_image(process, file, argv, envp)) {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+        console::write_string("exec failure stage=");
+        console::write_string(file == nullptr ? "lookup" :
+                              (!file->executable ? "permission" : "image-load"));
+        console::write_string(" path=");
+        console::write_string(path);
+        console::write_string(" pid=");
+        console::write_dec32(process->pid);
+        console::newline();
+#endif
         process->context = capture_user_context(frame);
         process->context.eax = kErrnoNoEnt;
         activate_process(process);
@@ -1527,6 +1569,7 @@ void set_service_state(SupervisedService* service,
         __builtin_unreachable();
     }
 
+    process->executed_since_fork = true;
     // Record the executable path for /proc/PID/exe
     {
         uint32_t pi = 0U;
@@ -1585,37 +1628,22 @@ void set_service_state(SupervisedService* service,
     }
 
     Process* child = find_waiting_child(process, requested_pid, wuntraced);
-    if (child == nullptr) {
+    while (child == nullptr) {
         if (no_hang) {
             return 0U;
         }
-
-        Process* runnable_child = find_child(process, requested_pid);
-        if (runnable_child == nullptr) {
-            return kErrnoChild;
+        if (has_interrupting_signal(*process)) {
+            return kErrnoIntr;
         }
-        process->state = ProcessState::Waiting;
-        activate_process(runnable_child);
-        i486_switch_to_user_context(&runnable_child->context, &process->saved_kernel_esp);
-        clear_saved_kernel_stack(process);
-        process->state = ProcessState::Runnable;
-        activate_process(process);
-
+        static_cast<void>(block_current_process_until_rescheduled(
+            process, WaitReason::ChildState, 0U));
         child = find_waiting_child(process, requested_pid, wuntraced);
-        if (child == nullptr) {
-            return kErrnoChild;
+        if (child == nullptr && has_interrupting_signal(*process)) {
+            return kErrnoIntr;
         }
-    }
-
-    if (child->state != ProcessState::Exited) {
-        process->state = ProcessState::Waiting;
-        activate_process(child);
-        i486_switch_to_user_context(&child->context, &process->saved_kernel_esp);
-        clear_saved_kernel_stack(process);
-        process->state = ProcessState::Runnable;
-        activate_process(process);
-        child = find_waiting_child(process, requested_pid, wuntraced);
-        if (child == nullptr) {
+        if (child == nullptr &&
+            (!has_child(process) ||
+             (requested_pid > 0 && find_child(process, requested_pid) == nullptr))) {
             return kErrnoChild;
         }
     }
@@ -2061,10 +2089,7 @@ void ticks_to_timeval(uint64_t ticks, uint32_t& sec, uint32_t& usec) noexcept {
 
 [[nodiscard]] uint32_t sys_setsid_compat(Process* process, RegisterFrame* frame) noexcept {
     (void)frame;
-    // Create new session: new pgid = pid, detach from ctty
-    process->pgid = process->pid;
-    process->ctty_slot = -1;
-    return process->pid;
+    return create_process_session(*process);
 }
 
 [[nodiscard]] uint32_t sys_umask_compat(Process* process, RegisterFrame* frame) noexcept {
@@ -2177,21 +2202,7 @@ void ticks_to_timeval(uint64_t ticks, uint32_t& sec, uint32_t& usec) noexcept {
 // -- Job control syscalls --------------------------------------------------
 
 [[nodiscard]] uint32_t sys_setpgid(Process* process, RegisterFrame* frame) noexcept {
-    const uint32_t target_pid = frame->ebx;
-    const uint32_t pgid = frame->ecx;
-    const uint32_t effective_pid = (target_pid == 0U) ? process->pid : target_pid;
-    const uint32_t effective_pgid = (pgid == 0U) ? effective_pid : pgid;
-
-    Process* target = find_process(effective_pid);
-    if (target == nullptr) {
-        return kErrnoNoSys; // ESRCH
-    }
-    // Only allow setting pgid of self or child
-    if (target->pid != process->pid && target->ppid != process->pid) {
-        return kErrnoAcces;
-    }
-    target->pgid = effective_pgid;
-    return 0U;
+    return set_process_group(*process, frame->ebx, frame->ecx);
 }
 
 [[nodiscard]] uint32_t sys_getpgrp(Process* process, RegisterFrame* frame) noexcept {
@@ -2200,9 +2211,7 @@ void ticks_to_timeval(uint64_t ticks, uint32_t& sec, uint32_t& usec) noexcept {
 }
 
 [[nodiscard]] uint32_t sys_getsid(Process* process, RegisterFrame* frame) noexcept {
-    (void)frame;
-    // In our single-session model, session ID equals PID of init
-    return process->pgid;
+    return query_process_session(*process, frame->ebx);
 }
 
 // -- uname syscall ---------------------------------------------------------
@@ -2762,6 +2771,10 @@ void trace_syscall_entry(const Process* process, const RegisterFrame* frame) noe
 } // namespace
 #endif
 
+[[noreturn]] void terminate_current_process_from_signal(uint32_t status) noexcept {
+    exit_current_process(status, "signal terminated process", true);
+}
+
 uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     process->context = capture_user_context(frame);
 #ifdef XINIM_X86_32_TTY_TRACE
@@ -2984,7 +2997,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             return process->pgid;
         }
         Process* target_proc = find_process(target);
-        return target_proc != nullptr ? target_proc->pgid : kErrnoNoSys;
+        return target_proc != nullptr ? target_proc->pgid : kErrnoSrch;
     }
     case SYS_getdents:
         return sys_getdents(process, frame);
@@ -3573,7 +3586,8 @@ extern "C" uint32_t i486_handle_syscall(RegisterFrame* frame) noexcept {
     if (frame == nullptr || process == nullptr) {
         return static_cast<uint32_t>(-1);
     }
-    return dispatch_syscall(process, frame);
+    const uint32_t result = dispatch_syscall(process, frame);
+    return complete_syscall_return(process, frame, result);
 }
 
 // -- Fault handling --------------------------------------------------------
@@ -3671,9 +3685,6 @@ bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
     if (shell_process == nullptr) {
         return false;
     }
-    // Init process is the session leader with the console as ctty
-    shell_process->ctty_slot = 0; // Global slot 0 = stdin console
-
     SupervisedService* init_service = register_supervised_service(
         "init-shell",
         shell,

@@ -119,6 +119,22 @@ The i486 interrupt path pushes `RegisterFrame` in the same order declared in
 to the i386 ABI. `UserContext` restore offsets come from the shared x86_32
 layout header.
 
+`i486_switch_process_context(UserContext*, uint32_t*, uint32_t)` saves the
+outgoing kernel continuation by pushing EBP, EDI, ESI, and EBX and storing ESP
+through argument two. After those pushes, arguments one through three occupy
+ESP+20, ESP+24, and ESP+28. A nonzero third argument names an incoming kernel
+continuation: the switch installs that ESP, pops EBX, ESI, EDI, and EBP, then
+returns into the suspended C++ call. A zero third argument selects the user
+register image and its IRET frame. `switch_process_context` transfers the
+incoming saved-stack ownership before calling assembly and keeps a selected
+current process on its active stack. The scheduler and child-state waits use
+that boundary so a resumed blocking syscall completes before user return.
+
+`complete_syscall_return` stores the result in the captured user EAX before
+dispatching an unblocked pending signal. Default termination enters the same
+descriptor, child, terminal, and supervisor teardown used by process exit;
+default terminal stop selects another runnable process before any IRET.
+
 The i686 SYSENTER path has no hardware interrupt frame. Its assembly entry
 therefore constructs the canonical EIP, CS, EFLAGS, ESP, and SS tail before
 calling `i486_handle_syscall(RegisterFrame*)`. Interrupts remain disabled while
@@ -162,6 +178,17 @@ and storage checks are calibrated with known-good and known-bad fixtures.
 
 The i486 and i686 kernel plus their userspace shell targets provide full compile
 and link gates.
+The Linux i386 executable `test_i486_context_switch` links the production
+`ring3_entry.S` and performs two kernel-continuation round trips. The test
+checks the assembly argument and saved-stack contract; QEMU supplies the
+Ring 3 IRET evidence.
+
+```sh
+cmake --build build/i486/Debug --target test_i486_context_switch
+ctest --test-dir build/i486/Debug -R '^test_i486_context_switch$' \
+  --output-on-failure
+```
+
 The current x86_64 boot reaches the staged POSIX shell through the Ring 3
 userspace handoff. `test/boot/x86_64_shell_test.py` requires the Ring 3
 sentinel, the exact Q35 machine and CPU, and shell-visible syscall results.

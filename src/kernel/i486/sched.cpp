@@ -133,7 +133,10 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
         candidate = preferred_current;
         best_priority = preferred_current->priority;
     }
-    const int preferred_index = process_slot_index(preferred_current);
+    // Quantum expiry removes the tie preference while retaining the last
+    // dispatched slot as the round-robin origin for equal-priority peers.
+    const int preferred_index = process_slot_index(
+        preferred_current != nullptr ? preferred_current : g_current_process);
 
     for (size_t offset = 1; offset <= kMaxProcesses; ++offset) {
         const size_t index = static_cast<size_t>(
@@ -179,7 +182,7 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     }
     if (process->state == ProcessState::Runnable) {
         deliver_one_signal(process);
-        if (process->state == ProcessState::Exited) {
+        if (process->state == ProcessState::Exited || process->state == ProcessState::Stopped) {
             Process* parent = find_process(process->ppid);
             if (parent != nullptr && parent->state == ProcessState::Waiting) {
                 resume_waiting_parent(parent);
@@ -189,7 +192,7 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
             if (next != nullptr) {
                 dispatch_process(next);
             }
-            resume_rescue_shell("signal killed last runnable process");
+            resume_rescue_shell("signal left no runnable process");
         }
     }
     if (process->ticks_remaining == 0U) {
@@ -225,6 +228,26 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     dispatch_process(next);
 }
 
+void switch_process_context(Process* current, Process* next) noexcept {
+    if (next == current) {
+        return;
+    }
+    const uint32_t next_kernel_esp = next->saved_kernel_esp;
+    next->saved_kernel_esp = 0U;
+    activate_process(next);
+    i486_switch_process_context(&next->context, &current->saved_kernel_esp, next_kernel_esp);
+}
+
+uint32_t complete_syscall_return(Process* process, RegisterFrame* frame, uint32_t result) noexcept {
+    const uint32_t deliverable = process->signals.pending & ~process->signals.blocked;
+    if (deliverable != 0U && !process->signals.in_handler) {
+        process->context = capture_user_context(frame);
+        process->context.eax = result;
+        dispatch_process(process);
+    }
+    return result;
+}
+
 bool block_current_process_until_rescheduled(Process* process,
                                              WaitReason reason,
                                              uint64_t wake_tick) noexcept {
@@ -251,8 +274,10 @@ bool block_current_process_until_rescheduled(Process* process,
         trace_process_snapshot("tty trace: switch-to", *next);
     }
 #endif
-    activate_process(next);
-    i486_switch_to_user_context(&next->context, &process->saved_kernel_esp);
+    // Readiness polling can wake the caller before its kernel stack is saved.
+    // Continue that syscall in place; restoring its entry registers would
+    // return to userspace before the read has produced its buffer and result.
+    switch_process_context(process, next);
     clear_saved_kernel_stack(process);
     process->state = ProcessState::Runnable;
     process->wait_reason = WaitReason::None;

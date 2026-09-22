@@ -14,6 +14,9 @@
 #include "xinim/boot/multiboot2_shim.hpp"
 #include "xinim/pci/pci.hpp"
 
+extern "C" uint8_t __xinim_kernel_start[];
+extern "C" uint8_t __xinim_kernel_end[];
+
 #ifndef XINIM_BOOT_LANE_NAME
 #define XINIM_BOOT_LANE_NAME "i486"
 #endif
@@ -105,7 +108,11 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     xinim::i486::console::write_string("bootfs promoted entries: ");
     xinim::i486::console::write_dec32(static_cast<uint32_t>(promoted_entries < 0 ? 0 : promoted_entries));
     xinim::i486::console::newline();
-    xinim::i486::dma::initialize(info.memory_map, static_cast<uint32_t>(info.memory_map_entries));
+    const uintptr_t kernel_start = reinterpret_cast<uintptr_t>(__xinim_kernel_start);
+    const uintptr_t kernel_end = reinterpret_cast<uintptr_t>(__xinim_kernel_end);
+    const uint32_t boot_info_size = *reinterpret_cast<const uint32_t*>(info_addr);
+    xinim::i486::dma::initialize(info, {kernel_start, kernel_end - kernel_start},
+                               {info_addr, boot_info_size});
     xinim::i486::console::write_string("DMA allocator: ");
     xinim::i486::console::write_dec32(xinim::i486::dma::available_bytes() / 1024U);
     xinim::i486::console::write_string(" KB available");

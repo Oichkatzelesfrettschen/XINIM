@@ -6,7 +6,7 @@ bmake is the BSD make implementation needed for pkgsrc.
 Downloads source if not present, cross-compiles with dietlibc.
 
 Usage:
-    python3 scripts/build_i486_bmake.py \
+    "$PYTHON" scripts/build_i486_bmake.py \
         --source-dir .scratch/bmake \
         --build-dir build/i486/Debug/bmake \
         --start-o <dietlibc start.o> \
@@ -16,7 +16,6 @@ Usage:
 
 import argparse
 import hashlib
-import os
 import shlex
 import shutil
 import subprocess
@@ -26,7 +25,7 @@ import urllib.request
 from pathlib import Path
 
 BMAKE_VERSION = "20240808"
-BMAKE_URL = f"https://www.crufty.net/ftp/pub/sjg/bmake-{BMAKE_VERSION}.tar.gz"
+BMAKE_URL = f"https://www.crufty.net/ftp/pub/sjg/old/bmake-{BMAKE_VERSION}.tar.gz"
 BMAKE_SHA256 = "b59189251b483decd4492f1f74387b2a584c03d5aa4637cd48b38ec62b9c0848"
 
 
@@ -226,7 +225,7 @@ def main() -> int:
         f"-I{src_dir}",
         f"-I{dietlibc_include}",
         "-DHAVE_CONFIG_H",
-        f"-DBMAKE_PATH_MAX=256",
+        "-DBMAKE_PATH_MAX=256",
         "-DHAVE_STRTOL=1",
         "-DHAVE_STRTOUL=1",
         f"-include{compat_header}",

@@ -28,34 +28,47 @@ if ! command -v qemu-img >/dev/null 2>&1; then
     exit 77
 fi
 
+case "$BOOT_DISK" in
+    *.vmdk) QCOW2_DISK="${BOOT_DISK%.vmdk}.qcow2" ;;
+    *) QCOW2_DISK="" ;;
+esac
+
+set -- --ro -a "$BOOT_DISK"
+DEVICES="/dev/sda1"
+qemu-img check "$BOOT_DISK" >/dev/null
+if [ -n "$QCOW2_DISK" ] && [ -f "$QCOW2_DISK" ]; then
+    qemu-img check "$QCOW2_DISK" >/dev/null
+    set -- "$@" -a "$QCOW2_DISK"
+    DEVICES="$DEVICES /dev/sdb1"
+fi
+
+# One appliance inspects each image independently without repeating firmware boot.
+inspection="$(
+    {
+        printf 'run\nlist-filesystems\n'
+        for device in $DEVICES; do
+            printf 'echo XINIM_DISK_BEGIN %s\nmount-ro %s /\n' "$device" "$device"
+            printf 'ls /etc\ncat /etc/persist.txt\ncat /etc/issue\n'
+            printf 'cat /etc/persist-profile\ncat /var/disk-marker\numount-all\n'
+            printf 'echo XINIM_DISK_END %s\n' "$device"
+        done
+    } | guestfish "$@" 2>&1
+)" || {
+    echo "FAIL: guestfish could not inspect boot images"
+    echo "$inspection"
+    exit 1
+}
+
 check_disk() {
-    image="$1"
+    device="$1"
     label="$2"
+    listing="$(printf '%s\n' "$inspection" | awk -v device="$device" '
+        $0 == "XINIM_DISK_BEGIN " device { inside = 1; next }
+        $0 == "XINIM_DISK_END " device { inside = 0 }
+        inside { print }
+    ')"
 
-    if [ ! -f "$image" ]; then
-        echo "SKIP: ${label} image not found: $image"
-        exit 77
-    fi
-
-    qemu-img check "$image" >/dev/null
-
-    listing="$(
-        guestfish --ro -a "$image" \
-            run : \
-            list-filesystems : \
-            mount-ro /dev/sda1 / : \
-            ls /etc : \
-            cat /etc/persist.txt : \
-            cat /etc/issue : \
-            cat /etc/persist-profile : \
-            cat /var/disk-marker 2>&1
-    )" || {
-        echo "FAIL: guestfish could not inspect ${label} image"
-        echo "$listing"
-        exit 1
-    }
-
-    echo "$listing" | grep -q "/dev/sda1: ext2" || {
+    printf '%s\n' "$inspection" | grep -qx "$device: ext2" || {
         echo "FAIL: ${label} image missing ext2 partition"
         echo "$listing"
         exit 1
@@ -92,15 +105,10 @@ check_disk() {
     }
 }
 
-check_disk "$BOOT_DISK" "VMDK"
-
-case "$BOOT_DISK" in
-    *.vmdk) QCOW2_DISK="${BOOT_DISK%.vmdk}.qcow2" ;;
-    *) QCOW2_DISK="" ;;
-esac
+check_disk /dev/sda1 "VMDK"
 
 if [ -n "$QCOW2_DISK" ] && [ -f "$QCOW2_DISK" ]; then
-    check_disk "$QCOW2_DISK" "qcow2"
+    check_disk /dev/sdb1 "qcow2"
 fi
 
 echo "PASS: ${LANE_NAME} boot disk layout test"
