@@ -39,6 +39,12 @@ ownership verifier, native ABI tests, and QEMU boot tests police those
 boundaries. A change to any ABI record or physical-memory access still needs
 its owning contract test.
 
+The nested `test/.clang-tidy` inherits the defect profile and adds
+`modernize-use-std-print` for hosted C++23 native contracts. The nine compiled
+i486 test sources pass that check with warnings as errors. The kernel uses
+freestanding console and serial output, so `std::print` is outside its
+available runtime.
+
 Run the compiled-source check with Clang 22:
 
 ```sh
