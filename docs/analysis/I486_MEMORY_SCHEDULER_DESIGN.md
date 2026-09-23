@@ -90,9 +90,34 @@ rotation, stronger-priority preemption, and wakeup selection.
    explicit contracts. Compression and swap add workspace and I/O costs;
    measure those costs before adopting either mechanism.
 
-The memory candidates need linked-size and peak-RAM measurements, allocation
-failure tests, and Ring 3 fork/exec/exit, isolation, and scheduler tests on
-the exact i486 QEMU lane. These candidates remain proposals.
+The first candidate now has a bounded implementation in
+`src/kernel/i486/user_backing.cpp`. A process descriptor acquires a zeroed
+4 MiB image before publication. `fork` copies into a separately owned image;
+`exec` prepares a ninth candidate image and stack before replacing the live
+image. Failed image validation preserves the previous image, mappings,
+break, context, signal handlers, and file descriptors. Process destruction
+releases the image slot and outstanding descriptor references. `fork` drops
+the child's default console references before inheriting the parent's
+descriptors. Released image slots are zeroed on reuse; the DMA bump
+allocator retains their physical storage for the lifetime of the boot.
+The eight-process policy therefore permits at most nine reserved images, or
+36 MiB. `live_bytes()` reports occupied images; `reserved_bytes()` reports
+the high-water reservation. Neither count is a physical peak-RAM measurement.
+
+The rebuilt Debug kernel has 3,478,736 B of linked BSS and an eight-entry
+`g_processes` array of `0x49680` B. The pre-memory-change build reported
+37,033,024 B of BSS and `0x2049600` B for that array. The reduction in
+linked BSS is approximately 32 MiB; each admitted image still consumes
+4 MiB at runtime. The allocation-exhaustion and zeroing unit test and the
+64 MiB disk and ISO Ring 3 shell tests pass. Their serial logs report two
+live images (8,388,608 B) and three reserved images (12,582,912 B) after
+service initialization. The disk tests execute an invalid ELF from
+`/persist`, then execute `/bin/hello` in the same shell.
+
+The segmentation exposure described above remains open. Neither the backing
+allocator nor the guest shell tests demonstrate supervisor isolation.
+Classic 4 KiB i486 paging and immutable executable backing remain design
+candidates with the stated proof obligations.
 
 ## Primary-source comparisons and reuse boundaries
 

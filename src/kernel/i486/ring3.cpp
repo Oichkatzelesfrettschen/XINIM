@@ -1,4 +1,5 @@
 #include "ring3.hpp"
+#include "user_backing.hpp"
 
 #include "ring3_internal.hpp"
 #include "kutil.hpp"
@@ -39,6 +40,8 @@ alignas(16) TssEntry g_tss{};
 alignas(16) IdtEntry g_idt[256]{};
 alignas(16) uint8_t g_bootstrap_kernel_stack[kKernelStackSize]{};
 alignas(16) Process g_processes[kMaxProcesses]{};
+static_assert(user_backing::kImageBytes == elf32::kUserAddressSpaceSize);
+static_assert(user_backing::kMaximumImages == kMaxProcesses + 1U);
 SupervisedService g_supervised_services[kMaxSupervisedServices]{};
 xinim::kernel::recovery::RecoveryDag g_service_recovery_dag{};
 const xinim::boot::BootInfo* g_boot_info = nullptr;
@@ -173,12 +176,34 @@ void initialize_pointer_vector(uint32_t (&dest)[Count], uint32_t value) noexcept
     }
 }
 
+[[nodiscard]] bool write_initial_bytes(uint8_t* backing,
+                                       uint32_t user_address,
+                                       const void* source,
+                                       uint32_t size) noexcept {
+    if (backing == nullptr || source == nullptr || user_address < elf32::kUserVirtualBase) {
+        return false;
+    }
+    const uint32_t offset = user_address - elf32::kUserVirtualBase;
+    if (offset > elf32::kUserAddressSpaceSize ||
+        size > elf32::kUserAddressSpaceSize - offset) {
+        return false;
+    }
+    copy_region(backing + offset, static_cast<const uint8_t*>(source), size);
+    return true;
+}
+
+[[nodiscard]] bool write_initial_u32(uint8_t* backing,
+                                     uint32_t user_address,
+                                     uint32_t value) noexcept {
+    return write_initial_bytes(backing, user_address, &value, sizeof(value));
+}
+
 template <uint32_t ArgCount, uint32_t EnvCount>
-[[nodiscard]] bool build_initial_user_stack(Process* process,
+[[nodiscard]] bool build_initial_user_stack(uint8_t* backing,
                                             const ExecVector<ArgCount>& argv,
                                             const ExecVector<EnvCount>& envp,
                                             uint32_t* out_stack_pointer) noexcept {
-    if (process == nullptr || out_stack_pointer == nullptr || argv.count == 0U) {
+    if (backing == nullptr || out_stack_pointer == nullptr || argv.count == 0U) {
         return false;
     }
 
@@ -192,7 +217,7 @@ template <uint32_t ArgCount, uint32_t EnvCount>
         const char* text = envp.values[index - 1U];
         const uint32_t length = string_length(text) + 1U;
         stack_pointer -= length;
-        if (!write_user_bytes(process, stack_pointer, text, length)) {
+        if (!write_initial_bytes(backing, stack_pointer, text, length)) {
             return false;
         }
         envp_addresses[index - 1U] = stack_pointer;
@@ -202,7 +227,7 @@ template <uint32_t ArgCount, uint32_t EnvCount>
         const char* text = argv.values[index - 1U];
         const uint32_t length = string_length(text) + 1U;
         stack_pointer -= length;
-        if (!write_user_bytes(process, stack_pointer, text, length)) {
+        if (!write_initial_bytes(backing, stack_pointer, text, length)) {
             return false;
         }
         argv_addresses[index - 1U] = stack_pointer;
@@ -217,7 +242,7 @@ template <uint32_t ArgCount, uint32_t EnvCount>
         kAuxvTagNull,
         0U,
     };
-    if (!write_user_bytes(process,
+    if (!write_initial_bytes(backing,
                           stack_pointer,
                           auxv,
                           static_cast<uint32_t>(sizeof(auxv)))) {
@@ -226,13 +251,13 @@ template <uint32_t ArgCount, uint32_t EnvCount>
 
     stack_pointer -= static_cast<uint32_t>((envp.count + 1U) * sizeof(uint32_t));
     for (uint32_t index = 0U; index < envp.count; ++index) {
-        if (!write_user_u32(process,
+        if (!write_initial_u32(backing,
                             stack_pointer + (index * sizeof(uint32_t)),
                             envp_addresses[index])) {
             return false;
         }
     }
-    if (!write_user_u32(process,
+    if (!write_initial_u32(backing,
                         stack_pointer + (envp.count * sizeof(uint32_t)),
                         0U)) {
         return false;
@@ -240,20 +265,20 @@ template <uint32_t ArgCount, uint32_t EnvCount>
 
     stack_pointer -= static_cast<uint32_t>((argv.count + 1U) * sizeof(uint32_t));
     for (uint32_t index = 0U; index < argv.count; ++index) {
-        if (!write_user_u32(process,
+        if (!write_initial_u32(backing,
                             stack_pointer + (index * sizeof(uint32_t)),
                             argv_addresses[index])) {
             return false;
         }
     }
-    if (!write_user_u32(process,
+    if (!write_initial_u32(backing,
                         stack_pointer + (argv.count * sizeof(uint32_t)),
                         0U)) {
         return false;
     }
 
     stack_pointer -= sizeof(uint32_t);
-    if (!write_user_u32(process, stack_pointer, argv.count)) {
+    if (!write_initial_u32(backing, stack_pointer, argv.count)) {
         return false;
     }
 
@@ -261,31 +286,46 @@ template <uint32_t ArgCount, uint32_t EnvCount>
     return true;
 }
 
-[[nodiscard]] bool load_process_image(Process* process,
+enum class ImageLoadStatus : uint8_t {
+    Okay,
+    InvalidImage,
+    NoMemory,
+};
+
+[[nodiscard]] ImageLoadStatus load_process_image(Process* process,
                                       const bootfs::FileRecord* file,
                                       const ExecVector<kMaxExecArgs>& argv,
                                       const ExecVector<kMaxExecEnvs>& envp) noexcept {
-    if (process == nullptr || file == nullptr) {
-        return false;
+    if (process == nullptr || process->address_space == nullptr || file == nullptr) {
+        return ImageLoadStatus::InvalidImage;
     }
-    zero_region(process->address_space, elf32::kUserAddressSpaceSize);
-    zero_region(reinterpret_cast<uint8_t*>(process->mappings),
-                static_cast<uint32_t>(sizeof(process->mappings)));
+    uint8_t* candidate = user_backing::acquire();
+    if (candidate == nullptr) {
+        return ImageLoadStatus::NoMemory;
+    }
     elf32::UserImage image{};
     if (!elf32::load_static_image(file->data,
                                   file->size,
-                                  process->address_space,
+                                  candidate,
                                   elf32::kUserAddressSpaceSize,
                                   &image)) {
-        return false;
+        static_cast<void>(user_backing::release(candidate));
+        return ImageLoadStatus::InvalidImage;
     }
-    if (!build_initial_user_stack(process, argv, envp, &image.stack_top)) {
-        return false;
+    if (!build_initial_user_stack(candidate, argv, envp, &image.stack_top)) {
+        static_cast<void>(user_backing::release(candidate));
+        return ImageLoadStatus::InvalidImage;
     }
+    uint8_t* previous = process->address_space;
+    process->address_space = candidate;
+    process->segment_base = compute_segment_base(*process);
+    zero_region(reinterpret_cast<uint8_t*>(process->mappings),
+                static_cast<uint32_t>(sizeof(process->mappings)));
     initialize_context(process, image, 0U);
     process->minimum_break = image.brk_start;
     process->current_break = image.brk_start;
-    return true;
+    static_cast<void>(user_backing::release(previous));
+    return ImageLoadStatus::Okay;
 }
 
 void apply_service_profile_to_process(Process* process,
@@ -661,7 +701,7 @@ void set_service_state(SupervisedService* service,
     ExecVector<kMaxExecArgs> argv{};
     ExecVector<kMaxExecEnvs> envp{};
     if (!build_service_vectors(service, &argv, &envp) ||
-        !load_process_image(process, service->file, argv, envp)) {
+        load_process_image(process, service->file, argv, envp) != ImageLoadStatus::Okay) {
         return false;
     }
 
@@ -777,7 +817,7 @@ void set_service_state(SupervisedService* service,
     }
     if (!prepare_supervised_service_process(hold_service, hold_process)) {
         destroy_process(hold_process);
-        hold_service->state = xinim::kernel::recovery::ServiceState::CRASHED;
+        set_service_state(hold_service, xinim::kernel::recovery::ServiceState::CRASHED);
         return nullptr;
     }
     if (out_process != nullptr) {
@@ -1496,6 +1536,9 @@ void set_service_state(SupervisedService* service,
     copy_c_string(child->cwd, static_cast<uint32_t>(sizeof(child->cwd)), process->cwd);
     // Copy per-process fd table and per-fd flags; increment refcounts on shared global slots
     for (int fdi = 0; fdi < kMaxFds; ++fdi) {
+        if (child->fd_map[fdi] >= 0) {
+            bootfs::decrement_slot_refcount(child->fd_map[fdi]);
+        }
         child->fd_map[fdi] = process->fd_map[fdi];
         child->fd_flags[fdi] = process->fd_flags[fdi];
         if (process->fd_map[fdi] >= 0) {
@@ -1551,7 +1594,11 @@ void set_service_state(SupervisedService* service,
         file = bootfs::find(path);
     }
 
-    if (file == nullptr || !file->executable || !load_process_image(process, file, argv, envp)) {
+    const ImageLoadStatus image_status =
+        (file != nullptr && file->executable)
+            ? load_process_image(process, file, argv, envp)
+            : ImageLoadStatus::InvalidImage;
+    if (image_status != ImageLoadStatus::Okay) {
 #ifdef XINIM_X86_32_EXEC_IO_TRACE
         console::write_string("exec failure stage=");
         console::write_string(file == nullptr ? "lookup" :
@@ -1563,7 +1610,8 @@ void set_service_state(SupervisedService* service,
         console::newline();
 #endif
         process->context = capture_user_context(frame);
-        process->context.eax = kErrnoNoEnt;
+        process->context.eax = image_status == ImageLoadStatus::NoMemory
+                                   ? kErrnoNoMem : kErrnoNoEnt;
         activate_process(process);
         i486_resume_user_context(&process->context);
         __builtin_unreachable();
@@ -3699,15 +3747,21 @@ bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
         0U,
         1U);
     if (init_service == nullptr) {
+        destroy_process(shell_process);
         return false;
     }
     if (!prepare_supervised_service_process(init_service, shell_process)) {
+        destroy_process(shell_process);
+        set_service_state(init_service, xinim::kernel::recovery::ServiceState::CRASHED);
         return false;
     }
 
     Process* hold_process = nullptr;
     SupervisedService* hold_service = register_optional_support_services(init_service, &hold_process);
     if (hold_service == nullptr || hold_process == nullptr) {
+        release_controlling_terminal(*shell_process);
+        destroy_process(shell_process);
+        set_service_state(init_service, xinim::kernel::recovery::ServiceState::CRASHED);
         return false;
     }
 
@@ -3720,6 +3774,11 @@ bool launch_init_shell(const xinim::boot::BootInfo& info) noexcept {
     initialize_realtime_clock();
     ext2_reader::set_timestamp_provider(current_epoch_seconds);
 
+    console::write_string("i486 user backing live bytes=");
+    console::write_dec32(user_backing::live_bytes());
+    console::write_string(" reserved bytes=");
+    console::write_dec32(user_backing::reserved_bytes());
+    console::newline();
     console::write_string("Launching supervised Ring 3 services under timer scheduler");
     console::newline();
     dispatch_next_runnable("failed to select initial supervised i486 service");

@@ -1763,6 +1763,7 @@ set(XINIM_X86_32_KERNEL_SOURCES
     src/kernel/i486/ext2_reader.cpp
     src/kernel/i486/ide.cpp
     src/kernel/i486/dma_pages.cpp
+    src/kernel/i486/user_backing.cpp
     src/kernel/i486/virtio_net_i486.cpp
     src/pci/pci.cpp
     src/kernel/i486/netstack.cpp
@@ -5055,6 +5056,20 @@ target_link_options(test_i486_dma_pages PRIVATE -stdlib=libc++)
 xinim_set_warnings(test_i486_dma_pages)
 add_test(NAME test_i486_dma_pages COMMAND test_i486_dma_pages)
 set_tests_properties(test_i486_dma_pages PROPERTIES LABELS "unit;kernel;memory;dma" TIMEOUT 30)
+
+add_executable(test_i486_user_backing
+    test/test_i486_user_backing.cpp
+    src/kernel/i486/user_backing.cpp
+    src/kernel/i486/dma_pages.cpp
+)
+target_compile_features(test_i486_user_backing PRIVATE cxx_std_23)
+target_include_directories(test_i486_user_backing PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_user_backing PRIVATE -stdlib=libc++)
+target_link_options(test_i486_user_backing PRIVATE -stdlib=libc++)
+xinim_set_warnings(test_i486_user_backing)
+add_test(NAME test_i486_user_backing COMMAND test_i486_user_backing)
+set_tests_properties(test_i486_user_backing PROPERTIES
+    LABELS "unit;kernel;memory;process" TIMEOUT 30)
 
 add_executable(test_i486_scheduler_wait
     test/test_i486_scheduler_wait.cpp

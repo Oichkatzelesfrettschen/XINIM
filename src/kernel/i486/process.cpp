@@ -1,11 +1,13 @@
 #include "process.hpp"
 
+#include "bootfs.hpp"
 #include "console.hpp"
 #include "hw_init.hpp"
 #include "kutil.hpp"
 #include "shell.hpp"
 #include "signal.hpp"
 #include "sched.hpp"
+#include "user_backing.hpp"
 
 #ifdef XINIM_ARCH_I686
 #include "../i686/sse.hpp"
@@ -221,8 +223,13 @@ void initialize_context(Process* process,
 Process* allocate_process(uint32_t parent_pid) noexcept {
     for (auto& process : g_processes) {
         if (!process.in_use) {
+            uint8_t* backing = user_backing::acquire();
+            if (backing == nullptr) {
+                return nullptr;
+            }
             zero_region(reinterpret_cast<uint8_t*>(&process),
                         static_cast<uint32_t>(sizeof(process)));
+            process.address_space = backing;
             process.in_use = true;
             process.pid = g_next_pid++;
             process.ppid = parent_pid;
@@ -257,6 +264,18 @@ Process* allocate_process(uint32_t parent_pid) noexcept {
 void destroy_process(Process* process) noexcept {
     if (process == nullptr) {
         return;
+    }
+    for (int fd_index = 0; fd_index < kMaxFds; ++fd_index) {
+        const int slot = process->fd_map[fd_index];
+        if (slot >= 0) {
+            bootfs::decrement_slot_refcount(slot);
+            process->fd_map[fd_index] = -1;
+        }
+    }
+    uint8_t* backing = process->address_space;
+    process->address_space = nullptr;
+    if (backing != nullptr) {
+        static_cast<void>(user_backing::release(backing));
     }
     process->in_use = false;
     process->pid = 0U;

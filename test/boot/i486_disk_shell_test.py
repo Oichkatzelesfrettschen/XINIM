@@ -96,6 +96,11 @@ def run(args: argparse.Namespace) -> None:
                          "do /bin/hello reuse >/dev/null || break; completed=$count; "
                          "done; echo reuse=$completed",
                          r"^reuse=12$"),
+                        ("invalid-exec-keeps-shell", "printf bad-elf > /persist/bad-elf && "
+                         "chmod 755 /persist/bad-elf && test -x /persist/bad-elf && "
+                         "{ /persist/bad-elf >/dev/null 2>&1; test $? -ne 0; } && "
+                         "/bin/hello survived",
+                         r"^argv\[1\]: survived$"),
                         ("subshell-child-exit", "(/bin/hello child >/dev/null && "
                          "printf 'subshell-alive\\n')", r"^subshell-alive$"),
                         ("exec-environment", "export FOO=global; "
@@ -134,6 +139,19 @@ def run(args: argparse.Namespace) -> None:
                     ):
                         if marker not in serial:
                             raise RuntimeError(f"missing kernel marker: {marker}")
+                    backing = re.search(
+                        r"i486 user backing live bytes=(\d+) reserved bytes=(\d+)", serial
+                    )
+                    if backing is None:
+                        raise RuntimeError("missing i486 user backing accounting")
+                    live_bytes, reserved_bytes = map(int, backing.groups())
+                    if live_bytes != 2 * 4 * 1024 * 1024 or not (
+                        live_bytes <= reserved_bytes <= 3 * 4 * 1024 * 1024
+                    ):
+                        raise RuntimeError(
+                            f"unexpected user backing: live={live_bytes} "
+                            f"reserved={reserved_bytes}"
+                        )
                     for fault in (
                         "rescue shell", "faulted", "i486 fault", "Unhandled i486 syscall",
                         "Respawning supervised service", "PANIC",

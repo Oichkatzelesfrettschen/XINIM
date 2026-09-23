@@ -257,14 +257,33 @@ overlap, timer poll bound, stale storage callbacks, indirect-block errors,
 and scheduler scan origin. Earlier failed and interrupted runs remain in
 the evidence directory alongside the final passing run.
 
-GitHub's repository Actions permission reports `enabled=false`; local
-tests are independent evidence. The broad `.clang-tidy` profile also
+The repository was public and Actions enabled at the follow-up check on
+2026-09-22. Hosted CI is a separate evidence surface from the local runs.
+The broad `.clang-tidy` profile also
 rejects both the baseline and repaired allocator, including inherited
 `#pragma once`, constant naming, public boot-record fields, and physical
 integer/pointer conversions. The probe logs retain those failures.
 The repair changes neither that profile nor its warning severity. A
 passing compiler, native test, or guest run does not establish a clean
 repository-wide clang-tidy or hosted-CI result.
+
+The follow-up Clang 22 `clang-tidy -export-fixes` probe on `ring3.cpp`
+recorded 1,099 diagnostics. Exactly 331 diagnostics carry at least one
+automatic replacement; 768 require manual analysis. The largest fixable
+groups are 141 identifier-name changes, 78 internal-linkage changes, 31
+missing-brace changes, and 15 parenthesis changes. Several replacements
+target shared C/assembly ABI headers, where changing macros or names can
+break consumers even if C++ recompiles. Running `clang-format --dry-run
+--Werror` on the translation unit reports many layout differences, but
+formatting alone does not repair the semantic diagnostics.
+
+A bounded automation pass can export clang-tidy replacements, select safe
+check classes and project-owned C++ paths, apply them in an isolated worktree,
+then run `git clang-format` over the resulting diff. The compiler, assembly
+ABI tests, native contracts, and exact guest matrix must pass after each
+batch. ABI headers and unfixable checks need their own source review. A
+whole-file format pass or unfiltered `clang-tidy -fix` would rewrite much
+more than the i486 repair and mix C ABI changes into this branch.
 
 ## Bounded architecture result
 

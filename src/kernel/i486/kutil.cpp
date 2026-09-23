@@ -137,7 +137,7 @@ bool translate_user_region(Process* process,
                            uint32_t user_address,
                            uint32_t size,
                            uint8_t** out) noexcept {
-    if (process == nullptr || out == nullptr) {
+    if (process == nullptr || process->address_space == nullptr || out == nullptr) {
         return false;
     }
     if (user_address < elf32::kUserVirtualBase) {

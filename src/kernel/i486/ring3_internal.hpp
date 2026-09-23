@@ -379,7 +379,7 @@ namespace xinim::i486::ring3 {
         UserMapping mappings[kMaxUserMappings];
         UserContext context;
         alignas(16) uint8_t kernel_stack[kKernelStackSize];
-        alignas(16) uint8_t address_space[elf32::kUserAddressSpaceSize];
+        uint8_t* address_space;
 #ifdef XINIM_ARCH_I686
         // 512-byte FXSAVE image; must be 16-byte aligned.  Saves x87+MMX+SSE state
         // on every context switch so processes do not corrupt each other's FPU regs.
