@@ -3,21 +3,13 @@
 #include "../src/kernel/i486/sched.hpp"
 #include "../src/kernel/i486/signal.hpp"
 #include "../src/kernel/i486/tcp.hpp"
+#include "i486_check.hpp"
 
 #include <csetjmp>
 #include <cstddef>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
-
-#define CHECK(condition)                                                        \
-    do {                                                                        \
-        if (!(condition)) {                                                     \
-            std::printf("FAIL: line %d: %s\n", __LINE__, #condition);             \
-            return 1;                                                           \
-        }                                                                       \
-    } while (false)
 
 namespace {
 std::jmp_buf dispatch_boundary;

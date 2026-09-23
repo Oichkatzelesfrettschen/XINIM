@@ -1,13 +1,5 @@
 #include "../src/kernel/i486/process.hpp"
-#include <cstdio>
-
-#define CHECK(condition)                                                      \
-    do {                                                                      \
-        if (!(condition)) {                                                   \
-            std::printf("FAIL: line %d: %s\n", __LINE__, #condition);          \
-            return 1;                                                         \
-        }                                                                     \
-    } while (false)
+#include "i486_check.hpp"
 
 namespace {
 int foreground_group = 0;

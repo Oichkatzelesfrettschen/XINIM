@@ -1,18 +1,10 @@
 #include "../src/kernel/i486/sched.hpp"
 #include "../src/kernel/i486/process.hpp"
 #include "../src/kernel/i486/tcp.hpp"
+#include "i486_check.hpp"
 
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
-
-#define CHECK(condition)                                                     \
-    do {                                                                     \
-        if (!(condition)) {                                                  \
-            std::printf("FAIL: line %d: %s\n", __LINE__, #condition);         \
-            return 1;                                                        \
-        }                                                                    \
-    } while (false)
 
 namespace {
 bool input_ready = false;

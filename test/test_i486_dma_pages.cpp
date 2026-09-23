@@ -1,16 +1,8 @@
 #include "../src/kernel/i486/dma_pages.hpp"
+#include "i486_check.hpp"
 
-#include <cstdio>
 #include <cstring>
 #include <sys/mman.h>
-
-#define CHECK(condition)                                                                  \
-    do {                                                                                  \
-        if (!(condition)) {                                                               \
-            std::printf("FAIL: line %d: %s\n", __LINE__, #condition);                      \
-            return 1;                                                                     \
-        }                                                                                 \
-    } while (false)
 
 namespace {
 constexpr uint32_t kPageSize = 4096U;

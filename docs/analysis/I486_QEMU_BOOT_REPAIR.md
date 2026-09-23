@@ -315,6 +315,26 @@ include-order changes, so the diagnostic ranges are essential to the
 bounded method. Remaining semantic diagnostics still require source-level
 repairs.
 
+The hosted Clang 22 run at `7e6d3e27` reached every selected compiled source
+and reported 5,008 distinct diagnostics after deduplicating repeated header
+locations. Five native tests expanded identical `CHECK` macros into 215
+`cppcoreguidelines-avoid-do-while` and 215 `modernize-use-std-print`
+diagnostics. A shared C++23 test helper now retains the failing expression and
+line number, prints through `std::println`, and exits on failure. All five
+native tests and a deliberate failing-check fixture pass their contracts;
+focused clang-tidy reruns report zero findings from those two checks in the
+five test translation units. Clang 22 also supports
+`clang-apply-replacements --format --style=file` for a reviewed subset of
+exported fixes, which formats only replacement ranges. Identifier renames,
+internal-linkage changes, C/assembly ABI arrays, and freestanding bounds
+diagnostics require source or policy review before any such batch.
+The 19-source probe attributes 458 of its 470 naming findings to modern
+`kCamelCase` constexpr names conflicting with the root profile's uppercase
+constant rule. Clang 22 probes verify both a `CamelCase` plus `k` prefix rule
+and a narrow mixed-convention rule; the repository also contains uppercase
+legacy ABI constants, so any naming-policy change needs an ownership boundary
+and a full selected-source rerun.
+
 Hosted Clang 22 first found the standalone i486 C++ compile selecting host
 libstdc++ headers. The kernel and owned 32-bit user targets now pass
 `-stdlib=libc++` only for C++ compilation. Assembly retains its original
