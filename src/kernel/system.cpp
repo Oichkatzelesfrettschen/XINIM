@@ -65,11 +65,11 @@ enum class SysCall : int {
 using SysHandler = int (*)(message *) noexcept;
 
 constinit std::array<std::pair<SysCall, SysHandler>, 9> kSysDispatch{
-    std::pair<SysCall, SysHandler>{SysCall::Fork, do_fork},   std::pair<SysCall, SysHandler>{SysCall::NewMap, do_newmap},
-    std::pair<SysCall, SysHandler>{SysCall::Exec, do_exec},   std::pair<SysCall, SysHandler>{SysCall::Xit, do_xit},
-    std::pair<SysCall, SysHandler>{SysCall::GetSp, do_getsp}, std::pair<SysCall, SysHandler>{SysCall::Times, do_times},
-    std::pair<SysCall, SysHandler>{SysCall::Abort, do_abort}, std::pair<SysCall, SysHandler>{SysCall::Sig, do_sig},
-    std::pair<SysCall, SysHandler>{SysCall::Copy, do_copy},
+    std::pair{SysCall::Fork, do_fork},   std::pair{SysCall::NewMap, do_newmap},
+    std::pair{SysCall::Exec, do_exec},   std::pair{SysCall::Xit, do_xit},
+    std::pair{SysCall::GetSp, do_getsp}, std::pair{SysCall::Times, do_times},
+    std::pair{SysCall::Abort, do_abort}, std::pair{SysCall::Sig, do_sig},
+    std::pair{SysCall::Copy, do_copy},
 };
 
 PRIVATE message m;

@@ -771,6 +771,7 @@ xinim_set_warnings(xinim)
 
 # Bare-metal: disable hosted C++ runtime assumptions
 target_compile_options(xinim PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
     -ffreestanding
     -fno-pic
     -fno-pie
