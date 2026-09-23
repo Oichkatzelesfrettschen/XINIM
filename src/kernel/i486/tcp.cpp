@@ -19,8 +19,12 @@ bool eq4(const uint8_t* a, const uint8_t* b) noexcept {
 }
 
 TcpConnection* get_conn(int idx) noexcept {
-    if (idx < 0 || static_cast<uint32_t>(idx) >= kTcpMaxConnections) return nullptr;
-    if (!g_connections[idx].in_use) return nullptr;
+    if (idx < 0 || static_cast<uint32_t>(idx) >= kTcpMaxConnections) {
+        return nullptr;
+    }
+    if (!g_connections[idx].in_use) {
+        return nullptr;
+    }
     return &g_connections[idx];
 }
 
@@ -53,7 +57,9 @@ uint16_t tcp_checksum(const uint8_t* src_ip, const uint8_t* dst_ip,
     if (tcp_len & 1U) {
         sum += static_cast<uint32_t>(tcp_segment[tcp_len - 1U]) << 8U;
     }
-    while (sum >> 16U) sum = (sum & 0xFFFFU) + (sum >> 16U);
+    while (sum >> 16U) {
+        sum = (sum & 0xFFFFU) + (sum >> 16U);
+    }
     return static_cast<uint16_t>(~sum);
 }
 
@@ -62,7 +68,9 @@ bool send_tcp_segment(TcpConnection* conn, uint8_t flags,
                       uint32_t seq) noexcept {
     const uint32_t tcp_hdr_len = 20U; // No options
     const uint32_t total = tcp_hdr_len + data_len;
-    if (total > 1460U) return false; // MSS limit
+    if (total > 1460U) {
+        return false; // MSS limit
+    }
 
     uint8_t segment[1480U]{};
     auto* tcp = reinterpret_cast<TcpHeader*>(segment);
@@ -147,10 +155,16 @@ uint32_t rx_push(TcpConnection* conn, const uint8_t* data, uint32_t len) noexcep
 uint32_t tx_read_unacked(TcpConnection* conn, uint8_t* out, uint32_t max_len) noexcept {
     // Data between snd_una and snd_nxt lives in tx_buf
     const uint32_t unacked = conn->snd_nxt - conn->snd_una;
-    if (unacked == 0U) return 0U;
+    if (unacked == 0U) {
+        return 0U;
+    }
     uint32_t to_copy = unacked;
-    if (to_copy > max_len) to_copy = max_len;
-    if (to_copy > conn->tx_count) to_copy = conn->tx_count;
+    if (to_copy > max_len) {
+        to_copy = max_len;
+    }
+    if (to_copy > conn->tx_count) {
+        to_copy = conn->tx_count;
+    }
     // tx_unsent_off marks where unsent data begins; acked data was consumed
     // The retransmit data starts at tx_head (oldest buffered)
     for (uint32_t i = 0U; i < to_copy; ++i) {
@@ -173,7 +187,9 @@ uint32_t tx_buffer(TcpConnection* conn, const uint8_t* data, uint32_t len) noexc
 
 // Consume acknowledged data from tx_buf
 void tx_consume_acked(TcpConnection* conn, uint32_t bytes) noexcept {
-    if (bytes > conn->tx_count) bytes = conn->tx_count;
+    if (bytes > conn->tx_count) {
+        bytes = conn->tx_count;
+    }
     conn->tx_head += bytes;
     conn->tx_count -= bytes;
     if (conn->tx_unsent_off > bytes) {
@@ -188,7 +204,9 @@ void handle_syn(TcpConnection* conn, const Ipv4Header* ip,
     if (conn->state == TcpState::Listen) {
         // Passive open: create new connection for this SYN
         int idx = alloc_conn();
-        if (idx < 0) return; // No free connections
+        if (idx < 0) {
+            return; // No free connections
+        }
         TcpConnection* child = &g_connections[idx];
         copy4(child->remote_ip, ip->src_ip);
         copy4(child->local_ip, ip->dst_ip);
@@ -235,7 +253,9 @@ void tcp_initialize() noexcept {
 }
 
 void tcp_input(const Ipv4Header* ip, const TcpHeader* tcp, uint32_t tcp_len) noexcept {
-    if (tcp_len < 20U) return;
+    if (tcp_len < 20U) {
+        return;
+    }
 
     const uint16_t src_port = ntohs(tcp->src_port);
     const uint16_t dst_port = ntohs(tcp->dst_port);
@@ -266,11 +286,6 @@ void tcp_input(const Ipv4Header* ip, const TcpHeader* tcp, uint32_t tcp_len) noe
 
     switch (conn->state) {
     case TcpState::Listen:
-        if ((flags & TCP_SYN) != 0U) {
-            handle_syn(conn, ip, tcp);
-        }
-        break;
-
     case TcpState::SynSent:
         if ((flags & TCP_SYN) != 0U) {
             handle_syn(conn, ip, tcp);
@@ -346,7 +361,7 @@ void tcp_input(const Ipv4Header* ip, const TcpHeader* tcp, uint32_t tcp_len) noe
         if ((flags & TCP_ACK) != 0U && (flags & TCP_FIN) != 0U) {
             conn->rcv_nxt += 1U; // FIN consumes one seq
             conn->state = TcpState::TimeWait;
-            conn->timewait_deadline = g_tcp_timer_ticks + 2U * kTcpMsl;
+            conn->timewait_deadline = g_tcp_timer_ticks + 2U * static_cast<uint64_t>(kTcpMsl);
             conn->rexmt_deadline = 0U;
             send_tcp_segment(conn, TCP_ACK, nullptr, 0U, conn->snd_nxt);
         } else if ((flags & TCP_ACK) != 0U) {
@@ -364,7 +379,7 @@ void tcp_input(const Ipv4Header* ip, const TcpHeader* tcp, uint32_t tcp_len) noe
         if ((flags & TCP_FIN) != 0U) {
             conn->rcv_nxt += 1U; // FIN consumes one seq
             conn->state = TcpState::TimeWait;
-            conn->timewait_deadline = g_tcp_timer_ticks + 2U * kTcpMsl;
+            conn->timewait_deadline = g_tcp_timer_ticks + 2U * static_cast<uint64_t>(kTcpMsl);
             conn->rexmt_deadline = 0U;
             send_tcp_segment(conn, TCP_ACK, nullptr, 0U, conn->snd_nxt);
         }
@@ -387,15 +402,13 @@ void tcp_input(const Ipv4Header* ip, const TcpHeader* tcp, uint32_t tcp_len) noe
     case TcpState::Closing:
         if ((flags & TCP_ACK) != 0U) {
             conn->state = TcpState::TimeWait;
-            conn->timewait_deadline = g_tcp_timer_ticks + 2U * kTcpMsl;
+            conn->timewait_deadline = g_tcp_timer_ticks + 2U * static_cast<uint64_t>(kTcpMsl);
             conn->rexmt_deadline = 0U;
         }
         break;
 
     case TcpState::TimeWait:
         // Ignore segments in TIME_WAIT
-        break;
-
     case TcpState::Closed:
         break;
     }
@@ -403,7 +416,9 @@ void tcp_input(const Ipv4Header* ip, const TcpHeader* tcp, uint32_t tcp_len) noe
 
 int tcp_connect(const uint8_t* dst_ip, uint16_t dst_port, uint16_t src_port) noexcept {
     int idx = alloc_conn();
-    if (idx < 0) return -1;
+    if (idx < 0) {
+        return -1;
+    }
 
     TcpConnection* conn = &g_connections[idx];
     copy4(conn->remote_ip, dst_ip);
@@ -426,7 +441,9 @@ int tcp_connect(const uint8_t* dst_ip, uint16_t dst_port, uint16_t src_port) noe
 
 int tcp_listen(uint16_t port) noexcept {
     int idx = alloc_conn();
-    if (idx < 0) return -1;
+    if (idx < 0) {
+        return -1;
+    }
 
     TcpConnection* conn = &g_connections[idx];
     copy4(conn->local_ip, config().ip);
@@ -439,7 +456,9 @@ int tcp_listen(uint16_t port) noexcept {
 int tcp_accept(int listen_idx) noexcept {
     // Find a SynReceived -> Established connection with matching local port
     TcpConnection* listener = get_conn(listen_idx);
-    if (listener == nullptr || listener->state != TcpState::Listen) return -1;
+    if (listener == nullptr || listener->state != TcpState::Listen) {
+        return -1;
+    }
 
     for (uint32_t i = 0; i < kTcpMaxConnections; ++i) {
         if (g_connections[i].in_use &&
@@ -454,7 +473,9 @@ int tcp_accept(int listen_idx) noexcept {
 
 int tcp_send(int idx, const void* data, uint32_t len) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return -1;
+    if (conn == nullptr) {
+        return -1;
+    }
     if (conn->state != TcpState::Established &&
         conn->state != TcpState::CloseWait) {
         return -1;
@@ -464,7 +485,9 @@ int tcp_send(int idx, const void* data, uint32_t len) noexcept {
 
     // Buffer data in tx_buf for retransmit tracking (B.5)
     const uint32_t buffered = tx_buffer(conn, src, len);
-    if (buffered == 0U) return 0;
+    if (buffered == 0U) {
+        return 0;
+    }
 
     // Determine how much unsent data we have
     const uint32_t unsent = conn->tx_count - conn->tx_unsent_off;
@@ -479,8 +502,12 @@ int tcp_send(int idx, const void* data, uint32_t len) noexcept {
     // Send buffered data in MSS-sized chunks
     while (conn->tx_unsent_off < conn->tx_count) {
         uint32_t chunk = conn->tx_count - conn->tx_unsent_off;
-        if (chunk > kTcpMss) chunk = kTcpMss;
-        if (chunk > conn->snd_wnd) chunk = static_cast<uint32_t>(conn->snd_wnd);
+        if (chunk > kTcpMss) {
+            chunk = kTcpMss;
+        }
+        if (chunk > conn->snd_wnd) {
+            chunk = static_cast<uint32_t>(conn->snd_wnd);
+        }
         if (chunk == 0U) {
             // B.2: Zero window -- arm persist timer
             if (conn->persist_deadline == 0U) {
@@ -512,7 +539,9 @@ int tcp_send(int idx, const void* data, uint32_t len) noexcept {
 
 int tcp_recv(int idx, void* buf, uint32_t len) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return -1;
+    if (conn == nullptr) {
+        return -1;
+    }
 
     if (conn->rx_count == 0U) {
         // Check for connection closed / EOF
@@ -539,7 +568,9 @@ int tcp_recv(int idx, void* buf, uint32_t len) noexcept {
 
 int tcp_close(int idx) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return -1;
+    if (conn == nullptr) {
+        return -1;
+    }
 
     switch (conn->state) {
     case TcpState::Established:
@@ -565,13 +596,17 @@ int tcp_close(int idx) noexcept {
 
 bool tcp_has_data(int idx) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return false;
+    if (conn == nullptr) {
+        return false;
+    }
     return conn->rx_count > 0U;
 }
 
 TcpState tcp_state(int idx) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return TcpState::Closed;
+    if (conn == nullptr) {
+        return TcpState::Closed;
+    }
     return conn->state;
 }
 
@@ -581,7 +616,9 @@ void tcp_timer_tick(uint64_t current_tick) noexcept {
     g_tcp_timer_ticks = current_tick;
 
     for (auto& c : g_connections) {
-        if (!c.in_use) continue;
+        if (!c.in_use) {
+            continue;
+        }
 
         // TIME_WAIT expiry (2*MSL per RFC 793 Section 3.5)
         if (c.state == TcpState::TimeWait) {
@@ -629,7 +666,9 @@ void tcp_timer_tick(uint64_t current_tick) noexcept {
             // Exponential backoff
             ++c.rexmt_shift;
             c.rto = c.rto * 2U;
-            if (c.rto > kTcpRtoMax) c.rto = kTcpRtoMax;
+            if (c.rto > kTcpRtoMax) {
+                c.rto = kTcpRtoMax;
+            }
             c.rexmt_deadline = current_tick + c.rto;
         }
 
@@ -639,9 +678,15 @@ void tcp_timer_tick(uint64_t current_tick) noexcept {
             uint32_t unsent = c.tx_count - c.tx_unsent_off;
             while (unsent > 0U) {
                 uint32_t chunk = unsent;
-                if (chunk > kTcpMss) chunk = kTcpMss;
-                if (chunk > c.snd_wnd) chunk = static_cast<uint32_t>(c.snd_wnd);
-                if (chunk == 0U) break;
+                if (chunk > kTcpMss) {
+                    chunk = kTcpMss;
+                }
+                if (chunk > c.snd_wnd) {
+                    chunk = static_cast<uint32_t>(c.snd_wnd);
+                }
+                if (chunk == 0U) {
+                    break;
+                }
                 uint8_t seg_data[kTcpMss]{};
                 for (uint32_t i = 0U; i < chunk; ++i) {
                     seg_data[i] = c.tx_buf[(c.tx_head + c.tx_unsent_off + i) % kTcpTxBufSize];
@@ -662,29 +707,45 @@ void tcp_timer_tick(uint64_t current_tick) noexcept {
 
 bool tcp_get_remote(int idx, uint8_t* ip, uint16_t* port) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return false;
-    if (ip != nullptr) copy4(ip, conn->remote_ip);
-    if (port != nullptr) *port = conn->remote_port;
+    if (conn == nullptr) {
+        return false;
+    }
+    if (ip != nullptr) {
+        copy4(ip, conn->remote_ip);
+    }
+    if (port != nullptr) {
+        *port = conn->remote_port;
+    }
     return true;
 }
 
 bool tcp_get_local(int idx, uint8_t* ip, uint16_t* port) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn == nullptr) return false;
-    if (ip != nullptr) copy4(ip, conn->local_ip);
-    if (port != nullptr) *port = conn->local_port;
+    if (conn == nullptr) {
+        return false;
+    }
+    if (ip != nullptr) {
+        copy4(ip, conn->local_ip);
+    }
+    if (port != nullptr) {
+        *port = conn->local_port;
+    }
     return true;
 }
 
 void tcp_set_nodelay(int idx, bool nodelay) noexcept {
     TcpConnection* conn = get_conn(idx);
-    if (conn != nullptr) conn->nagle_disabled = nodelay;
+    if (conn != nullptr) {
+        conn->nagle_disabled = nodelay;
+    }
 }
 
 // Called from netstack IP handler
 void deliver_tcp_segment(const Ipv4Header* ip,
                          const uint8_t* tcp_data, uint32_t tcp_len) noexcept {
-    if (tcp_len < sizeof(TcpHeader)) return;
+    if (tcp_len < sizeof(TcpHeader)) {
+        return;
+    }
     const auto* tcp = reinterpret_cast<const TcpHeader*>(tcp_data);
     tcp_input(ip, tcp, tcp_len);
 }

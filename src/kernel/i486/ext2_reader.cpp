@@ -746,7 +746,7 @@ bool lookup_in_directory(const Ext2Inode& directory,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             const auto* entry = reinterpret_cast<const Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -841,7 +841,7 @@ bool visit_directory_entries(const Ext2Inode& directory,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             const auto* entry = reinterpret_cast<const Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1248,7 +1248,7 @@ bool add_directory_entry(Ext2Inode& directory_inode,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
 
@@ -1340,7 +1340,7 @@ bool remove_directory_entry(Ext2Inode& directory_inode,
         Ext2DirEntryHeader* previous = nullptr;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1566,7 +1566,7 @@ bool rename_directory_entry_in_place(Ext2Inode& directory_inode,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1614,7 +1614,7 @@ bool retarget_directory_entry(Ext2Inode& directory_inode,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1851,10 +1851,6 @@ bool remove_node(const char* path) noexcept {
         removed_inode_number != child_inode_number) {
         return false;
     }
-    if (child_is_directory != directory) {
-        child_is_directory = directory;
-    }
-
     // E.1: Decrement links_count; only free storage when it reaches 0.
     // Per POSIX: unlink removes directory entry but data persists while links > 0.
     if (child.links_count > 0U) {

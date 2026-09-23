@@ -52,7 +52,7 @@ namespace xinim::kernel::sched_policy {
 
     inline constexpr bool should_demote_on_quantum_expiry(uint32_t priority) noexcept {
         const uint32_t clamped = clamp_priority(priority);
-        return clamped < static_cast<uint32_t>(NUM_PRIORITIES - 1) && clamped < PRIO_IDLE;
+        return clamped < PRIO_IDLE;
     }
 
     inline constexpr uint32_t demote_priority(uint32_t priority) noexcept {

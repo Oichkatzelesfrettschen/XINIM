@@ -64,8 +64,12 @@ struct ServiceNode {
 
     bool name_matches(const char* n) const {
         for (size_t i = 0; i < MAX_SERVICE_NAME; i++) {
-            if (name[i] != n[i]) return false;
-            if (name[i] == '\0') return true;
+            if (name[i] != n[i]) {
+                return false;
+            }
+            if (name[i] == '\0') {
+                return true;
+            }
         }
         return true;
     }

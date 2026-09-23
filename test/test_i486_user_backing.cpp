@@ -9,6 +9,7 @@ int main() {
     using namespace xinim;
     constexpr uint32_t kPageBytes = 4096U;
     constexpr uint32_t kArenaBytes = 48U * 1024U * 1024U;
+    constexpr uint64_t kUsableBytes = uint64_t{2U} * 1024U * 1024U;
     int mapping_flags = MAP_PRIVATE | MAP_ANONYMOUS;
 #ifdef MAP_32BIT
     mapping_flags |= MAP_32BIT;
@@ -17,7 +18,7 @@ int main() {
     CHECK(mapping != MAP_FAILED);
     const uintptr_t physical_base = reinterpret_cast<uintptr_t>(mapping);
     CHECK(physical_base >= 0x00100000U && physical_base <= UINT32_MAX - kArenaBytes);
-    boot::MemRange memory_range{physical_base, 2U * 1024U * 1024U, boot::MEMORY_RANGE_USABLE};
+    boot::MemRange memory_range{physical_base, kUsableBytes, boot::MEMORY_RANGE_USABLE};
     boot::BootInfo boot_info{};
     boot_info.memory_map = &memory_range;
     boot_info.memory_map_entries = 1U;

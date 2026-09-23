@@ -645,7 +645,6 @@ void set_service_state(SupervisedService* service,
     using xinim::kernel::recovery::RestartPolicy;
     switch (service->restart_policy) {
     case RestartPolicy::IGNORE:
-        return false;
     case RestartPolicy::PANIC:
         return false;
     case RestartPolicy::RESTART:
@@ -1068,8 +1067,7 @@ void set_service_state(SupervisedService* service,
             }
             continue;
         }
-        return result >= 0 ? static_cast<uint32_t>(result)
-                           : static_cast<uint32_t>(result); // Preserve -EPIPE etc
+        return static_cast<uint32_t>(result); // Preserve -EPIPE etc
     }
 }
 
@@ -2611,10 +2609,7 @@ void fd_set_set(FdSet32* set, int fd) noexcept {
                 }
             }
             if (fd_set_is_set(&writefds_in, user_fd)) {
-                if (gfd >= 0 && bootfs::is_open(gfd)) {
-                    fd_set_set(&writefds_out, user_fd);
-                    ++ready_count;
-                } else if (user_fd == 1 || user_fd == 2) {
+                if ((gfd >= 0 && bootfs::is_open(gfd)) || user_fd == 1 || user_fd == 2) {
                     fd_set_set(&writefds_out, user_fd);
                     ++ready_count;
                 }

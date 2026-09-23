@@ -40,13 +40,23 @@ LockEntry* alloc_lock() noexcept {
 
 bool conflicts(const LockEntry& held, int16_t req_type,
                int32_t req_start, int32_t req_end, uint32_t req_pid) noexcept {
-    if (!held.in_use) return false;
-    if (held.pid == req_pid) return false; // own locks don't conflict
+    if (!held.in_use) {
+        return false;
+    }
+    if (held.pid == req_pid) {
+        return false; // own locks don't conflict
+    }
     // Read locks don't conflict with read locks
-    if (held.type == kFRdlck && req_type == kFRdlck) return false;
+    if (held.type == kFRdlck && req_type == kFRdlck) {
+        return false;
+    }
     // Check range overlap
-    if (held.whole_file) return true; // whole-file lock always overlaps
-    if (req_start > held.end || req_end < held.start) return false;
+    if (held.whole_file) {
+        return true; // whole-file lock always overlaps
+    }
+    if (req_start > held.end || req_end < held.start) {
+        return false;
+    }
     return true;
 }
 
@@ -54,7 +64,9 @@ bool any_conflict(int fd, int16_t type, int32_t start, int32_t end,
                   uint32_t pid, LockEntry** blocker) noexcept {
     for (auto& e : g_locks) {
         if (e.in_use && e.global_fd == fd && conflicts(e, type, start, end, pid)) {
-            if (blocker != nullptr) *blocker = &e;
+            if (blocker != nullptr) {
+                *blocker = &e;
+            }
             return true;
         }
     }
@@ -66,7 +78,9 @@ bool any_conflict(int fd, int16_t type, int32_t start, int32_t end,
 int do_flock(int global_fd, int operation, uint32_t pid) noexcept {
     if (operation & kLockUn) {
         LockEntry* e = find_lock(global_fd, pid, true);
-        if (e != nullptr) e->in_use = false;
+        if (e != nullptr) {
+            e->in_use = false;
+        }
         return 0;
     }
 
@@ -75,7 +89,9 @@ int do_flock(int global_fd, int operation, uint32_t pid) noexcept {
 
     // Check for conflicts
     if (any_conflict(global_fd, type, 0, 0x7FFFFFFF, pid, nullptr)) {
-        if (nonblock) return -11; // EAGAIN
+        if (nonblock) {
+            return -11; // EAGAIN
+        }
         return -11; // Would block (no sleep support)
     }
 
@@ -87,7 +103,9 @@ int do_flock(int global_fd, int operation, uint32_t pid) noexcept {
     }
 
     e = alloc_lock();
-    if (e == nullptr) return -12; // ENOMEM
+    if (e == nullptr) {
+        return -12; // ENOMEM
+    }
     e->global_fd = global_fd;
     e->pid = pid;
     e->type = type;
@@ -98,7 +116,9 @@ int do_flock(int global_fd, int operation, uint32_t pid) noexcept {
 }
 
 int do_fcntl_lock(int global_fd, int cmd, Flock32* fl, uint32_t pid) noexcept {
-    if (fl == nullptr) return -14; // EFAULT
+    if (fl == nullptr) {
+        return -14; // EFAULT
+    }
 
     const int32_t start = fl->l_start;
     const int32_t end = (fl->l_len == 0) ? 0x7FFFFFFF : (start + fl->l_len - 1);
@@ -131,7 +151,9 @@ int do_fcntl_lock(int global_fd, int cmd, Flock32* fl, uint32_t pid) noexcept {
 
     // Check for conflicts
     if (any_conflict(global_fd, fl->l_type, start, end, pid, nullptr)) {
-        if (cmd == kFSetlk) return -11; // EAGAIN
+        if (cmd == kFSetlk) {
+            return -11; // EAGAIN
+        }
         return -11; // F_SETLKW would block (no sleep support)
     }
 
@@ -145,7 +167,9 @@ int do_fcntl_lock(int global_fd, int cmd, Flock32* fl, uint32_t pid) noexcept {
     }
 
     LockEntry* e = alloc_lock();
-    if (e == nullptr) return -12;
+    if (e == nullptr) {
+        return -12;
+    }
     e->global_fd = global_fd;
     e->pid = pid;
     e->type = fl->l_type;

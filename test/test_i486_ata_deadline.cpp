@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstdlib>
+#include <print>
 #include <vector>
 
 #include "../src/kernel/i486/ide.cpp"
@@ -31,7 +32,7 @@ struct DeviceScript {
 
 void require(bool condition, const char* message) {
     if (!condition) {
-        std::fprintf(stderr, "FAIL: %s\n", message);
+        std::println(stderr, "FAIL: {}", message);
         std::exit(1);
     }
 }

@@ -1,45 +1,18 @@
 ---
+# The compiled i486 kernel is freestanding C++23. Keep checks that can
+# establish defects without assuming hosted C++ or ownership of C/assembly
+# ABI layouts. See docs/analysis/CLANG_TIDY_PROFILE.md.
 Checks: >
   -*,
   bugprone-*,
   cert-*,
   clang-analyzer-*,
-  cppcoreguidelines-*,
-  misc-*,
-  modernize-*,
-  performance-*,
-  portability-*,
-  readability-*,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-type-vararg,
-  -modernize-use-trailing-return-type,
-  -readability-magic-numbers,
-  -llvmlibc-*
+  misc-redundant-expression,
+  readability-braces-around-statements,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-suspicious-include,
+  -cert-err52-cpp,
+  -clang-analyzer-core.FixedAddressDereference,
+  -clang-analyzer-optin.performance.Padding
 
 WarningsAsErrors: '*'
-
-# Mixed POSIX naming convention:
-#   snake_case for functions and variables (POSIX/C++ stdlib heritage)
-#   CamelCase for types (classes, structs, enums)
-#   UPPER_CASE for global constants and macros
-CheckOptions:
-  - key:             readability-identifier-naming.ClassCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.StructCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.EnumCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.FunctionCase
-    value:           lower_case
-  - key:             readability-identifier-naming.VariableCase
-    value:           lower_case
-  - key:             readability-identifier-naming.ParameterCase
-    value:           lower_case
-  - key:             readability-identifier-naming.MemberCase
-    value:           lower_case
-  - key:             readability-identifier-naming.GlobalConstantCase
-    value:           UPPER_CASE
-  - key:             readability-identifier-naming.ConstexprVariableCase
-    value:           UPPER_CASE
-  - key:             modernize-use-nullptr.NullMacros
-    value:           'NULL'

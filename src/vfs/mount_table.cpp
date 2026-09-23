@@ -25,7 +25,9 @@ static MountEntry g_mounts[MAX_MOUNTS];
 
 static inline uint32_t cstr_len(const char* s, uint32_t max) {
     uint32_t n = 0;
-    while (n < max && s[n] != '\0') ++n;
+    while (n < max && s[n] != '\0') {
+        ++n;
+    }
     return n;
 }
 
@@ -36,15 +38,23 @@ static inline uint32_t cstr_len(const char* s, uint32_t max) {
 // For non-root mounts: mpath must end at a '/' boundary in path.
 static uint32_t prefix_match_len(const char* path, const char* mpath) {
     uint32_t i = 0;
-    while (mpath[i] != '\0' && path[i] == mpath[i]) ++i;
-    if (mpath[i] != '\0') return 0; // mpath is not a prefix of path
+    while (mpath[i] != '\0' && path[i] == mpath[i]) {
+        ++i;
+    }
+    if (mpath[i] != '\0') {
+        return 0; // mpath is not a prefix of path
+    }
 
     // Root mount "/" always matches absolute paths (path[0]=='/')
-    if (i == 1 && mpath[0] == '/') return 1;
+    if (i == 1 && mpath[0] == '/') {
+        return 1;
+    }
 
     // For non-root mounts: path[i] must be '/' or '\0' to avoid partial
     // component matches (e.g., mpath="/foo" should not match "/foobar")
-    if (path[i] != '\0' && path[i] != '/') return 0;
+    if (path[i] != '\0' && path[i] != '/') {
+        return 0;
+    }
     return i;
 }
 
@@ -66,9 +76,13 @@ void mount_table_init() {
 // Mount a filesystem at path with given root inode and FsOps.
 // Returns 0 on success, -1 if table full or path too long.
 int mount_add(const char* path, uint32_t root_ino, const FsOps* ops) {
-    if (!path || !ops || root_ino == 0) return -1;
+    if (!path || !ops || root_ino == 0) {
+        return -1;
+    }
     uint32_t plen = cstr_len(path, 47);
-    if (plen == 0 || plen > 47) return -1;
+    if (plen == 0 || plen > 47) {
+        return -1;
+    }
 
     for (uint32_t i = 0; i < MAX_MOUNTS; ++i) {
         if (g_mounts[i].root_ino == 0) {
@@ -83,10 +97,14 @@ int mount_add(const char* path, uint32_t root_ino, const FsOps* ops) {
 
 // Remove mount at path. Returns 0 on success, -1 if not found.
 int mount_remove(const char* path) {
-    if (!path) return -1;
+    if (!path) {
+        return -1;
+    }
     uint32_t plen = cstr_len(path, 47);
     for (uint32_t i = 0; i < MAX_MOUNTS; ++i) {
-        if (g_mounts[i].root_ino == 0) continue;
+        if (g_mounts[i].root_ino == 0) {
+            continue;
+        }
         if (__builtin_memcmp(g_mounts[i].path, path, plen + 1) == 0) {
             __builtin_memset(&g_mounts[i], 0, sizeof(MountEntry));
             return 0;
@@ -99,11 +117,15 @@ int mount_remove(const char* path) {
 // prefix of the given path. Returns nullptr if no match (should not happen
 // if "/" is always mounted).
 const MountEntry* mount_resolve(const char* path) {
-    if (!path) return nullptr;
+    if (!path) {
+        return nullptr;
+    }
     const MountEntry* best = nullptr;
     uint32_t          best_len = 0;
     for (uint32_t i = 0; i < MAX_MOUNTS; ++i) {
-        if (g_mounts[i].root_ino == 0) continue;
+        if (g_mounts[i].root_ino == 0) {
+            continue;
+        }
         uint32_t mlen = prefix_match_len(path, g_mounts[i].path);
         if (mlen > best_len) {
             best_len = mlen;

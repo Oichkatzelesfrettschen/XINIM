@@ -1,12 +1,13 @@
 #include "../src/kernel/i486/dma_pages.hpp"
 #include "i486_check.hpp"
 
+#include <cstddef>
 #include <cstring>
 #include <sys/mman.h>
 
 namespace {
-constexpr uint32_t kPageSize = 4096U;
-constexpr uint32_t kArenaSize = 32U * kPageSize;
+constexpr std::size_t kPageSize = 4096U;
+constexpr std::size_t kArenaSize = 32U * kPageSize;
 }
 
 int main() {

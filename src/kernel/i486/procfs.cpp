@@ -15,7 +15,9 @@ using ring3::kMaxProcesses;
 
 bool str_eq(const char* a, const char* b) noexcept {
     while (*a != '\0' && *b != '\0') {
-        if (*a != *b) return false;
+        if (*a != *b) {
+            return false;
+        }
         ++a; ++b;
     }
     return *a == *b;
@@ -23,7 +25,9 @@ bool str_eq(const char* a, const char* b) noexcept {
 
 bool starts_with(const char* s, const char* prefix) noexcept {
     while (*prefix != '\0') {
-        if (*s != *prefix) return false;
+        if (*s != *prefix) {
+            return false;
+        }
         ++s; ++prefix;
     }
     return true;
@@ -35,7 +39,9 @@ uint32_t parse_uint(const char* s, const char** end) noexcept {
         v = v * 10U + static_cast<uint32_t>(*s - '0');
         ++s;
     }
-    if (end != nullptr) *end = s;
+    if (end != nullptr) {
+        *end = s;
+    }
     return v;
 }
 
@@ -54,7 +60,9 @@ uint32_t uint_to_str(uint32_t v, char* buf, uint32_t cap) noexcept {
     for (uint32_t i = n; i > 0U && written + 1U < cap; --i) {
         buf[written++] = tmp[i - 1U];
     }
-    if (written < cap) buf[written] = '\0';
+    if (written < cap) {
+        buf[written] = '\0';
+    }
     return written;
 }
 
@@ -63,7 +71,9 @@ uint32_t uint_to_str(uint32_t v, char* buf, uint32_t cap) noexcept {
 // /proc/PID/*  maps to that pid.
 // Returns the Process* or nullptr.
 Process* resolve_proc_path(const char* path, const char** subpath) noexcept {
-    if (path == nullptr || path[0] != '/') return nullptr;
+    if (path == nullptr || path[0] != '/') {
+        return nullptr;
+    }
     ++path; // skip leading '/'
 
     uint32_t pid = 0U;
@@ -78,11 +88,17 @@ Process* resolve_proc_path(const char* path, const char** subpath) noexcept {
         return nullptr;
     }
 
-    if (*path == '/') ++path;
-    if (subpath != nullptr) *subpath = path;
+    if (*path == '/') {
+        ++path;
+    }
+    if (subpath != nullptr) {
+        *subpath = path;
+    }
 
     for (auto& p : g_processes) {
-        if (p.in_use && p.pid == pid) return &p;
+        if (p.in_use && p.pid == pid) {
+            return &p;
+        }
     }
     return nullptr;
 }
@@ -111,13 +127,17 @@ int alloc_proc_fd() noexcept {
 
 void generate_status(Process* proc, char* buf, uint32_t cap, uint32_t& len) noexcept {
     len = 0U;
-    auto append = [&](const char* s) {
-        while (*s != '\0' && len + 1U < cap) buf[len++] = *s++;
+    auto append = [&](const char *s) {
+        while (*s != '\0' && len + 1U < cap) {
+            buf[len++] = *s++;
+        }
     };
     auto append_uint = [&](uint32_t v) {
         char tmp[12]{};
         const uint32_t n = uint_to_str(v, tmp, sizeof(tmp));
-        for (uint32_t i = 0U; i < n && len + 1U < cap; ++i) buf[len++] = tmp[i];
+        for (uint32_t i = 0U; i < n && len + 1U < cap; ++i) {
+            buf[len++] = tmp[i];
+        }
     };
 
     append("Name:\tinit\n");
@@ -132,10 +152,15 @@ void generate_status(Process* proc, char* buf, uint32_t cap, uint32_t& len) noex
     append_uint(proc->cred.sgid); append("\t");
     append_uint(proc->cred.gid); append("\n");
     const char* state_str = "R (running)";
-    if (proc->state == ProcessState::Waiting) state_str = "S (sleeping)";
-    else if (proc->state == ProcessState::Exited) state_str = "Z (zombie)";
+    if (proc->state == ProcessState::Waiting) {
+        state_str = "S (sleeping)";
+    } else if (proc->state == ProcessState::Exited) {
+        state_str = "Z (zombie)";
+    }
     append("State:\t"); append(state_str); append("\n");
-    if (len < cap) buf[len] = '\0';
+    if (len < cap) {
+        buf[len] = '\0';
+    }
 }
 
 // -- VfsOps implementation ------------------------------------------------
@@ -143,10 +168,14 @@ void generate_status(Process* proc, char* buf, uint32_t cap, uint32_t& len) noex
 int procfs_open(const char* path, uint32_t /*flags*/, uint32_t /*mode*/) noexcept {
     const char* sub = nullptr;
     Process* proc = resolve_proc_path(path, &sub);
-    if (proc == nullptr) return -2; // ENOENT
+    if (proc == nullptr) {
+        return -2; // ENOENT
+    }
 
     int slot = alloc_proc_fd();
-    if (slot < 0) return -12; // ENOMEM
+    if (slot < 0) {
+        return -12; // ENOMEM
+    }
 
     auto& fd = g_proc_fds[slot];
     fd.pid = proc->pid;
@@ -179,12 +208,18 @@ int procfs_open(const char* path, uint32_t /*flags*/, uint32_t /*mode*/) noexcep
 }
 
 int procfs_read(int slot, void* buf, uint32_t count) noexcept {
-    if (slot < 0 || slot >= kMaxProcFds || !g_proc_fds[slot].in_use) return -9;
+    if (slot < 0 || slot >= kMaxProcFds || !g_proc_fds[slot].in_use) {
+        return -9;
+    }
     auto& fd = g_proc_fds[slot];
-    if (fd.read_pos >= fd.content_len) return 0; // EOF
+    if (fd.read_pos >= fd.content_len) {
+        return 0; // EOF
+    }
 
     uint32_t avail = fd.content_len - fd.read_pos;
-    if (count > avail) count = avail;
+    if (count > avail) {
+        count = avail;
+    }
     auto* dst = static_cast<uint8_t*>(buf);
     for (uint32_t i = 0U; i < count; ++i) {
         dst[i] = static_cast<uint8_t>(fd.content[fd.read_pos + i]);
@@ -252,8 +287,12 @@ int procfs_access(const char* path) noexcept {
 int procfs_readlink(const char* path, char* buf, uint32_t size) noexcept {
     const char* sub = nullptr;
     Process* proc = resolve_proc_path(path, &sub);
-    if (proc == nullptr) return -2;
-    if (!str_eq(sub, "exe")) return -22;
+    if (proc == nullptr) {
+        return -2;
+    }
+    if (!str_eq(sub, "exe")) {
+        return -22;
+    }
 
     const char* exe = (proc->exe_path[0] != '\0') ? proc->exe_path : "/";
     uint32_t n = 0U;

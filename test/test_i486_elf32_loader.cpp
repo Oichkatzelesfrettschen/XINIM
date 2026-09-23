@@ -4,6 +4,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdio>
+#include <print>
 #include <vector>
 
 namespace {
@@ -74,7 +75,7 @@ int main() {
     xinim::i486::elf32::UserImage layout{};
     if (!xinim::i486::elf32::inspect_static_image(
             image.data(), static_cast<std::uint32_t>(image.size()), &layout)) {
-        std::fputs("valid ELF was rejected\n", stderr);
+        std::println(stderr, "valid ELF was rejected");
         return 1;
     }
     std::vector<std::uint8_t> address_space(xinim::i486::elf32::kUserAddressSpaceSize);
@@ -82,25 +83,25 @@ int main() {
             image.data(), static_cast<std::uint32_t>(image.size()), address_space.data(),
             static_cast<std::uint32_t>(address_space.size()), &layout) ||
         address_space[0] != 0x90U || address_space[256] != 0x11U || address_space[260] != 0U) {
-        std::fputs("valid ELF load corrupted a segment\n", stderr);
+        std::println(stderr, "valid ELF load corrupted a segment");
         return 1;
     }
 
     write_u32(image, kProgramHeaderOffset + kProgramHeaderSize + 8U, kUserBase + 2U);
     if (!rejected(image)) {
-        std::fputs("overlapping PT_LOAD segments were accepted\n", stderr);
+        std::println(stderr, "overlapping PT_LOAD segments were accepted");
         return 1;
     }
     image = valid_image();
     write_u32(image, 24U, kUserBase + 256U);
     if (!rejected(image)) {
-        std::fputs("entry in writable data was accepted\n", stderr);
+        std::println(stderr, "entry in writable data was accepted");
         return 1;
     }
     image = valid_image();
     write_u32(image, kProgramHeaderOffset + 24U, 4U);
     if (!rejected(image)) {
-        std::fputs("entry in non-executable text was accepted\n", stderr);
+        std::println(stderr, "entry in non-executable text was accepted");
         return 1;
     }
     std::puts("PASS: i486 ELF32 segment ownership");

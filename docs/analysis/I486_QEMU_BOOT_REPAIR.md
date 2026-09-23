@@ -308,12 +308,12 @@ relinked with warnings as errors; the focused process, scheduler,
 backing, and assembly ownership contracts and the 64 MiB QEMU disk-shell
 test passed. The complete 31-test i486 selection then passed in 789.22
 seconds; `build/i486/Debug/evidence/i486-brace-format-final-ctest.log`
-retains the result. Two brace warnings in the shared `service_node.hpp` remain
-in the `ring3.cpp` consumer; the formatter batch did not change that
-header. Whole-file formatting proposed broad unrelated layout and
-include-order changes, so the diagnostic ranges are essential to the
-bounded method. Remaining semantic diagnostics still require source-level
-repairs.
+retains the result. A subsequent diagnostic-range formatter pass added the
+two remaining braces in `service_node.hpp`; the kernel rebuild, focused
+native contracts, and 64 MiB guest test passed. Whole-file formatting proposed
+broad unrelated layout and include-order changes, so the diagnostic ranges
+are essential to the bounded method. Remaining semantic diagnostics still
+require source-level repairs.
 
 The hosted Clang 22 run at `7e6d3e27` reached every selected compiled source
 and reported 5,008 distinct diagnostics after deduplicating repeated header
@@ -334,6 +334,17 @@ constant rule. Clang 22 probes verify both a `CamelCase` plus `k` prefix rule
 and a narrow mixed-convention rule; the repository also contains uppercase
 legacy ABI constants, so any naming-policy change needs an ownership boundary
 and a full selected-source rerun.
+
+The freestanding checker profile in `docs/analysis/CLANG_TIDY_PROFILE.md`
+retains warning-as-error defect checks and records each hardware or test-seam
+exclusion. A second diagnostic-range `clang-format` pass added 326 brace pairs
+across the remaining compiled i486 kernel and VFS sources. Clang 22 now exits
+zero on all 51 project-owned C++ translation units in the i486 compile
+database. The fixes also combine repeated branches, widen TCP deadlines
+before multiplication, use byte-valued terminal comparisons, report hosted
+test failures through `std::println`, and remove dead ext2 assignments. The
+CI-equivalent i486 build passes with compiler warnings as errors. Hosted
+exact-head CI remains a separate gate.
 
 Hosted Clang 22 first found the standalone i486 C++ compile selecting host
 libstdc++ headers. The kernel and owned 32-bit user targets now pass

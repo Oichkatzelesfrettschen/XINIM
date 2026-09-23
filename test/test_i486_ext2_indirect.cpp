@@ -1,15 +1,19 @@
 // Exercise the production reader and mutation admission against a sector device.
 #include "../src/kernel/i486/ext2_reader.cpp"
 
+#include <algorithm>
+#include <cstddef>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <initializer_list>
+#include <print>
 
 namespace {
 using namespace xinim::i486::ext2_reader;
-constexpr uint32_t kFixtureBlockSize = 1024U;
-constexpr uint32_t kFixtureBlocks = 128U;
+constexpr std::size_t kFixtureBlockSize = 1024U;
+constexpr std::size_t kFixtureBlocks = 128U;
+constexpr std::size_t kSectorSize = 512U;
 constexpr uint32_t kLargeInode = 3U;
 constexpr uint32_t kSmallInode = 4U;
 constexpr uint32_t kDoubleStart = 12U + 256U;
@@ -20,25 +24,25 @@ uint32_t failed_sector = UINT32_MAX;
 
 void require(bool condition, const char* description) {
     if (!condition) {
-        std::fprintf(stderr, "ext2 indirect contract: %s\n", description);
+        std::println(stderr, "ext2 indirect contract: {}", description);
         std::abort();
     }
 }
 
 bool read_sector(uint32_t sector, uint8_t* buffer) noexcept {
-    if (sector == failed_sector || sector >= sizeof(fixture_disk) / 512U) {
+    if (sector == failed_sector || sector >= sizeof(fixture_disk) / kSectorSize) {
         return false;
     }
-    std::memcpy(buffer, fixture_disk + sector * 512U, 512U);
+    std::memcpy(buffer, fixture_disk + sector * kSectorSize, kSectorSize);
     return true;
 }
 
 bool write_sector(uint32_t sector, const uint8_t* buffer) noexcept {
     ++write_count;
-    if (sector >= sizeof(fixture_disk) / 512U) {
+    if (sector >= sizeof(fixture_disk) / kSectorSize) {
         return false;
     }
-    std::memcpy(fixture_disk + sector * 512U, buffer, 512U);
+    std::memcpy(fixture_disk + sector * kSectorSize, buffer, kSectorSize);
     return true;
 }
 
@@ -56,8 +60,8 @@ void store_dirent(uint32_t offset, uint32_t inode_number, const char* name, uint
     const Ext2DirEntryHeader entry{inode_number, length,
                                   static_cast<uint8_t>(std::strlen(name)), 1U};
     std::memcpy(fixture_disk + 10U * kFixtureBlockSize + offset, &entry, sizeof(entry));
-    std::memcpy(fixture_disk + 10U * kFixtureBlockSize + offset + sizeof(entry),
-                name, std::strlen(name));
+    std::copy_n(name, std::strlen(name),
+                fixture_disk + 10U * kFixtureBlockSize + offset + sizeof(entry));
 }
 
 Ext2Inode initialize_fixture() {

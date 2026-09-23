@@ -40,7 +40,9 @@ static uint32_t g_dirent_next_block[DIRENT_BLOCK_COUNT];
 // Compare name[namelen] with entry->name[entry->namelen].
 static inline bool name_eq(const char* name, uint8_t namelen,
                             const DirEntry* e) {
-    if (e->namelen != namelen) return false;
+    if (e->namelen != namelen) {
+        return false;
+    }
     return (__builtin_memcmp(name, e->name, namelen) == 0);
 }
 
@@ -78,7 +80,9 @@ void dirent_table_init() {
 // Allocate DIRENT_BLOCK_SIZE slots for a new directory.
 // Returns first arena index on success, MAX_DIRENTS on exhaustion.
 uint32_t dirent_block_alloc() {
-    if (g_dirent_used + DIRENT_BLOCK_SIZE > MAX_DIRENTS) return MAX_DIRENTS;
+    if (g_dirent_used + DIRENT_BLOCK_SIZE > MAX_DIRENTS) {
+        return MAX_DIRENTS;
+    }
     uint32_t start = g_dirent_used;
     g_dirent_used += DIRENT_BLOCK_SIZE;
     g_dirent_next_block[block_index_for(start)] = DIRENT_BLOCK_NONE;
@@ -90,18 +94,26 @@ uint32_t dirent_block_alloc() {
 // Returns 0 on success, -1 if block full or name too long.
 int dirent_add(uint32_t parent_ino, uint32_t child_ino,
                uint8_t type, const char* name, uint8_t namelen) {
-    if (namelen == 0 || namelen > 26) return -1;
+    if (namelen == 0 || namelen > 26) {
+        return -1;
+    }
 
     RawInode* parent = inode_get(parent_ino);
-    if (!parent) return -1;
+    if (!parent) {
+        return -1;
+    }
 
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
-    if (start >= MAX_DIRENTS) return -1;
+    if (start >= MAX_DIRENTS) {
+        return -1;
+    }
 
     uint32_t block_start = start;
     for (;;) {
         uint32_t end = block_start + DIRENT_BLOCK_SIZE;
-        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        if (end > MAX_DIRENTS) {
+            end = MAX_DIRENTS;
+        }
         for (uint32_t i = block_start; i < end; ++i) {
             if (g_dirent_arena[i].child_ino == 0) {
                 g_dirent_arena[i].child_ino  = child_ino;
@@ -133,19 +145,29 @@ int dirent_add(uint32_t parent_ino, uint32_t child_ino,
 // Returns child ino on success, 0 if not found.
 uint32_t dirent_lookup(uint32_t parent_ino, const char* name, uint8_t namelen) {
     RawInode* parent = inode_get(parent_ino);
-    if (!parent) return 0;
+    if (!parent) {
+        return 0;
+    }
 
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
-    if (start >= MAX_DIRENTS) return 0;
+    if (start >= MAX_DIRENTS) {
+        return 0;
+    }
 
     uint32_t block_start = start;
     while (block_start < MAX_DIRENTS) {
         uint32_t end = block_start + DIRENT_BLOCK_SIZE;
-        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        if (end > MAX_DIRENTS) {
+            end = MAX_DIRENTS;
+        }
         for (uint32_t i = block_start; i < end; ++i) {
             const DirEntry* e = &g_dirent_arena[i];
-            if (e->child_ino == 0) continue;
-            if (name_eq(name, namelen, e)) return e->child_ino;
+            if (e->child_ino == 0) {
+                continue;
+            }
+            if (name_eq(name, namelen, e)) {
+                return e->child_ino;
+            }
         }
         const uint32_t next_block = block_next(block_start);
         if (next_block == DIRENT_BLOCK_NONE) {
@@ -159,18 +181,26 @@ uint32_t dirent_lookup(uint32_t parent_ino, const char* name, uint8_t namelen) {
 // Remove a directory entry by name from parent. Returns 0 on success, -1 if not found.
 int dirent_remove(uint32_t parent_ino, const char* name, uint8_t namelen) {
     RawInode* parent = inode_get(parent_ino);
-    if (!parent) return -1;
+    if (!parent) {
+        return -1;
+    }
 
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
-    if (start >= MAX_DIRENTS) return -1;
+    if (start >= MAX_DIRENTS) {
+        return -1;
+    }
 
     uint32_t block_start = start;
     while (block_start < MAX_DIRENTS) {
         uint32_t end = block_start + DIRENT_BLOCK_SIZE;
-        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        if (end > MAX_DIRENTS) {
+            end = MAX_DIRENTS;
+        }
         for (uint32_t i = block_start; i < end; ++i) {
             DirEntry* e = &g_dirent_arena[i];
-            if (e->child_ino == 0) continue;
+            if (e->child_ino == 0) {
+                continue;
+            }
             if (name_eq(name, namelen, e)) {
                 __builtin_memset(e, 0, sizeof(DirEntry));
                 path_cache_invalidate(parent_ino, name, namelen);
@@ -190,20 +220,28 @@ int dirent_remove(uint32_t parent_ino, const char* name, uint8_t namelen) {
 // Returns number of entries copied, or -1 on error.
 int dirent_readdir(uint32_t parent_ino, DirEntry* buf, int max_entries) {
     RawInode* parent = inode_get(parent_ino);
-    if (!parent || !buf || max_entries <= 0) return -1;
+    if (!parent || !buf || max_entries <= 0) {
+        return -1;
+    }
 
     uint32_t start = static_cast<uint32_t>(parent->dirent_start);
-    if (start >= MAX_DIRENTS) return 0;
+    if (start >= MAX_DIRENTS) {
+        return 0;
+    }
 
     int count = 0;
     uint32_t block_start = start;
     while (block_start < MAX_DIRENTS && count < max_entries) {
         uint32_t end = block_start + DIRENT_BLOCK_SIZE;
-        if (end > MAX_DIRENTS) end = MAX_DIRENTS;
+        if (end > MAX_DIRENTS) {
+            end = MAX_DIRENTS;
+        }
 
         for (uint32_t i = block_start; i < end && count < max_entries; ++i) {
             const DirEntry* e = &g_dirent_arena[i];
-            if (e->child_ino == 0) continue;
+            if (e->child_ino == 0) {
+                continue;
+            }
             buf[count++] = *e;
         }
 
