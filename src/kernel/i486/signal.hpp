@@ -7,9 +7,11 @@ namespace xinim::i486::ring3 {
 
 void init_signal_state(Process* process) noexcept;
 void send_signal_to_process(Process* target, uint32_t signum) noexcept;
+[[nodiscard]] uint32_t pending_signals_for_delivery(const Process &process) noexcept;
 bool deliver_one_signal(Process* process) noexcept;
 bool is_default_terminate(uint32_t signum) noexcept;
 bool is_default_ignore(uint32_t signum) noexcept;
+[[nodiscard]] bool has_interrupting_signal(const Process& process) noexcept;
 
 [[nodiscard]] uint32_t sys_sigaction_impl(Process* process, RegisterFrame* frame) noexcept;
 [[nodiscard]] uint32_t sys_signal_impl(Process* process, RegisterFrame* frame) noexcept;

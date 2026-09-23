@@ -133,7 +133,10 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
         candidate = preferred_current;
         best_priority = preferred_current->priority;
     }
-    const int preferred_index = process_slot_index(preferred_current);
+    // Quantum expiry removes the tie preference while retaining the last
+    // dispatched slot as the round-robin origin for equal-priority peers.
+    const int preferred_index = process_slot_index(
+        preferred_current != nullptr ? preferred_current : g_current_process);
 
     for (size_t offset = 1; offset <= kMaxProcesses; ++offset) {
         const size_t index = static_cast<size_t>(
@@ -179,7 +182,7 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     }
     if (process->state == ProcessState::Runnable) {
         deliver_one_signal(process);
-        if (process->state == ProcessState::Exited) {
+        if (process->state == ProcessState::Exited || process->state == ProcessState::Stopped) {
             Process* parent = find_process(process->ppid);
             if (parent != nullptr && parent->state == ProcessState::Waiting) {
                 resume_waiting_parent(parent);
@@ -189,7 +192,7 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
             if (next != nullptr) {
                 dispatch_process(next);
             }
-            resume_rescue_shell("signal killed last runnable process");
+            resume_rescue_shell("signal left no runnable process");
         }
     }
     if (process->ticks_remaining == 0U) {
@@ -225,6 +228,27 @@ Process* select_next_runnable(Process* preferred_current) noexcept {
     dispatch_process(next);
 }
 
+void switch_process_context(Process* current, Process* next) noexcept {
+    if (next == current) {
+        return;
+    }
+    const uint32_t next_kernel_esp = next->saved_kernel_esp;
+    next->saved_kernel_esp = 0U;
+    activate_process(next);
+    i486_switch_process_context(&next->context, &current->saved_kernel_esp, next_kernel_esp);
+}
+
+uint32_t complete_syscall_return(Process* process, RegisterFrame* frame, uint32_t result) noexcept {
+    const uint32_t deliverable = pending_signals_for_delivery(*process);
+    constexpr uint32_t kUnblockable = (1U << kSigKill) | (1U << kSigStop);
+    if (deliverable != 0U && (!process->signals.in_handler || (deliverable & kUnblockable) != 0U)) {
+        process->context = capture_user_context(frame);
+        process->context.eax = result;
+        dispatch_process(process);
+    }
+    return result;
+}
+
 bool block_current_process_until_rescheduled(Process* process,
                                              WaitReason reason,
                                              uint64_t wake_tick) noexcept {
@@ -251,13 +275,15 @@ bool block_current_process_until_rescheduled(Process* process,
         trace_process_snapshot("tty trace: switch-to", *next);
     }
 #endif
-    activate_process(next);
-    i486_switch_to_user_context(&next->context, &process->saved_kernel_esp);
+    // Readiness polling can wake the caller before its kernel stack is saved.
+    // Continue that syscall in place; restoring its entry registers would
+    // return to userspace before the read has produced its buffer and result.
+    switch_process_context(process, next);
     clear_saved_kernel_stack(process);
     process->state = ProcessState::Runnable;
     process->wait_reason = WaitReason::None;
     process->wake_tick = 0U;
-    const bool has_signal = (process->signals.pending & ~process->signals.blocked) != 0U;
+    const bool has_signal = pending_signals_for_delivery(*process) != 0U;
     activate_process(process);
 #ifdef XINIM_X86_32_TTY_TRACE
     if (g_trace_block_budget != 0U) {
@@ -295,18 +321,20 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     console::tty_poll_input();
 
     const uint32_t tty_signal = console::consume_pending_tty_signal();
-    if (tty_signal != 0U && current != nullptr && current->in_use) {
-        send_signal_to_process(current, tty_signal);
+    if (tty_signal != 0U) {
+        signal_foreground_terminal_group(tty_signal);
     }
 
     // Line discipline signals (ISIG: works for serial input too)
     const uint32_t ldisc_signal = tty::consume_pending_ldisc_signal();
-    if (ldisc_signal != 0U && current != nullptr && current->in_use) {
-        send_signal_to_process(current, ldisc_signal);
+    if (ldisc_signal != 0U) {
+        signal_foreground_terminal_group(ldisc_signal);
     }
 
     for (auto& proc : g_processes) {
-        if (!proc.in_use) continue;
+        if (!proc.in_use) {
+            continue;
+        }
 
         // Legacy alarm(2)
         if (proc.alarm_tick != 0U && proc.alarm_tick <= g_scheduler_ticks) {

@@ -32,7 +32,9 @@ void fd_table_init() {
 // Allocate a new FD for the given inode and flags.
 // Returns fd index [0, MAX_FDS) on success, -1 (EMFILE) if table full.
 int fd_allocate(uint32_t ino, uint32_t flags) {
-    if (ino == 0) return -1; // cannot open the invalid inode
+    if (ino == 0) {
+        return -1; // cannot open the invalid inode
+    }
     for (int fd = 0; fd < static_cast<int>(MAX_FDS); ++fd) {
         if (g_fd_table[fd].ino == 0) {
             g_fd_table[fd].ino   = ino;
@@ -46,8 +48,12 @@ int fd_allocate(uint32_t ino, uint32_t flags) {
 
 // Return pointer to FD entry. Returns nullptr for invalid or closed FD.
 FdEntry* fd_get(int fd) {
-    if (fd < 0 || fd >= static_cast<int>(MAX_FDS)) return nullptr;
-    if (g_fd_table[fd].ino == 0) return nullptr; // not open
+    if (fd < 0 || fd >= static_cast<int>(MAX_FDS)) {
+        return nullptr;
+    }
+    if (g_fd_table[fd].ino == 0) {
+        return nullptr; // not open
+    }
     return &g_fd_table[fd];
 }
 
@@ -56,8 +62,12 @@ FdEntry* fd_get(int fd) {
 // must handle close-on-dup2 semantics before calling).
 // Returns newfd on success, -1 on invalid newfd.
 int fd_allocate_at(int newfd, uint32_t ino, uint32_t flags, int64_t pos) {
-    if (newfd < 0 || newfd >= static_cast<int>(MAX_FDS)) return -1;
-    if (ino == 0) return -1;
+    if (newfd < 0 || newfd >= static_cast<int>(MAX_FDS)) {
+        return -1;
+    }
+    if (ino == 0) {
+        return -1;
+    }
     g_fd_table[newfd].ino   = ino;
     g_fd_table[newfd].flags = flags;
     g_fd_table[newfd].pos   = pos;
@@ -66,8 +76,12 @@ int fd_allocate_at(int newfd, uint32_t ino, uint32_t flags, int64_t pos) {
 
 // Close and release FD. Returns 0 on success, -1 on bad fd.
 int fd_release(int fd) {
-    if (fd < 0 || fd >= static_cast<int>(MAX_FDS)) return -1;
-    if (g_fd_table[fd].ino == 0) return -1; // already closed (EBADF)
+    if (fd < 0 || fd >= static_cast<int>(MAX_FDS)) {
+        return -1;
+    }
+    if (g_fd_table[fd].ino == 0) {
+        return -1; // already closed (EBADF)
+    }
     __builtin_memset(&g_fd_table[fd], 0, sizeof(FdEntry));
     return 0;
 }

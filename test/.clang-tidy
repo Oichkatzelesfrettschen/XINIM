@@ -1,0 +1,4 @@
+---
+# Hosted native contracts can use the C++23 printing library.
+InheritParentConfig: true
+Checks: modernize-use-std-print

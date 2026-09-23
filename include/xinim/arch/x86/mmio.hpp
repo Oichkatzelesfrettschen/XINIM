@@ -24,6 +24,8 @@ inline uintptr_t map_physical(uint64_t phys_addr) noexcept {
 
 template <typename T = void>
 inline T* map_pointer(uint64_t phys_addr) noexcept {
+    // map_physical resolves the MMIO address through identity mapping or the HHDM.
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
     return reinterpret_cast<T*>(map_physical(phys_addr));
 }
 

@@ -93,6 +93,9 @@ endif()
 option(XINIM_X86_32_TTY_TRACE
     "Emit serial trace markers for 32-bit TTY/input scheduling diagnostics"
     OFF)
+option(XINIM_X86_32_EXEC_IO_TRACE
+    "Emit failure-only serial diagnostics for 32-bit executable storage I/O"
+    OFF)
 option(XINIM_X86_32_BUILD_TCC
     "Build and stage TinyCC for in-guest 32-bit compiler validation"
     ON)
@@ -768,6 +771,7 @@ xinim_set_warnings(xinim)
 
 # Bare-metal: disable hosted C++ runtime assumptions
 target_compile_options(xinim PRIVATE
+    $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++>
     -ffreestanding
     -fno-pic
     -fno-pie
@@ -1760,6 +1764,7 @@ set(XINIM_X86_32_KERNEL_SOURCES
     src/kernel/i486/ext2_reader.cpp
     src/kernel/i486/ide.cpp
     src/kernel/i486/dma_pages.cpp
+    src/kernel/i486/user_backing.cpp
     src/kernel/i486/virtio_net_i486.cpp
     src/pci/pci.cpp
     src/kernel/i486/netstack.cpp
@@ -1815,6 +1820,11 @@ set(XINIM_X86_32_FALSE_SOURCES
 set(XINIM_X86_32_HEAPPROBE_SOURCES
     userland/shell/xash/entry_i486.S
     userland/tests/heapprobe_i486.cpp
+)
+
+set(XINIM_X86_32_SYSCALL_GUARD_SOURCES
+    userland/shell/xash/entry_i486.S
+    userland/tests/syscall_guard_i486.cpp
 )
 
 set(XINIM_X86_32_HOLDSVC_SOURCES
@@ -1885,9 +1895,11 @@ function(xinim_x86_32_user_exe exe_name target_name sources_var lane banner_name
         ${CMAKE_SOURCE_DIR}/userland/runtime/x86_32_memory.cpp
     )
     set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${exe_name}-${lane}")
+    set_property(TARGET ${target_name} APPEND PROPERTY LINK_DEPENDS "${linker_script}")
     target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/include)
     target_compile_features(${target_name} PRIVATE cxx_std_23)
-    target_compile_options(${target_name} PRIVATE ${_arg_COMPILE_OPTIONS})
+    target_compile_options(${target_name} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> ${_arg_COMPILE_OPTIONS})
     target_compile_definitions(${target_name} PRIVATE
         XINIM_BOOT_LANE_NAME="${banner_name}"
     )
@@ -1960,6 +1972,7 @@ function(xinim_add_x86_32_lane lane)
     set(_hello_target "hello_${lane}")
     set(_false_target "false_${lane}")
     set(_heapprobe_target "heapprobe_${lane}")
+    set(_syscall_guard_target "syscall_guard_${lane}")
     set(_holdsvc_target "holdsvc_${lane}")
     set(_diethello_target "diethello_${lane}")
     set(_ls_target "ls_${lane}")
@@ -2006,13 +2019,17 @@ function(xinim_add_x86_32_lane lane)
     endif()
     xinim_apply_target_defaults(${_kernel_target})
     xinim_set_warnings(${_kernel_target})
-    target_compile_options(${_kernel_target} PRIVATE ${_lane_compile_options})
+    target_compile_options(${_kernel_target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> ${_lane_compile_options})
     target_compile_definitions(${_kernel_target} PRIVATE
         XINIM_BOOT_MULTIBOOT2
         XINIM_BOOT_LANE_NAME="${_banner_name}"
     )
     if(XINIM_X86_32_TTY_TRACE)
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_X86_32_TTY_TRACE=1)
+    endif()
+    if(XINIM_X86_32_EXEC_IO_TRACE)
+        target_compile_definitions(${_kernel_target} PRIVATE XINIM_X86_32_EXEC_IO_TRACE=1)
     endif()
     if(XINIM_I686_APIC_TIMER)
         target_compile_definitions(${_kernel_target} PRIVATE XINIM_I686_APIC_TIMER=1)
@@ -2082,9 +2099,11 @@ function(xinim_add_x86_32_lane lane)
 
     add_custom_command(
         OUTPUT "${_mksh_source_dir}/Build.sh" "${_mksh_source_metadata}"
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py
+            --archive "${CMAKE_SOURCE_DIR}/third_party/distfiles/mksh-R59c.tgz"
             --source-dir "${_mksh_source_dir}"
         DEPENDS "${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py"
+            "${CMAKE_SOURCE_DIR}/third_party/distfiles/mksh-R59c.tgz"
         COMMENT "Acquiring pinned mksh R59c source for ${lane}"
         VERBATIM
     )
@@ -2093,7 +2112,7 @@ function(xinim_add_x86_32_lane lane)
 
     add_custom_command(
         OUTPUT "${_mksh_binary}"
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
             --source-dir "${_mksh_source_dir}"
             --build-dir "${_mksh_build_dir}"
             --cc "${_lane_user_cc} ${_mksh_arch_flags}"
@@ -2103,8 +2122,13 @@ function(xinim_add_x86_32_lane lane)
             --dietlibc-a "${_dietlibc_archive}"
             --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             --output "${_mksh_binary}"
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
+            --file "${_mksh_binary}"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py"
+            "${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py"
+            "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             ${_mksh_source_target}
             "${_dietlibc_start}"
             "${_dietlibc_archive}"
@@ -2152,18 +2176,26 @@ function(xinim_add_x86_32_lane lane)
         set(_tcc_target "tcc_${lane}")
         set(_tcc_binary "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}")
         set(_tcc_build_dir "${CMAKE_CURRENT_BINARY_DIR}/tcc-${lane}-build")
-        set(_tcc_stub_source "${_tcc_build_dir}/xinim_stubs.c")
+        set(_tcc_stub_source "${_tcc_build_dir}/xinim_ldexp.cpp")
         set(_tcc_config_header "${_tcc_build_dir}/config.h")
         set(_tcc_runtime_dir "${CMAKE_CURRENT_BINARY_DIR}/tcc-runtime-${lane}")
         set(_tcc_runtime_marker "${_tcc_runtime_dir}/.xinim-tcc-runtime-ready")
+        set(_tcc_runtime_files
+            "${_tcc_runtime_dir}/crt1.o"
+            "${_tcc_runtime_dir}/crti.o"
+            "${_tcc_runtime_dir}/crtn.o"
+            "${_tcc_runtime_dir}/libc.a"
+            "${_tcc_runtime_dir}/tcc/libtcc1.a")
         add_custom_command(
             OUTPUT "${_tcc_binary}" "${_tcc_runtime_marker}" "${_tcc_stub_source}" "${_tcc_config_header}"
-            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_tcc.py
+                ${_tcc_runtime_files}
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/build_i486_tcc.py
                 --source-dir "${CMAKE_SOURCE_DIR}/.scratch/tcc"
                 --build-dir "${_tcc_build_dir}"
                 --stubs-source "${_tcc_stub_source}"
                 --config-header "${_tcc_config_header}"
                 --cc "${_lane_user_cc} ${_util_arch_flags}"
+                --cxx "${_lane_user_cxx} ${_util_arch_flags}"
                 ${_lane_link_arguments}
                 --compiler-runtime "${XINIM_CLANG_BUILTINS_ARCHIVE}"
                 --start-o "${_dietlibc_start}"
@@ -2178,10 +2210,20 @@ function(xinim_add_x86_32_lane lane)
             VERBATIM
         )
         add_custom_target(${_tcc_target} ALL DEPENDS
-            "${_tcc_binary}" "${_tcc_runtime_marker}" "${_tcc_stub_source}" "${_tcc_config_header}")
+            "${_tcc_binary}" "${_tcc_runtime_marker}" "${_tcc_stub_source}" "${_tcc_config_header}"
+            ${_tcc_runtime_files})
         list(APPEND _guest_tool_targets ${_tcc_target})
         list(APPEND _guest_tool_bins --guest-bin "${_tcc_binary}:/bin/tcc")
         list(APPEND _guest_tcc_runtime_args --tcc-runtime-dir "${_tcc_runtime_dir}")
+        add_test(NAME ${lane}_tcc_runtime_contract
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/test/test_i486_tcc_runtime.py
+                --runtime-dir "${_tcc_runtime_dir}"
+                --config-header "${_tcc_config_header}"
+                --start-o "${_dietlibc_start}"
+                --dietlibc-a "${_dietlibc_archive}")
+        set_tests_properties(${lane}_tcc_runtime_contract PROPERTIES
+            FIXTURES_REQUIRED ${lane}_image LABELS "unit;${lane};tcc;runtime" TIMEOUT 30)
     endif()
 
     if(XINIM_X86_32_BUILD_BMAKE)
@@ -2406,6 +2448,11 @@ function(xinim_add_x86_32_lane lane)
         COMPILE_OPTIONS ${_lane_compile_options}
         LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
+    xinim_x86_32_user_exe(syscall_guard ${_syscall_guard_target} XINIM_X86_32_SYSCALL_GUARD_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
+
     xinim_x86_32_user_exe(holdsvc ${_holdsvc_target} XINIM_X86_32_HOLDSVC_SOURCES
         ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
         COMPILE_OPTIONS ${_lane_compile_options}
@@ -2473,6 +2520,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/persist-hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
             --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_syscall_guard_target}>:/bin/syscall-guard"
             --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
             --guest-bin "$<TARGET_FILE:${_mkdir_target}>:/bin/mkdir"
@@ -2567,6 +2615,7 @@ function(xinim_add_x86_32_lane lane)
             ${_hello_target}
             ${_false_target}
             ${_heapprobe_target}
+            ${_syscall_guard_target}
             ${_holdsvc_target}
             ${_writefile_target}
             ${_mkdir_target}
@@ -2670,6 +2719,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
             --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_syscall_guard_target}>:/bin/syscall-guard"
             --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
             --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
@@ -2766,6 +2816,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
             --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_syscall_guard_target}>:/bin/syscall-guard"
             --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
             --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
@@ -2781,10 +2832,12 @@ function(xinim_add_x86_32_lane lane)
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
             ${_kernel_target}
             ${_mksh_target}
+            "${_mksh_binary}"
             ${_holdsvc_target}
             ${_hello_target}
             ${_false_target}
             ${_heapprobe_target}
+            ${_syscall_guard_target}
             ${_ls_target}
             ${_writefile_target}
             ${_mkdir_target}
@@ -2802,6 +2855,50 @@ function(xinim_add_x86_32_lane lane)
     )
 
     add_custom_target(${lane}_boot_disk DEPENDS "${_boot_disk_image}")
+
+    if(lane STREQUAL "i486")
+        add_test(NAME prepare_i486_boot_disk
+            COMMAND ${CMAKE_COMMAND} --build ${CMAKE_BINARY_DIR}
+                --target i486_boot_disk -j2)
+        set_tests_properties(prepare_i486_boot_disk PROPERTIES
+            FIXTURES_SETUP i486_boot_disk LABELS "integration;boot;i486;prepare" TIMEOUT 180)
+        foreach(_disk_memory IN ITEMS 32M 64M 256M)
+            add_test(NAME i486_disk_shell_${_disk_memory}
+                COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/test/boot/i486_disk_shell_test.py
+                    --disk ${_boot_disk_image} --memory ${_disk_memory}
+                    --output-dir ${XINIM_LOG_ROOT}/i486-disk-shell-${_disk_memory})
+            set_tests_properties(i486_disk_shell_${_disk_memory} PROPERTIES
+                FIXTURES_REQUIRED i486_boot_disk
+                LABELS "integration;boot;i486;disk;virtio" TIMEOUT 240)
+        endforeach()
+        add_test(NAME i486_qcow2_disk_shell
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/test/boot/i486_disk_shell_test.py
+                --disk ${_boot_disk_qcow2_image}
+                --output-dir ${XINIM_LOG_ROOT}/i486-qcow2-disk-shell)
+        set_tests_properties(i486_qcow2_disk_shell PROPERTIES
+            FIXTURES_REQUIRED i486_boot_disk
+            LABELS "integration;boot;i486;disk;virtio" TIMEOUT 240)
+        if(XINIM_XORRISO_EXECUTABLE)
+            add_test(NAME i486_iso_disk_shell
+                COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/test/boot/i486_disk_shell_test.py
+                    --iso ${_boot_image} --disk ${_ata_disk_image}
+                    --output-dir ${XINIM_LOG_ROOT}/i486-iso-disk-shell)
+            set_tests_properties(i486_iso_disk_shell PROPERTIES
+                FIXTURES_REQUIRED i486_image RUN_SERIAL TRUE
+                LABELS "integration;boot;i486;disk;virtio" TIMEOUT 240)
+            add_test(NAME i486_ata_latency_test
+                COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/test/boot/i486_disk_shell_test.py
+                    --iso ${_boot_image} --disk ${_ata_disk_image} --read-bps 16384
+                    --output-dir ${XINIM_LOG_ROOT}/i486-ata-latency)
+            set_tests_properties(i486_ata_latency_test PROPERTIES
+                FIXTURES_REQUIRED i486_image RUN_SERIAL TRUE
+                LABELS "integration;boot;i486;disk;ata;latency" TIMEOUT 240)
+        endif()
+    endif()
 
     if(XINIM_XORRISO_EXECUTABLE)
         add_custom_command(
@@ -2829,6 +2926,7 @@ function(xinim_add_x86_32_lane lane)
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_gapcheck_target}>" "${_stage_dir}/boot/gapcheck"
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_false_target}>" "${_stage_dir}/boot/false"
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_heapprobe_target}>" "${_stage_dir}/boot/heapprobe"
+                COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_syscall_guard_target}>" "${_stage_dir}/boot/syscall-guard"
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_holdsvc_target}>" "${_stage_dir}/boot/holdsvc"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_cat_binary}" "${_stage_dir}/boot/cat"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_echo_binary}" "${_stage_dir}/boot/echo"
@@ -2926,6 +3024,7 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_gapcheck_target}>" "${_stage_dir}/bin/gapcheck"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_false_target}>" "${_stage_dir}/bin/false"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_heapprobe_target}>" "${_stage_dir}/bin/heapprobe"
+            COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_syscall_guard_target}>" "${_stage_dir}/bin/syscall-guard"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_holdsvc_target}>" "${_stage_dir}/bin/holdsvc"
             COMMAND ${CMAKE_COMMAND} -E copy "${_cat_binary}" "${_stage_dir}/bin/cat"
             COMMAND ${CMAKE_COMMAND} -E copy "${_echo_binary}" "${_stage_dir}/bin/echo"
@@ -3009,7 +3108,8 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/etc/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/grub.cfg" "${_stage_dir}/boot/grub/grub.cfg"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_LOG_ROOT}"
-            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
                 --stage-dir "${_stage_dir}"
                 --report "${_compat_report}"
                 --require-file /bin/mksh
@@ -3025,6 +3125,7 @@ function(xinim_add_x86_32_lane lane)
                 ${_kernel_target}
                 ${_shell_target}
                 ${_mksh_target}
+                "${_mksh_binary}"
                 ${_diethello_target}
                 ${_ls_target}
                 ${_writefile_target}
@@ -3039,6 +3140,7 @@ function(xinim_add_x86_32_lane lane)
                 ${_hello_target}
                 ${_false_target}
                 ${_heapprobe_target}
+                ${_syscall_guard_target}
                 ${_holdsvc_target}
                 ${_posix_util_targets}
                 xinim_bootstrap_grub
@@ -3132,7 +3234,8 @@ function(xinim_add_x86_32_lane lane)
         set(_boot_disk_layout_test "${lane}_boot_disk_layout_test")
         add_test(
             NAME ${_boot_disk_layout_test}
-            COMMAND ${CMAKE_SOURCE_DIR}/test/boot/x86_32_boot_disk_layout_test.sh
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/test/boot/x86_32_boot_disk_layout_test.py
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         )
         set_tests_properties(${_boot_disk_layout_test} PROPERTIES
@@ -3145,7 +3248,8 @@ function(xinim_add_x86_32_lane lane)
 
         add_test(
             NAME ${_compat_test}
-            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
                 --stage-dir "${_stage_dir}"
                 --report "${_compat_report}"
                 --require-file /bin/mksh
@@ -3204,18 +3308,30 @@ function(xinim_add_x86_32_lane lane)
 
         add_test(
             NAME ${_enhanced_test}
-            COMMAND python3 ${CMAKE_SOURCE_DIR}/test/boot/x86_32_enhanced_test.py
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/test/boot/x86_32_enhanced_test.py
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         )
         set_tests_properties(${_enhanced_test} PROPERTIES
             LABELS "integration;enhanced;${lane};pipeline;symlink;tcc"
-            ENVIRONMENT "${_lane_env}"
+            ENVIRONMENT "${_lane_env};XINIM_QEMU_SHELL_LOG=${XINIM_LOG_ROOT}/${lane}-enhanced.log"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
             TIMEOUT 420
         )
 
         if(lane STREQUAL "i486")
+            add_test(NAME i486_scheduler_fairness_test
+                COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                    ${CMAKE_SOURCE_DIR}/test/boot/x86_32_scheduler_fairness_test.py
+                WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
+            set_tests_properties(i486_scheduler_fairness_test PROPERTIES
+                LABELS "integration;i486;scheduler;process"
+                RUN_SERIAL TRUE
+                ENVIRONMENT "${_lane_env};XINIM_QEMU_ICOUNT=shift=7,sleep=off;XINIM_QEMU_SHELL_PORT=4569;XINIM_QEMU_SHELL_LOG=${XINIM_LOG_ROOT}/i486-scheduler-fairness.log"
+                FIXTURES_REQUIRED ${lane}_image
+                SKIP_RETURN_CODE 77
+                TIMEOUT 420)
+
             set(_isapc_boot_log "${XINIM_LOG_ROOT}/${lane}-isapc-smoke.log")
             set(_isapc_shell_log "${XINIM_LOG_ROOT}/${lane}-isapc-kshell.log")
             set(_isapc_env
@@ -4963,3 +5079,124 @@ endif()
 # =============================================================================
 
 message(STATUS "XINIM Baseline Kernel Target Configured.")
+
+add_executable(test_i486_dma_pages
+    test/test_i486_dma_pages.cpp
+    src/kernel/i486/dma_pages.cpp
+)
+target_compile_features(test_i486_dma_pages PRIVATE cxx_std_23)
+target_include_directories(test_i486_dma_pages PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_dma_pages PRIVATE -stdlib=libc++)
+target_link_options(test_i486_dma_pages PRIVATE -stdlib=libc++)
+xinim_set_warnings(test_i486_dma_pages)
+add_test(NAME test_i486_dma_pages COMMAND test_i486_dma_pages)
+set_tests_properties(test_i486_dma_pages PROPERTIES LABELS "unit;kernel;memory;dma" TIMEOUT 30)
+
+add_executable(test_i486_elf32_loader
+    test/test_i486_elf32_loader.cpp
+    src/kernel/i486/elf32_loader.cpp
+)
+target_compile_features(test_i486_elf32_loader PRIVATE cxx_std_23)
+target_include_directories(test_i486_elf32_loader PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel/i486)
+target_compile_options(test_i486_elf32_loader PRIVATE -stdlib=libc++)
+target_link_options(test_i486_elf32_loader PRIVATE -stdlib=libc++)
+xinim_set_warnings(test_i486_elf32_loader)
+add_test(NAME test_i486_elf32_loader COMMAND test_i486_elf32_loader)
+set_tests_properties(test_i486_elf32_loader PROPERTIES LABELS "unit;kernel;elf;process" TIMEOUT 30)
+
+add_executable(test_i486_user_backing
+    test/test_i486_user_backing.cpp
+    src/kernel/i486/user_backing.cpp
+    src/kernel/i486/dma_pages.cpp
+)
+target_compile_features(test_i486_user_backing PRIVATE cxx_std_23)
+target_include_directories(test_i486_user_backing PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_user_backing PRIVATE -stdlib=libc++)
+target_link_options(test_i486_user_backing PRIVATE -stdlib=libc++)
+xinim_set_warnings(test_i486_user_backing)
+add_test(NAME test_i486_user_backing COMMAND test_i486_user_backing)
+set_tests_properties(test_i486_user_backing PROPERTIES
+    LABELS "unit;kernel;memory;process" TIMEOUT 30)
+
+add_executable(test_i486_scheduler_wait
+    test/test_i486_scheduler_wait.cpp
+    src/kernel/i486/sched.cpp
+    src/kernel/i486/signal.cpp
+)
+target_compile_features(test_i486_scheduler_wait PRIVATE cxx_std_23)
+target_include_directories(test_i486_scheduler_wait PRIVATE ${CMAKE_SOURCE_DIR}/include)
+# Retain the scheduler wait path while the test supplies device and CPU-switch seams.
+target_compile_options(test_i486_scheduler_wait PRIVATE
+    -stdlib=libc++ -ffunction-sections -fdata-sections)
+target_link_options(test_i486_scheduler_wait PRIVATE -stdlib=libc++ -Wl,--gc-sections)
+xinim_set_warnings(test_i486_scheduler_wait)
+add_test(NAME test_i486_scheduler_wait COMMAND test_i486_scheduler_wait)
+set_tests_properties(test_i486_scheduler_wait PROPERTIES LABELS "unit;kernel;scheduler;tty" TIMEOUT 30)
+
+add_executable(test_i486_process_sessions
+    test/test_i486_process_sessions.cpp
+    src/kernel/i486/process.cpp
+)
+target_compile_features(test_i486_process_sessions PRIVATE cxx_std_23)
+target_include_directories(test_i486_process_sessions PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_process_sessions PRIVATE
+    -stdlib=libc++ -ffunction-sections -fdata-sections)
+target_link_options(test_i486_process_sessions PRIVATE -stdlib=libc++ -Wl,--gc-sections)
+xinim_set_warnings(test_i486_process_sessions)
+add_test(NAME test_i486_process_sessions COMMAND test_i486_process_sessions)
+set_tests_properties(test_i486_process_sessions PROPERTIES LABELS "unit;kernel;session;tty" TIMEOUT 30)
+
+add_executable(test_i486_signal_dispatch
+    test/test_i486_signal_dispatch.cpp
+    src/kernel/i486/sched.cpp
+    src/kernel/i486/signal.cpp
+    src/kernel/i486/kutil.cpp
+)
+target_compile_features(test_i486_signal_dispatch PRIVATE cxx_std_23)
+target_include_directories(test_i486_signal_dispatch PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_signal_dispatch PRIVATE
+    -stdlib=libc++ -ffunction-sections -fdata-sections)
+target_link_options(test_i486_signal_dispatch PRIVATE -stdlib=libc++ -Wl,--gc-sections)
+xinim_set_warnings(test_i486_signal_dispatch)
+add_test(NAME test_i486_signal_dispatch COMMAND test_i486_signal_dispatch)
+set_tests_properties(test_i486_signal_dispatch PROPERTIES
+    LABELS "unit;kernel;signal;scheduler" TIMEOUT 30)
+
+add_executable(test_i486_context_switch
+    test/test_i486_context_switch.cpp
+    src/kernel/i486/ring3_entry.S
+)
+target_compile_features(test_i486_context_switch PRIVATE cxx_std_23)
+target_include_directories(test_i486_context_switch PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_context_switch PRIVATE
+    -m32 -march=i486 -ffreestanding -fno-pic -fno-pie -fno-stack-protector
+    $<$<COMPILE_LANGUAGE:CXX>:-fno-exceptions;-fno-rtti>)
+target_link_options(test_i486_context_switch PRIVATE -m32 -nostdlib -no-pie -Wl,-e,_start)
+xinim_set_warnings(test_i486_context_switch)
+add_test(NAME test_i486_context_switch COMMAND test_i486_context_switch)
+set_tests_properties(test_i486_context_switch PROPERTIES LABELS "unit;kernel;assembly;abi" TIMEOUT 30)
+
+add_executable(test_i486_ata_deadline
+    test/test_i486_ata_deadline.cpp
+    src/kernel/i486/storage.cpp
+)
+target_compile_features(test_i486_ata_deadline PRIVATE cxx_std_23)
+target_compile_definitions(test_i486_ata_deadline PRIVATE XINIM_IO_PORT_TEST=1)
+target_compile_options(test_i486_ata_deadline PRIVATE -stdlib=libc++)
+target_link_options(test_i486_ata_deadline PRIVATE -stdlib=libc++)
+xinim_set_warnings(test_i486_ata_deadline)
+add_test(NAME test_i486_ata_deadline COMMAND test_i486_ata_deadline)
+set_tests_properties(test_i486_ata_deadline PROPERTIES LABELS "unit;kernel;ata;timer" TIMEOUT 30)
+
+add_executable(test_i486_ext2_indirect
+    test/test_i486_ext2_indirect.cpp
+    src/kernel/i486/storage.cpp
+)
+target_compile_features(test_i486_ext2_indirect PRIVATE cxx_std_23)
+target_include_directories(test_i486_ext2_indirect PRIVATE ${CMAKE_SOURCE_DIR}/include)
+target_compile_options(test_i486_ext2_indirect PRIVATE
+    -stdlib=libc++ -ffunction-sections -fdata-sections)
+target_link_options(test_i486_ext2_indirect PRIVATE -stdlib=libc++ -Wl,--gc-sections)
+xinim_set_warnings(test_i486_ext2_indirect)
+add_test(NAME test_i486_ext2_indirect COMMAND test_i486_ext2_indirect)
+set_tests_properties(test_i486_ext2_indirect PROPERTIES LABELS "unit;kernel;ext2;storage" TIMEOUT 30)

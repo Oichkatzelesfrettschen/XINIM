@@ -2,6 +2,8 @@
 
 #include "tty.hpp"
 
+#include <cstddef>
+
 namespace xinim::i486::console {
 namespace {
 
@@ -151,13 +153,17 @@ uint8_t ansi_to_vga_fg(uint32_t code) noexcept {
     // ANSI: 30=black 31=red 32=green 33=yellow 34=blue 35=magenta 36=cyan 37=white
     // VGA:  0=black 4=red 2=green 6=brown  1=blue 5=magenta  3=cyan  7=lgray
     static constexpr uint8_t kMap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
-    if (code >= 30U && code <= 37U) return kMap[code - 30U];
+    if (code >= 30U && code <= 37U) {
+        return kMap[code - 30U];
+    }
     return 7U;
 }
 
 uint8_t ansi_to_vga_bg(uint32_t code) noexcept {
     static constexpr uint8_t kMap[8] = {0, 4, 2, 6, 1, 5, 3, 7};
-    if (code >= 40U && code <= 47U) return kMap[code - 40U];
+    if (code >= 40U && code <= 47U) {
+        return kMap[code - 40U];
+    }
     return 0U;
 }
 
@@ -206,8 +212,12 @@ void execute_csi(char final_char) noexcept {
     case 'f': { // Cursor position (row;col, 1-based)
         uint32_t row = ansi_param(0U, 1U);
         uint32_t col = (g_ansi_param_count >= 2U) ? g_ansi_params[1] : 1U;
-        if (row > 0U) --row;
-        if (col > 0U) --col;
+        if (row > 0U) {
+            --row;
+        }
+        if (col > 0U) {
+            --col;
+        }
         g_cursor_y = (row < kVgaHeight) ? static_cast<uint16_t>(row) : static_cast<uint16_t>(kVgaHeight - 1U);
         g_cursor_x = (col < kVgaWidth) ? static_cast<uint16_t>(col) : static_cast<uint16_t>(kVgaWidth - 1U);
         break;
@@ -216,7 +226,9 @@ void execute_csi(char final_char) noexcept {
         uint32_t mode = ansi_param(0U, 0U);
         if (mode == 2U) {
             // Clear entire screen
-            for (uint16_t r = 0U; r < kVgaHeight; ++r) clear_row(r);
+            for (uint16_t r = 0U; r < kVgaHeight; ++r) {
+                clear_row(r);
+            }
             g_cursor_x = 0U;
             g_cursor_y = 0U;
         } else if (mode == 0U) {
@@ -224,7 +236,9 @@ void execute_csi(char final_char) noexcept {
             for (uint16_t col = g_cursor_x; col < kVgaWidth; ++col) {
                 g_vga[g_cursor_y * kVgaWidth + col] = static_cast<uint16_t>((g_vga_color << 8U) | ' ');
             }
-            for (uint16_t r = static_cast<uint16_t>(g_cursor_y + 1U); r < kVgaHeight; ++r) clear_row(r);
+            for (uint16_t r = static_cast<uint16_t>(g_cursor_y + 1U); r < kVgaHeight; ++r) {
+                clear_row(r);
+            }
         }
         break;
     }
@@ -611,9 +625,9 @@ void force_vga_text_mode() noexcept {
         0x9CU, 0x8EU, 0x8FU, 0x28U, 0x1FU, 0x96U, 0xB9U, 0xA3U,
         0xFFU,
     };
-    for (uint8_t i = 0U; i < sizeof(crtc_regs); ++i) {
-        outb(0x3D4U, i);
-        outb(0x3D5U, crtc_regs[i]);
+    for (std::size_t index = 0U; index < sizeof(crtc_regs); ++index) {
+        outb(0x3D4U, static_cast<uint8_t>(index));
+        outb(0x3D5U, crtc_regs[index]);
     }
 
     // Graphics Controller: text mode defaults
@@ -634,10 +648,10 @@ void force_vga_text_mode() noexcept {
         0x38U, 0x39U, 0x3AU, 0x3BU, 0x3CU, 0x3DU, 0x3EU, 0x3FU,
         0x0CU, 0x00U, 0x0FU, 0x08U, 0x00U,
     };
-    for (uint8_t i = 0U; i < sizeof(attr_regs); ++i) {
+    for (std::size_t index = 0U; index < sizeof(attr_regs); ++index) {
         inb(0x3DAU);
-        outb(0x3C0U, i);
-        outb(0x3C0U, attr_regs[i]);
+        outb(0x3C0U, static_cast<uint8_t>(index));
+        outb(0x3C0U, attr_regs[index]);
     }
 
     // Re-enable display

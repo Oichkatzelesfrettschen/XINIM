@@ -12,6 +12,7 @@ constexpr uint8_t kElfDataLittle = 1U;
 constexpr uint16_t kElfTypeExec = 2U;
 constexpr uint16_t kElfMachine386 = 3U;
 constexpr uint32_t kProgramTypeLoad = 1U;
+constexpr uint32_t kProgramFlagExecute = 1U;
 constexpr uint32_t kPageSize = 4096U;
 
 struct Elf32Header {
@@ -103,6 +104,7 @@ bool inspect_static_image(const uint8_t* image,
         reinterpret_cast<const Elf32ProgramHeader*>(image + header->phoff);
     uint32_t highest_end = kUserVirtualBase;
     bool saw_loadable_segment = false;
+    bool entry_is_executable = false;
 
     for (uint16_t index = 0U; index < header->phnum; ++index) {
         const Elf32ProgramHeader& program = program_headers[index];
@@ -126,11 +128,24 @@ bool inspect_static_image(const uint8_t* image,
             return false;
         }
         const uint32_t segment_end = program.vaddr + program.memsz;
+        for (uint16_t previous_index = 0U; previous_index < index; ++previous_index) {
+            const Elf32ProgramHeader &previous = program_headers[previous_index];
+            if (previous.type != kProgramTypeLoad || previous.memsz == 0U) {
+                continue;
+            }
+            if (program.vaddr < previous.vaddr + previous.memsz && previous.vaddr < segment_end) {
+                return false;
+            }
+        }
+        if ((program.flags & kProgramFlagExecute) != 0U && header->entry >= program.vaddr &&
+            header->entry < segment_end) {
+            entry_is_executable = true;
+        }
         if (segment_end > highest_end) {
             highest_end = segment_end;
         }
     }
-    if (!saw_loadable_segment) {
+    if (!saw_loadable_segment || !entry_is_executable) {
         return false;
     }
 

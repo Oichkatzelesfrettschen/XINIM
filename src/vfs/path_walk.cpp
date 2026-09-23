@@ -40,12 +40,16 @@ static PathCacheEntry g_path_cache[PATH_CACHE_SIZE];
 
 static const char* next_component(const char* p, uint8_t* out_len) {
     // Skip leading slashes
-    while (*p == '/') ++p;
+    while (*p == '/') {
+        ++p;
+    }
     const char* start = p;
     uint8_t len = 0;
     while (*p != '\0' && *p != '/') {
         ++p;
-        if (len < 255) ++len;
+        if (len < 255) {
+            ++len;
+        }
     }
     *out_len = len;
     return start;
@@ -156,13 +160,15 @@ void path_cache_invalidate(uint32_t parent_ino, const char* name, uint8_t namele
 // ============================================================================
 
 uint32_t path_walk(const char* path) {
-    if (!path || path[0] != '/') return 0; // must be absolute
+    if (!path || path[0] != '/') {
+        return 0; // must be absolute
+    }
 
     uint32_t cur_ino = ROOT_INO;
     const char* p = path;
 
     for (;;) {
-        uint8_t     len;
+        uint8_t     len = 0U;
         const char* comp = next_component(p, &len);
         p = comp + len; // advance past component
 
@@ -172,19 +178,25 @@ uint32_t path_walk(const char* path) {
         }
 
         // "." -- stay in current directory
-        if (len == 1 && comp[0] == '.') continue;
+        if (len == 1 && comp[0] == '.') {
+            continue;
+        }
 
         // ".." -- go to parent
         if (len == 2 && comp[0] == '.' && comp[1] == '.') {
             RawInode* inode = inode_get(cur_ino);
-            if (!inode) return 0;
+            if (!inode) {
+                return 0;
+            }
             // Root's parent is itself
             cur_ino = (inode->parent_ino != 0) ? inode->parent_ino : ROOT_INO;
             continue;
         }
 
         uint32_t child = resolve_child(cur_ino, comp, len);
-        if (child == 0) return 0; // not found
+        if (child == 0) {
+            return 0; // not found
+        }
         cur_ino = child;
     }
 }
@@ -192,8 +204,12 @@ uint32_t path_walk(const char* path) {
 uint32_t path_walk_parent(const char* path,
                           const char** out_name,
                           uint8_t*     out_namelen) {
-    if (!path || path[0] != '/') return 0;
-    if (!out_name || !out_namelen) return 0;
+    if (!path || path[0] != '/') {
+        return 0;
+    }
+    if (!out_name || !out_namelen) {
+        return 0;
+    }
 
     // Pass 1: collect all non-empty components into a small component list.
     // We support up to 32 path components (adequate for any kernel path).
@@ -204,10 +220,12 @@ uint32_t path_walk_parent(const char* path,
 
     const char* p = path;
     for (;;) {
-        uint8_t     len;
+        uint8_t     len = 0U;
         const char* comp = next_component(p, &len);
         p = comp + len;
-        if (len == 0) break;
+        if (len == 0) {
+            break;
+        }
         if (ncomps < MAX_COMPONENTS) {
             comp_start[ncomps] = comp;
             comp_len[ncomps]   = len;
@@ -228,21 +246,29 @@ uint32_t path_walk_parent(const char* path,
         const char* comp = comp_start[i];
         uint8_t     len  = comp_len[i];
 
-        if (len == 1 && comp[0] == '.') continue;
+        if (len == 1 && comp[0] == '.') {
+            continue;
+        }
         if (len == 2 && comp[0] == '.' && comp[1] == '.') {
             RawInode* inode = inode_get(cur_ino);
-            if (!inode) return 0;
+            if (!inode) {
+                return 0;
+            }
             cur_ino = (inode->parent_ino != 0) ? inode->parent_ino : ROOT_INO;
             continue;
         }
         uint32_t child = resolve_child(cur_ino, comp, len);
-        if (child == 0) return 0;
+        if (child == 0) {
+            return 0;
+        }
         cur_ino = child;
     }
 
     // The final component is the name to create/remove.
     uint8_t final_len = comp_len[ncomps - 1];
-    if (final_len > 26) return 0;
+    if (final_len > 26) {
+        return 0;
+    }
 
     *out_name    = comp_start[ncomps - 1];
     *out_namelen = final_len;

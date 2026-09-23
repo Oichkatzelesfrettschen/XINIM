@@ -408,26 +408,57 @@ bool get_data_block_number(const Ext2Inode& inode,
     block_number_out = 0U;
     if (logical_block_index < kExt2DirectBlocks) {
         block_number_out = inode.block[logical_block_index];
+    } else {
+        const uint32_t fanout = g_state.block_size / sizeof(uint32_t);
+        if (fanout == 0U || fanout > kMaxBlockSize / sizeof(uint32_t)) {
+            return false;
+        }
+        uint32_t relative_index = logical_block_index - kExt2DirectBlocks;
+        uint32_t subtree_blocks = fanout;
+        uint32_t depth = 1U;
+        while (relative_index >= subtree_blocks && depth < 3U) {
+            relative_index -= subtree_blocks;
+            subtree_blocks *= fanout;
+            ++depth;
+        }
+        if (relative_index >= subtree_blocks) {
+            return false;
+        }
+        block_number_out = inode.block[kSingleIndirectIndex + depth - 1U];
+        // Each level consumes its pointer before reusing the single scratch block.
+        while (depth != 0U && block_number_out != 0U) {
+            if (block_number_out >= g_state.superblock.blocks_count ||
+                block_number_out > (UINT32_MAX - g_state.block_size) / g_state.block_size ||
+                !read_block(block_number_out, g_indirect_block_buffer)) {
+                return false;
+            }
+            subtree_blocks /= fanout;
+            const uint32_t entry_index = relative_index / subtree_blocks;
+            __builtin_memcpy(&block_number_out,
+                             g_indirect_block_buffer + entry_index * sizeof(uint32_t),
+                             sizeof(block_number_out));
+            relative_index %= subtree_blocks;
+            --depth;
+        }
+    }
+    return block_number_out == 0U ||
+           (block_number_out < g_state.superblock.blocks_count &&
+            block_number_out <= (UINT32_MAX - g_state.block_size) / g_state.block_size);
+}
+
+uint32_t mutable_inode_capacity() noexcept {
+    return (kExt2DirectBlocks + g_state.block_size / sizeof(uint32_t)) * g_state.block_size;
+}
+
+bool supports_storage_mutation(const Ext2Inode& inode) noexcept {
+    // Fast symlinks store text, rather than block pointers, in i_block.
+    if ((inode.mode & kFileTypeMask) == kSymlinkType && inode.blocks == 0U) {
         return true;
     }
-
-    const uint32_t entries_per_indirect_block = g_state.block_size / sizeof(uint32_t);
-    const uint32_t indirect_index = logical_block_index - kExt2DirectBlocks;
-    if (entries_per_indirect_block == 0U || indirect_index >= entries_per_indirect_block) {
-        return false;
-    }
-
-    const uint32_t indirect_block = inode.block[kSingleIndirectIndex];
-    if (indirect_block == 0U) {
-        return true;
-    }
-    if (!read_block(indirect_block, g_indirect_block_buffer)) {
-        return false;
-    }
-
-    const auto* entries = reinterpret_cast<const uint32_t*>(g_indirect_block_buffer);
-    block_number_out = entries[indirect_index];
-    return true;
+    // Allocation and reclamation own only the direct and single-indirect trees.
+    return inode.block[13] == 0U && inode.block[14] == 0U &&
+           inode.size <= mutable_inode_capacity() &&
+           ((inode.mode & kFileTypeMask) != kRegularFileType || inode.dir_acl == 0U);
 }
 
 bool set_data_block_number(Ext2Inode& inode,
@@ -472,6 +503,10 @@ bool ensure_inode_data_block(Ext2Inode& inode,
                              uint32_t inode_number,
                              uint32_t logical_block_index,
                              uint32_t& block_number_out) noexcept {
+    if (!supports_storage_mutation(inode) ||
+        logical_block_index >= kExt2DirectBlocks + g_state.block_size / sizeof(uint32_t)) {
+        return false;
+    }
     if (!get_data_block_number(inode, logical_block_index, block_number_out)) {
         return false;
     }
@@ -711,7 +746,7 @@ bool lookup_in_directory(const Ext2Inode& directory,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             const auto* entry = reinterpret_cast<const Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -806,7 +841,7 @@ bool visit_directory_entries(const Ext2Inode& directory,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             const auto* entry = reinterpret_cast<const Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -956,9 +991,7 @@ bool read_symlink_target(const Ext2Inode& inode,
     }
     // Long symlink: read from data block
     uint32_t bytes_read = 0U;
-    // Const-cast needed because read_inode_range takes non-const (reads blocks)
-    auto& mutable_inode = const_cast<Ext2Inode&>(inode);
-    if (!read_inode_range(mutable_inode, 0U,
+    if (!read_inode_range(inode, 0U,
                           reinterpret_cast<uint8_t*>(target), length, bytes_read) ||
         bytes_read != length) {
         return false;
@@ -1213,7 +1246,7 @@ bool add_directory_entry(Ext2Inode& directory_inode,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
 
@@ -1305,7 +1338,7 @@ bool remove_directory_entry(Ext2Inode& directory_inode,
         Ext2DirEntryHeader* previous = nullptr;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1363,6 +1396,9 @@ bool directory_is_empty(const Ext2Inode& inode) noexcept {
 }
 
 bool free_inode_storage(Ext2Inode& inode, uint32_t inode_number) noexcept {
+    if (!supports_storage_mutation(inode)) {
+        return false;
+    }
     for (uint32_t index = 0U; index < kExt2DirectBlocks; ++index) {
         if (inode.block[index] != 0U) {
             if (!free_group0_block(inode.block[index])) {
@@ -1405,7 +1441,8 @@ bool create_node(const char* path, uint16_t mode, bool directory) noexcept {
     Ext2Inode parent{};
     uint32_t parent_inode_number = 0U;
     if (!resolve_path_with_inode_number(parent_path, parent, parent_inode_number) ||
-        (parent.mode & kFileTypeMask) != kDirectoryType) {
+        (parent.mode & kFileTypeMask) != kDirectoryType ||
+        !supports_storage_mutation(parent)) {
         return false;
     }
 
@@ -1527,7 +1564,7 @@ bool rename_directory_entry_in_place(Ext2Inode& directory_inode,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1575,7 +1612,7 @@ bool retarget_directory_entry(Ext2Inode& directory_inode,
         uint32_t offset = 0U;
         while (offset + sizeof(Ext2DirEntryHeader) <= g_state.block_size) {
             auto* entry = reinterpret_cast<Ext2DirEntryHeader*>(g_block_buffer + offset);
-            if (entry->rec_len < sizeof(Ext2DirEntryHeader) || entry->rec_len == 0U) {
+            if (entry->rec_len < sizeof(Ext2DirEntryHeader)) {
                 break;
             }
             if (entry->inode != 0U &&
@@ -1653,7 +1690,8 @@ bool rename_node(const char* old_path, const char* new_path) noexcept {
     Ext2Inode source_parent{};
     uint32_t source_parent_inode_number = 0U;
     if (!resolve_path_with_inode_number(old_parent_path, source_parent, source_parent_inode_number) ||
-        (source_parent.mode & kFileTypeMask) != kDirectoryType) {
+        (source_parent.mode & kFileTypeMask) != kDirectoryType ||
+        !supports_storage_mutation(source_parent)) {
         return false;
     }
 
@@ -1667,11 +1705,15 @@ bool rename_node(const char* old_path, const char* new_path) noexcept {
         return false;
     }
     const bool child_is_directory = (child_inode.mode & kFileTypeMask) == kDirectoryType;
+    if (child_is_directory && !supports_storage_mutation(child_inode)) {
+        return false;
+    }
 
     Ext2Inode target_parent{};
     uint32_t target_parent_inode_number = 0U;
     if (!resolve_path_with_inode_number(new_parent_path, target_parent, target_parent_inode_number) ||
-        (target_parent.mode & kFileTypeMask) != kDirectoryType) {
+        (target_parent.mode & kFileTypeMask) != kDirectoryType ||
+        !supports_storage_mutation(target_parent)) {
         return false;
     }
 
@@ -1693,7 +1735,8 @@ bool rename_node(const char* old_path, const char* new_path) noexcept {
             return false;
         }
         const bool replaced_is_directory = (replaced_inode.mode & kFileTypeMask) == kDirectoryType;
-        if (child_is_directory || replaced_is_directory) {
+        if (child_is_directory || replaced_is_directory ||
+            !supports_storage_mutation(replaced_inode)) {
             return false;
         }
         replacing_existing_file = true;
@@ -1777,7 +1820,8 @@ bool remove_node(const char* path) noexcept {
     Ext2Inode parent{};
     uint32_t parent_inode_number = 0U;
     if (!resolve_path_with_inode_number(parent_path, parent, parent_inode_number) ||
-        (parent.mode & kFileTypeMask) != kDirectoryType) {
+        (parent.mode & kFileTypeMask) != kDirectoryType ||
+        !supports_storage_mutation(parent)) {
         return false;
     }
 
@@ -1787,7 +1831,7 @@ bool remove_node(const char* path) noexcept {
     }
 
     Ext2Inode child{};
-    if (!read_inode(child_inode_number, child)) {
+    if (!read_inode(child_inode_number, child) || !supports_storage_mutation(child)) {
         return false;
     }
     const bool directory = (child.mode & kFileTypeMask) == kDirectoryType;
@@ -1805,10 +1849,6 @@ bool remove_node(const char* path) noexcept {
         removed_inode_number != child_inode_number) {
         return false;
     }
-    if (child_is_directory != directory) {
-        child_is_directory = directory;
-    }
-
     // E.1: Decrement links_count; only free storage when it reaches 0.
     // Per POSIX: unlink removes directory entry but data persists while links > 0.
     if (child.links_count > 0U) {
@@ -1954,6 +1994,15 @@ bool query_persist_path(const char* path, NodeInfo& info) noexcept {
 bool load_runtime_executable(const char* path,
                              const uint8_t** image,
                              uint32_t* size) noexcept {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+    const auto trace_failure = [path](const char* stage) noexcept {
+        console::write_string("exec ext2 failure stage=");
+        console::write_string(stage);
+        console::write_string(" path=");
+        console::write_string(path);
+        console::newline();
+    };
+#endif
     if (image == nullptr || size == nullptr) {
         return false;
     }
@@ -1963,6 +2012,16 @@ bool load_runtime_executable(const char* path,
     NodeInfo info{};
     if (!query_runtime_path(path, info) || info.is_directory || !info.executable ||
         info.size == 0U || info.size > sizeof(g_executable_buffer)) {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+        trace_failure("metadata");
+        console::write_string("exec ext2 exists=");
+        console::write_bool(info.exists);
+        console::write_string(" mode=");
+        console::write_hex32(info.mode);
+        console::write_string(" size=");
+        console::write_dec32(info.size);
+        console::newline();
+#endif
         return false;
     }
 
@@ -1974,17 +2033,29 @@ bool load_runtime_executable(const char* path,
 
     char ext2_path[kMaxPersistPath]{};
     if (!map_runtime_path(path, ext2_path, sizeof(ext2_path))) {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+        trace_failure("path-map");
+#endif
         return false;
     }
 
     Ext2Inode inode{};
     if (!resolve_path(ext2_path, inode)) {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+        trace_failure("path-resolve");
+#endif
         return false;
     }
 
     uint32_t bytes_read = 0U;
     if (!read_inode_range(inode, 0U, g_executable_buffer, info.size, bytes_read) ||
         bytes_read != info.size) {
+#ifdef XINIM_X86_32_EXEC_IO_TRACE
+        trace_failure("image-read");
+        console::write_string("exec ext2 bytes-read=");
+        console::write_dec32(bytes_read);
+        console::newline();
+#endif
         return false;
     }
 
@@ -2195,7 +2266,7 @@ bool truncate_runtime_file(const char* path, uint32_t size) noexcept {
         return false;
     }
 
-    if (size > inode.size) {
+    if (!supports_storage_mutation(inode) || size > inode.size) {
         return false;
     }
 
@@ -2275,6 +2346,11 @@ int write_runtime_file(const char* path,
     uint32_t inode_number = 0U;
     if (!resolve_path_with_inode_number(ext2_path, inode, inode_number) ||
         (inode.mode & kFileTypeMask) != kRegularFileType) {
+        return -1;
+    }
+
+    const uint32_t capacity = mutable_inode_capacity();
+    if (!supports_storage_mutation(inode) || offset > capacity || count > capacity - offset) {
         return -1;
     }
 
@@ -2421,7 +2497,8 @@ bool create_symlink_runtime(const char* target, const char* linkpath) noexcept {
     Ext2Inode parent{};
     uint32_t parent_inode_number = 0U;
     if (!resolve_path_with_inode_number(parent_path, parent, parent_inode_number) ||
-        (parent.mode & kFileTypeMask) != kDirectoryType) {
+        (parent.mode & kFileTypeMask) != kDirectoryType ||
+        !supports_storage_mutation(parent)) {
         return false;
     }
     // Allocate a new inode for the symlink
@@ -2591,7 +2668,8 @@ bool link_runtime_file(const char* existing, const char* new_path) noexcept {
     Ext2Inode parent{};
     uint32_t parent_inode_number = 0U;
     if (!resolve_path_with_inode_number(parent_path, parent, parent_inode_number) ||
-        (parent.mode & kFileTypeMask) != kDirectoryType) {
+        (parent.mode & kFileTypeMask) != kDirectoryType ||
+        !supports_storage_mutation(parent)) {
         return false;
     }
     // Add directory entry pointing to existing inode

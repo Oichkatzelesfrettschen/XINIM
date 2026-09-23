@@ -12,6 +12,8 @@ void apply_scheduler_profile(Process* process,
                              uint32_t quantum_ticks,
                              uint16_t scheduler_domain) noexcept;
 void wake_ready_waiters() noexcept;
+void switch_process_context(Process* current, Process* next) noexcept;
+uint32_t complete_syscall_return(Process* process, RegisterFrame* frame, uint32_t result) noexcept;
 [[nodiscard]] Process* select_next_runnable(Process* preferred_current) noexcept;
 [[noreturn]] void dispatch_process(Process* process) noexcept;
 [[noreturn]] void dispatch_next_runnable(const char* rescue_reason) noexcept;

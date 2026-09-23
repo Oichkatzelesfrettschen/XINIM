@@ -30,7 +30,9 @@ void copy4(uint8_t* dst, const uint8_t* src) noexcept {
 }
 
 void copy6(uint8_t* dst, const uint8_t* src) noexcept {
-    for (int i = 0; i < 6; ++i) dst[i] = src[i];
+    for (int i = 0; i < 6; ++i) {
+        dst[i] = src[i];
+    }
 }
 
 bool eq4(const uint8_t* a, const uint8_t* b) noexcept {
@@ -49,8 +51,12 @@ uint16_t ip_checksum(const void* data, uint32_t length) noexcept {
     for (uint32_t i = 0U; i + 1U < length; i += 2U) {
         sum += (static_cast<uint32_t>(p[i]) << 8U) | p[i + 1U];
     }
-    if (length & 1U) sum += static_cast<uint32_t>(p[length - 1U]) << 8U;
-    while (sum >> 16U) sum = (sum & 0xFFFFU) + (sum >> 16U);
+    if (length & 1U) {
+        sum += static_cast<uint32_t>(p[length - 1U]) << 8U;
+    }
+    while (sum >> 16U) {
+        sum = (sum & 0xFFFFU) + (sum >> 16U);
+    }
     return static_cast<uint16_t>(~sum);
 }
 
@@ -105,7 +111,9 @@ void send_arp_request(const uint8_t* target_ip) noexcept {
     auto* arp = reinterpret_cast<ArpPacket*>(frame + sizeof(EthernetHeader));
 
     // Broadcast
-    for (int i = 0; i < 6; ++i) eth->dst[i] = 0xFF;
+    for (int i = 0; i < 6; ++i) {
+        eth->dst[i] = 0xFF;
+    }
     copy6(eth->src, g_config.mac);
     eth->ethertype = htons(ETHERTYPE_ARP);
 
@@ -116,14 +124,18 @@ void send_arp_request(const uint8_t* target_ip) noexcept {
     arp->opcode = htons(1U); // Request
     copy6(arp->sender_mac, g_config.mac);
     copy4(arp->sender_ip, g_config.ip);
-    for (int i = 0; i < 6; ++i) arp->target_mac[i] = 0;
+    for (int i = 0; i < 6; ++i) {
+        arp->target_mac[i] = 0;
+    }
     copy4(arp->target_ip, target_ip);
 
     send_frame(frame, 42U);
 }
 
 void handle_arp(const uint8_t* frame, uint32_t length) noexcept {
-    if (length < sizeof(EthernetHeader) + sizeof(ArpPacket)) return;
+    if (length < sizeof(EthernetHeader) + sizeof(ArpPacket)) {
+        return;
+    }
     const auto* arp = reinterpret_cast<const ArpPacket*>(frame + sizeof(EthernetHeader));
 
     if (ntohs(arp->opcode) == 2U) {
@@ -159,7 +171,9 @@ void handle_arp(const uint8_t* frame, uint32_t length) noexcept {
 
 bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
                     const uint8_t* payload, uint32_t payload_len) noexcept {
-    if (!g_config.configured) return false;
+    if (!g_config.configured) {
+        return false;
+    }
 
     // Determine next-hop MAC via ARP
     uint8_t next_hop[4];
@@ -181,7 +195,9 @@ bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
     }
 
     uint32_t total = sizeof(EthernetHeader) + sizeof(Ipv4Header) + payload_len;
-    if (total > 1514U) return false;
+    if (total > 1514U) {
+        return false;
+    }
 
     uint8_t frame[1514]{};
     auto* eth = reinterpret_cast<EthernetHeader*>(frame);
@@ -204,7 +220,9 @@ bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
     ip->checksum = htons(ip_checksum(ip, sizeof(Ipv4Header)));
 
     auto* payload_dst = frame + sizeof(EthernetHeader) + sizeof(Ipv4Header);
-    for (uint32_t i = 0U; i < payload_len; ++i) payload_dst[i] = payload[i];
+    for (uint32_t i = 0U; i < payload_len; ++i) {
+        payload_dst[i] = payload[i];
+    }
 
     return send_frame(frame, total);
 }
@@ -212,14 +230,20 @@ bool send_ip_packet(const uint8_t* dst_ip, uint8_t protocol,
 namespace {
 
 void handle_icmp(const Ipv4Header* ip, const uint8_t* payload, uint32_t length) noexcept {
-    if (length < sizeof(IcmpHeader)) return;
+    if (length < sizeof(IcmpHeader)) {
+        return;
+    }
     const auto* icmp = reinterpret_cast<const IcmpHeader*>(payload);
 
     if (icmp->type == 8U) {
         // Echo request -> send echo reply
         uint8_t reply_payload[128];
-        if (length > sizeof(reply_payload)) return;
-        for (uint32_t i = 0U; i < length; ++i) reply_payload[i] = payload[i];
+        if (length > sizeof(reply_payload)) {
+            return;
+        }
+        for (uint32_t i = 0U; i < length; ++i) {
+            reply_payload[i] = payload[i];
+        }
         auto* ricmp = reinterpret_cast<IcmpHeader*>(reply_payload);
         ricmp->type = 0U; // Echo reply
         ricmp->checksum = 0U;
@@ -229,31 +253,39 @@ void handle_icmp(const Ipv4Header* ip, const uint8_t* payload, uint32_t length) 
 }
 
 void handle_ipv4(const uint8_t* frame, uint32_t length) noexcept {
-    if (length < sizeof(EthernetHeader) + sizeof(Ipv4Header)) return;
+    if (length < sizeof(EthernetHeader) + sizeof(Ipv4Header)) {
+        return;
+    }
     const auto* ip = reinterpret_cast<const Ipv4Header*>(frame + sizeof(EthernetHeader));
 
     uint32_t ihl = (ip->version_ihl & 0x0FU) * 4U;
     uint32_t ip_total = ntohs(ip->total_length);
-    if (ip_total < ihl) return;
+    if (ip_total < ihl) {
+        return;
+    }
 
     const uint8_t* payload = frame + sizeof(EthernetHeader) + ihl;
     uint32_t payload_len = ip_total - ihl;
 
     // Cache sender's ARP entry
     const auto* eth = reinterpret_cast<const EthernetHeader*>(frame);
-    arp_cache_add(ip->src_ip, const_cast<uint8_t*>(eth->src));
+    arp_cache_add(ip->src_ip, eth->src);
 
     switch (ip->protocol) {
     case IP_PROTO_ICMP:
         handle_icmp(ip, payload, payload_len);
         break;
     case IP_PROTO_UDP: {
-        if (payload_len < sizeof(UdpHeader)) break;
+        if (payload_len < sizeof(UdpHeader)) {
+            break;
+        }
         const auto* udp = reinterpret_cast<const UdpHeader*>(payload);
         uint16_t src_port = ntohs(udp->src_port);
         uint16_t dst_port = ntohs(udp->dst_port);
         uint32_t udp_data_len = ntohs(udp->length);
-        if (udp_data_len < sizeof(UdpHeader)) break;
+        if (udp_data_len < sizeof(UdpHeader)) {
+            break;
+        }
         udp_data_len -= sizeof(UdpHeader);
         const uint8_t* udp_data = payload + sizeof(UdpHeader);
 
@@ -268,18 +300,30 @@ void handle_ipv4(const uint8_t* frame, uint32_t length) noexcept {
                 const uint8_t* opt_end = udp_data + udp_data_len;
                 while (opt < opt_end && *opt != 255U) {
                     uint8_t opt_type = *opt++;
-                    if (opt >= opt_end) break;
+                    if (opt >= opt_end) {
+                        break;
+                    }
                     uint8_t opt_len = *opt++;
-                    if (opt + opt_len > opt_end) break;
-                    if (opt_type == 1U && opt_len == 4U) copy4(g_config.netmask, opt);
-                    if (opt_type == 3U && opt_len >= 4U) copy4(g_config.gateway, opt);
-                    if (opt_type == 6U && opt_len >= 4U) copy4(g_config.dns, opt);
+                    if (opt + opt_len > opt_end) {
+                        break;
+                    }
+                    if (opt_type == 1U && opt_len == 4U) {
+                        copy4(g_config.netmask, opt);
+                    }
+                    if (opt_type == 3U && opt_len >= 4U) {
+                        copy4(g_config.gateway, opt);
+                    }
+                    if (opt_type == 6U && opt_len >= 4U) {
+                        copy4(g_config.dns, opt);
+                    }
                     opt += opt_len;
                 }
                 g_config.configured = true;
                 console::write_string("DHCP: acquired ");
                 for (int i = 0; i < 4; ++i) {
-                    if (i > 0) console::write_char('.');
+                    if (i > 0) {
+                        console::write_char('.');
+                    }
                     console::write_dec32(g_config.ip[i]);
                 }
                 console::newline();
@@ -344,13 +388,17 @@ bool send_dhcp_discover_impl() noexcept {
     // We need to build the full frame manually since we don't have an IP yet
     uint32_t total = sizeof(EthernetHeader) + sizeof(Ipv4Header) +
                      sizeof(UdpHeader) + dhcp_len;
-    if (total > 1514U) return false;
+    if (total > 1514U) {
+        return false;
+    }
 
     uint8_t frame[1514]{};
     auto* eth = reinterpret_cast<EthernetHeader*>(frame);
     auto* ip = reinterpret_cast<Ipv4Header*>(frame + sizeof(EthernetHeader));
 
-    for (int i = 0; i < 6; ++i) eth->dst[i] = 0xFFU;
+    for (int i = 0; i < 6; ++i) {
+        eth->dst[i] = 0xFFU;
+    }
     copy6(eth->src, g_config.mac);
     eth->ethertype = htons(ETHERTYPE_IPV4);
 
@@ -376,7 +424,9 @@ bool send_dhcp_discover_impl() noexcept {
 // --- Public API ---
 
 void initialize() noexcept {
-    if (!virtio_net::is_initialized()) return;
+    if (!virtio_net::is_initialized()) {
+        return;
+    }
 
     const uint8_t* mac = virtio_net::mac_address();
     copy6(g_config.mac, mac);
@@ -387,7 +437,9 @@ void initialize() noexcept {
 }
 
 void process_rx_frame(const uint8_t* frame, uint32_t length) noexcept {
-    if (length < sizeof(EthernetHeader)) return;
+    if (length < sizeof(EthernetHeader)) {
+        return;
+    }
     const auto* eth = reinterpret_cast<const EthernetHeader*>(frame);
     uint16_t type = ntohs(eth->ethertype);
 
@@ -418,7 +470,9 @@ bool send_frame(const uint8_t* frame, uint32_t length) noexcept {
 bool send_udp(const uint8_t* dst_ip, uint16_t dst_port,
               uint16_t src_port, const uint8_t* data, uint32_t length) noexcept {
     uint8_t payload[1400]{};
-    if (sizeof(UdpHeader) + length > sizeof(payload)) return false;
+    if (sizeof(UdpHeader) + length > sizeof(payload)) {
+        return false;
+    }
 
     auto* udp = reinterpret_cast<UdpHeader*>(payload);
     udp->src_port = htons(src_port);
@@ -442,7 +496,9 @@ bool is_configured() noexcept { return g_config.configured; }
 const NetConfig& config() noexcept { return g_config; }
 
 bool dns_resolve(const char* hostname, uint8_t* out_ip) noexcept {
-    if (!g_config.configured || hostname == nullptr || out_ip == nullptr) return false;
+    if (!g_config.configured || hostname == nullptr || out_ip == nullptr) {
+        return false;
+    }
 
     // Build DNS query packet
     uint8_t query[512]{};
@@ -460,10 +516,14 @@ bool dns_resolve(const char* hostname, uint8_t* out_ip) noexcept {
     const char* p = hostname;
     while (*p) {
         const char* dot = p;
-        while (*dot && *dot != '.') ++dot;
+        while (*dot && *dot != '.') {
+            ++dot;
+        }
         uint8_t label_len = static_cast<uint8_t>(dot - p);
         query[qlen++] = label_len;
-        for (uint8_t i = 0U; i < label_len; ++i) query[qlen++] = static_cast<uint8_t>(p[i]);
+        for (uint8_t i = 0U; i < label_len; ++i) {
+            query[qlen++] = static_cast<uint8_t>(p[i]);
+        }
         p = (*dot) ? dot + 1 : dot;
     }
     query[qlen++] = 0U; // Root label

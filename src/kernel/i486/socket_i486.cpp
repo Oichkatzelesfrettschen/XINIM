@@ -16,8 +16,12 @@ uint16_t g_next_ephemeral_port = 49152U;
 Socket* get_socket(int fd) noexcept {
     // Socket fds are offset by 1000 to avoid collision with file fds
     int idx = fd - 1000;
-    if (idx < 0 || static_cast<uint32_t>(idx) >= MAX_SOCKETS) return nullptr;
-    if (!g_sockets[idx].in_use) return nullptr;
+    if (idx < 0 || static_cast<uint32_t>(idx) >= MAX_SOCKETS) {
+        return nullptr;
+    }
+    if (!g_sockets[idx].in_use) {
+        return nullptr;
+    }
     return &g_sockets[idx];
 }
 
@@ -61,14 +65,22 @@ void rx_write(Socket& s, const uint8_t* data, uint32_t len) noexcept {
 } // namespace
 
 int sys_socket(int domain, int type, int /*protocol*/) noexcept {
-    if (domain != AF_INET) return -38; // ENOSYS
-    if (type != SOCK_DGRAM && type != SOCK_STREAM) return -22; // EINVAL
+    if (domain != AF_INET) {
+        return -38; // ENOSYS
+    }
+    if (type != SOCK_DGRAM && type != SOCK_STREAM) {
+        return -22; // EINVAL
+    }
 
     int fd = allocate_socket();
-    if (fd < 0) return -12; // ENOMEM
+    if (fd < 0) {
+        return -12; // ENOMEM
+    }
 
     Socket* s = get_socket(fd);
-    if (s == nullptr) return -12;
+    if (s == nullptr) {
+        return -12;
+    }
     s->type = type;
     s->state = SocketState::Closed;
     return fd;
@@ -76,8 +88,12 @@ int sys_socket(int domain, int type, int /*protocol*/) noexcept {
 
 int sys_bind(int sockfd, const SockAddrIn* addr) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9; // EBADF
-    if (addr == nullptr) return -14; // EFAULT
+    if (s == nullptr) {
+        return -9; // EBADF
+    }
+    if (addr == nullptr) {
+        return -14; // EFAULT
+    }
 
     s->local_port = net::ntohs(addr->port);
     copy4(s->local_addr, addr->addr);
@@ -87,8 +103,12 @@ int sys_bind(int sockfd, const SockAddrIn* addr) noexcept {
 
 int sys_connect(int sockfd, const SockAddrIn* addr) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (addr == nullptr) return -14;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (addr == nullptr) {
+        return -14;
+    }
 
     copy4(s->remote_addr, addr->addr);
     s->remote_port = net::ntohs(addr->port);
@@ -118,7 +138,9 @@ int sys_connect(int sockfd, const SockAddrIn* addr) noexcept {
         return -115; // EINPROGRESS (still waiting)
     }
     const int tcp_conn = net::tcp_connect(s->remote_addr, s->remote_port, s->local_port);
-    if (tcp_conn < 0) return -12; // ENOMEM
+    if (tcp_conn < 0) {
+        return -12; // ENOMEM
+    }
     s->tcp_conn_idx = tcp_conn;
     s->state = SocketState::SynSent;
     return -115; // EINPROGRESS: caller should block and retry
@@ -126,10 +148,16 @@ int sys_connect(int sockfd, const SockAddrIn* addr) noexcept {
 
 int sys_listen(int sockfd, int /*backlog*/) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (s->type != SOCK_STREAM) return -95; // EOPNOTSUPP
+    if (s == nullptr) {
+        return -9;
+    }
+    if (s->type != SOCK_STREAM) {
+        return -95; // EOPNOTSUPP
+    }
     const int tcp_conn = net::tcp_listen(s->local_port);
-    if (tcp_conn < 0) return -12;
+    if (tcp_conn < 0) {
+        return -12;
+    }
     s->tcp_conn_idx = tcp_conn;
     s->state = SocketState::Listening;
     return 0;
@@ -137,18 +165,28 @@ int sys_listen(int sockfd, int /*backlog*/) noexcept {
 
 int sys_accept(int sockfd, SockAddrIn* addr) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (s->state != SocketState::Listening) return -22;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (s->state != SocketState::Listening) {
+        return -22;
+    }
 
     net::poll();
     const int tcp_child = net::tcp_accept(s->tcp_conn_idx);
-    if (tcp_child < 0) return -11; // EAGAIN
+    if (tcp_child < 0) {
+        return -11; // EAGAIN
+    }
 
     int new_fd = allocate_socket();
-    if (new_fd < 0) return -12;
+    if (new_fd < 0) {
+        return -12;
+    }
 
     Socket* child = get_socket(new_fd);
-    if (child == nullptr) return -12;
+    if (child == nullptr) {
+        return -12;
+    }
     child->type = SOCK_STREAM;
     child->state = SocketState::Established;
     child->local_port = s->local_port;
@@ -171,11 +209,15 @@ int sys_accept(int sockfd, SockAddrIn* addr) noexcept {
 int sys_sendto(int sockfd, const void* buf, uint32_t len,
                const SockAddrIn* dest_addr) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (buf == nullptr) return -14;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (buf == nullptr) {
+        return -14;
+    }
 
     uint8_t dst_ip[4];
-    uint16_t dst_port;
+    uint16_t dst_port = 0U;
 
     if (dest_addr != nullptr) {
         copy4(dst_ip, dest_addr->addr);
@@ -210,8 +252,12 @@ int sys_sendto(int sockfd, const void* buf, uint32_t len,
 int sys_recvfrom(int sockfd, void* buf, uint32_t len,
                  SockAddrIn* /*src_addr*/) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (buf == nullptr) return -14;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (buf == nullptr) {
+        return -14;
+    }
 
     // Poll netstack for new frames
     net::poll();
@@ -231,7 +277,9 @@ int sys_recvfrom(int sockfd, void* buf, uint32_t len,
 
 int sys_shutdown(int sockfd, int /*how*/) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
+    if (s == nullptr) {
+        return -9;
+    }
     if (s->type == SOCK_STREAM && s->state == SocketState::Established) {
         net::tcp_close(s->tcp_conn_idx);
     }
@@ -241,7 +289,9 @@ int sys_shutdown(int sockfd, int /*how*/) noexcept {
 
 int sys_close(int sockfd) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
+    if (s == nullptr) {
+        return -9;
+    }
     if (s->type == SOCK_STREAM &&
         (s->state == SocketState::Established || s->state == SocketState::CloseWait)) {
         net::tcp_close(s->tcp_conn_idx);
@@ -252,14 +302,18 @@ int sys_close(int sockfd) noexcept {
 
 int get_tcp_conn_idx(int sockfd) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -1;
+    if (s == nullptr) {
+        return -1;
+    }
     return s->tcp_conn_idx;
 }
 
 int sys_setsockopt(int sockfd, int level, int optname,
                    const void* optval, uint32_t optlen) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9; // EBADF
+    if (s == nullptr) {
+        return -9; // EBADF
+    }
 
     if (level == SOL_SOCKET) {
         switch (optname) {
@@ -273,11 +327,8 @@ int sys_setsockopt(int sockfd, int level, int optname,
                 s->so_keepalive = (*static_cast<const int*>(optval) != 0);
             }
             return 0;
-        case SO_SNDBUF:
-        case SO_RCVBUF:
-            return 0; // Accept but ignore (fixed buffer sizes)
         default:
-            return 0; // Permissive: accept unknown options
+            return 0; // Fixed buffer sizes; accept unknown options
         }
     }
 
@@ -298,8 +349,12 @@ int sys_setsockopt(int sockfd, int level, int optname,
 int sys_getsockopt(int sockfd, int level, int optname,
                    void* optval, uint32_t* optlen) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (optval == nullptr || optlen == nullptr || *optlen < 4U) return -14;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (optval == nullptr || optlen == nullptr || *optlen < 4U) {
+        return -14;
+    }
 
     auto* val = static_cast<int*>(optval);
     *optlen = 4U;
@@ -308,7 +363,7 @@ int sys_getsockopt(int sockfd, int level, int optname,
         switch (optname) {
         case SO_REUSEADDR: *val = s->so_reuseaddr ? 1 : 0; return 0;
         case SO_KEEPALIVE: *val = s->so_keepalive ? 1 : 0; return 0;
-        case SO_SNDBUF: *val = 4096; return 0;
+        case SO_SNDBUF:
         case SO_RCVBUF: *val = 4096; return 0;
         default: *val = 0; return 0;
         }
@@ -319,8 +374,12 @@ int sys_getsockopt(int sockfd, int level, int optname,
 
 int sys_getsockname(int sockfd, SockAddrIn* addr) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (addr == nullptr) return -14;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (addr == nullptr) {
+        return -14;
+    }
     *addr = {};
     addr->family = AF_INET;
     copy4(addr->addr, s->local_addr);
@@ -330,8 +389,12 @@ int sys_getsockname(int sockfd, SockAddrIn* addr) noexcept {
 
 int sys_getpeername(int sockfd, SockAddrIn* addr) noexcept {
     Socket* s = get_socket(sockfd);
-    if (s == nullptr) return -9;
-    if (addr == nullptr) return -14;
+    if (s == nullptr) {
+        return -9;
+    }
+    if (addr == nullptr) {
+        return -14;
+    }
     if (s->state != SocketState::Connected && s->state != SocketState::Established) {
         return -107; // ENOTCONN
     }
@@ -343,11 +406,17 @@ int sys_getpeername(int sockfd, SockAddrIn* addr) noexcept {
 }
 
 int sys_socketpair(int domain, int /*type*/, int /*protocol*/, int sv[2]) noexcept {
-    if (domain != AF_UNIX) return -97; // EAFNOSUPPORT
-    if (sv == nullptr) return -14;
+    if (domain != AF_UNIX) {
+        return -97; // EAFNOSUPPORT
+    }
+    if (sv == nullptr) {
+        return -14;
+    }
 
     int fd0 = allocate_socket();
-    if (fd0 < 0) return -12;
+    if (fd0 < 0) {
+        return -12;
+    }
     int fd1 = allocate_socket();
     if (fd1 < 0) {
         get_socket(fd0)->in_use = false;

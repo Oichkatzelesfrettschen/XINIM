@@ -10,7 +10,9 @@ using UserspaceStat = ::xinim::userland::UserspaceStat;
 
 bool str_eq(const char* a, const char* b) noexcept {
     while (*a != '\0' && *b != '\0') {
-        if (*a != *b) return false;
+        if (*a != *b) {
+            return false;
+        }
         ++a; ++b;
     }
     return *a == *b;
@@ -34,11 +36,15 @@ DevFd g_dev_fds[kMaxDevFds]{};
 int devfs_open(const char* path, uint32_t flags, uint32_t mode) noexcept {
     (void)flags;
     (void)mode;
-    if (path == nullptr) return -1;
+    if (path == nullptr) {
+        return -1;
+    }
 
     // Strip leading /dev or just leading /
     const char* name = path;
-    if (name[0] == '/') ++name;
+    if (name[0] == '/') {
+        ++name;
+    }
 
     DevId dev = DevId::None;
     if (str_eq(name, "null")) {
@@ -62,13 +68,17 @@ int devfs_open(const char* path, uint32_t flags, uint32_t mode) noexcept {
 }
 
 int devfs_read(int slot, void* buf, uint32_t count) noexcept {
-    if (slot < 0 || slot >= kMaxDevFds || !g_dev_fds[slot].in_use) return -1;
+    if (slot < 0 || slot >= kMaxDevFds || !g_dev_fds[slot].in_use) {
+        return -1;
+    }
     auto* dst = static_cast<uint8_t*>(buf);
     switch (g_dev_fds[slot].device) {
     case DevId::Null:
         return 0; // EOF
     case DevId::Zero:
-        for (uint32_t i = 0U; i < count; ++i) dst[i] = 0U;
+        for (uint32_t i = 0U; i < count; ++i) {
+            dst[i] = 0U;
+        }
         return static_cast<int>(count);
     case DevId::Tty: {
         const int result = tty::read(buf, count);
@@ -80,10 +90,11 @@ int devfs_read(int slot, void* buf, uint32_t count) noexcept {
 }
 
 int devfs_write(int slot, const void* buf, uint32_t count) noexcept {
-    if (slot < 0 || slot >= kMaxDevFds || !g_dev_fds[slot].in_use) return -1;
+    if (slot < 0 || slot >= kMaxDevFds || !g_dev_fds[slot].in_use) {
+        return -1;
+    }
     switch (g_dev_fds[slot].device) {
     case DevId::Null:
-        return static_cast<int>(count); // Discard
     case DevId::Zero:
         return static_cast<int>(count); // Discard
     case DevId::Tty: {
@@ -99,16 +110,22 @@ int devfs_write(int slot, const void* buf, uint32_t count) noexcept {
 }
 
 int devfs_close(int slot) noexcept {
-    if (slot < 0 || slot >= kMaxDevFds) return -1;
+    if (slot < 0 || slot >= kMaxDevFds) {
+        return -1;
+    }
     g_dev_fds[slot].in_use = false;
     g_dev_fds[slot].device = DevId::None;
     return 0;
 }
 
 int devfs_stat(const char* path, UserspaceStat* buf) noexcept {
-    if (path == nullptr || buf == nullptr) return -1;
+    if (path == nullptr || buf == nullptr) {
+        return -1;
+    }
     const char* name = path;
-    if (name[0] == '/') ++name;
+    if (name[0] == '/') {
+        ++name;
+    }
 
     *buf = {};
     buf->st_dev = 2U; // devfs device id
@@ -134,9 +151,13 @@ int devfs_stat(const char* path, UserspaceStat* buf) noexcept {
 }
 
 int devfs_access(const char* path) noexcept {
-    if (path == nullptr) return -1;
+    if (path == nullptr) {
+        return -1;
+    }
     const char* name = path;
-    if (name[0] == '/') ++name;
+    if (name[0] == '/') {
+        ++name;
+    }
     if (str_eq(name, "null") || str_eq(name, "zero") ||
         str_eq(name, "tty") || str_eq(name, "console") ||
         name[0] == '\0') {

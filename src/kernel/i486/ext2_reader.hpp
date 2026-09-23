@@ -29,6 +29,10 @@ bool mkdir_runtime_directory(const char* path, uint16_t mode) noexcept;
 bool rename_runtime_path(const char* old_path, const char* new_path) noexcept;
 bool unlink_runtime_path(const char* path) noexcept;
 bool rmdir_runtime_directory(const char* path) noexcept;
+// Reads traverse all three ext2 indirect levels within the 32-bit byte-offset ABI.
+// Storage mutations support direct and single-indirect inodes only; writes,
+// truncation, unlink, and replacement reject larger trees before disk changes.
+// Metadata-only operations (chmod, linking, and moving a regular file) remain valid.
 bool truncate_runtime_file(const char* path, uint32_t size) noexcept;
 bool chmod_runtime_file(const char* path, uint16_t mode) noexcept;
 int read_runtime_file(const char* path,

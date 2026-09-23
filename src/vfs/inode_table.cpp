@@ -78,10 +78,14 @@ void inode_table_init() {
 uint32_t inode_alloc() {
     for (uint32_t word = 0; word < (MAX_INODES / 64); ++word) {
         uint64_t free_bits = ~g_inode_bitmap[word];
-        if (free_bits == 0) continue;
+        if (free_bits == 0) {
+            continue;
+        }
         uint32_t bit = static_cast<uint32_t>(__builtin_ctzll(free_bits));
         uint32_t ino = (word << 6) | bit;
-        if (ino == 0 || ino >= MAX_INODES) continue; // sanity
+        if (ino == 0 || ino >= MAX_INODES) {
+            continue; // sanity
+        }
         bitmap_set(ino);
         __builtin_memset(&g_inodes[ino], 0, sizeof(RawInode));
         g_inodes[ino].ino    = ino;
@@ -94,8 +98,12 @@ uint32_t inode_alloc() {
 
 // Free inode slot. Validates ino, clears bitmap bit and zeroes entry.
 void inode_free(uint32_t ino) {
-    if (ino == 0 || ino >= MAX_INODES) return;
-    if (!bitmap_test(ino)) return; // double-free guard
+    if (ino == 0 || ino >= MAX_INODES) {
+        return;
+    }
+    if (!bitmap_test(ino)) {
+        return; // double-free guard
+    }
     vnode_forget(ino);
     bitmap_clear(ino);
     __builtin_memset(&g_inodes[ino], 0, sizeof(RawInode));
@@ -103,8 +111,12 @@ void inode_free(uint32_t ino) {
 
 // Return pointer to inode entry. Returns nullptr for invalid ino.
 RawInode* inode_get(uint32_t ino) {
-    if (ino == 0 || ino >= MAX_INODES) return nullptr;
-    if (!bitmap_test(ino)) return nullptr;
+    if (ino == 0 || ino >= MAX_INODES) {
+        return nullptr;
+    }
+    if (!bitmap_test(ino)) {
+        return nullptr;
+    }
     return &g_inodes[ino];
 }
 
@@ -113,7 +125,9 @@ RawInode* inode_get(uint32_t ino) {
 // Returns byte offset into g_data_arena on success, DATA_ARENA_SIZE on exhaustion.
 // All allocations are CACHE_BLK_SIZE-aligned.
 uint32_t data_arena_alloc(uint32_t len) {
-    if (len == 0) return DATA_ARENA_SIZE;
+    if (len == 0) {
+        return DATA_ARENA_SIZE;
+    }
     uint32_t aligned = (len + CACHE_BLK_SIZE - 1u) & ~(CACHE_BLK_SIZE - 1u);
 
     // First-fit search in free list
@@ -134,7 +148,9 @@ uint32_t data_arena_alloc(uint32_t len) {
     }
 
     // Bump allocator fallback
-    if (g_data_arena_used + aligned > DATA_ARENA_SIZE) return DATA_ARENA_SIZE;
+    if (g_data_arena_used + aligned > DATA_ARENA_SIZE) {
+        return DATA_ARENA_SIZE;
+    }
     uint32_t off = g_data_arena_used;
     g_data_arena_used += aligned;
     return off;
@@ -144,9 +160,13 @@ uint32_t data_arena_alloc(uint32_t len) {
 // Merges with adjacent free entries (forward and backward) to limit fragmentation.
 // Silently leaks if the free list is full (never crashes).
 void data_arena_free(uint32_t off, uint32_t len) {
-    if (off >= DATA_ARENA_SIZE || len == 0) return;
+    if (off >= DATA_ARENA_SIZE || len == 0) {
+        return;
+    }
     uint32_t aligned = (len + CACHE_BLK_SIZE - 1u) & ~(CACHE_BLK_SIZE - 1u);
-    if (off + aligned > DATA_ARENA_SIZE) return;
+    if (off + aligned > DATA_ARENA_SIZE) {
+        return;
+    }
 
     // Attempt to coalesce with an existing free slot that is adjacent.
     for (uint32_t i = 0; i < g_arena_free_count; ++i) {
@@ -155,7 +175,9 @@ void data_arena_free(uint32_t off, uint32_t len) {
             g_arena_free[i].sz += aligned;
             // Check if this newly extended slot now also touches the next slot
             for (uint32_t j = 0; j < g_arena_free_count; ++j) {
-                if (j == i) continue;
+                if (j == i) {
+                    continue;
+                }
                 if (g_arena_free[i].off + g_arena_free[i].sz == g_arena_free[j].off) {
                     g_arena_free[i].sz += g_arena_free[j].sz;
                     g_arena_free[j] = g_arena_free[--g_arena_free_count];
@@ -181,6 +203,8 @@ void data_arena_free(uint32_t off, uint32_t len) {
 
 // Return pointer to data arena at given byte offset.
 uint8_t* data_arena_ptr(uint32_t off) {
-    if (off >= DATA_ARENA_SIZE) return nullptr;
+    if (off >= DATA_ARENA_SIZE) {
+        return nullptr;
+    }
     return g_data_arena + off;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "xinim/boot/bootinfo.hpp"
 
 namespace xinim::i486::dma {
 
@@ -9,8 +10,17 @@ struct DmaBuffer {
     uint32_t size;
 };
 
-void initialize(const void* memory_map, uint32_t entry_count) noexcept;
+struct PhysicalRange {
+    uint64_t base;
+    uint64_t size;
+};
+
+// Keep the kernel and bootloader-owned bytes outside the DMA bump pool.
+void initialize(const boot::BootInfo& info, PhysicalRange kernel,
+                PhysicalRange boot_metadata) noexcept;
 DmaBuffer allocate(uint32_t size, uint32_t alignment = 4096U) noexcept;
+// Reserve physical space without touching it; the owner initializes bytes on use.
+DmaBuffer reserve(uint32_t size, uint32_t alignment = 4096U) noexcept;
 void free(const DmaBuffer& buffer) noexcept;
 uint32_t available_bytes() noexcept;
 

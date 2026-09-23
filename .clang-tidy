@@ -1,45 +1,61 @@
 ---
+# Freestanding and hosted owned code share semantic checks. Library-dependent
+# modernization belongs to the hosted test profile; see the profile rationale.
 Checks: >
   -*,
   bugprone-*,
   cert-*,
   clang-analyzer-*,
-  cppcoreguidelines-*,
-  misc-*,
-  modernize-*,
+  misc-anonymous-namespace-in-header,
+  misc-confusable-identifiers,
+  misc-coroutine-hostile-raii,
+  misc-definitions-in-headers,
+  misc-header-include-cycle,
+  misc-misleading-bidirectional,
+  misc-misleading-identifier,
+  misc-misplaced-const,
+  misc-new-delete-overloads,
+  misc-non-copyable-objects,
+  misc-override-with-different-visibility,
+  misc-predictable-rand,
+  misc-redundant-expression,
+  misc-static-assert,
+  misc-throw-by-value-catch-by-reference,
+  misc-unconventional-assign-operator,
+  misc-uniqueptr-reset-release,
+  misc-unused-alias-decls,
+  misc-unused-using-decls,
   performance-*,
   portability-*,
-  readability-*,
-  -cppcoreguidelines-pro-bounds-pointer-arithmetic,
-  -cppcoreguidelines-pro-type-vararg,
-  -modernize-use-trailing-return-type,
-  -readability-magic-numbers,
-  -llvmlibc-*
+  cppcoreguidelines-c-copy-assignment-signature,
+  cppcoreguidelines-explicit-virtual-functions,
+  cppcoreguidelines-init-variables,
+  cppcoreguidelines-interfaces-global-init,
+  cppcoreguidelines-misleading-capture-default-by-value,
+  cppcoreguidelines-missing-std-forward,
+  cppcoreguidelines-narrowing-conversions,
+  cppcoreguidelines-no-suspend-with-lock,
+  cppcoreguidelines-noexcept-destructor,
+  cppcoreguidelines-noexcept-move-operations,
+  cppcoreguidelines-noexcept-swap,
+  cppcoreguidelines-pro-type-const-cast,
+  cppcoreguidelines-pro-type-member-init,
+  cppcoreguidelines-pro-type-static-cast-downcast,
+  cppcoreguidelines-rvalue-reference-param-not-moved,
+  cppcoreguidelines-slicing,
+  cppcoreguidelines-special-member-functions,
+  cppcoreguidelines-virtual-class-destructor,
+  readability-braces-around-statements,
+  -portability-avoid-pragma-once,
+  -performance-enum-size,
+  -bugprone-easily-swappable-parameters,
+  -bugprone-suspicious-include,
+  -cert-err52-cpp,
+  -clang-analyzer-core.FixedAddressDereference,
+  -clang-analyzer-optin.performance.Padding
 
 WarningsAsErrors: '*'
 
-# Mixed POSIX naming convention:
-#   snake_case for functions and variables (POSIX/C++ stdlib heritage)
-#   CamelCase for types (classes, structs, enums)
-#   UPPER_CASE for global constants and macros
 CheckOptions:
-  - key:             readability-identifier-naming.ClassCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.StructCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.EnumCase
-    value:           CamelCase
-  - key:             readability-identifier-naming.FunctionCase
-    value:           lower_case
-  - key:             readability-identifier-naming.VariableCase
-    value:           lower_case
-  - key:             readability-identifier-naming.ParameterCase
-    value:           lower_case
-  - key:             readability-identifier-naming.MemberCase
-    value:           lower_case
-  - key:             readability-identifier-naming.GlobalConstantCase
-    value:           UPPER_CASE
-  - key:             readability-identifier-naming.ConstexprVariableCase
-    value:           UPPER_CASE
-  - key:             modernize-use-nullptr.NullMacros
-    value:           'NULL'
+  # A deleted copy interface also blocks implicit moves for static-only types.
+  cppcoreguidelines-special-member-functions.AllowMissingMoveFunctionsWhenCopyIsDeleted: true

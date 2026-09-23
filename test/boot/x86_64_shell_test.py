@@ -7,6 +7,7 @@ shell startup file after CPL3 entry, and validates the shell over the COM2 TTY.
 """
 
 import os
+from concurrent.futures import ThreadPoolExecutor
 import socket
 import subprocess
 import sys
@@ -3155,7 +3156,7 @@ TRUE_UTILITY_COMMAND_CASES = (
 )
 
 
-def start_qemu():
+def start_qemu(shell_port=SHELL_PORT, com1_log=COM1_LOG):
     cmd = [
         QEMU_BIN,
         "-machine",
@@ -3171,9 +3172,9 @@ def start_qemu():
         "-boot",
         "d",
         "-serial",
-        f"file:{COM1_LOG}",
+        f"file:{com1_log}",
         "-serial",
-        f"tcp::{SHELL_PORT},server,nowait",
+        f"tcp::{shell_port},server,nowait",
         "-nodefaults",
         "-vga",
         "none",
@@ -3192,12 +3193,12 @@ def start_qemu():
     )
 
 
-def connect_shell(retries=20, delay=0.5):
+def connect_shell(shell_port=SHELL_PORT, retries=20, delay=0.5):
     for attempt in range(retries):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(CMD_TIMEOUT)
-            sock.connect(("127.0.0.1", SHELL_PORT))
+            sock.connect(("127.0.0.1", shell_port))
             return sock
         except (ConnectionRefusedError, OSError):
             if attempt == retries - 1:
@@ -3206,16 +3207,18 @@ def connect_shell(retries=20, delay=0.5):
     raise RuntimeError("shell port was never reachable")
 
 
-def recv_until_any_prompt(sock, timeout=CMD_TIMEOUT):
+def recv_until_any_prompt(sock, timeout=CMD_TIMEOUT, require_execution_boundary=False):
     data = b""
-    end_time = time.time() + timeout
-    while time.time() < end_time:
+    end_time = time.monotonic() + timeout
+    while time.monotonic() < end_time:
         try:
             chunk = sock.recv(4096)
             if not chunk:
                 break
             data += chunk
-            if SHELL_PROMPT.encode("utf-8") in data:
+            if data.endswith(SHELL_PROMPT.encode("utf-8")) and (
+                not require_execution_boundary or b"\r\r\n" in data
+            ):
                 break
         except TimeoutError:
             continue
@@ -3230,7 +3233,7 @@ def send_command(sock, command):
             f"limit: {len(encoded_command)} > {SHELL_SERIAL_RX_PAYLOAD_LIMIT}"
         )
     sock.sendall(encoded_command + b"\r")
-    response = recv_until_any_prompt(sock)
+    response = recv_until_any_prompt(sock, require_execution_boundary=True)
     execution_boundary = response.find("\r\r\n")
     if execution_boundary >= 0:
         response = response[execution_boundary + len("\r\r\n") :]
@@ -3623,12 +3626,40 @@ def require_filesystem_q35_ring3_lifecycle_matrix(sock):
     )
 
 
+def require_independent_grammar_and_lifecycle_matrix():
+    shell_port = SHELL_PORT + 1
+    com1_log = COM1_LOG if COM1_LOG == "/dev/null" else f"{COM1_LOG}.grammar"
+    qemu = start_qemu(shell_port, com1_log)
+    try:
+        shell = connect_shell(shell_port, retries=int(BOOT_TIMEOUT / 0.5))
+        initial = recv_until_any_prompt(shell, timeout=BOOT_TIMEOUT)
+        if SHELL_PROMPT not in initial:
+            shell.sendall(b"\r")
+            initial += recv_until_any_prompt(shell, timeout=BOOT_TIMEOUT)
+        if SHELL_PROMPT not in initial or RING3_SENTINEL not in initial:
+            print(f"FAIL: grammar guest did not reach the Ring 3 shell: {initial!r}")
+            return False
+        try:
+            grammar_passed = require_shell_grammar_command_cases(shell)
+            pipeline_passed = require_repeated_pipeline_lifecycle(shell)
+            return grammar_passed and pipeline_passed
+        finally:
+            shell.close()
+    finally:
+        qemu.terminate()
+        try:
+            qemu.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            qemu.kill()
+
+
 def main():
     if not os.path.isfile(BOOT_IMAGE):
         print(f"SKIP: Boot image not found: {BOOT_IMAGE}")
         sys.exit(77)
 
     qemu = start_qemu()
+    executor = ThreadPoolExecutor(max_workers=1)
 
     try:
         shell = connect_shell(retries=int(BOOT_TIMEOUT / 0.5))
@@ -3646,6 +3677,9 @@ def main():
             print(f"  Received: {initial!r}")
             sys.exit(1)
 
+        independent_matrix = executor.submit(
+            require_independent_grammar_and_lifecycle_matrix
+        )
         results = [
             require_contains(
                 "POSIX sh PID 1 identity",
@@ -4007,7 +4041,6 @@ def main():
                 require_timer_preemption(shell),
                 require_signals_q35_ring3_delivery_masking_matrix(shell),
                 require_shell_language_command_cases(shell),
-                require_shell_grammar_command_cases(shell),
                 require_true_utility_command_cases(shell),
                 require_libc_q35_ring3_abi_behavior_matrix(shell),
                 require_processes_q35_ring3_exec_wait_signal_matrix(shell),
@@ -4015,9 +4048,9 @@ def main():
                 require_sockets_q35_ring3_syscall_lifecycle_matrix(shell),
                 require_terminals_q35_ring3_session_termios_matrix(shell),
                 require_filesystem_q35_ring3_lifecycle_matrix(shell),
-                require_repeated_pipeline_lifecycle(shell),
             ]
         )
+        results.append(independent_matrix.result())
 
         shell.close()
 
@@ -4028,6 +4061,7 @@ def main():
         print(f"FAIL: could not connect to x86_64 shell: {exc}")
         sys.exit(2)
     finally:
+        executor.shutdown(wait=True)
         qemu.terminate()
         try:
             qemu.wait(timeout=5)
