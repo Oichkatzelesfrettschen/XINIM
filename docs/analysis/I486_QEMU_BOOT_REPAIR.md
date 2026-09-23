@@ -201,11 +201,16 @@ ctest --test-dir build/i486/Debug \
   -E '^i486_vbox' --output-on-failure
 ```
 
-`i486_scheduler_fairness_test` executes the enhanced compiler workload with
-`-icount shift=7,sleep=off`. Advancing virtual timer time per instruction
-brings CPU-bound peers to the saturated priority in a bounded run. That
-stress configuration tests scheduler progress; its elapsed time is separate
-from an i486 hardware performance measurement.
+`i486_scheduler_fairness_test` runs the two CPU-bound Ring 3 children in
+`/bin/preempt_test` with `-icount shift=7,sleep=off`. The test requires each
+child to finish and their output to interleave. The enhanced compiler and
+ext2 mutation tests separately exercise disk writes. QEMU's PIO write
+completion depends on asynchronous host I/O, while this instruction-count
+setting advances the guest PIT clock without waiting for host time. Combining
+those surfaces made the original fairness test intermittently retire the ATA
+device when its three-second PIT deadline expired during a host write.
+The focused fairness test retains the accelerated timer and boot deadline
+while measuring scheduler progress without a competing host-I/O clock.
 
 ## Primary-source hardware boundary
 

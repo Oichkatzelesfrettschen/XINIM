@@ -3302,10 +3302,10 @@ function(xinim_add_x86_32_lane lane)
         if(lane STREQUAL "i486")
             add_test(NAME i486_scheduler_fairness_test
                 COMMAND ${XINIM_PYTHON3_EXECUTABLE}
-                    ${CMAKE_SOURCE_DIR}/test/boot/x86_32_enhanced_test.py
+                    ${CMAKE_SOURCE_DIR}/test/boot/x86_32_scheduler_fairness_test.py
                 WORKING_DIRECTORY ${CMAKE_SOURCE_DIR})
             set_tests_properties(i486_scheduler_fairness_test PROPERTIES
-                LABELS "integration;i486;scheduler;tcc"
+                LABELS "integration;i486;scheduler;process"
                 RUN_SERIAL TRUE
                 ENVIRONMENT "${_lane_env};XINIM_QEMU_ICOUNT=shift=7,sleep=off;XINIM_QEMU_SHELL_PORT=4569;XINIM_QEMU_SHELL_LOG=${XINIM_LOG_ROOT}/i486-scheduler-fairness.log"
                 FIXTURES_REQUIRED ${lane}_image
