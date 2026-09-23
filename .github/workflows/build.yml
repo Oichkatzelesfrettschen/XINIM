@@ -79,7 +79,8 @@ jobs:
           "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" --version
           "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" -machine help \
             | grep -F 'pc-i440fx-11.1'
-          "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" -cpu help | grep -E '^x86 486[[:space:]]'
+          "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" -cpu help \
+            | grep -E '^[[:space:]]+486[[:space:]]'
           clang --version
           clang++ --version
 

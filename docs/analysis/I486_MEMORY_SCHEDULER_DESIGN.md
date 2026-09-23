@@ -108,7 +108,9 @@ The rebuilt Debug kernel has 3,478,736 B of linked BSS and an eight-entry
 `g_processes` array of `0x49680` B. The pre-memory-change build reported
 37,033,024 B of BSS and `0x2049600` B for that array. The reduction in
 linked BSS is approximately 32 MiB; each admitted image still consumes
-4 MiB at runtime. The allocation-exhaustion and zeroing unit test and the
+4 MiB at runtime. The measured ELF SHA-256 is
+`7cdcffd34c4d5e648d2dda5f824a1461d60be23e5036b6bbacfd3ba127877f5a`.
+The allocation-exhaustion and zeroing unit test and the
 64 MiB disk and ISO Ring 3 shell tests pass. Their serial logs report two
 live images (8,388,608 B) and three reserved images (12,582,912 B) after
 service initialization. The disk tests execute an invalid ELF from
