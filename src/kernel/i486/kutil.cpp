@@ -239,9 +239,15 @@ bool resolve_path(const Process* process,
         return false;
     }
     uint32_t pos = 0U;
-    for (uint32_t i = 0U; i < cwd_len; ++i) output[pos++] = process->cwd[i];
-    if (needs_slash) output[pos++] = '/';
-    for (uint32_t i = 0U; i < input_len; ++i) output[pos++] = input[i];
+    for (uint32_t i = 0U; i < cwd_len; ++i) {
+        output[pos++] = process->cwd[i];
+    }
+    if (needs_slash) {
+        output[pos++] = '/';
+    }
+    for (uint32_t i = 0U; i < input_len; ++i) {
+        output[pos++] = input[i];
+    }
     output[pos] = '\0';
     return true;
 }

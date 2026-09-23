@@ -2048,7 +2048,9 @@ void ticks_to_timeval(uint64_t ticks, uint32_t& sec, uint32_t& usec) noexcept {
 [[nodiscard]] uint32_t sys_setitimer_impl(Process* process, RegisterFrame* frame) noexcept {
     const int which = static_cast<int>(frame->ebx);
     Process::IntervalTimer* timer = itimer_for_which(process, which);
-    if (timer == nullptr) return kErrnoInvalid;
+    if (timer == nullptr) {
+        return kErrnoInvalid;
+    }
 
     // Old value output (optional, ecx)
     if (frame->edx != 0U) {
@@ -2091,8 +2093,12 @@ void ticks_to_timeval(uint64_t ticks, uint32_t& sec, uint32_t& usec) noexcept {
 [[nodiscard]] uint32_t sys_getitimer_impl(Process* process, RegisterFrame* frame) noexcept {
     const int which = static_cast<int>(frame->ebx);
     const Process::IntervalTimer* timer = itimer_for_which(process, which);
-    if (timer == nullptr) return kErrnoInvalid;
-    if (frame->ecx == 0U) return kErrnoFault;
+    if (timer == nullptr) {
+        return kErrnoInvalid;
+    }
+    if (frame->ecx == 0U) {
+        return kErrnoFault;
+    }
 
     ITimerVal32 val{};
     ticks_to_timeval(timer->interval, val.it_interval_sec, val.it_interval_usec);
@@ -3092,16 +3098,18 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             static_cast<int>(frame->edx)));
     case SYS_bind: {
         uint8_t* addr_raw = nullptr;
-        if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw))
+        if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw)) {
             return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_bind(
             static_cast<int>(frame->ebx),
             reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw)));
     }
     case SYS_connect: {
         uint8_t* addr_raw = nullptr;
-        if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw))
+        if (frame->ecx != 0U && !translate_user_region(process, frame->ecx, 16U, &addr_raw)) {
             return kErrnoFault;
+        }
         int rc = ksocket::sys_connect(
             static_cast<int>(frame->ebx),
             reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw));
@@ -3113,7 +3121,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             // On wake, retry the connect call (socket remembers SynSent state)
             rc = ksocket::sys_connect(sockfd,
                 reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw));
-            if (rc == -115) rc = -110; // ETIMEDOUT if still not connected
+            if (rc == -115) {
+                rc = -110; // ETIMEDOUT if still not connected
+            }
         }
         return static_cast<uint32_t>(rc);
     }
@@ -3126,18 +3136,22 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             static_cast<int>(frame->ebx), nullptr));
     case SYS_sendto: {
         uint8_t* buf_raw = nullptr;
-        if (!translate_user_region(process, frame->ecx, frame->edx, &buf_raw))
+        if (!translate_user_region(process, frame->ecx, frame->edx, &buf_raw)) {
             return kErrnoFault;
+        }
         uint8_t* addr_raw = nullptr;
-        if (frame->edi != 0U) static_cast<void>(translate_user_region(process, frame->edi, 16U, &addr_raw));
+        if (frame->edi != 0U) {
+            static_cast<void>(translate_user_region(process, frame->edi, 16U, &addr_raw));
+        }
         return static_cast<uint32_t>(ksocket::sys_sendto(
             static_cast<int>(frame->ebx), buf_raw, frame->edx,
             reinterpret_cast<const ksocket::SockAddrIn*>(addr_raw)));
     }
     case SYS_recvfrom: {
         uint8_t* buf_raw = nullptr;
-        if (!translate_user_region(process, frame->ecx, frame->edx, &buf_raw))
+        if (!translate_user_region(process, frame->ecx, frame->edx, &buf_raw)) {
             return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_recvfrom(
             static_cast<int>(frame->ebx), buf_raw, frame->edx, nullptr));
     }
@@ -3182,20 +3196,28 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         }
         const auto* hdr = reinterpret_cast<const ksocket::MsgHdr32*>(msg_raw);
         // Gather iov into a single buffer
-        if (hdr->msg_iovlen == 0U) return 0U;
+        if (hdr->msg_iovlen == 0U) {
+            return 0U;
+        }
         uint8_t gather_buf[4096]{};
         uint32_t total = 0U;
         for (uint32_t i = 0U; i < hdr->msg_iovlen && total < sizeof(gather_buf); ++i) {
             uint8_t* iov_raw = nullptr;
             const uint32_t iov_addr = hdr->msg_iov + i * 8U;
-            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) break;
+            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) {
+                break;
+            }
             const auto* iov = reinterpret_cast<const ksocket::IoVec32*>(iov_raw);
             uint32_t len = iov->iov_len;
-            if (total + len > sizeof(gather_buf)) len = static_cast<uint32_t>(sizeof(gather_buf)) - total;
+            if (total + len > sizeof(gather_buf)) {
+                len = static_cast<uint32_t>(sizeof(gather_buf)) - total;
+            }
             uint8_t* data_raw = nullptr;
             if (iov->iov_base != 0U && len > 0U &&
                 translate_user_region(process, iov->iov_base, len, &data_raw)) {
-                for (uint32_t j = 0U; j < len; ++j) gather_buf[total + j] = data_raw[j];
+                for (uint32_t j = 0U; j < len; ++j) {
+                    gather_buf[total + j] = data_raw[j];
+                }
                 total += len;
             }
         }
@@ -3218,32 +3240,44 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             return kErrnoFault;
         }
         auto* hdr = reinterpret_cast<ksocket::MsgHdr32*>(msg_raw);
-        if (hdr->msg_iovlen == 0U) return 0U;
+        if (hdr->msg_iovlen == 0U) {
+            return 0U;
+        }
         // Compute total iov capacity
         uint32_t total_cap = 0U;
         for (uint32_t i = 0U; i < hdr->msg_iovlen; ++i) {
             uint8_t* iov_raw = nullptr;
             const uint32_t iov_addr = hdr->msg_iov + i * 8U;
-            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) break;
+            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) {
+                break;
+            }
             const auto* iov = reinterpret_cast<const ksocket::IoVec32*>(iov_raw);
             total_cap += iov->iov_len;
         }
-        if (total_cap > 4096U) total_cap = 4096U;
+        if (total_cap > 4096U) {
+            total_cap = 4096U;
+        }
         // Receive into scratch buffer
         uint8_t recv_buf[4096]{};
         const int rc = ksocket::sys_recvfrom(
             static_cast<int>(frame->ebx), recv_buf, total_cap, nullptr);
-        if (rc <= 0) return static_cast<uint32_t>(rc);
+        if (rc <= 0) {
+            return static_cast<uint32_t>(rc);
+        }
         // Scatter into iov
         uint32_t remaining = static_cast<uint32_t>(rc);
         uint32_t offset = 0U;
         for (uint32_t i = 0U; i < hdr->msg_iovlen && remaining > 0U; ++i) {
             uint8_t* iov_raw = nullptr;
             const uint32_t iov_addr = hdr->msg_iov + i * 8U;
-            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) break;
+            if (!translate_user_region(process, iov_addr, 8U, &iov_raw)) {
+                break;
+            }
             const auto* iov = reinterpret_cast<const ksocket::IoVec32*>(iov_raw);
             uint32_t chunk = iov->iov_len;
-            if (chunk > remaining) chunk = remaining;
+            if (chunk > remaining) {
+                chunk = remaining;
+            }
             if (iov->iov_base != 0U && chunk > 0U) {
                 static_cast<void>(write_user_bytes(process, iov->iov_base, recv_buf + offset, chunk));
             }
@@ -3344,7 +3378,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     }
     case SYS_flock: {
         const int gfd = resolve_fd(process, static_cast<int>(frame->ebx));
-        if (gfd < 0 || !bootfs::is_open(gfd)) return kErrnoBadF;
+        if (gfd < 0 || !bootfs::is_open(gfd)) {
+            return kErrnoBadF;
+        }
         return static_cast<uint32_t>(
             lockf::do_flock(gfd, static_cast<int>(frame->ecx), process->pid));
     }
@@ -3463,8 +3499,12 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         uint32_t offset = 0U;
         uint32_t count = 0U;
         for (const auto& proc : g_processes) {
-            if (!proc.in_use) continue;
-            if (offset + sizeof(ProcInfoEntry) > buf_size) break;
+            if (!proc.in_use) {
+                continue;
+            }
+            if (offset + sizeof(ProcInfoEntry) > buf_size) {
+                break;
+            }
             ProcInfoEntry entry{};
             entry.pid = proc.pid;
             entry.ppid = proc.ppid;
@@ -3485,9 +3525,15 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return sys_getitimer_impl(process, frame);
     case SYS_getgroups: {
         const uint32_t gidsetsize = frame->ebx;
-        if (gidsetsize == 0U) return process->cred.ngroups;
-        if (gidsetsize < process->cred.ngroups) return kErrnoInvalid;
-        if (frame->ecx == 0U) return kErrnoFault;
+        if (gidsetsize == 0U) {
+            return process->cred.ngroups;
+        }
+        if (gidsetsize < process->cred.ngroups) {
+            return kErrnoInvalid;
+        }
+        if (frame->ecx == 0U) {
+            return kErrnoFault;
+        }
         if (!write_user_bytes(process, frame->ecx, process->cred.groups,
                               process->cred.ngroups * 4U)) {
             return kErrnoFault;
@@ -3496,8 +3542,12 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     }
     case SYS_setgroups: {
         const uint32_t ngroups = frame->ebx;
-        if (process->cred.euid != 0U) return kErrnoPerm;
-        if (ngroups > kMaxGroups) return kErrnoInvalid;
+        if (process->cred.euid != 0U) {
+            return kErrnoPerm;
+        }
+        if (ngroups > kMaxGroups) {
+            return kErrnoInvalid;
+        }
         if (ngroups > 0U) {
             uint8_t* raw = nullptr;
             if (frame->ecx == 0U || !translate_user_region(process, frame->ecx,
@@ -3523,7 +3573,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         const int rc = ipc::sys_shmat(
             static_cast<int>(frame->ebx), frame->ecx,
             static_cast<int>(frame->edx), &result_addr);
-        if (rc < 0) return static_cast<uint32_t>(rc);
+        if (rc < 0) {
+            return static_cast<uint32_t>(rc);
+        }
         return result_addr;
     }
     case SYS_shmdt:
@@ -3550,7 +3602,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     case SYS_semop: {
         uint8_t* raw = nullptr;
         const uint32_t nsops = frame->edx;
-        if (frame->ecx == 0U || nsops == 0U) return kErrnoInvalid;
+        if (frame->ecx == 0U || nsops == 0U) {
+            return kErrnoInvalid;
+        }
         if (!translate_user_region(process, frame->ecx,
                 nsops * static_cast<uint32_t>(sizeof(ipc::SemBuf)), &raw)) {
             return kErrnoFault;
@@ -3572,7 +3626,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     case SYS_msgsnd: {
         uint8_t* raw = nullptr;
         const uint32_t msgsz = frame->edx;
-        if (frame->ecx == 0U) return kErrnoFault;
+        if (frame->ecx == 0U) {
+            return kErrnoFault;
+        }
         if (!translate_user_region(process, frame->ecx, 4U + msgsz, &raw)) {
             return kErrnoFault;
         }
@@ -3583,7 +3639,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
     case SYS_msgrcv: {
         uint8_t* raw = nullptr;
         const uint32_t msgsz = frame->edx;
-        if (frame->ecx == 0U) return kErrnoFault;
+        if (frame->ecx == 0U) {
+            return kErrnoFault;
+        }
         if (!translate_user_region(process, frame->ecx, 4U + msgsz, &raw)) {
             return kErrnoFault;
         }

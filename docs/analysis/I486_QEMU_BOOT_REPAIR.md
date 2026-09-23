@@ -285,6 +285,31 @@ batch. ABI headers and unfixable checks need their own source review. A
 whole-file format pass or unfiltered `clang-tidy -fix` would rewrite much
 more than the i486 repair and mix C ABI changes into this branch.
 
+A wider local probe on 19 directly changed, compiled C++ sources recorded
+4,532 distinct diagnostics after deduplicating shared headers by file,
+offset, and check. Exactly 1,001 have replacements and 3,531 require
+manual review. The largest groups concern array-to-pointer decay (626),
+magic numbers (571), identifier naming (470), constant array indexing
+(440), and C arrays (335). The hosted workflow also selects compiled
+consumers of changed headers; this source probe is a lower-bound scope
+measurement, not a hosted pass or a complete repository-wide count.
+
+Clang 22's `clang-format` supports `InsertBraces: true`. A temporary style
+derived from the repository's `.clang-format` and diagnostic-line ranges
+from `readability-braces-around-statements` added braces only at the
+reported sites. This cleared 39 source-local warnings across `ring3.cpp`
+(31), `bootfs.cpp` (4), `kutil.cpp` (3), and `sched.cpp` (1). The i486 kernel
+relinked with warnings as errors; the focused process, scheduler,
+backing, and assembly ownership contracts and the 64 MiB QEMU disk-shell
+test passed. The complete 31-test i486 selection then passed in 789.22
+seconds; `build/i486/Debug/evidence/i486-brace-format-final-ctest.log`
+retains the result. Two brace warnings in the shared `service_node.hpp` remain
+in the `ring3.cpp` consumer; the formatter batch did not change that
+header. Whole-file formatting proposed broad unrelated layout and
+include-order changes, so the diagnostic ranges are essential to the
+bounded method. Remaining semantic diagnostics still require source-level
+repairs.
+
 Hosted Clang 22 first found the standalone i486 C++ compile selecting host
 libstdc++ headers. The kernel and owned 32-bit user targets now pass
 `-stdlib=libc++` only for C++ compilation. Assembly retains its original

@@ -337,8 +337,9 @@ namespace xinim::kernel::bootfs {
         }
 
         void copy_c_string(char *destination, uint32_t capacity, const char *source) noexcept {
-            if (destination == nullptr || capacity == 0U)
+            if (destination == nullptr || capacity == 0U) {
                 return;
+            }
             if (source == nullptr) {
                 destination[0] = '\0';
                 return;
@@ -1191,11 +1192,13 @@ namespace xinim::kernel::bootfs {
     }
 
     const char *directory_path_for_fd(int fd) noexcept {
-        if (!is_fd_valid(fd))
+        if (!is_fd_valid(fd)) {
             return nullptr;
+        }
         const size_t slot = fd_to_slot(fd);
-        if (!g_open_files[slot].in_use)
+        if (!g_open_files[slot].in_use) {
             return nullptr;
+        }
         // Check ext2 directory
         if (g_open_files[slot].is_ext2 && g_open_files[slot].ext2_is_directory) {
             return g_open_files[slot].ext2_path;
@@ -1247,8 +1250,9 @@ namespace xinim::kernel::bootfs {
                 if (vfs_slot >= 0) {
                     const int fd = allocate_open_slot();
                     if (fd < 0) {
-                        if (vops->close != nullptr)
+                        if (vops->close != nullptr) {
                             vops->close(vfs_slot);
+                        }
                         return fd;
                     }
                     auto &f = g_open_files[fd_to_slot(fd)];

@@ -331,7 +331,9 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     }
 
     for (auto& proc : g_processes) {
-        if (!proc.in_use) continue;
+        if (!proc.in_use) {
+            continue;
+        }
 
         // Legacy alarm(2)
         if (proc.alarm_tick != 0U && proc.alarm_tick <= g_scheduler_ticks) {
