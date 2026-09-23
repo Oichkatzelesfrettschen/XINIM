@@ -126,7 +126,7 @@ jobs:
               if Path(entry["file"]).suffix in {".cpp", ".cc", ".cxx"}
               and Path(entry["file"]).resolve().is_relative_to(root)
               and Path(entry["file"]).resolve().relative_to(root).parts[0]
-              in {"src", "include", "test"}
+              in {"src", "include", "test", "userland"}
           }
           base = os.environ["BASE_REVISION"]
           head = os.environ["HEAD_REVISION"]
@@ -143,7 +143,7 @@ jobs:
                   ["git", "diff", "-z", "--name-only", "--diff-filter=ACMR", comparison_base, head, "--"],
                   text=True,
               ).split("\0")
-              if filename.startswith(("src/", "include/", "test/"))
+              if filename.startswith(("src/", "include/", "test/", "userland/"))
           }
           changed_sources = {
               path for path in changed if path.suffix in {".cpp", ".cc", ".cxx"}
@@ -184,7 +184,7 @@ jobs:
           for source in sorted(selected):
               command = [
                   "clang-tidy-22", "-p", str(build),
-                  "--header-filter=" + re.escape(str(root)) + "/(src|include|test)/",
+                  "--header-filter=" + re.escape(str(root)) + "/(src|include|test|userland)/",
                   str(source),
               ]
               print("Running:", " ".join(command), flush=True)

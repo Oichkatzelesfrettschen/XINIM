@@ -217,7 +217,7 @@ int sys_sendto(int sockfd, const void* buf, uint32_t len,
     }
 
     uint8_t dst_ip[4];
-    uint16_t dst_port;
+    uint16_t dst_port = 0U;
 
     if (dest_addr != nullptr) {
         copy4(dst_ip, dest_addr->addr);

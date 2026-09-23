@@ -109,6 +109,8 @@ int main() {
     initialize_supervised_session(other_session, false);
     CHECK(owns_controlling_terminal(background));
     release_controlling_terminal(background, true);
+    CHECK((background.signals.pending & (1U << kSigHup)) != 0U);
+    CHECK((background.signals.pending & (1U << kSigCont)) != 0U);
     initialize_supervised_session(leader, true);
     CHECK(owns_controlling_terminal(leader));
     CHECK(foreground_group == 1);

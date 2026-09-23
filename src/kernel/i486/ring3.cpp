@@ -1014,11 +1014,8 @@ void set_service_state(SupervisedService* service,
         if (user_fd != 1 && user_fd != 2) {
             return kErrnoBadF;
         }
-        const uint8_t* buffer = nullptr;
-        if (!translate_user_region(process,
-                                   frame->ecx,
-                                   count,
-                                   const_cast<uint8_t**>(&buffer))) {
+        uint8_t* buffer = nullptr;
+        if (!translate_user_region(process, frame->ecx, count, &buffer)) {
             return kErrnoFault;
         }
         for (uint32_t index = 0U; index < count; ++index) {
@@ -1138,15 +1135,12 @@ void set_service_state(SupervisedService* service,
     return 0U;
 }
 
-[[nodiscard]] uint32_t sys_open(Process* process, RegisterFrame* frame) noexcept {
-    char path[256]{};
-    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
-        return kErrnoFault;
-    }
+[[nodiscard]] uint32_t open_resolved_path(Process* process, const char* path,
+                                          uint32_t flags, uint32_t mode) noexcept {
     if (string_equals(path, "/dev/tty") && !owns_controlling_terminal(*process)) {
         return static_cast<uint32_t>(-6); // ENXIO: caller has no controlling terminal.
     }
-    const int global_slot = bootfs::open(path, frame->ecx, frame->edx);
+    const int global_slot = bootfs::open(path, flags, mode);
 #ifdef XINIM_X86_32_TTY_TRACE
     static uint32_t g_open_trace_budget = 48U;
     if (g_open_trace_budget != 0U) {
@@ -1154,7 +1148,7 @@ void set_service_state(SupervisedService* service,
         console::write_string("tty trace: open path=");
         console::write_string(path);
         console::write_string(" flags=");
-        console::write_hex32(frame->ecx);
+        console::write_hex32(flags);
         console::write_string(" global=");
         console::write_dec32(global_slot >= 0 ? static_cast<uint32_t>(global_slot)
                                               : static_cast<uint32_t>(-global_slot));
@@ -1174,10 +1168,18 @@ void set_service_state(SupervisedService* service,
     }
     constexpr uint32_t open_no_controlling_terminal = 0x0100U;
     if (!owns_controlling_terminal(*process) && bootfs::is_console_fd(global_slot) &&
-        (frame->ecx & open_no_controlling_terminal) == 0U) {
+        (flags & open_no_controlling_terminal) == 0U) {
         static_cast<void>(acquire_controlling_terminal(*process));
     }
     return static_cast<uint32_t>(local_fd);
+}
+
+[[nodiscard]] uint32_t sys_open(Process* process, RegisterFrame* frame) noexcept {
+    char path[256]{};
+    if (!copy_and_resolve_user_path(process, frame->ebx, path, sizeof(path))) {
+        return kErrnoFault;
+    }
+    return open_resolved_path(process, path, frame->ecx, frame->edx);
 }
 
 [[nodiscard]] uint32_t sys_lseek(Process* process, RegisterFrame* frame) noexcept {
@@ -1573,9 +1575,11 @@ void set_service_state(SupervisedService* service,
     uint32_t image_size = 0U;
     const bootfs::FileRecord* file = nullptr;
     if (ext2_reader::load_runtime_executable(path, &image, &image_size) && image != nullptr) {
+        // FileRecord also backs mutable RAM files; the executable loader only reads
+        // this read-only ext2 image during the lifetime of ext2_file.
         ext2_file = {
             .path = path,
-            .data = const_cast<uint8_t*>(image),
+            .data = const_cast<uint8_t*>(image), // NOLINT(cppcoreguidelines-pro-type-const-cast)
             .size = image_size,
             .capacity = image_size,
             .read_only = true,
@@ -3135,8 +3139,9 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
             return kErrnoFault;
         }
         uint8_t* addr_raw = nullptr;
-        if (frame->edi != 0U) {
-            static_cast<void>(translate_user_region(process, frame->edi, 16U, &addr_raw));
+        if (frame->edi != 0U &&
+            !translate_user_region(process, frame->edi, sizeof(ksocket::SockAddrIn), &addr_raw)) {
+            return kErrnoFault;
         }
         return static_cast<uint32_t>(ksocket::sys_sendto(
             static_cast<int>(frame->ebx), buf_raw, frame->edx,
@@ -3154,34 +3159,64 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         return static_cast<uint32_t>(ksocket::sys_shutdown(
             static_cast<int>(frame->ebx),
             static_cast<int>(frame->ecx)));
-    case SYS_setsockopt:
+    case SYS_setsockopt: {
+        uint8_t* option_raw = nullptr;
+        if (frame->esi != 0U &&
+            !translate_user_region(process, frame->esi, frame->edi, &option_raw)) {
+            return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_setsockopt(
             static_cast<int>(frame->ebx),
             static_cast<int>(frame->ecx),
             static_cast<int>(frame->edx),
-            reinterpret_cast<const void*>(frame->esi),
+            option_raw,
             frame->edi));
-    case SYS_getsockopt:
+    }
+    case SYS_getsockopt: {
+        uint8_t* option_raw = nullptr;
+        uint8_t* length_raw = nullptr;
+        if (!translate_user_region(process, frame->esi, sizeof(int), &option_raw) ||
+            !translate_user_region(process, frame->edi, sizeof(uint32_t), &length_raw)) {
+            return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_getsockopt(
             static_cast<int>(frame->ebx),
             static_cast<int>(frame->ecx),
             static_cast<int>(frame->edx),
-            reinterpret_cast<void*>(frame->esi),
-            reinterpret_cast<uint32_t*>(frame->edi)));
-    case SYS_getsockname:
+            option_raw,
+            reinterpret_cast<uint32_t*>(length_raw)));
+    }
+    case SYS_getsockname: {
+        uint8_t* address_raw = nullptr;
+        if (!translate_user_region(process, frame->ecx,
+                                   sizeof(ksocket::SockAddrIn), &address_raw)) {
+            return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_getsockname(
             static_cast<int>(frame->ebx),
-            reinterpret_cast<ksocket::SockAddrIn*>(frame->ecx)));
-    case SYS_getpeername:
+            reinterpret_cast<ksocket::SockAddrIn*>(address_raw)));
+    }
+    case SYS_getpeername: {
+        uint8_t* address_raw = nullptr;
+        if (!translate_user_region(process, frame->ecx,
+                                   sizeof(ksocket::SockAddrIn), &address_raw)) {
+            return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_getpeername(
             static_cast<int>(frame->ebx),
-            reinterpret_cast<ksocket::SockAddrIn*>(frame->ecx)));
-    case SYS_socketpair:
+            reinterpret_cast<ksocket::SockAddrIn*>(address_raw)));
+    }
+    case SYS_socketpair: {
+        uint8_t* socket_pair_raw = nullptr;
+        if (!translate_user_region(process, frame->esi, 2U * sizeof(int), &socket_pair_raw)) {
+            return kErrnoFault;
+        }
         return static_cast<uint32_t>(ksocket::sys_socketpair(
             static_cast<int>(frame->ebx),
             static_cast<int>(frame->ecx),
             static_cast<int>(frame->edx),
-            reinterpret_cast<int*>(frame->esi)));
+            reinterpret_cast<int*>(socket_pair_raw)));
+    }
     case SYS_sendmsg: {
         // ebx = sockfd, ecx = msghdr* (userspace), edx = flags (ignored)
         uint8_t* msg_raw = nullptr;
@@ -3420,16 +3455,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         if (!copy_and_resolve_user_path(process, frame->ecx, path, sizeof(path))) {
             return kErrnoFault;
         }
-        const int global_slot = bootfs::open(path, frame->edx, frame->esi);
-        if (global_slot < 0) {
-            return static_cast<uint32_t>(global_slot);
-        }
-        const int local_fd = allocate_fd_map_entry(process, global_slot);
-        if (local_fd < 0) {
-            bootfs::close(global_slot);
-            return kErrnoNoMem;
-        }
-        return static_cast<uint32_t>(local_fd);
+        return open_resolved_path(process, path, frame->edx, frame->esi);
     }
     case SYS_mkdirat:
         return sys_mkdir(process, frame);

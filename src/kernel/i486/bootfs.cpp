@@ -135,7 +135,7 @@ namespace xinim::kernel::bootfs {
             bool valid;
             bool negative;
             char path[kMaxPathLength];
-            const FileRecord *file;
+            FileRecord *file;
         };
 
         struct MountPoint {
@@ -387,7 +387,7 @@ namespace xinim::kernel::bootfs {
             return &g_path_cache[hash_path(path) % kPathCacheEntries];
         }
 
-        const FileRecord *cache_lookup(const char *path, bool &hit) noexcept {
+        FileRecord *cache_lookup(const char *path, bool &hit) noexcept {
             hit = false;
             if (path == nullptr) {
                 return nullptr;
@@ -400,7 +400,7 @@ namespace xinim::kernel::bootfs {
             return entry->negative ? nullptr : entry->file;
         }
 
-        void cache_store(const char *path, const FileRecord *file) noexcept {
+        void cache_store(const char *path, FileRecord *file) noexcept {
             if (path == nullptr) {
                 return;
             }
@@ -963,6 +963,8 @@ namespace xinim::kernel::bootfs {
                 continue;
             }
 
+            // Boot modules enter FileRecord through the read-only add_file adapter.
+            // NOLINTNEXTLINE(cppcoreguidelines-pro-type-const-cast)
             auto *data = const_cast<uint8_t *>(reinterpret_cast<const uint8_t *>(module.address));
             const uint32_t size = static_cast<uint32_t>(module.size);
             FileRecord *file =
@@ -988,9 +990,9 @@ namespace xinim::kernel::bootfs {
         }
     }
 
-    const FileRecord *find_normalized_record(const char *normalized) noexcept {
+    static FileRecord *find_normalized_record(const char *normalized) noexcept {
         bool cache_hit = false;
-        const FileRecord *cached = cache_lookup(normalized, cache_hit);
+        FileRecord *cached = cache_lookup(normalized, cache_hit);
         if (cache_hit) {
             return cached;
         }
@@ -1001,7 +1003,7 @@ namespace xinim::kernel::bootfs {
                 return &g_files[index];
             }
         }
-        const FileRecord *file = get_tmp_file(normalized);
+        FileRecord *file = get_tmp_file(normalized);
         cache_store(normalized, file);
         return file;
     }
@@ -1100,12 +1102,16 @@ namespace xinim::kernel::bootfs {
         return false;
     }
 
-    const FileRecord *find(const char *path) noexcept {
+    static FileRecord *find_mutable_record(const char *path) noexcept {
         char resolved[kMaxPathLength]{};
         return resolve_bootfs_symbolic_links(path, resolved,
                                              static_cast<uint32_t>(sizeof(resolved)), true)
                    ? find_normalized_record(resolved)
                    : nullptr;
+    }
+
+    const FileRecord *find(const char *path) noexcept {
+        return find_mutable_record(path);
     }
 
     void for_each_entry(VisitCallback callback, void *context) noexcept {
@@ -1320,7 +1326,7 @@ namespace xinim::kernel::bootfs {
             }
         }
 
-        FileRecord *file = const_cast<FileRecord *>(find(normalized));
+        FileRecord *file = find_mutable_record(normalized);
         const bool existed = file != nullptr;
         if (file == nullptr) {
             if ((flags & kFileFlagO_CREAT) == 0U) {
@@ -1706,7 +1712,7 @@ namespace xinim::kernel::bootfs {
                        ? 0
                        : -1;
         }
-        FileRecord *file = const_cast<FileRecord *>(find(normalized));
+        FileRecord *file = find_mutable_record(normalized);
         if (file == nullptr || file->is_directory || file->read_only || size > file->capacity) {
             return -1;
         }
@@ -1762,7 +1768,7 @@ namespace xinim::kernel::bootfs {
                                            true)) {
             return -1;
         }
-        FileRecord *file = const_cast<FileRecord *>(find_normalized_record(resolved));
+        FileRecord *file = find_normalized_record(resolved);
         if (file == nullptr) {
             return -1;
         }
@@ -2142,8 +2148,8 @@ namespace xinim::kernel::bootfs {
             return 0;
         }
 
-        FileRecord *source = const_cast<FileRecord *>(find_normalized_record(normalized_old));
-        FileRecord *destination = const_cast<FileRecord *>(find_normalized_record(normalized_new));
+        FileRecord *source = find_normalized_record(normalized_old);
+        FileRecord *destination = find_normalized_record(normalized_new);
         if (source == nullptr || source->read_only || mutable_record_path(*source) == nullptr ||
             !is_tmp_path(normalized_new) || !parent_directory_exists(normalized_new) ||
             (source->is_directory && path_is_descendant(normalized_new, normalized_old))) {
@@ -2203,7 +2209,7 @@ namespace xinim::kernel::bootfs {
         if (ext2_reader::rmdir_runtime_directory(normalized)) {
             return 0;
         }
-        FileRecord *directory = const_cast<FileRecord *>(find_normalized_record(normalized));
+        FileRecord *directory = find_normalized_record(normalized);
         if (directory == nullptr || !directory->is_directory || directory->read_only ||
             !directory_is_empty(normalized)) {
             return -1;
@@ -2221,7 +2227,7 @@ namespace xinim::kernel::bootfs {
         if (ext2_reader::unlink_runtime_path(normalized)) {
             return 0;
         }
-        FileRecord *file = const_cast<FileRecord *>(find_normalized_record(normalized));
+        FileRecord *file = find_normalized_record(normalized);
         if (file == nullptr || file->is_directory || file->read_only) {
             return -1;
         }
@@ -2606,6 +2612,8 @@ namespace xinim::kernel::bootfs {
 
         switch (static_cast<unsigned long>(command)) {
         case kTermiosGet: {
+            // control receives the kernel pointer validated by the syscall adapter.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             auto *state = reinterpret_cast<xinim::i486::tty::TermiosState *>(argument);
             if (state == nullptr) {
                 return -1;
@@ -2616,6 +2624,8 @@ namespace xinim::kernel::bootfs {
         case kTermiosSetNow:
         case kTermiosSetDrain:
         case kTermiosSetFlush: {
+            // control receives the kernel pointer validated by the syscall adapter.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             const auto *state = reinterpret_cast<const xinim::i486::tty::TermiosState *>(argument);
             if (state == nullptr) {
                 return -1;
@@ -2624,6 +2634,8 @@ namespace xinim::kernel::bootfs {
             return 0;
         }
         case kWindowSizeGet: {
+            // control receives the kernel pointer validated by the syscall adapter.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             auto *ws = reinterpret_cast<xinim::i486::tty::WindowSize *>(argument);
             if (ws == nullptr) {
                 return -1;
@@ -2632,6 +2644,8 @@ namespace xinim::kernel::bootfs {
             return 0;
         }
         case kWindowSizeSet: {
+            // control receives the kernel pointer validated by the syscall adapter.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             const auto *ws = reinterpret_cast<const xinim::i486::tty::WindowSize *>(argument);
             if (ws == nullptr) {
                 return -1;
@@ -2640,6 +2654,8 @@ namespace xinim::kernel::bootfs {
             return 0;
         }
         case kTtyGetPgrp: {
+            // control receives the kernel pointer validated by the syscall adapter.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             auto *pgrp = reinterpret_cast<int *>(argument);
             if (pgrp == nullptr) {
                 return -1;
@@ -2648,6 +2664,8 @@ namespace xinim::kernel::bootfs {
             return 0;
         }
         case kTtySetPgrp: {
+            // control receives the kernel pointer validated by the syscall adapter.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             const auto *pgrp = reinterpret_cast<const int *>(argument);
             if (pgrp == nullptr) {
                 return -1;

@@ -1,4 +1,4 @@
-name: i486 Build and QEMU
+name: x86 Build and QEMU
 
 on:
   push:
@@ -10,7 +10,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: i486-${{ github.event.pull_request.number || github.ref }}
+  group: x86-build-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -153,6 +153,117 @@ jobs:
           path: |
             build/i486/Debug/Testing/
             build/i486/Debug/logs/
+          retention-days: 14
+
+  x86_64-debug:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PYTHON: /usr/bin/python3
+      QEMU_REVISION: c3d48b7d1e89604920e5b81b91140c2ad39a1943
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Clang 22 and x86_64 build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
+          sudo apt-get update
+          sudo apt-get install -y clang-22 clang-tools-22 lld-22 llvm-22 \
+            libclang-rt-22-dev libc++-22-dev libc++abi-22-dev libc6-dev-i386 \
+            cmake ninja-build pkg-config python3-venv git curl \
+            xorriso mtools e2fsprogs \
+            libglib2.0-dev libpixman-1-dev libslirp-dev libfdt-dev zlib1g-dev \
+            flex bison doxygen
+          echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
+          clang-22 --version
+          dpkg-query -W clang-22 libclang-rt-22-dev libc++-22-dev cmake
+
+      - name: Restore pinned x86_64 QEMU
+        id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/qemu-x86_64
+          key: qemu-ubuntu24.04-clang22-${{ env.QEMU_REVISION }}-x86_64-slirp
+
+      - name: Build QEMU 11.1.1 for x86_64
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          qemu_source="$RUNNER_TEMP/qemu-x86_64-source"
+          git init "$qemu_source"
+          git -C "$qemu_source" remote add origin https://github.com/qemu/qemu.git
+          git -C "$qemu_source" fetch --depth 1 origin "$QEMU_REVISION"
+          git -C "$qemu_source" checkout --detach FETCH_HEAD
+          test "$(git -C "$qemu_source" rev-parse HEAD)" = "$QEMU_REVISION"
+          git -C "$qemu_source" submodule update --init --depth 1
+          mkdir "$qemu_source/build"
+          cd "$qemu_source/build"
+          ../configure --prefix="$RUNNER_TEMP/qemu-x86_64" \
+            --target-list=x86_64-softmmu --cc=clang-22 --cxx=clang++-22 \
+            --disable-docs --enable-slirp
+          ninja -j2
+          ninja install
+
+      - name: Select exact x86_64 emulator and compiler lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$RUNNER_TEMP/qemu-x86_64/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/qemu-x86_64/bin/qemu-system-x86_64" --version
+          "$RUNNER_TEMP/qemu-x86_64/bin/qemu-system-x86_64" -machine help \
+            | grep -F 'pc-q35-11.1'
+          "$RUNNER_TEMP/qemu-x86_64/bin/qemu-system-x86_64" -cpu help \
+            | grep -E '^[[:space:]]+qemu64[[:space:]]'
+          clang --version
+          clang++ --version
+
+      - name: Configure and build the supported x86_64 boot boundary
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B build/x86_64/Debug -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug -DXINIM_CPU_LANE=x86_64 \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
+            -DXINIM_ENABLE_WERROR=ON -DXINIM_PYTHON3_EXECUTABLE="$PYTHON"
+          cmake --build build/x86_64/Debug \
+            --target test_bootfs_promote test_x86_64_userspace_abi \
+            xinim_assembly_abi_check xinim_x86_64_image -j2
+
+      - name: Run x86_64 native and assembly contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build/x86_64/Debug \
+            -R '^(test_bootfs_promote|test_x86_64_userspace_abi|assembly_abi_verifier_self_test|assembly_abi_contract)$' \
+            --output-on-failure --no-tests=error
+
+      - name: Run exact Q35 Ring 3 shell and runtime ownership gates
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p build/x86_64/Debug/logs
+          export XINIM_QEMU_COM1_LOG="$PWD/build/x86_64/Debug/logs/x86_64-shell-com1.log"
+          ctest --test-dir build/x86_64/Debug \
+            -R '^(x86_64_shell_test|x86_64_runtime_ownership)$' \
+            --output-on-failure --no-tests=error -j1
+
+      - name: Retain x86_64 guest logs and CTest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-qemu-results
+          path: |
+            build/x86_64/Debug/Testing/
+            build/x86_64/Debug/logs/
+            build/x86_64/Debug/CMakeCache.txt
           retention-days: 14
 
   clang-tidy:

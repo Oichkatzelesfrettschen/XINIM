@@ -1821,6 +1821,11 @@ set(XINIM_X86_32_HEAPPROBE_SOURCES
     userland/tests/heapprobe_i486.cpp
 )
 
+set(XINIM_X86_32_SYSCALL_GUARD_SOURCES
+    userland/shell/xash/entry_i486.S
+    userland/tests/syscall_guard_i486.cpp
+)
+
 set(XINIM_X86_32_HOLDSVC_SOURCES
     userland/shell/xash/entry_i486.S
     userland/tests/holdsvc_i486.cpp
@@ -1966,6 +1971,7 @@ function(xinim_add_x86_32_lane lane)
     set(_hello_target "hello_${lane}")
     set(_false_target "false_${lane}")
     set(_heapprobe_target "heapprobe_${lane}")
+    set(_syscall_guard_target "syscall_guard_${lane}")
     set(_holdsvc_target "holdsvc_${lane}")
     set(_diethello_target "diethello_${lane}")
     set(_ls_target "ls_${lane}")
@@ -2441,6 +2447,11 @@ function(xinim_add_x86_32_lane lane)
         COMPILE_OPTIONS ${_lane_compile_options}
         LINK_ARCH_OPTIONS ${_lane_link_arch_options})
 
+    xinim_x86_32_user_exe(syscall_guard ${_syscall_guard_target} XINIM_X86_32_SYSCALL_GUARD_SOURCES
+        ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
+        COMPILE_OPTIONS ${_lane_compile_options}
+        LINK_ARCH_OPTIONS ${_lane_link_arch_options})
+
     xinim_x86_32_user_exe(holdsvc ${_holdsvc_target} XINIM_X86_32_HOLDSVC_SOURCES
         ${lane} "${_banner_name}" "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
         COMPILE_OPTIONS ${_lane_compile_options}
@@ -2508,6 +2519,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/persist-hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
             --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_syscall_guard_target}>:/bin/syscall-guard"
             --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
             --guest-bin "$<TARGET_FILE:${_mkdir_target}>:/bin/mkdir"
@@ -2602,6 +2614,7 @@ function(xinim_add_x86_32_lane lane)
             ${_hello_target}
             ${_false_target}
             ${_heapprobe_target}
+            ${_syscall_guard_target}
             ${_holdsvc_target}
             ${_writefile_target}
             ${_mkdir_target}
@@ -2705,6 +2718,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
             --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_syscall_guard_target}>:/bin/syscall-guard"
             --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
             --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
@@ -2801,6 +2815,7 @@ function(xinim_add_x86_32_lane lane)
             --guest-bin "$<TARGET_FILE:${_hello_target}>:/bin/hello"
             --guest-bin "$<TARGET_FILE:${_false_target}>:/bin/false"
             --guest-bin "$<TARGET_FILE:${_heapprobe_target}>:/bin/heapprobe"
+            --guest-bin "$<TARGET_FILE:${_syscall_guard_target}>:/bin/syscall-guard"
             --guest-bin "$<TARGET_FILE:${_holdsvc_target}>:/bin/holdsvc"
             --guest-bin "$<TARGET_FILE:${_ls_target}>:/bin/ls"
             --guest-bin "$<TARGET_FILE:${_writefile_target}>:/bin/writefile"
@@ -2821,6 +2836,7 @@ function(xinim_add_x86_32_lane lane)
             ${_hello_target}
             ${_false_target}
             ${_heapprobe_target}
+            ${_syscall_guard_target}
             ${_ls_target}
             ${_writefile_target}
             ${_mkdir_target}
@@ -2909,6 +2925,7 @@ function(xinim_add_x86_32_lane lane)
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_gapcheck_target}>" "${_stage_dir}/boot/gapcheck"
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_false_target}>" "${_stage_dir}/boot/false"
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_heapprobe_target}>" "${_stage_dir}/boot/heapprobe"
+                COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_syscall_guard_target}>" "${_stage_dir}/boot/syscall-guard"
                 COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_holdsvc_target}>" "${_stage_dir}/boot/holdsvc"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_cat_binary}" "${_stage_dir}/boot/cat"
                 COMMAND ${CMAKE_COMMAND} -E copy "${_echo_binary}" "${_stage_dir}/boot/echo"
@@ -3006,6 +3023,7 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_gapcheck_target}>" "${_stage_dir}/bin/gapcheck"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_false_target}>" "${_stage_dir}/bin/false"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_heapprobe_target}>" "${_stage_dir}/bin/heapprobe"
+            COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_syscall_guard_target}>" "${_stage_dir}/bin/syscall-guard"
             COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:${_holdsvc_target}>" "${_stage_dir}/bin/holdsvc"
             COMMAND ${CMAKE_COMMAND} -E copy "${_cat_binary}" "${_stage_dir}/bin/cat"
             COMMAND ${CMAKE_COMMAND} -E copy "${_echo_binary}" "${_stage_dir}/bin/echo"
@@ -3121,6 +3139,7 @@ function(xinim_add_x86_32_lane lane)
                 ${_hello_target}
                 ${_false_target}
                 ${_heapprobe_target}
+                ${_syscall_guard_target}
                 ${_holdsvc_target}
                 ${_posix_util_targets}
                 xinim_bootstrap_grub

@@ -991,9 +991,7 @@ bool read_symlink_target(const Ext2Inode& inode,
     }
     // Long symlink: read from data block
     uint32_t bytes_read = 0U;
-    // Const-cast needed because read_inode_range takes non-const (reads blocks)
-    auto& mutable_inode = const_cast<Ext2Inode&>(inode);
-    if (!read_inode_range(mutable_inode, 0U,
+    if (!read_inode_range(inode, 0U,
                           reinterpret_cast<uint8_t*>(target), length, bytes_read) ||
         bytes_read != length) {
         return false;

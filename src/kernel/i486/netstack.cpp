@@ -269,7 +269,7 @@ void handle_ipv4(const uint8_t* frame, uint32_t length) noexcept {
 
     // Cache sender's ARP entry
     const auto* eth = reinterpret_cast<const EthernetHeader*>(frame);
-    arp_cache_add(ip->src_ip, const_cast<uint8_t*>(eth->src));
+    arp_cache_add(ip->src_ip, eth->src);
 
     switch (ip->protocol) {
     case IP_PROTO_ICMP:

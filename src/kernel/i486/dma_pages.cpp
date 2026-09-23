@@ -116,6 +116,8 @@ DmaBuffer reserve(uint32_t size, uint32_t alignment) noexcept {
     if (aligned_cursor > g_bump_end || size > g_bump_end - aligned_cursor) {
         return {nullptr, 0U};
     }
+    // The allocator returns an identity-mapped physical RAM address.
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
     auto *address = reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(aligned_cursor));
     g_bump_cursor = static_cast<uint32_t>(aligned_cursor + size);
     return {address, size};

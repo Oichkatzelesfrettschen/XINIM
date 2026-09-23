@@ -75,11 +75,12 @@ void release_controlling_terminal(Process& process, bool continue_foreground) no
     if (owns_controlling_terminal(process) && process.pid == process.session_id) {
         const int foreground = bootfs::foreground_pgrp();
         if (foreground > 0) {
+            const Process* excluded = continue_foreground ? nullptr : &process;
             signal_session_group(process, static_cast<uint32_t>(foreground),
-                                 kSigHup, &process);
+                                 kSigHup, excluded);
             if (continue_foreground) {
                 signal_session_group(process, static_cast<uint32_t>(foreground),
-                                     kSigCont, &process);
+                                     kSigCont, excluded);
             }
         }
         for (auto& member : g_processes) {

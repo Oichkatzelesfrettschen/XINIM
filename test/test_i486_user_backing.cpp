@@ -82,6 +82,11 @@ int main() {
     CHECK(!i486::user_backing::initialize());
     CHECK(i486::user_backing::capacity_images() == 0U);
     CHECK(i486::user_backing::acquire() == nullptr);
+    memory_range.length = uint64_t{2U} * i486::user_backing::kImageBytes +
+                          uint64_t{1024U} * 1024U + uint64_t{2U} * kPageBytes;
+    i486::dma::initialize(boot_info, kernel, metadata);
+    CHECK(!i486::user_backing::initialize());
+    CHECK(i486::user_backing::capacity_images() == 0U);
     memory_range.length = uint64_t{24U} * 1024U * 1024U;
     i486::dma::initialize(boot_info, kernel, metadata);
     CHECK(i486::user_backing::initialize());

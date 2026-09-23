@@ -25,13 +25,13 @@ inline void outl(uint16_t port, uint32_t value) noexcept {
     asm volatile("outl %0, %1" : : "a"(value), "Nd"(port));
 }
 inline uint8_t inb(uint16_t port) noexcept {
-    uint8_t v; asm volatile("inb %1, %0" : "=a"(v) : "Nd"(port)); return v;
+    uint8_t v = 0U; asm volatile("inb %1, %0" : "=a"(v) : "Nd"(port)); return v;
 }
 inline uint16_t inw(uint16_t port) noexcept {
-    uint16_t v; asm volatile("inw %1, %0" : "=a"(v) : "Nd"(port)); return v;
+    uint16_t v = 0U; asm volatile("inw %1, %0" : "=a"(v) : "Nd"(port)); return v;
 }
 inline uint32_t inl(uint16_t port) noexcept {
-    uint32_t v; asm volatile("inl %1, %0" : "=a"(v) : "Nd"(port)); return v;
+    uint32_t v = 0U; asm volatile("inl %1, %0" : "=a"(v) : "Nd"(port)); return v;
 }
 
 // VirtIO constants

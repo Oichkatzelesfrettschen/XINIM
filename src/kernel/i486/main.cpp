@@ -111,6 +111,8 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     xinim::i486::console::newline();
     const uintptr_t kernel_start = reinterpret_cast<uintptr_t>(xinim_kernel_start);
     const uintptr_t kernel_end = reinterpret_cast<uintptr_t>(xinim_kernel_end);
+    // Multiboot supplies an identity-mapped physical information address.
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
     const uint32_t boot_info_size = *reinterpret_cast<const uint32_t*>(info_addr);
     xinim::i486::dma::initialize(info, {kernel_start, kernel_end - kernel_start},
                                {info_addr, boot_info_size});

@@ -145,7 +145,7 @@ static int ramfs_write(uint32_t ino, const void* buf, uint32_t len, int64_t off)
 
 arena_write:;
     // Large write -- use data arena
-    uint8_t* data;
+    uint8_t* data = nullptr;
     if (!(inode->iflags & INODE_IS_INLINE) && inode->size > 0) {
         // Already arena-backed
         data = data_arena_ptr(static_cast<uint32_t>(inode->data_block_off));

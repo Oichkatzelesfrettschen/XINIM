@@ -11,7 +11,6 @@ using ring3::Process;
 using ring3::ProcessState;
 using ring3::g_processes;
 using ring3::g_current_process;
-using ring3::kMaxProcesses;
 
 bool str_eq(const char* a, const char* b) noexcept {
     while (*a != '\0' && *b != '\0') {

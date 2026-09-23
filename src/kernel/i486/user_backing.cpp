@@ -42,7 +42,8 @@ namespace xinim::i486::user_backing {
         if (capacity > kMaximumImages) {
             capacity = kMaximumImages;
         }
-        if (capacity < 2U) {
+        // The init shell and hold service need two images plus an exec candidate.
+        if (capacity < 3U) {
             return false;
         }
         const dma::DmaBuffer arena = dma::reserve(capacity * kImageBytes);

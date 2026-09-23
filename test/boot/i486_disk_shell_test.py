@@ -89,6 +89,7 @@ def run(args: argparse.Namespace) -> None:
                          r"^shell=/bin/mksh pid=1$"),
                         ("exec", "/bin/hello qemu486", r"^argv\[1\]: qemu486$"),
                         ("heap", "/bin/heapprobe", r"^heapprobe: ok$"),
+                        ("syscall-guard", "/bin/syscall-guard", r"^syscall-guard: ok$"),
                         ("pipe", "printf 'beta\\nalpha\\n' | sort | head -n 1", r"^alpha$"),
                         ("ext2", "printf disk-data > /persist/qemu-check && "
                          "cat /persist/qemu-check && echo", r"^disk-data$"),

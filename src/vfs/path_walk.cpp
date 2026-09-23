@@ -168,7 +168,7 @@ uint32_t path_walk(const char* path) {
     const char* p = path;
 
     for (;;) {
-        uint8_t     len;
+        uint8_t     len = 0U;
         const char* comp = next_component(p, &len);
         p = comp + len; // advance past component
 
@@ -220,7 +220,7 @@ uint32_t path_walk_parent(const char* path,
 
     const char* p = path;
     for (;;) {
-        uint8_t     len;
+        uint8_t     len = 0U;
         const char* comp = next_component(p, &len);
         p = comp + len;
         if (len == 0) {
