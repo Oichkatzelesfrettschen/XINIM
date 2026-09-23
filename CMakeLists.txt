@@ -5101,6 +5101,7 @@ set_tests_properties(test_i486_user_backing PROPERTIES
 add_executable(test_i486_scheduler_wait
     test/test_i486_scheduler_wait.cpp
     src/kernel/i486/sched.cpp
+    src/kernel/i486/signal.cpp
 )
 target_compile_features(test_i486_scheduler_wait PRIVATE cxx_std_23)
 target_include_directories(test_i486_scheduler_wait PRIVATE ${CMAKE_SOURCE_DIR}/include)

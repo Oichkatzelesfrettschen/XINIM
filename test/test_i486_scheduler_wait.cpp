@@ -91,6 +91,10 @@ int main() {
     caller.signals.blocked = caller.signals.pending;
     CHECK(!block_current_process_until_rescheduled(&caller, WaitReason::ConsoleInput, 0U));
     CHECK(switch_count == 0U);
+    caller.signals.pending = 1U << kSigKill;
+    caller.signals.blocked = caller.signals.pending;
+    CHECK(block_current_process_until_rescheduled(&caller, WaitReason::ConsoleInput, 0U));
+    CHECK(switch_count == 0U);
     caller.signals.pending = 0U;
     caller.signals.blocked = 0U;
 
