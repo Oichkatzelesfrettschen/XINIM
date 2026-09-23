@@ -2091,9 +2091,11 @@ function(xinim_add_x86_32_lane lane)
 
     add_custom_command(
         OUTPUT "${_mksh_source_dir}/Build.sh" "${_mksh_source_metadata}"
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py
+            --archive "${CMAKE_SOURCE_DIR}/third_party/distfiles/mksh-R59c.tgz"
             --source-dir "${_mksh_source_dir}"
         DEPENDS "${CMAKE_SOURCE_DIR}/scripts/acquire_mksh_source.py"
+            "${CMAKE_SOURCE_DIR}/third_party/distfiles/mksh-R59c.tgz"
         COMMENT "Acquiring pinned mksh R59c source for ${lane}"
         VERBATIM
     )

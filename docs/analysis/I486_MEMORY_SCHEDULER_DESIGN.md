@@ -116,7 +116,7 @@ The allocation-exhaustion and zeroing unit test and the
 live images (8,388,608 B) and three reserved images (12,582,912 B) after
 service initialization. The disk tests execute an invalid ELF from
 `/persist`, then execute `/bin/hello` in the same shell. The final full
-i486 selector passes all 31 CTest entries in 808.15 seconds; its output is
+i486 selector passes all 31 CTest entries in 814.47 seconds; its output is
 retained at `build/i486/Debug/evidence/i486-user-backing-final-ctest.log`.
 
 The segmentation exposure described above remains open. Neither the backing

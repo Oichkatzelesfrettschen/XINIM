@@ -292,6 +292,13 @@ command line; the linker retains the freestanding `-nostdlib` boundary.
 The final compile database records the header choice for `bootfs.cpp` and
 `hello_i486.cpp` and excludes the flag for `entry.S`.
 
+The public runner cannot route to the original mksh R59c HTTP host. The
+exact 442,736-byte upstream archive is retained at
+`third_party/distfiles/mksh-R59c.tgz` with SHA-256
+`77ae1665a337f1c48c61d6b961db3e52119b38e58884d1c89684af31f87bc506`.
+The i486 CMake command passes those bytes to the existing digest and archive
+member validator. The vendor source is extracted unchanged.
+
 ## Bounded architecture result
 
 The initial boot repair preserved static process storage. The follow-up
