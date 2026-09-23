@@ -74,6 +74,14 @@ int main() {
     CHECK(set_terminal_foreground(other_session, 4) == kErrnoNoTTY);
     CHECK(set_terminal_foreground(leader, static_cast<int32_t>(child.pgid)) == 0U);
     CHECK(foreground_group == 2);
+    other_session.pgid = child.pgid; // Conflicting group proves session scoping.
+    signal_foreground_terminal_group(kSigInt);
+    CHECK((child.signals.pending & (1U << kSigInt)) != 0U);
+    CHECK((peer.signals.pending & (1U << kSigInt)) != 0U);
+    CHECK((leader.signals.pending & (1U << kSigInt)) == 0U);
+    CHECK((other_session.signals.pending & (1U << kSigInt)) == 0U);
+    child.signals.pending &= ~(1U << kSigInt);
+    peer.signals.pending &= ~(1U << kSigInt);
     CHECK(set_terminal_foreground(leader, 1) == kErrnoIntr);
     CHECK((leader.signals.pending & (1U << kSigTtou)) != 0U);
     leader.signals.blocked = 1U << kSigTtou;
@@ -87,7 +95,6 @@ int main() {
     background.ppid = leader.pid;
     inherit_process_session(background, leader);
     background.pgid = background.pid;
-    other_session.pgid = child.pgid; // Conflicting fixture group proves session scoping.
     release_controlling_terminal(leader);
     CHECK((child.signals.pending & (1U << kSigHup)) != 0U);
     CHECK((peer.signals.pending & (1U << kSigHup)) != 0U);
@@ -97,6 +104,9 @@ int main() {
     CHECK(!child.has_controlling_terminal && !peer.has_controlling_terminal);
     CHECK(!background.has_controlling_terminal);
     CHECK(foreground_group == 0);
+    signal_foreground_terminal_group(kSigTstp);
+    CHECK((child.signals.pending & (1U << kSigTstp)) == 0U);
+    CHECK((peer.signals.pending & (1U << kSigTstp)) == 0U);
 
     // A former session member may create a new session; terminal ownership
     // follows the session leader and survives unrelated supervisor restarts.

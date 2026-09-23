@@ -20,6 +20,7 @@ void inherit_process_session(Process& child, const Process& parent) noexcept;
 [[nodiscard]] bool owns_controlling_terminal(const Process& process) noexcept;
 [[nodiscard]] uint32_t acquire_controlling_terminal(Process& process) noexcept;
 void release_controlling_terminal(Process& process, bool continue_foreground = false) noexcept;
+void signal_foreground_terminal_group(uint32_t signum) noexcept;
 [[nodiscard]] uint32_t set_terminal_foreground(Process& process, int32_t pgid) noexcept;
 [[noreturn]] void terminate_current_process_from_signal(uint32_t status) noexcept;
 [[nodiscard]] Process* find_process(uint32_t pid) noexcept;

@@ -39,6 +39,13 @@ void send_signal_to_process(Process* target, uint32_t signum) noexcept {
     if (target == nullptr || signum == 0U || signum >= kMaxSignals) {
         return;
     }
+    constexpr uint32_t kStopSignals = (1U << kSigStop) | (1U << kSigTstp) |
+                                      (1U << kSigTtin) | (1U << kSigTtou);
+    if (signum == kSigCont) {
+        target->signals.pending &= ~kStopSignals;
+    } else if ((kStopSignals & (1U << signum)) != 0U) {
+        target->signals.pending &= ~(1U << kSigCont);
+    }
     target->signals.pending |= (1U << signum);
     if ((signum == kSigCont || signum == kSigKill) && target->state == ProcessState::Stopped) {
         target->state = ProcessState::Runnable;

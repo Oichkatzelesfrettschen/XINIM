@@ -30,16 +30,28 @@ xinim::i486::ring3::Process* terminated_process = nullptr;
 uint32_t termination_status = 0U;
 bool input_ready = false;
 uint32_t timer_eoi_count = 0U;
+uint32_t queued_console_signal = 0U;
+uint32_t queued_ldisc_signal = 0U;
+uint32_t routed_signals[2]{};
+size_t routed_signal_count = 0U;
 }
 
 namespace xinim::i486::console {
 bool tty_has_input() noexcept { return input_ready; }
 void tty_poll_input() noexcept {}
-uint32_t consume_pending_tty_signal() noexcept { return 0U; }
+uint32_t consume_pending_tty_signal() noexcept {
+    const uint32_t signum = queued_console_signal;
+    queued_console_signal = 0U;
+    return signum;
+}
 }
 
 namespace xinim::i486::tty {
-uint32_t consume_pending_ldisc_signal() noexcept { return 0U; }
+uint32_t consume_pending_ldisc_signal() noexcept {
+    const uint32_t signum = queued_ldisc_signal;
+    queued_ldisc_signal = 0U;
+    return signum;
+}
 }
 
 namespace xinim::kernel::bootfs {
@@ -61,6 +73,11 @@ int process_slot_index(const Process* process) noexcept {
     return process == nullptr ? -1 : static_cast<int>(process - g_processes);
 }
 void activate_process(Process* process) noexcept { g_current_process = process; }
+void signal_foreground_terminal_group(uint32_t signum) noexcept {
+    if (routed_signal_count < 2U) {
+        routed_signals[routed_signal_count++] = signum;
+    }
+}
 Process* find_process(uint32_t pid) noexcept {
     for (auto& process : g_processes) {
         if (process.in_use && process.pid == pid) {
@@ -112,6 +129,9 @@ void prepare_processes() {
     completed_result = 0U;
     input_ready = false;
     timer_eoi_count = 0U;
+    queued_console_signal = 0U;
+    queued_ldisc_signal = 0U;
+    routed_signal_count = 0U;
     g_scheduler_ticks = 0U;
 }
 
@@ -202,6 +222,26 @@ int main() {
             CHECK(resumed_context == &stopped.context);
             CHECK(terminated_process == nullptr);
         }
+    }
+
+    for (const uint32_t stop_signal : {kSigStop, kSigTstp, kSigTtin, kSigTtou}) {
+        prepare_processes();
+        Process& stopped = g_processes[0];
+        stopped.state = ProcessState::Stopped;
+        stopped.signals.pending = 1U << stop_signal;
+        send_signal_to_process(&stopped, kSigCont);
+        CHECK(stopped.state == ProcessState::Runnable);
+        CHECK((stopped.signals.pending & (1U << stop_signal)) == 0U);
+        CHECK((stopped.signals.pending & (1U << kSigCont)) != 0U);
+        CHECK(capture_dispatch() == kReturnedToUser);
+        CHECK(resumed_context == &stopped.context);
+
+        prepare_processes();
+        Process& running = g_processes[0];
+        running.signals.pending = 1U << kSigCont;
+        send_signal_to_process(&running, stop_signal);
+        CHECK((running.signals.pending & (1U << kSigCont)) == 0U);
+        CHECK((running.signals.pending & (1U << stop_signal)) != 0U);
     }
 
     // SIGKILL wakes a stopped task and bypasses a restored mask and active handler.
@@ -331,6 +371,15 @@ int main() {
     waiter.signals.blocked = 1U << kSigKill;
     waiter.signals.handlers[kSigKill].handler = kSigIgn;
     CHECK(has_interrupting_signal(waiter));
+
+    prepare_processes();
+    queued_console_signal = kSigInt;
+    queued_ldisc_signal = kSigTstp;
+    CHECK(capture_timer_irq() == kReturnedToUser);
+    CHECK(routed_signal_count == 2U);
+    CHECK(routed_signals[0] == kSigInt);
+    CHECK(routed_signals[1] == kSigTstp);
+    CHECK(g_processes[0].signals.pending == 0U);
 
     // Saturated CPU-bound peers rotate through occupied slots and wrap after
     // quantum expiry; a fixed slot-zero scan would starve later peers forever.

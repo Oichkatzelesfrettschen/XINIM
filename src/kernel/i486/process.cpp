@@ -96,6 +96,21 @@ void release_controlling_terminal(Process& process, bool continue_foreground) no
     process.has_controlling_terminal = false;
 }
 
+void signal_foreground_terminal_group(uint32_t signum) noexcept {
+    const int foreground = bootfs::foreground_pgrp();
+    if (signum == 0U || signum >= kMaxSignals ||
+        foreground <= 0 || g_console_session_id == 0U) {
+        return;
+    }
+    for (auto& member : g_processes) {
+        if (member.in_use && member.state != ProcessState::Exited &&
+            member.pgid == static_cast<uint32_t>(foreground) &&
+            owns_controlling_terminal(member)) {
+            send_signal_to_process(&member, signum);
+        }
+    }
+}
+
 void initialize_supervised_session(Process& process, bool console_owner) noexcept {
     release_controlling_terminal(process);
     process.session_id = process.pid;

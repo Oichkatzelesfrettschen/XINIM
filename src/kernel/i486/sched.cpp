@@ -321,14 +321,14 @@ extern "C" [[noreturn]] void i486_handle_timer_irq(RegisterFrame* frame) noexcep
     console::tty_poll_input();
 
     const uint32_t tty_signal = console::consume_pending_tty_signal();
-    if (tty_signal != 0U && current != nullptr && current->in_use) {
-        send_signal_to_process(current, tty_signal);
+    if (tty_signal != 0U) {
+        signal_foreground_terminal_group(tty_signal);
     }
 
     // Line discipline signals (ISIG: works for serial input too)
     const uint32_t ldisc_signal = tty::consume_pending_ldisc_signal();
-    if (ldisc_signal != 0U && current != nullptr && current->in_use) {
-        send_signal_to_process(current, ldisc_signal);
+    if (ldisc_signal != 0U) {
+        signal_foreground_terminal_group(ldisc_signal);
     }
 
     for (auto& proc : g_processes) {
