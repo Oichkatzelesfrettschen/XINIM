@@ -1,18 +1,19 @@
-#include <stddef.h>
-#include <stdint.h>
-
-#include "console.hpp"
+#include "../../vfs/bootfs_promote.hpp"
 #include "bootfs.hpp"
+#include "console.hpp"
+#include "dma_pages.hpp"
 #include "ext2_reader.hpp"
 #include "ide.hpp"
+#include "netstack.hpp"
 #include "ring3.hpp"
 #include "shell.hpp"
-#include "dma_pages.hpp"
+#include "user_backing.hpp"
 #include "virtio_net_i486.hpp"
-#include "netstack.hpp"
-#include "../../vfs/bootfs_promote.hpp"
 #include "xinim/boot/multiboot2_shim.hpp"
 #include "xinim/pci/pci.hpp"
+
+#include <stddef.h>
+#include <stdint.h>
 
 extern "C" uint8_t xinim_kernel_start[];
 extern "C" uint8_t xinim_kernel_end[];
@@ -117,6 +118,13 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     xinim::i486::console::write_dec32(xinim::i486::dma::available_bytes() / 1024U);
     xinim::i486::console::write_string(" KB available");
     xinim::i486::console::newline();
+
+    if (!xinim::i486::user_backing::initialize()) {
+        write_key_value("process images", "reservation failed");
+        halt_forever();
+    }
+    write_key_dec("process image capacity", xinim::i486::user_backing::capacity_images());
+    write_key_dec("process arena bytes", xinim::i486::user_backing::capacity_bytes());
 
     xinim::i486::ide::initialize();
     if (xinim::pci::PCI::initialize()) {

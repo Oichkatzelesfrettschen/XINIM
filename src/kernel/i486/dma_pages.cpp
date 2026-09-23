@@ -106,7 +106,7 @@ void initialize(const boot::BootInfo& info, PhysicalRange kernel,
     }
 }
 
-DmaBuffer allocate(uint32_t size, uint32_t alignment) noexcept {
+DmaBuffer reserve(uint32_t size, uint32_t alignment) noexcept {
     if (size == 0U || alignment == 0U || (alignment & (alignment - 1U)) != 0U ||
         g_bump_cursor == 0U) {
         return {nullptr, 0U};
@@ -116,12 +116,19 @@ DmaBuffer allocate(uint32_t size, uint32_t alignment) noexcept {
     if (aligned_cursor > g_bump_end || size > g_bump_end - aligned_cursor) {
         return {nullptr, 0U};
     }
-    auto* address = reinterpret_cast<uint8_t*>(static_cast<uintptr_t>(aligned_cursor));
-    for (uint32_t index = 0U; index < size; ++index) {
-        address[index] = 0U;
-    }
+    auto *address = reinterpret_cast<uint8_t *>(static_cast<uintptr_t>(aligned_cursor));
     g_bump_cursor = static_cast<uint32_t>(aligned_cursor + size);
     return {address, size};
+}
+
+DmaBuffer allocate(uint32_t size, uint32_t alignment) noexcept {
+    const DmaBuffer buffer = reserve(size, alignment);
+    if (buffer.address != nullptr) {
+        for (uint32_t index = 0U; index < size; ++index) {
+            buffer.address[index] = 0U;
+        }
+    }
+    return buffer;
 }
 
 void free(const DmaBuffer& buffer) noexcept {

@@ -2845,7 +2845,7 @@ function(xinim_add_x86_32_lane lane)
                 --target i486_boot_disk -j2)
         set_tests_properties(prepare_i486_boot_disk PROPERTIES
             FIXTURES_SETUP i486_boot_disk LABELS "integration;boot;i486;prepare" TIMEOUT 180)
-        foreach(_disk_memory IN ITEMS 64M 256M)
+        foreach(_disk_memory IN ITEMS 32M 64M 256M)
             add_test(NAME i486_disk_shell_${_disk_memory}
                 COMMAND ${XINIM_PYTHON3_EXECUTABLE}
                     ${CMAKE_SOURCE_DIR}/test/boot/i486_disk_shell_test.py

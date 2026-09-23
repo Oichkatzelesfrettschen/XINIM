@@ -19,6 +19,8 @@ struct PhysicalRange {
 void initialize(const boot::BootInfo& info, PhysicalRange kernel,
                 PhysicalRange boot_metadata) noexcept;
 DmaBuffer allocate(uint32_t size, uint32_t alignment = 4096U) noexcept;
+// Reserve physical space without touching it; the owner initializes bytes on use.
+DmaBuffer reserve(uint32_t size, uint32_t alignment = 4096U) noexcept;
 void free(const DmaBuffer& buffer) noexcept;
 uint32_t available_bytes() noexcept;
 

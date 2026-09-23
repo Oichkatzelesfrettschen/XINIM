@@ -43,11 +43,14 @@ int main() {
     const i486::dma::PhysicalRange metadata{base + 27U * kPageSize + 11U, kPageSize};
     i486::dma::initialize(info, kernel, metadata);
     CHECK(i486::dma::available_bytes() == 8U * kPageSize);
+    const auto reserved = i486::dma::reserve(kPageSize);
+    CHECK(reserved.address == bytes + 8U * kPageSize);
+    CHECK(bytes[8U * kPageSize] == 0xA5U);
     const auto buffer = i486::dma::allocate(2U * kPageSize);
-    CHECK(buffer.address == bytes + 8U * kPageSize);
+    CHECK(buffer.address == bytes + 9U * kPageSize);
     CHECK(buffer.size == 2U * kPageSize);
     for (uint32_t index = 0U; index < kArenaSize; ++index) {
-        const uint8_t expected = index >= 8U * kPageSize && index < 10U * kPageSize ? 0U : 0xA5U;
+        const uint8_t expected = index >= 9U * kPageSize && index < 11U * kPageSize ? 0U : 0xA5U;
         CHECK(bytes[index] == expected);
     }
     const uint32_t remaining = i486::dma::available_bytes();

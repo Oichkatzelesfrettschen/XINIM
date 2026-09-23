@@ -2,6 +2,8 @@
 
 #include "dma_pages.hpp"
 
+#include <stddef.h>
+
 namespace xinim::i486::user_backing {
     namespace {
 
@@ -13,6 +15,9 @@ namespace xinim::i486::user_backing {
         ImageSlot g_images[kMaximumImages]{};
         uint32_t g_live_images = 0U;
         uint32_t g_reserved_images = 0U;
+        uint32_t g_capacity_images = 0U;
+        // Two 256-entry virtqueues and 384 KiB of RX buffers fit below this floor.
+        constexpr uint32_t kDeviceBudgetBytes = 1024U * 1024U;
 
         void clear_image(uint8_t *image) noexcept {
             for (uint32_t offset = 0U; offset < kImageBytes; ++offset) {
@@ -22,25 +27,54 @@ namespace xinim::i486::user_backing {
 
     } // namespace
 
+    bool initialize() noexcept {
+        if (g_live_images != 0U) {
+            return false;
+        }
+        for (auto &slot : g_images) {
+            slot = {nullptr, false};
+        }
+        g_capacity_images = 0U;
+        g_reserved_images = 0U;
+        const uint32_t available = dma::available_bytes();
+        uint32_t capacity =
+            available > kDeviceBudgetBytes ? (available - kDeviceBudgetBytes) / kImageBytes : 0U;
+        if (capacity > kMaximumImages) {
+            capacity = kMaximumImages;
+        }
+        if (capacity < 2U) {
+            return false;
+        }
+        const dma::DmaBuffer arena = dma::reserve(capacity * kImageBytes);
+        if (arena.address == nullptr) {
+            return false;
+        }
+        for (uint32_t index = 0U; index < kMaximumImages; ++index) {
+            g_images[index] = {index < capacity
+                                   ? arena.address + static_cast<size_t>(index) * kImageBytes
+                                   : nullptr,
+                               false};
+        }
+        g_capacity_images = capacity;
+        return true;
+    }
+
+    uint32_t capacity_images() noexcept {
+        return g_capacity_images;
+    }
+    uint32_t capacity_bytes() noexcept {
+        return g_capacity_images * kImageBytes;
+    }
+
     uint8_t *acquire() noexcept {
         for (auto &slot : g_images) {
             if (slot.address != nullptr && !slot.in_use) {
                 clear_image(slot.address);
                 slot.in_use = true;
                 ++g_live_images;
-                return slot.address;
-            }
-        }
-        for (auto &slot : g_images) {
-            if (slot.address == nullptr) {
-                const dma::DmaBuffer backing = dma::allocate(kImageBytes);
-                if (backing.address == nullptr || backing.size != kImageBytes) {
-                    return nullptr;
+                if (g_live_images > g_reserved_images) {
+                    g_reserved_images = g_live_images;
                 }
-                slot.address = backing.address;
-                slot.in_use = true;
-                ++g_live_images;
-                ++g_reserved_images;
                 return slot.address;
             }
         }

@@ -103,10 +103,26 @@ descriptors. Released image slots are zeroed on reuse; the DMA bump
 allocator retains their physical storage for the lifetime of the boot.
 The eight-process policy therefore permits at most nine reserved images, or
 36 MiB. `live_bytes()` reports occupied images; `reserved_bytes()` reports
-the high-water reservation. Neither count is a physical peak-RAM measurement.
+the materialized image high-water count. Neither count is a physical peak-RAM
+measurement.
 
-The rebuilt Debug kernel has 3,478,736 B of linked BSS and an eight-entry
-`g_processes` array of `0x49680` B. The pre-memory-change build reported
+The boot path now reserves a disjoint image arena immediately after the DMA
+pool is selected and before device initialization. The arena contains at most
+nine 4 MiB slots and leaves at least 1 MiB for the two virtio rings, RX
+buffers, and bootstrap device traffic. Reservation does not clear all slots;
+each acquisition clears its image before publication. Process admission stops
+one slot short of arena capacity so a full process table can still prepare a
+replacement image for `exec`. `capacity_bytes()` reports the physical span
+removed from device allocation, while `reserved_bytes()` retains the image
+materialization high-water count. The remaining device pool is still
+monotonic: per-packet TX allocation can exhaust network capacity, but cannot
+consume a process image. The 32 MiB QEMU disk-shell run reports 27,136 KiB
+initially available, six reserved images (24 MiB), and a passing Ring 3
+fork/exec/respawn sequence. The arena policy admits five processes at that
+memory size; the sixth image remains available for transactional `exec`.
+
+The earlier process-backing Debug kernel had 3,478,736 B of linked BSS and an
+eight-entry `g_processes` array of `0x49680` B. The pre-memory-change build reported
 37,033,024 B of BSS and `0x2049600` B for that array. The reduction in
 linked BSS is approximately 32 MiB; each admitted image still consumes
 4 MiB at runtime. The measured ELF SHA-256 is

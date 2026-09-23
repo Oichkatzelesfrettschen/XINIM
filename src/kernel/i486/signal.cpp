@@ -40,7 +40,7 @@ void send_signal_to_process(Process* target, uint32_t signum) noexcept {
         return;
     }
     target->signals.pending |= (1U << signum);
-    if (signum == kSigCont && target->state == ProcessState::Stopped) {
+    if ((signum == kSigCont || signum == kSigKill) && target->state == ProcessState::Stopped) {
         target->state = ProcessState::Runnable;
     }
     if (target->state == ProcessState::Waiting) {
@@ -50,11 +50,19 @@ void send_signal_to_process(Process* target, uint32_t signum) noexcept {
     }
 }
 
+uint32_t pending_signals_for_delivery(const Process &process) noexcept {
+    constexpr uint32_t kUnblockable = (1U << kSigKill) | (1U << kSigStop);
+    return process.signals.pending & (~process.signals.blocked | kUnblockable);
+}
+
 bool has_interrupting_signal(const Process& process) noexcept {
-    const uint32_t pending = process.signals.pending & ~process.signals.blocked;
+    const uint32_t pending = pending_signals_for_delivery(process);
     for (uint32_t signum = 1U; signum < kMaxSignals; ++signum) {
         if ((pending & (1U << signum)) == 0U) {
             continue;
+        }
+        if (signum == kSigKill || signum == kSigStop) {
+            return true;
         }
         const uint32_t handler = process.signals.handlers[signum].handler;
         if (handler != kSigIgn && !(handler == kSigDfl && is_default_ignore(signum))) {
@@ -65,18 +73,25 @@ bool has_interrupting_signal(const Process& process) noexcept {
 }
 
 bool deliver_one_signal(Process* process) noexcept {
-    if (process == nullptr || process->signals.in_handler) {
+    if (process == nullptr) {
         return false;
     }
 
-    const uint32_t deliverable = process->signals.pending & ~process->signals.blocked;
+    const uint32_t deliverable = pending_signals_for_delivery(*process);
     if (deliverable == 0U) {
         return false;
     }
 
+    constexpr uint32_t kUnblockable = (1U << kSigKill) | (1U << kSigStop);
+    const uint32_t urgent = deliverable & kUnblockable;
+    if (process->signals.in_handler && urgent == 0U) {
+        return false;
+    }
+    const uint32_t selectable = urgent != 0U ? urgent : deliverable;
+
     uint32_t signum = 0U;
     for (uint32_t i = 1U; i < kMaxSignals; ++i) {
-        if ((deliverable & (1U << i)) != 0U) {
+        if ((selectable & (1U << i)) != 0U) {
             signum = i;
             break;
         }
@@ -88,12 +103,13 @@ bool deliver_one_signal(Process* process) noexcept {
     process->signals.pending &= ~(1U << signum);
 
     const SignalHandler32& handler = process->signals.handlers[signum];
+    const uint32_t action = (kUnblockable & (1U << signum)) != 0U ? kSigDfl : handler.handler;
 
-    if (handler.handler == kSigIgn) {
+    if (action == kSigIgn) {
         return false;
     }
 
-    if (handler.handler == kSigDfl) {
+    if (action == kSigDfl) {
         if (is_default_ignore(signum)) {
             return false;
         }

@@ -204,6 +204,32 @@ int main() {
         }
     }
 
+    // SIGKILL wakes a stopped task and bypasses a restored mask and active handler.
+    for (const bool blocked : {false, true}) {
+        for (const bool in_handler : {false, true}) {
+            prepare_processes();
+            Process &stopped = g_processes[0];
+            stopped.state = ProcessState::Stopped;
+            stopped.signals.blocked = blocked ? (1U << kSigKill) : 0U;
+            stopped.signals.in_handler = in_handler;
+            stopped.signals.handlers[kSigKill].handler = kSigIgn;
+            send_signal_to_process(&stopped, kSigKill);
+            CHECK(stopped.state == ProcessState::Runnable);
+            CHECK(capture_dispatch() == kTerminated);
+            CHECK(terminated_process == &stopped);
+            CHECK(termination_status == 128U + kSigKill);
+            CHECK(resumed_context == nullptr);
+        }
+    }
+
+    prepare_processes();
+    g_processes[0].signals.blocked = 1U << kSigStop;
+    g_processes[0].signals.in_handler = true;
+    g_processes[0].signals.pending = 1U << kSigStop;
+    CHECK(capture_dispatch() == kReturnedToUser);
+    CHECK(g_processes[0].state == ProcessState::Stopped);
+    CHECK(resumed_context == &g_processes[1].context);
+
     // Signal death must use the common teardown entry point. Its spy captures
     // control before real descriptor cleanup and service restart would run.
     for (const uint32_t signal : {kSigHup, kSigTerm}) {
@@ -222,6 +248,16 @@ int main() {
     CHECK(termination_status == 128U + kSigSegv);
     CHECK(terminated_process == &g_processes[0]);
     CHECK(resumed_context == nullptr);
+
+    for (const bool blocked : {false, true}) {
+        prepare_processes();
+        g_processes[0].signals.pending = 1U << kSigKill;
+        g_processes[0].signals.blocked = blocked ? (1U << kSigKill) : 0U;
+        g_processes[0].signals.in_handler = true;
+        CHECK(capture_syscall_return() == kTerminated);
+        CHECK(terminated_process == &g_processes[0]);
+        CHECK(termination_status == 128U + kSigKill);
+    }
 
     prepare_processes();
     CHECK(capture_invalid_sigreturn() == kTerminated);
@@ -290,6 +326,10 @@ int main() {
     waiter.signals.handlers[kSigHup].handler = kSigIgn;
     CHECK(!has_interrupting_signal(waiter));
     waiter.signals.handlers[kSigHup].handler = kSigDfl;
+    CHECK(has_interrupting_signal(waiter));
+    waiter.signals.pending = 1U << kSigKill;
+    waiter.signals.blocked = 1U << kSigKill;
+    waiter.signals.handlers[kSigKill].handler = kSigIgn;
     CHECK(has_interrupting_signal(waiter));
 
     // Saturated CPU-bound peers rotate through occupied slots and wrap after

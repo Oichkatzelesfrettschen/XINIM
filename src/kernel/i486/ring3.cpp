@@ -3456,8 +3456,7 @@ uint32_t dispatch_syscall(Process* process, RegisterFrame* frame) noexcept {
         }
         // Block until any unblocked signal is pending (even SIG_DFL ones like SIGCHLD)
         for (;;) {
-            const uint32_t deliverable =
-                process->signals.pending & ~process->signals.blocked;
+            const uint32_t deliverable = pending_signals_for_delivery(*process);
             if (deliverable != 0U) {
                 // Clear SIG_DFL-ignore signals (like SIGCHLD) from pending
                 // but still wake -- the process needs to call wait4

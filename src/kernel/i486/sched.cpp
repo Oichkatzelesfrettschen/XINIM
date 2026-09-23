@@ -239,8 +239,9 @@ void switch_process_context(Process* current, Process* next) noexcept {
 }
 
 uint32_t complete_syscall_return(Process* process, RegisterFrame* frame, uint32_t result) noexcept {
-    const uint32_t deliverable = process->signals.pending & ~process->signals.blocked;
-    if (deliverable != 0U && !process->signals.in_handler) {
+    const uint32_t deliverable = pending_signals_for_delivery(*process);
+    constexpr uint32_t kUnblockable = (1U << kSigKill) | (1U << kSigStop);
+    if (deliverable != 0U && (!process->signals.in_handler || (deliverable & kUnblockable) != 0U)) {
         process->context = capture_user_context(frame);
         process->context.eax = result;
         dispatch_process(process);
@@ -282,7 +283,7 @@ bool block_current_process_until_rescheduled(Process* process,
     process->state = ProcessState::Runnable;
     process->wait_reason = WaitReason::None;
     process->wake_tick = 0U;
-    const bool has_signal = (process->signals.pending & ~process->signals.blocked) != 0U;
+    const bool has_signal = pending_signals_for_delivery(*process) != 0U;
     activate_process(process);
 #ifdef XINIM_X86_32_TTY_TRACE
     if (g_trace_block_budget != 0U) {

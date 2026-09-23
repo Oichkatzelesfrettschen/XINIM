@@ -81,9 +81,12 @@ Leader departure signals the owning session's foreground group and
 detaches its members. Ordinary child departure releases only the child's
 association. Signal termination uses the normal exit lifecycle for
 descriptor release, parent notification, and service restart. Stopped
-processes leave user dispatch; SIGCONT makes them eligible again.
-Pending deliverable signals cross the syscall-return boundary before the
-caller resumes user instructions, including a shell sending SIGKILL to itself.
+processes leave user dispatch; SIGCONT makes them eligible again. SIGKILL
+also wakes a stopped process, bypasses a restored mask or active handler,
+and reaches the common termination path. The native dispatcher regression
+checks the stopped, masked, and in-handler cases. Pending deliverable signals
+cross the syscall-return boundary before the caller resumes user instructions,
+including a shell sending SIGKILL to itself.
 The disk regression checks both subshell survival and a supervised shell
 restart after an explicit `kill -KILL $$`.
 
@@ -167,11 +170,12 @@ existing recipes. QEMU is `qemu-system-x86` package `11.1.1-2`:
 -netdev user,id=net0,restrict=on -device virtio-net-pci,netdev=net0
 ```
 
-The disk tests attach VMDK or qcow2 with `snapshot=on`, write COM1 and COM2
-transcripts, retain the QEMU command/version and stderr, and compare base
-disk SHA-256 before and after each run. The controller sends SIGTERM after
-the bounded checks and records any required SIGKILL escalation. Guest
-execution, timeout, and controller termination have separate meanings.
+The disk tests run at 32, 64, and 256 MiB. They attach VMDK or qcow2 with
+`snapshot=on`, write COM1 and COM2 transcripts, retain the QEMU command/version
+and stderr, and compare the base disk SHA-256 before and after each run. The
+controller sends SIGTERM after the bounded checks and records any required
+SIGKILL escalation. Guest execution, timeout, and controller termination have
+separate meanings.
 
 ```sh
 cmake --preset i486-standalone
@@ -391,10 +395,12 @@ read-only `debugfs`. Local and Ubuntu 24.04 runs pass that inspection.
 ## Bounded architecture result
 
 The initial boot repair preserved static process storage. The follow-up
-process-backing change retains one contiguous DMA pool and reserves user
-images on admission. The final physical page below 4 GiB remains outside
-that pool so
-the exclusive end fits its 32-bit state. The Multiboot parser has fixed
+process-backing change retains one contiguous DMA pool and reserves a bounded
+image arena before device initialization. Admission leaves one image for a
+transactional exec, and DMA traffic cannot consume that arena. The 32 MiB
+QEMU disk-shell run reserves six images and passes fork, exec, and supervised
+respawn. The final physical page below 4 GiB remains outside that pool so the
+exclusive end fits its 32-bit state. The Multiboot parser has fixed
 capacities of 32 modules and 64 memory ranges; larger descriptions need
 explicit truncation handling before broader admission claims. The pinned
 QEMU boot reports six memory ranges and the generated disk loads fewer

@@ -139,6 +139,18 @@ def run(args: argparse.Namespace) -> None:
                     ):
                         if marker not in serial:
                             raise RuntimeError(f"missing kernel marker: {marker}")
+                    allocator = re.search(r"DMA allocator: (\d+) KB available", serial)
+                    arena = re.search(
+                        r"process image capacity: (\d+)\r?\nprocess arena bytes: (\d+)",
+                        serial,
+                    )
+                    if allocator is None or arena is None:
+                        raise RuntimeError("missing process arena reservation accounting")
+                    capacity, arena_bytes = map(int, arena.groups())
+                    available_bytes = int(allocator.group(1)) * 1024
+                    if not (2 <= capacity <= 9 and arena_bytes == capacity * 4 * 1024 * 1024
+                            and available_bytes - arena_bytes >= 1024 * 1024):
+                        raise RuntimeError("process reservation consumed the device budget")
                     backing = re.search(
                         r"i486 user backing live bytes=(\d+) reserved bytes=(\d+)", serial
                     )

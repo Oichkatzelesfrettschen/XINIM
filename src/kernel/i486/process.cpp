@@ -221,6 +221,16 @@ void initialize_context(Process* process,
 }
 
 Process* allocate_process(uint32_t parent_pid) noexcept {
+    uint32_t admitted = 0U;
+    for (const auto &process : g_processes) {
+        if (process.in_use) {
+            ++admitted;
+        }
+    }
+    const uint32_t capacity = user_backing::capacity_images();
+    if (capacity < 2U || admitted >= capacity - 1U) {
+        return nullptr;
+    }
     for (auto& process : g_processes) {
         if (!process.in_use) {
             uint8_t* backing = user_backing::acquire();
