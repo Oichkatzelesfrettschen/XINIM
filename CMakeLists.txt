@@ -1891,7 +1891,8 @@ function(xinim_x86_32_user_exe exe_name target_name sources_var lane banner_name
     set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${exe_name}-${lane}")
     target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/include)
     target_compile_features(${target_name} PRIVATE cxx_std_23)
-    target_compile_options(${target_name} PRIVATE ${_arg_COMPILE_OPTIONS})
+    target_compile_options(${target_name} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> ${_arg_COMPILE_OPTIONS})
     target_compile_definitions(${target_name} PRIVATE
         XINIM_BOOT_LANE_NAME="${banner_name}"
     )
@@ -2010,7 +2011,8 @@ function(xinim_add_x86_32_lane lane)
     endif()
     xinim_apply_target_defaults(${_kernel_target})
     xinim_set_warnings(${_kernel_target})
-    target_compile_options(${_kernel_target} PRIVATE ${_lane_compile_options})
+    target_compile_options(${_kernel_target} PRIVATE
+        $<$<COMPILE_LANGUAGE:CXX>:-stdlib=libc++> ${_lane_compile_options})
     target_compile_definitions(${_kernel_target} PRIVATE
         XINIM_BOOT_MULTIBOOT2
         XINIM_BOOT_LANE_NAME="${_banner_name}"

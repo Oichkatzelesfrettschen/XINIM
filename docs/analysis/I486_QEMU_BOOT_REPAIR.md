@@ -285,10 +285,19 @@ batch. ABI headers and unfixable checks need their own source review. A
 whole-file format pass or unfiltered `clang-tidy -fix` would rewrite much
 more than the i486 repair and mix C ABI changes into this branch.
 
+Hosted Clang 22 first found the standalone i486 C++ compile selecting host
+libstdc++ headers. The kernel and owned 32-bit user targets now pass
+`-stdlib=libc++` only for C++ compilation. Assembly retains its original
+command line; the linker retains the freestanding `-nostdlib` boundary.
+The final compile database records the header choice for `bootfs.cpp` and
+`hello_i486.cpp` and excludes the flag for `entry.S`.
+
 ## Bounded architecture result
 
-The boot repair preserves static process storage and one contiguous DMA
-pool. The final physical page below 4 GiB remains outside that pool so
+The initial boot repair preserved static process storage. The follow-up
+process-backing change retains one contiguous DMA pool and reserves user
+images on admission. The final physical page below 4 GiB remains outside
+that pool so
 the exclusive end fits its 32-bit state. The Multiboot parser has fixed
 capacities of 32 modules and 64 memory ranges; larger descriptions need
 explicit truncation handling before broader admission claims. The pinned
@@ -297,6 +306,6 @@ than 32 modules.
 
 [The process-memory and scheduler comparison](I486_MEMORY_SCHEDULER_DESIGN.md)
 records xv6, DiscoBSD, historical BSD, and FUZIX mechanisms, licenses, and
-follow-up falsifiers. Static process residency and direct Ring 3 isolation
+follow-up falsifiers. Runtime image residency and direct Ring 3 isolation
 retain separate proof obligations. Shell boot and the bounded tests
 establish neither full POSIX conformance nor physical-board behavior.

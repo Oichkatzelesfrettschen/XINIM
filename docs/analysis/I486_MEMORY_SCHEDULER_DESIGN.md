@@ -3,8 +3,9 @@
 The i486 boot repair exposes a separate design pressure: fixed process images
 consume substantial RAM, while segmentation and scheduling require independent
 correctness checks. The candidates below combine existing mechanisms from
-small operating systems. They describe engineering synthesis rather than a
-claim of invention or an implemented memory-management replacement.
+small operating systems. The bounded process-backing candidate is now
+implemented; paging and executable reclamation remain proposals. The
+comparison describes engineering synthesis rather than a claim of invention.
 
 ## Evidence boundary
 
@@ -109,12 +110,14 @@ The rebuilt Debug kernel has 3,478,736 B of linked BSS and an eight-entry
 37,033,024 B of BSS and `0x2049600` B for that array. The reduction in
 linked BSS is approximately 32 MiB; each admitted image still consumes
 4 MiB at runtime. The measured ELF SHA-256 is
-`7cdcffd34c4d5e648d2dda5f824a1461d60be23e5036b6bbacfd3ba127877f5a`.
+`e39f8bb884aac46ca148f63f67fbc1fabfae1219eefbc2a93add67550bd8aa34`.
 The allocation-exhaustion and zeroing unit test and the
 64 MiB disk and ISO Ring 3 shell tests pass. Their serial logs report two
 live images (8,388,608 B) and three reserved images (12,582,912 B) after
 service initialization. The disk tests execute an invalid ELF from
-`/persist`, then execute `/bin/hello` in the same shell.
+`/persist`, then execute `/bin/hello` in the same shell. The final full
+i486 selector passes all 31 CTest entries in 808.15 seconds; its output is
+retained at `build/i486/Debug/evidence/i486-user-backing-final-ctest.log`.
 
 The segmentation exposure described above remains open. Neither the backing
 allocator nor the guest shell tests demonstrate supervisor isolation.
