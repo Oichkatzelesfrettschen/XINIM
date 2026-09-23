@@ -241,7 +241,10 @@ def main():
         shell = connect_shell(retries=int(BOOT_TIMEOUT / 0.5))
         prompt = recv_until_prompt(shell, timeout=BOOT_TIMEOUT)
         if not contains_prompt(prompt):
-            print("FAIL: no shell prompt")
+            print(f"FAIL: no shell prompt; COM2 response={prompt!r}")
+            if os.path.isfile(LOG_FILE):
+                with open(LOG_FILE, "r", errors="replace") as boot_log:
+                    print(f"COM1 boot log tail: {boot_log.read()[-4096:]!r}")
             sys.exit(1)
         shell.sendall(f"echo {READY_MARKER}\r".encode())
         initial = recv_until_text(shell, READY_MARKER, timeout=BOOT_TIMEOUT)

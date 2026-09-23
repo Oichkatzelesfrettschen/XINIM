@@ -3293,7 +3293,7 @@ function(xinim_add_x86_32_lane lane)
         )
         set_tests_properties(${_enhanced_test} PROPERTIES
             LABELS "integration;enhanced;${lane};pipeline;symlink;tcc"
-            ENVIRONMENT "${_lane_env}"
+            ENVIRONMENT "${_lane_env};XINIM_QEMU_SHELL_LOG=${XINIM_LOG_ROOT}/${lane}-enhanced.log"
             FIXTURES_REQUIRED ${lane}_image
             SKIP_RETURN_CODE 77
             TIMEOUT 420
