@@ -16,7 +16,7 @@ def main():
 
     emulator = guest.start_qemu()
     try:
-        shell = guest.connect_shell(retries=int(guest.BOOT_TIMEOUT / 0.5))
+        shell = guest.connect_shell(retries=int(guest.BOOT_TIMEOUT / 0.5), emulator=emulator)
         prompt = guest.recv_until_prompt(shell, timeout=guest.BOOT_TIMEOUT)
         if not guest.contains_prompt(prompt):
             print("FAIL: no shell prompt")

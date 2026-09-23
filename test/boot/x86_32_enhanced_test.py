@@ -71,6 +71,7 @@ LOG_FILE = os.environ.get(
     "XINIM_QEMU_SHELL_LOG",
     os.path.join(XINIM_LOG_ROOT, f"{LANE_NAME}-enhanced.log"),
 )
+QEMU_ERROR_LOG = LOG_FILE + ".qemu-stderr.log"
 PROMPTS = [prompt for prompt in os.environ.get("XINIM_SHELL_PROMPTS", "$ ||#||# ||mksh$ ").split("||") if prompt]
 COMMAND_MARKER_PREFIX = "__XINIM_ENH_"
 READY_MARKER = "__XINIM_ENH_READY__"
@@ -95,17 +96,24 @@ def start_qemu():
         cmd.extend(["-drive", f"file={QEMU_DISK_IMAGE},format=raw,index=0,media=disk"])
     if QEMU_ICOUNT:
         cmd.extend(["-icount", QEMU_ICOUNT])
-    return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    with open(QEMU_ERROR_LOG, "wb") as error_log:
+        return subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=error_log)
 
 
-def connect_shell(retries=40, delay=0.5):
+def connect_shell(retries=40, delay=0.5, emulator=None):
     for attempt in range(retries):
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             sock.settimeout(CMD_TIMEOUT)
             sock.connect(("127.0.0.1", SHELL_PORT))
             return sock
-        except (ConnectionRefusedError, OSError):
+        except (ConnectionRefusedError, OSError) as connection_error:
+            if emulator is not None and emulator.poll() is not None:
+                with open(QEMU_ERROR_LOG, "r", errors="replace") as error_log:
+                    diagnostic = error_log.read()[-4096:]
+                raise RuntimeError(
+                    f"QEMU exited with status {emulator.returncode}; stderr: {diagnostic!r}"
+                ) from connection_error
             if attempt == retries - 1:
                 raise
             time.sleep(delay)
@@ -238,7 +246,7 @@ def main():
     qemu = start_qemu()
 
     try:
-        shell = connect_shell(retries=int(BOOT_TIMEOUT / 0.5))
+        shell = connect_shell(retries=int(BOOT_TIMEOUT / 0.5), emulator=qemu)
         prompt = recv_until_prompt(shell, timeout=BOOT_TIMEOUT)
         if not contains_prompt(prompt):
             print(f"FAIL: no shell prompt; COM2 response={prompt!r}")
