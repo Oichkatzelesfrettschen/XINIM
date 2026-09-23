@@ -232,7 +232,8 @@ jobs:
             -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
             -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_STANDARD_REQUIRED=ON \
             -DCMAKE_CXX_EXTENSIONS=OFF \
-            -DXINIM_ENABLE_WERROR=ON -DXINIM_PYTHON3_EXECUTABLE="$PYTHON"
+            -DXINIM_ENABLE_WERROR=ON -DXINIM_PYTHON3_EXECUTABLE="$PYTHON" \
+            -DXINIM_MKSH_ARCHIVE="$PWD/third_party/distfiles/mksh-R59c.tgz"
           cmake --build build/x86_64/Debug \
             --target test_bootfs_promote test_x86_64_userspace_abi \
             xinim_assembly_abi_check xinim_x86_64_image -j2
