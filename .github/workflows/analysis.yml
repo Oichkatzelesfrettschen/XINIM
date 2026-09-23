@@ -1,241 +1,188 @@
-name: Comprehensive Analysis & Quality
+name: i486 Changed C++ Analysis
 
 on:
-  push:
-    branches: ["master", "develop"]
-  pull_request:
-  schedule:
-    - cron: "0 0 * * 0"  # Weekly on Sunday
+  workflow_call:
+
+permissions:
+  contents: read
 
 jobs:
-  code-metrics:
-    name: Code Metrics & Complexity
-    runs-on: ubuntu-latest
+  clang-tidy:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    env:
+      PYTHON: /usr/bin/python3
+      BASE_REVISION: ${{ github.event.pull_request.base.sha || github.event.before }}
+      HEAD_REVISION: ${{ github.event.pull_request.head.sha || github.sha }}
     steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install analysis tools
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install the matching Clang 22 analysis lane
+        shell: bash
         run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
           sudo apt-get update
-          sudo apt-get install -y cloc pmccabe sloccount
-          pip3 install lizard
-      
-      - name: Run CLOC
-        run: |
-          cloc src/ include/ --md --by-file --report-file=cloc_report.md
-          cat cloc_report.md >> $GITHUB_STEP_SUMMARY
-      
-      - name: Run Lizard Complexity Analysis
-        run: |
-          lizard src/ include/ -l cpp -C 15 -w -o lizard_report.txt
-          echo "### High Complexity Functions (CCN > 15)" >> $GITHUB_STEP_SUMMARY
-          grep "warning:" lizard_report.txt | head -20 >> $GITHUB_STEP_SUMMARY || echo "None found" >> $GITHUB_STEP_SUMMARY
-      
-      - name: Run SLOCCount
-        run: |
-          sloccount src/ > sloccount_report.txt
-          echo "### Development Effort Estimate" >> $GITHUB_STEP_SUMMARY
-          tail -10 sloccount_report.txt >> $GITHUB_STEP_SUMMARY
-      
-      - name: Upload metrics reports
-        uses: actions/upload-artifact@v3
-        with:
-          name: code-metrics
-          path: |
-            cloc_report.md
-            lizard_report.txt
-            sloccount_report.txt
+          sudo apt-get install -y clang-22 clang-tidy-22 libclang-rt-22-dev \
+            libc++-22-dev libc++abi-22-dev libc6-dev-i386
+          echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
+          clang-tidy-22 --version
 
-  security-scan:
-    name: Security Analysis
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install security tools
-        run: |
-          pip3 install flawfinder
-          sudo apt-get update
-          sudo apt-get install -y cppcheck
-      
-      - name: Run Flawfinder
-        run: |
-          flawfinder --quiet --dataonly src/ include/ > flawfinder_report.txt
-          echo "### Security Issues Found" >> $GITHUB_STEP_SUMMARY
-          echo "Total issues: $(wc -l < flawfinder_report.txt)" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "High-risk issues (level 4-5):" >> $GITHUB_STEP_SUMMARY
-          grep -E "\[4\]|\[5\]" flawfinder_report.txt | head -10 >> $GITHUB_STEP_SUMMARY || echo "None found" >> $GITHUB_STEP_SUMMARY
-      
-      - name: Run Cppcheck
-        run: |
-          cppcheck --enable=warning,style,performance,portability \
-            --quiet --template='{file}:{line}: {severity}: {message}' \
-            src/kernel/*.cpp src/mm/*.cpp > cppcheck_report.txt 2>&1 || true
-          echo "### Cppcheck Findings" >> $GITHUB_STEP_SUMMARY
-          head -20 cppcheck_report.txt >> $GITHUB_STEP_SUMMARY
-      
-      - name: Check for critical security issues
-        run: |
-          HIGH_RISK=$(grep -cE "\[4\]|\[5\]" flawfinder_report.txt || echo "0")
-          echo "High-risk security issues: $HIGH_RISK"
-          if [ "$HIGH_RISK" -gt 10 ]; then
-            echo "::warning::Found $HIGH_RISK high-risk security issues"
-          fi
-      
-      - name: Upload security reports
-        uses: actions/upload-artifact@v3
+      - uses: actions/download-artifact@v4
         with:
-          name: security-reports
-          path: |
-            flawfinder_report.txt
-            cppcheck_report.txt
+          name: i486-analysis-inputs
+          path: build/i486
 
-  static-analysis:
-    name: Static Analysis (Clang-Tidy)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install Clang tools
+      - name: Restore and relocate the build's analysis inputs
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y clang-18 clang-tidy-18 clang-format-18
-      
-      - name: Check code formatting
-        run: |
-          # Check if code is formatted correctly
-          find src/ include/ -name "*.cpp" -o -name "*.hpp" | \
-            xargs clang-format-18 --dry-run --Werror || \
-            echo "::warning::Code formatting issues found. Run clang-format to fix."
-      
-      - name: Run clang-tidy (sample)
-        run: |
-          # Run on kernel files as example
-          for file in src/kernel/kernel.cpp src/kernel/system.cpp; do
-            if [ -f "$file" ]; then
-              echo "Analyzing $file..."
-              clang-tidy-18 "$file" -- -std=c++23 -Iinclude/ -Iinclude/xinim/ 2>&1 | tee -a clang_tidy_report.txt || true
-            fi
-          done
-      
-      - name: Upload analysis reports
-        uses: actions/upload-artifact@v3
-        with:
-          name: static-analysis
-          path: clang_tidy_report.txt
-        if: always()
+          set -euo pipefail
+          "$PYTHON" - <<'PY'
+          import json
+          from pathlib import Path
+          import shlex
+          import subprocess
+          import tarfile
 
-  complexity-gate:
-    name: Complexity Quality Gate
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install Lizard
-        run: pip3 install lizard
-      
-      - name: Check complexity thresholds
-        run: |
-          # Count functions with CCN > 40 (critical)
-          CRITICAL=$(lizard src/ -l cpp -C 40 -w 2>/dev/null | grep -c "warning:" || echo "0")
-          echo "Critical complexity functions (CCN > 40): $CRITICAL"
-          
-          # Count functions with CCN > 15 (high)
-          HIGH=$(lizard src/ -l cpp -C 15 -w 2>/dev/null | grep -c "warning:" || echo "0")
-          echo "High complexity functions (CCN > 15): $HIGH"
-          
-          if [ "$CRITICAL" -gt 0 ]; then
-            echo "::error::Found $CRITICAL functions with critical complexity (CCN > 40)"
-            echo "::error::Please refactor these functions before merging"
-            exit 1
-          fi
-          
-          if [ "$HIGH" -gt 100 ]; then
-            echo "::warning::Found $HIGH functions with high complexity (CCN > 15)"
-            echo "::warning::Consider refactoring to improve maintainability"
-          fi
+          root = Path.cwd()
+          build = root / "build/i486/Debug"
+          build.mkdir(parents=True, exist_ok=True)
+          with tarfile.open(build.parent / "analysis-inputs.tar.gz", "r:gz") as archive:
+              archive.extractall(build, filter="data")
+          manifest = json.loads((build / "analysis-provenance.json").read_text())
+          checkout = subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip()
+          if checkout != manifest["checkout"]:
+              raise SystemExit("Analysis checkout differs from the compiled source revision")
+          compiler = subprocess.check_output(["clang++", "--version"], text=True)
+          if compiler != manifest["compiler"]:
+              raise SystemExit("Analysis compiler differs from the build compiler")
+          previous_root = manifest["workspace"]
 
-  documentation:
-    name: Documentation Generation
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Install Doxygen
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y doxygen graphviz
-      
-      - name: Generate documentation
-        run: |
-          if [ -f Doxyfile ]; then
-            doxygen Doxyfile
-            echo "Documentation generated successfully"
-          else
-            echo "::warning::Doxyfile not found, skipping documentation generation"
-          fi
-      
-      - name: Upload documentation
-        uses: actions/upload-artifact@v3
-        with:
-          name: doxygen-docs
-          path: docs/html/
-        if: success()
+          def relocate(value):
+              return value.replace(previous_root + "/", str(root) + "/")
 
-  comprehensive-report:
-    name: Generate Comprehensive Report
-    runs-on: ubuntu-latest
-    needs: [code-metrics, security-scan, static-analysis]
-    steps:
-      - uses: actions/checkout@v3
-      
-      - name: Download all artifacts
-        uses: actions/download-artifact@v3
-      
-      - name: Generate summary report
+          database_path = build / "compile_commands.json"
+          entries = json.loads(database_path.read_text())
+          for entry in entries:
+              for field in ("directory", "file", "output"):
+                  if field in entry:
+                      entry[field] = relocate(entry[field])
+              arguments = entry.get("arguments")
+              if arguments is None:
+                  arguments = shlex.split(entry.pop("command"))
+              entry["arguments"] = [relocate(argument) for argument in arguments]
+          database_path.write_text(json.dumps(entries, indent=2) + "\n")
+          auxiliary = [build / "analysis-dependencies.txt"]
+          auxiliary.extend((build / "CMakeFiles").rglob("*.modmap"))
+          auxiliary.extend((build / "CMakeFiles").rglob("*.rsp"))
+          for path in auxiliary:
+              path.write_text(relocate(path.read_text()))
+          PY
+
+      - name: Analyze changed owned translation units with the repository policy
+        shell: bash
         run: |
-          cat > comprehensive_report.md << 'EOF'
-          # XINIM Comprehensive Analysis Report
-          
-          **Generated:** $(date)
-          **Branch:** ${{ github.ref_name }}
-          **Commit:** ${{ github.sha }}
-          
-          ## Summary
-          
-          This report aggregates all analysis results from the CI pipeline.
-          
-          ### Code Metrics
-          
-          See code-metrics/ directory for detailed reports.
-          
-          ### Security Analysis
-          
-          See security-reports/ directory for detailed findings.
-          
-          ### Static Analysis
-          
-          See static-analysis/ directory for clang-tidy results.
-          
-          ## Recommendations
-          
-          1. Review high-complexity functions (CCN > 15)
-          2. Address critical security issues (risk level 4-5)
-          3. Fix clang-tidy warnings
-          4. Ensure code is formatted with clang-format
-          
-          ## Next Steps
-          
-          - Run local analysis: `./tools/run_analysis.sh`
-          - Fix issues and re-run CI
-          - Update technical debt report as needed
-          EOF
-          
-          cat comprehensive_report.md
-      
-      - name: Upload comprehensive report
-        uses: actions/upload-artifact@v3
-        with:
-          name: comprehensive-report
-          path: comprehensive_report.md
+          set -euo pipefail
+          "$PYTHON" - <<'PY'
+          import json
+          import os
+          import re
+          from pathlib import Path
+          import subprocess
+
+          root = Path.cwd()
+          build = root / "build/i486/Debug"
+          entries = json.loads((build / "compile_commands.json").read_text())
+          dependencies = {}
+          output = None
+          for line in (build / "analysis-dependencies.txt").read_text().splitlines():
+              if line and not line.startswith(" "):
+                  output = None
+                  if line.endswith("(VALID)"):
+                      output = (build / line.split(": #deps ", 1)[0]).resolve()
+                      dependencies[output] = set()
+              elif line.startswith("    ") and output is not None:
+                  dependencies[output].add(Path(line.strip()).resolve())
+          # Analyze actual compiled configurations, including kernel and native variants.
+          entries = [
+              entry for entry in entries
+              if Path(entry["output"]).resolve() in dependencies
+          ]
+          (build / "compile_commands.json").write_text(json.dumps(entries, indent=2) + "\n")
+          sources = {
+              Path(entry["file"]).resolve()
+              for entry in entries
+              if Path(entry["file"]).suffix in {".cpp", ".cc", ".cxx"}
+              and Path(entry["file"]).resolve().is_relative_to(root)
+              and Path(entry["file"]).resolve().relative_to(root).parts[0]
+              in {"src", "include", "test"}
+          }
+          base = os.environ["BASE_REVISION"]
+          head = os.environ["HEAD_REVISION"]
+          if not base or set(base) == {"0"}:
+              base = subprocess.check_output(
+                  ["git", "rev-parse", f"{head}^"], text=True
+              ).strip()
+          comparison_base = subprocess.check_output(
+              ["git", "merge-base", base, head], text=True
+          ).strip()
+          changed = {
+              root / filename
+              for filename in subprocess.check_output(
+                  ["git", "diff", "-z", "--name-only", "--diff-filter=ACMR", comparison_base, head, "--"],
+                  text=True,
+              ).split("\0")
+              if filename.startswith(("src/", "include/", "test/"))
+          }
+          changed_sources = {
+              path for path in changed if path.suffix in {".cpp", ".cc", ".cxx"}
+          }
+          missing = sorted(changed_sources - sources)
+          if missing:
+              raise SystemExit("Changed sources lack completed build commands: " + ", ".join(map(str, missing)))
+          selected = changed_sources & sources
+          changed_headers = {path for path in changed if path.suffix in {".hpp", ".h"}}
+          covered_headers = set()
+          for entry in entries:
+              source = Path(entry["file"]).resolve()
+              if source not in sources:
+                  continue
+              dependent_headers = changed_headers & dependencies.get(
+                  Path(entry["output"]).resolve(), set()
+              )
+              if dependent_headers:
+                  selected.add(source)
+                  covered_headers |= dependent_headers
+          missing_headers = sorted(changed_headers - covered_headers)
+          if missing_headers:
+              raise SystemExit(
+                  "Changed headers lack compiled consumers: "
+                  + ", ".join(map(str, missing_headers))
+              )
+          if not selected:
+              print("The change contains no compiled owned C++ source or interface.")
+          for entry in entries:
+              if Path(entry["file"]).resolve() not in selected:
+                  continue
+              for argument in entry["arguments"]:
+                  if argument.startswith("@"):
+                      response = Path(entry["directory"]) / argument[1:]
+                      if not response.is_file():
+                          raise SystemExit("Missing compile response file: " + str(response))
+          failed = False
+          for source in sorted(selected):
+              command = [
+                  "clang-tidy-22", "-p", str(build),
+                  "--header-filter=" + re.escape(str(root)) + "/(src|include|test)/",
+                  str(source),
+              ]
+              print("Running:", " ".join(command), flush=True)
+              result = subprocess.run(command, check=False)
+              failed |= result.returncode != 0
+          raise SystemExit(1 if failed else 0)
+          PY
