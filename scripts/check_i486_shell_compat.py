@@ -1,14 +1,12 @@
-#!/usr/bin/env python3
 """
 Validate staged 32-bit shell payloads against the i486 ELF loader contract.
 """
 
 import argparse
+import hashlib
 import os
 import struct
 import sys
-from typing import List, Tuple
-
 
 ELF32_HEADER = struct.Struct("<16sHHIIIIIHHHHHH")
 ELF32_PROGRAM_HEADER = struct.Struct("<IIIIIIII")
@@ -19,6 +17,7 @@ ELF_DATA_LSB = 1
 ELF_TYPE_EXEC = 2
 ELF_MACHINE_386 = 3
 PT_LOAD = 1
+PF_X = 1
 
 USER_VIRTUAL_BASE = 0x00400000
 USER_ADDRESS_SPACE_SIZE = 0x00100000
@@ -30,7 +29,7 @@ def stage_path(stage_dir: str, image_path: str) -> str:
     return os.path.join(stage_dir, image_path.lstrip("/"))
 
 
-def inspect_elf(path: str) -> Tuple[bool, str]:
+def inspect_elf(path: str) -> tuple[bool, str]:
     try:
         with open(path, "rb") as handle:
             image = handle.read()
@@ -65,6 +64,8 @@ def inspect_elf(path: str) -> Tuple[bool, str]:
         return False, "program-header table is truncated"
 
     saw_loadable_segment = False
+    entry_is_executable = False
+    load_ranges: list[tuple[int, int, int]] = []
     for index in range(phnum):
         base = phoff + (index * ELF32_PROGRAM_HEADER.size)
         program = ELF32_PROGRAM_HEADER.unpack_from(image, base)
@@ -97,8 +98,21 @@ def inspect_elf(path: str) -> Tuple[bool, str]:
         if memsz > (USER_ADDRESS_SPACE_SIZE - region_offset):
             return False, f"segment {index} exceeds the user window"
 
+        segment_end = vaddr + memsz
+        for previous_index, previous_start, previous_end in load_ranges:
+            if vaddr < previous_end and previous_start < segment_end:
+                return False, (
+                    f"segments {previous_index} and {index} overlap: "
+                    f"0x{vaddr:08x}..0x{segment_end:08x}"
+                )
+        load_ranges.append((index, vaddr, segment_end))
+        if program[6] & PF_X and vaddr <= entry < segment_end:
+            entry_is_executable = True
+
     if not saw_loadable_segment:
         return False, "missing PT_LOAD segments"
+    if not entry_is_executable:
+        return False, "entry point is outside executable PT_LOAD segments"
 
     return True, f"loadable entry=0x{entry:08x}"
 
@@ -107,7 +121,9 @@ def main() -> int:
     parser = argparse.ArgumentParser(
         description="Validate staged i486 shell binaries against the kernel loader"
     )
-    parser.add_argument("--stage-dir", required=True, help="Path to the staged image root")
+    input_group = parser.add_mutually_exclusive_group(required=True)
+    input_group.add_argument("--stage-dir", help="Path to the staged image root")
+    input_group.add_argument("--file", help="Validate one ELF before image creation")
     parser.add_argument("--report", help="Optional output path for a text report")
     parser.add_argument(
         "--require-file",
@@ -117,14 +133,19 @@ def main() -> int:
     )
     args = parser.parse_args()
 
+    if args.file:
+        compatible, detail = inspect_elf(args.file)
+        print(f"{'compatible' if compatible else 'incompatible'}: {args.file}: {detail}")
+        return 0 if compatible else 1
+
     if not os.path.isdir(args.stage_dir):
         print(f"SKIP: stage directory not found: {args.stage_dir}")
         return 77
 
-    lines: List[str] = []
-    missing_required: List[str] = []
-    compatible_shells: List[str] = []
-    incompatible_present: List[str] = []
+    lines: list[str] = []
+    missing_required: list[str] = []
+    compatible_shells: list[str] = []
+    incompatible_present: list[str] = []
 
     for image_path in args.require_file:
         if not os.path.isfile(stage_path(args.stage_dir, image_path)):
@@ -152,15 +173,22 @@ def main() -> int:
         )
 
     selected_shell = next((path for path in INIT_SHELL_PRIORITY if path in compatible_shells), None)
-    if selected_shell is None:
-        lines.append("FAIL: no kernel-loadable init shell is staged")
+    if selected_shell != "/bin/mksh":
+        lines.append("FAIL: /bin/mksh must be the kernel-loadable init shell")
     else:
         lines.append(f"selected init shell: {selected_shell}")
 
-    if "/bin/mksh" in incompatible_present:
-        lines.append(
-            "WARNING: /bin/mksh is staged but does not satisfy the i486 loader contract"
-        )
+    for image_path in incompatible_present:
+        lines.append(f"FAIL: {image_path} violates the i486 loader contract")
+
+    mksh_copies = ("/bin/mksh", "/bin/sh", "/boot/mksh")
+    if all(os.path.isfile(stage_path(args.stage_dir, path)) for path in mksh_copies):
+        digests = set()
+        for image_path in mksh_copies:
+            with open(stage_path(args.stage_dir, image_path), "rb") as source:
+                digests.add(hashlib.file_digest(source, "sha256").digest())
+        if len(digests) != 1:
+            lines.append("FAIL: staged mksh, sh, and boot/mksh differ")
 
     report = "\n".join(lines) + "\n"
     sys.stdout.write(report)
@@ -170,7 +198,7 @@ def main() -> int:
         with open(args.report, "w", encoding="utf-8") as handle:
             handle.write(report)
 
-    if missing_required or selected_shell is None:
+    if missing_required or any(line.startswith("FAIL:") for line in lines):
         return 1
     return 0
 

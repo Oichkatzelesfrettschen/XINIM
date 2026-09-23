@@ -37,7 +37,7 @@ jobs:
           sudo apt-get install -y clang-22 clang-tools-22 lld-22 llvm-22 \
             libclang-rt-22-dev libc++-22-dev libc++abi-22-dev libc6-dev-i386 \
             cmake ninja-build pkg-config python3-venv git curl \
-            xorriso grub-common grub-pc-bin mtools e2fsprogs libguestfs-tools \
+            xorriso grub-common grub-pc-bin mtools e2fsprogs \
             libglib2.0-dev libpixman-1-dev libslirp-dev libfdt-dev zlib1g-dev \
             flex bison doxygen
           echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
@@ -92,7 +92,8 @@ jobs:
             -DXINIM_ENABLE_WERROR=ON \
             -DXINIM_GRUB_MKRESCUE_EXECUTABLE=/usr/bin/grub-mkrescue
           cmake --build build/i486/Debug --target i486_boot_disk xinim_i486_image \
-            test_i486_dma_pages test_i486_scheduler_wait test_i486_process_sessions \
+            test_i486_dma_pages test_i486_elf32_loader test_i486_scheduler_wait \
+            test_i486_process_sessions \
             test_i486_signal_dispatch test_i486_context_switch test_i486_ata_deadline \
             test_i486_ext2_indirect test_i486_user_backing -j2
           ninja -C build/i486/Debug -t deps > build/i486/Debug/analysis-dependencies.txt

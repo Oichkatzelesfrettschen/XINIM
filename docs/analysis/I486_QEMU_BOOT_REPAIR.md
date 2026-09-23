@@ -324,6 +324,34 @@ exact 442,736-byte upstream archive is retained at
 The i486 CMake command passes those bytes to the existing digest and archive
 member validator. The vendor source is extracted unchanged.
 
+Hosted run `35809495405` then reached Ring 3 but failed 14 of 31 tests.
+Its serial logs show repeated invalid-opcode faults at `0x00428429` in
+PID 1 and a rescue-shell prompt instead of mksh. The Ubuntu 24.04,
+Clang 22.1.8, GNU ld 2.42 reproduction identified an ELF layout cause:
+GNU ld assigned an orphan `.note.gnu.build-id` to a writable `PT_LOAD`
+starting at `0x00400000`. That load range overlapped the executable
+range starting at the same address. `elf32_loader.cpp` copied the
+writable range last, replacing executable bytes. The linker script now
+places the build-ID note in the executable segment. The reproduced
+Ubuntu mksh has disjoint load ranges, and its VMDK boot passes the real
+Ring 3 disk-shell checks, including invalid-exec recovery and respawn.
+
+The ELF loader and the pre-image shell verifier reject overlapping
+nonempty `PT_LOAD` ranges and entry points outside executable ranges.
+The shell verifier requires a loadable `/bin/mksh` and byte-identical
+`/bin/mksh`, `/bin/sh`, and `/boot/mksh`. The mksh build runs the verifier
+before disk generation, and the disk and ISO rules track the mksh file
+so an incremental relink rebuilds the images. A malformed-range copy
+fails the verifier; the direct loader contract rejects overlapping and
+non-executable-entry fixtures. The Ubuntu incremental build relinked
+mksh and regenerated both disk formats after a linker-script touch.
+
+The same hosted run reported `guestfish` failing to start its `supermin`
+appliance during the boot-disk layout test. The layout verifier now
+checks the VMDK and qcow2 containers with `qemu-img`, validates the MBR
+partition and ext2 signature, and reads the required seed files through
+read-only `debugfs`. Local and Ubuntu 24.04 runs pass that inspection.
+
 ## Bounded architecture result
 
 The initial boot repair preserved static process storage. The follow-up

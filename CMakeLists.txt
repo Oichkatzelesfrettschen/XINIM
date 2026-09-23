@@ -1889,6 +1889,7 @@ function(xinim_x86_32_user_exe exe_name target_name sources_var lane banner_name
         ${CMAKE_SOURCE_DIR}/userland/runtime/x86_32_memory.cpp
     )
     set_target_properties(${target_name} PROPERTIES OUTPUT_NAME "${exe_name}-${lane}")
+    set_property(TARGET ${target_name} APPEND PROPERTY LINK_DEPENDS "${linker_script}")
     target_include_directories(${target_name} PRIVATE ${CMAKE_SOURCE_DIR}/include)
     target_compile_features(${target_name} PRIVATE cxx_std_23)
     target_compile_options(${target_name} PRIVATE
@@ -2104,7 +2105,7 @@ function(xinim_add_x86_32_lane lane)
 
     add_custom_command(
         OUTPUT "${_mksh_binary}"
-        COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE} ${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py
             --source-dir "${_mksh_source_dir}"
             --build-dir "${_mksh_build_dir}"
             --cc "${_lane_user_cc} ${_mksh_arch_flags}"
@@ -2114,8 +2115,13 @@ function(xinim_add_x86_32_lane lane)
             --dietlibc-a "${_dietlibc_archive}"
             --linker-script "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             --output "${_mksh_binary}"
+        COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+            ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
+            --file "${_mksh_binary}"
         DEPENDS
             "${CMAKE_SOURCE_DIR}/scripts/build_i486_mksh.py"
+            "${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py"
+            "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld"
             ${_mksh_source_target}
             "${_dietlibc_start}"
             "${_dietlibc_archive}"
@@ -2810,6 +2816,7 @@ function(xinim_add_x86_32_lane lane)
             "${CMAKE_SOURCE_DIR}/scripts/create_i486_boot_disk.py"
             ${_kernel_target}
             ${_mksh_target}
+            "${_mksh_binary}"
             ${_holdsvc_target}
             ${_hello_target}
             ${_false_target}
@@ -3082,7 +3089,8 @@ function(xinim_add_x86_32_lane lane)
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/motd.txt" "${_stage_dir}/etc/motd"
             COMMAND ${CMAKE_COMMAND} -E copy "${CMAKE_SOURCE_DIR}/boot/grub/i486/grub.cfg" "${_stage_dir}/boot/grub/grub.cfg"
             COMMAND ${CMAKE_COMMAND} -E make_directory "${XINIM_LOG_ROOT}"
-            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
                 --stage-dir "${_stage_dir}"
                 --report "${_compat_report}"
                 --require-file /bin/mksh
@@ -3098,6 +3106,7 @@ function(xinim_add_x86_32_lane lane)
                 ${_kernel_target}
                 ${_shell_target}
                 ${_mksh_target}
+                "${_mksh_binary}"
                 ${_diethello_target}
                 ${_ls_target}
                 ${_writefile_target}
@@ -3205,7 +3214,8 @@ function(xinim_add_x86_32_lane lane)
         set(_boot_disk_layout_test "${lane}_boot_disk_layout_test")
         add_test(
             NAME ${_boot_disk_layout_test}
-            COMMAND ${CMAKE_SOURCE_DIR}/test/boot/x86_32_boot_disk_layout_test.sh
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/test/boot/x86_32_boot_disk_layout_test.py
             WORKING_DIRECTORY ${CMAKE_SOURCE_DIR}
         )
         set_tests_properties(${_boot_disk_layout_test} PROPERTIES
@@ -3218,7 +3228,8 @@ function(xinim_add_x86_32_lane lane)
 
         add_test(
             NAME ${_compat_test}
-            COMMAND python3 ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
+            COMMAND ${XINIM_PYTHON3_EXECUTABLE}
+                ${CMAKE_SOURCE_DIR}/scripts/check_i486_shell_compat.py
                 --stage-dir "${_stage_dir}"
                 --report "${_compat_report}"
                 --require-file /bin/mksh
@@ -5060,6 +5071,18 @@ target_link_options(test_i486_dma_pages PRIVATE -stdlib=libc++)
 xinim_set_warnings(test_i486_dma_pages)
 add_test(NAME test_i486_dma_pages COMMAND test_i486_dma_pages)
 set_tests_properties(test_i486_dma_pages PROPERTIES LABELS "unit;kernel;memory;dma" TIMEOUT 30)
+
+add_executable(test_i486_elf32_loader
+    test/test_i486_elf32_loader.cpp
+    src/kernel/i486/elf32_loader.cpp
+)
+target_compile_features(test_i486_elf32_loader PRIVATE cxx_std_23)
+target_include_directories(test_i486_elf32_loader PRIVATE ${CMAKE_SOURCE_DIR}/src/kernel/i486)
+target_compile_options(test_i486_elf32_loader PRIVATE -stdlib=libc++)
+target_link_options(test_i486_elf32_loader PRIVATE -stdlib=libc++)
+xinim_set_warnings(test_i486_elf32_loader)
+add_test(NAME test_i486_elf32_loader COMMAND test_i486_elf32_loader)
+set_tests_properties(test_i486_elf32_loader PROPERTIES LABELS "unit;kernel;elf;process" TIMEOUT 30)
 
 add_executable(test_i486_user_backing
     test/test_i486_user_backing.cpp
