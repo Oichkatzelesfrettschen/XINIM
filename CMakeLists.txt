@@ -2266,6 +2266,8 @@ function(xinim_add_x86_32_lane lane)
             OUTPUT_NAME "diethello-${lane}"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         )
+        set_property(TARGET ${_diethello_target} APPEND PROPERTY LINK_DEPENDS
+            "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld")
         target_include_directories(${_diethello_target} PRIVATE
             "${_dietlibc_tree_dir}/include"
             "${CMAKE_SOURCE_DIR}/include"
@@ -2393,6 +2395,9 @@ function(xinim_add_x86_32_lane lane)
             OUTPUT_NAME "${_util}-${lane}"
             RUNTIME_OUTPUT_DIRECTORY "${CMAKE_CURRENT_BINARY_DIR}"
         )
+        # The -T script fixes the load base, so its edits must relink the utility.
+        set_property(TARGET ${_util_target} APPEND PROPERTY LINK_DEPENDS
+            "${CMAKE_SOURCE_DIR}/linker_xash_i486_user.ld")
         target_include_directories(${_util_target} PRIVATE
             "${_dietlibc_tree_dir}/include"
             "${CMAKE_SOURCE_DIR}/include"
