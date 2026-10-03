@@ -101,6 +101,8 @@ struct Virtqueue {
 };
 
 constexpr uint32_t RX_BUF_SIZE = 1536U;
+constexpr uint32_t MAX_FRAME_SIZE = 1518U;
+constexpr uint32_t TX_BUF_SIZE = sizeof(VirtioNetHdr) + MAX_FRAME_SIZE;
 constexpr uint32_t MAX_QUEUE = 256U;
 
 uint16_t g_io_base = 0U;
@@ -112,6 +114,7 @@ bool g_ready = false;
 // RX buffers (pre-allocated)
 uint8_t* g_rx_buffers[MAX_QUEUE]{};
 dma::DmaBuffer g_rx_dma_buf{};
+dma::DmaBuffer g_tx_dma_buf{};
 
 uint32_t vring_size(uint32_t qsz) noexcept {
     // VirtIO spec: desc + avail + padding + used
@@ -244,6 +247,13 @@ bool initialize() noexcept {
         return false;
     }
 
+    g_tx_dma_buf = dma::allocate(static_cast<uint32_t>(g_tx.size) * TX_BUF_SIZE, 4096U);
+    if (g_tx_dma_buf.address == nullptr) {
+        console::write_string("virtio-net: TX buffer allocation failed");
+        console::newline();
+        return false;
+    }
+
     console::write_string("virtio-net: RX=");
     console::write_dec32(g_rx.size);
     console::write_string(" TX=");
@@ -265,30 +275,43 @@ bool initialize() noexcept {
 }
 
 bool send(const void* data, uint32_t length) noexcept {
-    if (!g_ready || data == nullptr || length == 0U) {
+    if (!g_ready || data == nullptr || length == 0U || length > MAX_FRAME_SIZE) {
         return false;
     }
 
-    // Allocate a TX buffer (header + frame)
     const uint32_t total = sizeof(VirtioNetHdr) + length;
-    dma::DmaBuffer buf = dma::allocate(total, 16U);
-    if (buf.address == nullptr) {
+    // Descriptor N owns TX buffer N. QEMU 11.1.1 hw/net/virtio-net.c
+    // virtio_net_flush_tx pops the avail ring in order and holds at most one
+    // async_tx element, which blocks further pops until virtio_net_tx_complete
+    // pushes it, so used entries return in submission order. In-flight
+    // descriptors are therefore exactly [last_used_idx, next_avail), and the
+    // next ring slot is free once fewer than size entries remain in flight.
+    while (g_tx.last_used_idx != g_tx.used->idx) {
+        const uint16_t used_slot = g_tx.last_used_idx % g_tx.size;
+        if (g_tx.used->ring[used_slot].id >= g_tx.size) {
+            return false;
+        }
+        ++g_tx.last_used_idx;
+    }
+    if (static_cast<uint16_t>(g_tx.next_avail - g_tx.last_used_idx) >= g_tx.size) {
         return false;
     }
+
+    const uint16_t desc_idx = g_tx.next_avail % g_tx.size;
+    uint8_t* tx_buffer = g_tx_dma_buf.address + static_cast<uint32_t>(desc_idx) * TX_BUF_SIZE;
 
     // Write virtio-net header (all zeros = no offload)
-    auto* hdr = reinterpret_cast<VirtioNetHdr*>(buf.address);
+    auto* hdr = reinterpret_cast<VirtioNetHdr*>(tx_buffer);
     *hdr = {};
 
     // Copy frame data after header
     const auto* src = static_cast<const uint8_t*>(data);
     for (uint32_t i = 0U; i < length; ++i) {
-        buf.address[sizeof(VirtioNetHdr) + i] = src[i];
+        tx_buffer[sizeof(VirtioNetHdr) + i] = src[i];
     }
 
     // Fill TX descriptor
-    uint16_t desc_idx = g_tx.next_avail % g_tx.size;
-    g_tx.desc[desc_idx].addr = reinterpret_cast<uint32_t>(buf.address);
+    g_tx.desc[desc_idx].addr = reinterpret_cast<uint32_t>(tx_buffer);
     g_tx.desc[desc_idx].len = total;
     g_tx.desc[desc_idx].flags = 0U;
     g_tx.desc[desc_idx].next = 0U;
