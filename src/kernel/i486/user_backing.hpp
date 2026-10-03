@@ -4,10 +4,17 @@
 
 namespace xinim::i486::user_backing {
 
-    inline constexpr uint32_t kImageBytes = 4U * 1024U * 1024U;
+    // Each slot is one user segment window: offsets 0 through kSlotBytes - 1
+    // reach only this slot. The image occupies the top kImageBytes, so offsets
+    // below the user virtual base land in the slot's own zeroed guard span.
+    inline constexpr uint32_t kSlotBytes = 4U * 1024U * 1024U;
+    inline constexpr uint32_t kImageOffsetBytes = 64U * 1024U;
+    inline constexpr uint32_t kImageBytes = kSlotBytes - kImageOffsetBytes;
     inline constexpr uint32_t kMaximumImages = 9U;
+    // Init, its hold service, one shell child, and an exec candidate.
+    inline constexpr uint32_t kMinimumImages = 4U;
 
-    // Reserve before device initialization; keep one candidate slot for exec.
+    // Reserve private segment windows before device initialization.
     [[nodiscard]] bool initialize() noexcept;
     [[nodiscard]] uint32_t capacity_images() noexcept;
     [[nodiscard]] uint32_t capacity_bytes() noexcept;

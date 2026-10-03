@@ -80,14 +80,14 @@ Unix commands.
 - **bmake** -- BSD make (201KB)
 - **dietlibc headers** at `/usr/include`
 - On-target compile/run smoke path:
-  `tcc -static -Wl,-Ttext=0x00400000 -o /persist/a.out /persist/a.c`
+  `tcc -static -Wl,-Ttext=0x00010000 -o /persist/a.out /persist/a.c`
 
 ### Kernel Features
 
 - Per-process file descriptor table with refcounting
 - Pipe blocking with event-driven EOF detection
 - Signal delivery (SIGCHLD, SIGTTIN, SIGHUP, Ctrl+C, Ctrl+Z)
-- 4 MB process address space (page-granularity GDT segments)
+- 4 MB private segment window per process; the image starts at 0x00010000
 - ext2 filesystem with read/write/create/chmod support
 - Device files: `/dev/tty`, `/dev/null`, `/dev/zero`, `/dev/console`
 - VGA text mode with ANSI escape sequences and keyboard echo
@@ -162,7 +162,7 @@ for source-derived architecture constraints and bounded follow-up designs.
 XINIM i486 Architecture
 =======================
 
-User Space (Ring 3, 4 MB per process, max 8 processes)
+User Space (Ring 3, 4 MB segment window per process, max 8 processes)
   mksh shell <-> POSIX utilities <-> TCC compiler
        |              |                    |
   [syscall int 0x80]  |                    |

@@ -244,7 +244,7 @@ Process* allocate_process(uint32_t parent_pid) noexcept {
         }
     }
     const uint32_t capacity = user_backing::capacity_images();
-    if (capacity < 2U || admitted >= capacity - 1U) {
+    if (capacity < user_backing::kMinimumImages || admitted >= capacity - 1U) {
         return nullptr;
     }
     for (auto& process : g_processes) {

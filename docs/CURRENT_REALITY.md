@@ -20,7 +20,8 @@ and initial networking infrastructure.
 - Vectored I/O: readv, writev
 - Real time: CMOS RTC + PIT ticks (time, gettimeofday, clock_gettime)
 - Per-process working directory with relative path resolution
-- 8 process slots, 4 MB user address space per process, 256 MB QEMU RAM
+- 8 process slots, a private 4 MB segment window per process with the user
+  image at 0x00010000, 256 MB QEMU RAM
 - 32 fd table, 256-byte paths, 16 pipes at 4096 bytes
 - O_NONBLOCK enforcement on pipes (-EAGAIN/-EPIPE)
 - Proper errno returns throughout (ENOENT, EBADF, EFAULT, ECHILD, EINTR, etc.)
@@ -79,7 +80,7 @@ signal_test, printf_test, forkexec_test, plus 13 existing test utilities
 - The current TCC runtime is intentionally tiny: a XINIM-native `crt1.o`,
   empty `crti.o`/`crtn.o`, a minimal `libc.a` shim, and `libtcc1.a`.
 - The verified compiler command uses XINIM's load base:
-  `tcc -static -Wl,-Ttext=0x00400000 -o /persist/a.out /persist/a.c`.
+  `tcc -static -Wl,-Ttext=0x00010000 -o /persist/a.out /persist/a.c`.
 - bmake is built as `/bin/bmake` when `XINIM_X86_32_BUILD_BMAKE=ON`
   (default).
 

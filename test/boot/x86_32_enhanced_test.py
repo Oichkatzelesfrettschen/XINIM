@@ -317,7 +317,7 @@ def main():
                 response = send_command(shell, source_command)
                 if not check_status_zero(f"tcc source line {line_number}", response):
                     raise RuntimeError("TCC source creation failed")
-            r = send_command(shell, "tcc -std=c99 -static -Wl,-Ttext=0x00400000 -o /persist/enh_t /persist/enh_t.c")
+            r = send_command(shell, "tcc -std=c99 -static -Wl,-Ttext=0x00010000 -o /persist/enh_t /persist/enh_t.c")
             results.append(check("tcc compile", r, "__XINIM_ENH_"))
             results.append(check_status_zero("tcc compile status", r))
             results.append(check_absent("tcc compile clean", r, "error:"))

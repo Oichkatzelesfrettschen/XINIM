@@ -35,7 +35,7 @@ int main() {
     CHECK(i486::user_backing::initialize());
     CHECK(i486::user_backing::capacity_images() == i486::user_backing::kMaximumImages);
     CHECK(i486::user_backing::capacity_bytes() ==
-          i486::user_backing::kMaximumImages * i486::user_backing::kImageBytes);
+          i486::user_backing::kMaximumImages * i486::user_backing::kSlotBytes);
     CHECK(i486::user_backing::reserved_bytes() == 0U);
     const uint32_t device_bytes = i486::dma::available_bytes();
     CHECK(device_bytes >= 1024U * 1024U);
@@ -48,8 +48,22 @@ int main() {
         CHECK(images[index][0] == 0U);
         CHECK(images[index][i486::user_backing::kImageBytes - 1U] == 0U);
         CHECK((reinterpret_cast<uintptr_t>(images[index]) & (kPageBytes - 1U)) == 0U);
+        // The guard span below the image belongs to the same window and starts zeroed.
+        const uint8_t *const window = images[index] - i486::user_backing::kImageOffsetBytes;
+        CHECK(window[0] == 0U);
+        CHECK(window[i486::user_backing::kImageOffsetBytes - 1U] == 0U);
         for (uint32_t prior = 0U; prior < index; ++prior) {
             CHECK(images[index] != images[prior]);
+            const uintptr_t current_window_start =
+                reinterpret_cast<uintptr_t>(images[index]) -
+                i486::user_backing::kImageOffsetBytes;
+            const uintptr_t prior_window_start =
+                reinterpret_cast<uintptr_t>(images[prior]) -
+                i486::user_backing::kImageOffsetBytes;
+            const uintptr_t distance = current_window_start > prior_window_start
+                                           ? current_window_start - prior_window_start
+                                           : prior_window_start - current_window_start;
+            CHECK(distance >= i486::user_backing::kSlotBytes);
         }
     }
     const uint32_t maximum_bytes =
@@ -61,10 +75,11 @@ int main() {
     CHECK(!i486::user_backing::release(images[0] + kPageBytes));
     CHECK(i486::user_backing::release(images[0]));
     CHECK(!i486::user_backing::release(images[0]));
-    std::memset(images[0], 0xA5, i486::user_backing::kImageBytes);
+    uint8_t *const first_window = images[0] - i486::user_backing::kImageOffsetBytes;
+    std::memset(first_window, 0xA5, i486::user_backing::kSlotBytes);
     CHECK(i486::user_backing::acquire() == images[0]);
-    for (uint32_t offset = 0U; offset < i486::user_backing::kImageBytes; ++offset) {
-        CHECK(images[0][offset] == 0U);
+    for (uint32_t offset = 0U; offset < i486::user_backing::kSlotBytes; ++offset) {
+        CHECK(first_window[offset] == 0U);
     }
     for (uint8_t *image : images) {
         CHECK(i486::user_backing::release(image));
@@ -76,22 +91,32 @@ int main() {
     }
     CHECK(i486::user_backing::reserved_bytes() == maximum_bytes);
 
-    // A smaller boot map admits fewer processes while retaining an exec image.
+    // A smaller boot map admits fewer process windows while retaining an exec image.
     memory_range.length = kUsableBytes;
     i486::dma::initialize(boot_info, kernel, metadata);
     CHECK(!i486::user_backing::initialize());
     CHECK(i486::user_backing::capacity_images() == 0U);
     CHECK(i486::user_backing::acquire() == nullptr);
-    memory_range.length = uint64_t{2U} * i486::user_backing::kImageBytes +
+    // One window short of the minimum leaves the Ring 3 lane unavailable.
+    const uint64_t below_minimum_windows = i486::user_backing::kMinimumImages - 1U;
+    memory_range.length = below_minimum_windows * i486::user_backing::kSlotBytes +
                           uint64_t{1024U} * 1024U + uint64_t{2U} * kPageBytes;
     i486::dma::initialize(boot_info, kernel, metadata);
     CHECK(!i486::user_backing::initialize());
     CHECK(i486::user_backing::capacity_images() == 0U);
+    memory_range.length =
+        uint64_t{i486::user_backing::kMinimumImages} * i486::user_backing::kSlotBytes +
+        uint64_t{1024U} * 1024U + uint64_t{2U} * kPageBytes;
+    i486::dma::initialize(boot_info, kernel, metadata);
+    CHECK(i486::user_backing::initialize());
+    CHECK(i486::user_backing::capacity_images() == i486::user_backing::kMinimumImages);
+    CHECK(i486::dma::available_bytes() >= 1024U * 1024U);
     memory_range.length = uint64_t{24U} * 1024U * 1024U;
     i486::dma::initialize(boot_info, kernel, metadata);
     CHECK(i486::user_backing::initialize());
     const uint32_t reduced_capacity = i486::user_backing::capacity_images();
-    CHECK(reduced_capacity >= 2U && reduced_capacity < i486::user_backing::kMaximumImages);
+    CHECK(reduced_capacity >= i486::user_backing::kMinimumImages &&
+          reduced_capacity < i486::user_backing::kMaximumImages);
     CHECK(i486::dma::available_bytes() >= 1024U * 1024U);
     for (uint32_t index = 0U; index < reduced_capacity; ++index) {
         images[index] = i486::user_backing::acquire();

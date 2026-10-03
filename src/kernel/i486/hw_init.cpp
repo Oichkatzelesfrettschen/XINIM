@@ -1,4 +1,5 @@
 #include "hw_init.hpp"
+#include "user_backing.hpp"
 
 #ifdef XINIM_ARCH_I686
 #include "../i686/cpuid.hpp"
@@ -53,6 +54,11 @@ void set_kernel_fault_gate(uint8_t vector, void (*handler)() noexcept) noexcept 
     g_idt[vector].type_attr = 0x8EU;
     g_idt[vector].offset_high = static_cast<uint16_t>((address >> 16U) & 0xFFFFU);
 }
+
+// The user segment limit spans exactly one backing slot, so no offset reaches
+// a neighboring process window.
+static_assert(elf32::kUserVirtualBase + elf32::kUserAddressSpaceSize ==
+              user_backing::kSlotBytes);
 
 void set_user_segment_base(uint32_t base) noexcept {
     const uint32_t limit_pages =

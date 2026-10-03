@@ -93,7 +93,7 @@ rotation, stronger-priority preemption, and wakeup selection.
 
 The first candidate now has a bounded implementation in
 `src/kernel/i486/user_backing.cpp`. A process descriptor acquires a zeroed
-4 MiB image before publication. `fork` copies into a separately owned image;
+4 MiB slot window before publication. `fork` copies into a separately owned image;
 `exec` prepares a ninth candidate image and stack before replacing the live
 image. Failed image validation preserves the previous image, mappings,
 break, context, signal handlers, and file descriptors. Process destruction
@@ -108,17 +108,18 @@ measurement.
 
 The boot path now reserves a disjoint image arena immediately after the DMA
 pool is selected and before device initialization. The arena contains at most
-nine 4 MiB slots and leaves at least 1 MiB for the two virtio rings, RX
-buffers, and bootstrap device traffic. Reservation does not clear all slots;
-each acquisition clears its image before publication. Process admission stops
+nine 4 MiB slots and leaves at least 1 MiB for the two virtio rings, the RX
+and TX buffers, and bootstrap device traffic. Reservation does not clear all
+slots; each acquisition clears its window before publication. Process admission stops
 one slot short of arena capacity so a full process table can still prepare a
 replacement image for `exec`. `capacity_bytes()` reports the physical span
 removed from device allocation, while `reserved_bytes()` retains the image
 materialization high-water count. The remaining device pool is still
-monotonic: per-packet TX allocation can exhaust network capacity, but cannot
-consume a process image. The 32 MiB QEMU disk-shell run reports 27,136 KiB
-initially available, six reserved images (24 MiB), and a passing Ring 3
-fork/exec/respawn sequence. The arena policy admits five processes at that
+monotonic, so `virtio_net_i486.cpp` allocates one TX buffer per ring
+descriptor at initialization and reuses a descriptor's buffer once the used
+ring returns it; sustained transmission no longer draws on the pool. The
+32 MiB QEMU disk-shell run reports 27,136 KiB initially available, six
+reserved images (24 MiB), and a passing Ring 3 fork/exec/respawn sequence. The arena policy admits five processes at that
 memory size; the sixth image remains available for transactional `exec`.
 
 The earlier process-backing Debug kernel had 3,478,736 B of linked BSS and an
@@ -135,10 +136,19 @@ service initialization. The disk tests execute an invalid ELF from
 i486 selector passes all 31 CTest entries in 814.47 seconds; its output is
 retained at `build/i486/Debug/evidence/i486-user-backing-final-ctest.log`.
 
-The segmentation exposure described above remains open. Neither the backing
-allocator nor the guest shell tests demonstrate supervisor isolation.
-Classic 4 KiB i486 paging and immutable executable backing remain design
-candidates with the stated proof obligations.
+The segmentation exposure described above is closed by the slot layout.
+Each arena slot is one 4 MiB segment window: `compute_segment_base` returns
+the slot start, the user virtual base is `0x00010000`, and the image fills
+the window above a 64 KiB guard span. `set_user_segment_base` installs an
+inclusive limit of `0x003fffff`, and `hw_init.cpp` asserts that this limit
+equals `user_backing::kSlotBytes`, so every Ring 3 offset, including those
+below the user base, resolves inside the process's own slot. `acquire`
+zeroes the whole window, guard span included, before publication.
+Admission requires `user_backing::kMinimumImages` (four) windows: init, its
+hold service, one shell child, and the transactional `exec` candidate.
+`test_i486_user_backing` checks window disjointness, guard-span zeroing, and
+the four-window floor. Classic 4 KiB i486 paging and immutable executable
+backing remain design candidates with the stated proof obligations.
 
 ## Primary-source comparisons and reuse boundaries
 

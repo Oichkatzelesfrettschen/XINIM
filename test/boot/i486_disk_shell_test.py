@@ -12,6 +12,9 @@ import subprocess
 import tempfile
 import time
 
+# elf32::kUserAddressSpaceSize: a 4 MiB segment window less the 64 KiB guard span.
+USER_IMAGE_BYTES = 0x00400000 - 0x00010000
+
 
 def digest(path: Path) -> str:
     with path.open("rb") as source:
@@ -149,7 +152,7 @@ def run(args: argparse.Namespace) -> None:
                         raise RuntimeError("missing process arena reservation accounting")
                     capacity, arena_bytes = map(int, arena.groups())
                     available_bytes = int(allocator.group(1)) * 1024
-                    if not (2 <= capacity <= 9 and arena_bytes == capacity * 4 * 1024 * 1024
+                    if not (4 <= capacity <= 9 and arena_bytes == capacity * 4 * 1024 * 1024
                             and available_bytes - arena_bytes >= 1024 * 1024):
                         raise RuntimeError("process reservation consumed the device budget")
                     backing = re.search(
@@ -158,8 +161,8 @@ def run(args: argparse.Namespace) -> None:
                     if backing is None:
                         raise RuntimeError("missing i486 user backing accounting")
                     live_bytes, reserved_bytes = map(int, backing.groups())
-                    if live_bytes != 2 * 4 * 1024 * 1024 or not (
-                        live_bytes <= reserved_bytes <= 3 * 4 * 1024 * 1024
+                    if live_bytes != 2 * USER_IMAGE_BYTES or not (
+                        live_bytes <= reserved_bytes <= 3 * USER_IMAGE_BYTES
                     ):
                         raise RuntimeError(
                             f"unexpected user backing: live={live_bytes} "
