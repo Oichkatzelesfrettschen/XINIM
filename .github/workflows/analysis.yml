@@ -137,10 +137,13 @@ jobs:
           comparison_base = subprocess.check_output(
               ["git", "merge-base", base, head], text=True
           ).strip()
+          # A carriage return at end of line is not a token clang-tidy sees, so a
+          # line-ending normalization selects nothing; any other edit to the same
+          # file still lists it.
           changed = {
               root / filename
               for filename in subprocess.check_output(
-                  ["git", "diff", "-z", "--name-only", "--diff-filter=ACMR", comparison_base, head, "--"],
+                  ["git", "diff", "-z", "--name-only", "--ignore-cr-at-eol", "--diff-filter=ACMR", comparison_base, head, "--"],
                   text=True,
               ).split("\0")
               if filename.startswith(("src/", "include/", "test/", "userland/"))
