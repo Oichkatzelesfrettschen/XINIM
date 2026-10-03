@@ -6,7 +6,7 @@ TCC is a small (~100KB) C compiler that generates i386 ELF.
 It can compile C89/C99 and is self-hosting.
 
 Usage:
-    python3 scripts/build_i486_tcc.py \
+    "$PYTHON" scripts/build_i486_tcc.py \
         --source-dir .scratch/tcc \
         --build-dir build/i486/Debug/tcc \
         --start-o <dietlibc start.o> \
@@ -16,7 +16,6 @@ Usage:
 
 import argparse
 import hashlib
-import os
 import shlex
 import shutil
 import subprocess
@@ -33,9 +32,7 @@ TCC_SHA256 = "de23af78fca90ce32dff2dd45b3432b2334740bb9bb7b05bf60fdbfc396ceb9c"
 def write_stubs_source(stubs_path: Path) -> None:
     stubs_path.parent.mkdir(parents=True, exist_ok=True)
     stubs_path.write_text(
-        "#include <stddef.h>\n"
-        "\n"
-        "double ldexp(double value, int exponent) {\n"
+        'extern "C" double ldexp(double value, int exponent) noexcept {\n'
         "    while (exponent > 0) { value *= 2.0; --exponent; }\n"
         "    while (exponent < 0) { value *= 0.5; ++exponent; }\n"
         "    return value;\n"
@@ -54,7 +51,7 @@ def write_config_header(header_path: Path) -> None:
         '#define CONFIG_SYSROOT ""\n'
         '#define CONFIG_TCCDIR "/usr/lib/tcc"\n'
         '#define CONFIG_LDDIR "lib"\n'
-        '#define CONFIG_TCC_CRTPREFIX "/usr/lib/tcc"\n'
+        '#define CONFIG_TCC_CRTPREFIX "/usr/lib"\n'
         '#define CONFIG_TCC_SYSINCLUDEPATHS "/usr/lib/tcc/include:/usr/include"\n'
         '#define CONFIG_TCC_LIBPATHS "/usr/lib/tcc/lib:/lib:/usr/lib"\n'
         '#define CONFIG_TRIPLET ""\n'
@@ -101,7 +98,7 @@ def download_source(dest_dir: Path) -> None:
             extracted.rename(dest_dir)
 
 
-def find_sources(src_dir: Path, stubs_path: Path) -> list[str]:
+def find_sources(src_dir: Path) -> list[str]:
     """Find the core TCC sources for i386 target."""
     core = [
         "libtcc.c", "tccpp.c", "tccgen.c", "tccelf.c", "tccasm.c",
@@ -110,9 +107,9 @@ def find_sources(src_dir: Path, stubs_path: Path) -> list[str]:
     found = []
     for name in core:
         path = src_dir / name
-        if path.exists():
-            found.append(str(path))
-    found.append(str(stubs_path))
+        if not path.is_file():
+            raise RuntimeError(f"Required TCC source is missing: {path}")
+        found.append(str(path))
     return found
 
 
@@ -128,24 +125,10 @@ def build_runtime(
     runtime_dir.mkdir(parents=True, exist_ok=True)
     (runtime_dir / "tcc").mkdir(parents=True, exist_ok=True)
 
-    crt1_asm = build_dir / "xinim-tcc-crt1.S"
-    crt1_asm.write_text(
-        ".globl _start\n"
-        "_start:\n"
-        "    xorl %ebp, %ebp\n"
-        "    call main\n"
-        "    movl %eax, %ebx\n"
-        "    movl $25, %eax\n"
-        "    int $0x80\n"
-        "1:  jmp 1b\n",
-        encoding="utf-8",
-    )
-    subprocess.run(
-        compiler_arguments
-        + ["-c", str(crt1_asm), "-o", str(runtime_dir / "crt1.o")],
-        cwd=str(build_dir),
-        check=True,
-    )
+    # The guest compiler uses the same argc/argv startup and libc provider as
+    # the compiler executable. TCC names its executable startup object crt1.o.
+    shutil.copy2(start_o, runtime_dir / "crt1.o")
+    shutil.copy2(dietlibc_a, runtime_dir / "libc.a")
 
     empty_asm = build_dir / "empty-crt.S"
     empty_asm.write_text(".section .text\n", encoding="utf-8")
@@ -155,32 +138,6 @@ def build_runtime(
         check=True,
     )
     shutil.copy2(runtime_dir / "crti.o", runtime_dir / "crtn.o")
-
-    libc_stub_c = build_dir / "xinim-tcc-libc-stubs.c"
-    libc_stub_c.write_text(
-        "int errno;\n"
-        "int *__errno_location(void) { return &errno; }\n"
-        "void exit(int status) {\n"
-        "    __asm__ __volatile__(\"int $0x80\" : : \"a\"(25), \"b\"(status));\n"
-        "    for (;;) {}\n"
-        "}\n",
-        encoding="utf-8",
-    )
-    libc_stub_o = build_dir / "xinim-tcc-libc-stubs.o"
-    subprocess.run(
-        compiler_arguments
-        + [
-            "-Os", "-fno-pie", "-fno-pic", "-fno-stack-protector", "-fno-builtin",
-            "-c", str(libc_stub_c), "-o", str(libc_stub_o),
-        ],
-        cwd=str(build_dir),
-        check=True,
-    )
-    subprocess.run(
-        ["ar", "rcs", str(runtime_dir / "libc.a"), str(libc_stub_o)],
-        cwd=str(build_dir),
-        check=True,
-    )
 
     libtcc1_c = src_dir / "lib" / "libtcc1.c"
     libtcc1_o = build_dir / "libtcc1.o"
@@ -204,11 +161,7 @@ def build_runtime(
             check=True,
         )
     else:
-        subprocess.run(
-            ["ar", "rcs", str(runtime_dir / "tcc" / "libtcc1.a")],
-            cwd=str(build_dir),
-            check=True,
-        )
+        raise RuntimeError(f"Required TCC runtime source is missing: {libtcc1_c}")
 
     (runtime_dir / ".xinim-tcc-runtime-ready").write_text("ready\n", encoding="utf-8")
 
@@ -218,6 +171,7 @@ def main() -> int:
     parser.add_argument("--source-dir", required=True)
     parser.add_argument("--build-dir", required=True)
     parser.add_argument("--cc", required=True)
+    parser.add_argument("--cxx", required=True)
     parser.add_argument("--ld", default="")
     parser.add_argument("--compiler-runtime", required=True)
     parser.add_argument("--stubs-source", required=True)
@@ -233,6 +187,8 @@ def main() -> int:
     build_dir = Path(args.build_dir).resolve()
     build_dir.mkdir(parents=True, exist_ok=True)
     stubs_path = Path(args.stubs_source).resolve()
+    if stubs_path.suffix != ".cpp":
+        raise RuntimeError("The XINIM TCC math adapter requires a .cpp source path")
     write_stubs_source(stubs_path)
     config_header = (
         Path(args.config_header).resolve()
@@ -248,7 +204,7 @@ def main() -> int:
         print(f"ERROR: source directory {src_dir} does not exist")
         return 1
 
-    sources = find_sources(src_dir, stubs_path)
+    sources = find_sources(src_dir)
     if not sources:
         print(f"ERROR: no TCC sources found in {src_dir}")
         return 1
@@ -276,6 +232,21 @@ def main() -> int:
         print(f"  CC {Path(src).name}")
         subprocess.run(cmd, cwd=str(build_dir), check=True)
         object_files.append(str(obj))
+
+    adapter_object = build_dir / (stubs_path.stem + ".o")
+    cxx_arguments = shlex.split(args.cxx)
+    if not cxx_arguments:
+        raise RuntimeError("empty C++ compiler command")
+    subprocess.run(
+        cxx_arguments + [
+            "-std=c++23", "-Wall", "-Wextra", "-Werror", "-Os",
+            "-fno-pie", "-fno-pic", "-fno-stack-protector", "-fno-builtin",
+            "-fno-exceptions", "-fno-rtti",
+            "-c", str(stubs_path), "-o", str(adapter_object),
+        ],
+        cwd=str(build_dir), check=True,
+    )
+    object_files.append(str(adapter_object))
 
     output = Path(args.output).resolve()
     output.parent.mkdir(parents=True, exist_ok=True)

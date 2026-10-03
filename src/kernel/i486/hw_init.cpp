@@ -1,4 +1,5 @@
 #include "hw_init.hpp"
+#include "user_backing.hpp"
 
 #ifdef XINIM_ARCH_I686
 #include "../i686/cpuid.hpp"
@@ -53,6 +54,11 @@ void set_kernel_fault_gate(uint8_t vector, void (*handler)() noexcept) noexcept 
     g_idt[vector].type_attr = 0x8EU;
     g_idt[vector].offset_high = static_cast<uint16_t>((address >> 16U) & 0xFFFFU);
 }
+
+// The user segment limit spans exactly one backing slot, so no offset reaches
+// a neighboring process window.
+static_assert(elf32::kUserVirtualBase + elf32::kUserAddressSpaceSize ==
+              user_backing::kSlotBytes);
 
 void set_user_segment_base(uint32_t base) noexcept {
     const uint32_t limit_pages =
@@ -207,9 +213,13 @@ uint8_t bcd_to_bin(uint8_t bcd) noexcept {
 
 uint32_t days_in_months(uint32_t month, bool leap) noexcept {
     static constexpr uint16_t kCum[12] = {0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334};
-    if (month > 11U) month = 11U;
+    if (month > 11U) {
+        month = 11U;
+    }
     uint32_t days = kCum[month];
-    if (leap && month >= 2U) ++days;
+    if (leap && month >= 2U) {
+        ++days;
+    }
     return days;
 }
 
@@ -229,8 +239,12 @@ uint32_t read_rtc_epoch() noexcept {
         days += leap ? 366U : 365U;
     }
     bool cur_leap = (year % 4U == 0U && (year % 100U != 0U || year % 400U == 0U));
-    if (month > 0U) days += days_in_months(month - 1U, cur_leap);
-    if (day > 0U) days += day - 1U;
+    if (month > 0U) {
+        days += days_in_months(month - 1U, cur_leap);
+    }
+    if (day > 0U) {
+        days += day - 1U;
+    }
 
     return days * 86400U + static_cast<uint32_t>(hour) * 3600U +
            static_cast<uint32_t>(min) * 60U + static_cast<uint32_t>(sec);

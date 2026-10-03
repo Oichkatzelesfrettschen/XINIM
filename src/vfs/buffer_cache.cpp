@@ -52,10 +52,14 @@ CacheBlock* cache_get(uint64_t block_num, uint32_t device_id) {
     }
 
     // Only device_id=1 (ramfs data arena) supported in v1.3.0
-    if (device_id != 1) return nullptr;
+    if (device_id != 1) {
+        return nullptr;
+    }
 
     uint64_t max_block = DATA_ARENA_SIZE / CACHE_BLK_SIZE;
-    if (block_num >= max_block) return nullptr;
+    if (block_num >= max_block) {
+        return nullptr;
+    }
 
     uint32_t tick = ++g_lru_seq;
 
@@ -116,7 +120,9 @@ void cache_mark_dirty(CacheBlock* block) {
         (void)block;
         return;
     }
-    if (block) block->dirty = 1;
+    if (block) {
+        block->dirty = 1;
+    }
 }
 
 // Write all dirty blocks for device_id back to the backing store.
@@ -127,9 +133,15 @@ void cache_flush(uint32_t device_id) {
     }
     for (uint32_t i = 0; i < CACHE_BLOCKS; ++i) {
         CacheBlock* slot = &g_cache[i];
-        if (slot->block_num == CACHE_BLOCK_FREE) continue;
-        if (slot->device_id != device_id) continue;
-        if (!slot->dirty) continue;
+        if (slot->block_num == CACHE_BLOCK_FREE) {
+            continue;
+        }
+        if (slot->device_id != device_id) {
+            continue;
+        }
+        if (!slot->dirty) {
+            continue;
+        }
 
         uint8_t* dst = data_arena_ptr(
             static_cast<uint32_t>(slot->block_num * CACHE_BLK_SIZE));

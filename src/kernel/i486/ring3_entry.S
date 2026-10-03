@@ -61,18 +61,28 @@ i486_resume_user_context:
     jmp i486_restore_user_context
 .size i486_resume_user_context, . - i486_resume_user_context
 
-.global i486_switch_to_user_context
-.type i486_switch_to_user_context, @function
-i486_switch_to_user_context:
+.global i486_switch_process_context
+.type i486_switch_process_context, @function
+i486_switch_process_context:
     pushl %ebp
     pushl %edi
     pushl %esi
     pushl %ebx
     movl 24(%esp), %edx
     movl %esp, (%edx)
+    movl 28(%esp), %ecx
+    testl %ecx, %ecx
+    jnz .Lswitch_kernel_continuation
     movl 20(%esp), %eax
     jmp i486_restore_user_context
-.size i486_switch_to_user_context, . - i486_switch_to_user_context
+.Lswitch_kernel_continuation:
+    movl %ecx, %esp
+    popl %ebx
+    popl %esi
+    popl %edi
+    popl %ebp
+    ret
+.size i486_switch_process_context, . - i486_switch_process_context
 
 .global i486_resume_saved_kernel_stack
 .type i486_resume_saved_kernel_stack, @function

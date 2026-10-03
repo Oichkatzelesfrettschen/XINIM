@@ -1,18 +1,22 @@
+#include "../../vfs/bootfs_promote.hpp"
+#include "bootfs.hpp"
+#include "console.hpp"
+#include "dma_pages.hpp"
+#include "ext2_reader.hpp"
+#include "ide.hpp"
+#include "netstack.hpp"
+#include "ring3.hpp"
+#include "shell.hpp"
+#include "user_backing.hpp"
+#include "virtio_net_i486.hpp"
+#include "xinim/boot/multiboot2_shim.hpp"
+#include "xinim/pci/pci.hpp"
+
 #include <stddef.h>
 #include <stdint.h>
 
-#include "console.hpp"
-#include "bootfs.hpp"
-#include "ext2_reader.hpp"
-#include "ide.hpp"
-#include "ring3.hpp"
-#include "shell.hpp"
-#include "dma_pages.hpp"
-#include "virtio_net_i486.hpp"
-#include "netstack.hpp"
-#include "../../vfs/bootfs_promote.hpp"
-#include "xinim/boot/multiboot2_shim.hpp"
-#include "xinim/pci/pci.hpp"
+extern "C" uint8_t xinim_kernel_start[];
+extern "C" uint8_t xinim_kernel_end[];
 
 #ifndef XINIM_BOOT_LANE_NAME
 #define XINIM_BOOT_LANE_NAME "i486"
@@ -105,11 +109,24 @@ extern "C" void xinim_i486_kmain(uint32_t magic, uint32_t info_addr) noexcept {
     xinim::i486::console::write_string("bootfs promoted entries: ");
     xinim::i486::console::write_dec32(static_cast<uint32_t>(promoted_entries < 0 ? 0 : promoted_entries));
     xinim::i486::console::newline();
-    xinim::i486::dma::initialize(info.memory_map, static_cast<uint32_t>(info.memory_map_entries));
+    const uintptr_t kernel_start = reinterpret_cast<uintptr_t>(xinim_kernel_start);
+    const uintptr_t kernel_end = reinterpret_cast<uintptr_t>(xinim_kernel_end);
+    // Multiboot supplies an identity-mapped physical information address.
+    // NOLINTNEXTLINE(performance-no-int-to-ptr)
+    const uint32_t boot_info_size = *reinterpret_cast<const uint32_t*>(info_addr);
+    xinim::i486::dma::initialize(info, {kernel_start, kernel_end - kernel_start},
+                               {info_addr, boot_info_size});
     xinim::i486::console::write_string("DMA allocator: ");
     xinim::i486::console::write_dec32(xinim::i486::dma::available_bytes() / 1024U);
     xinim::i486::console::write_string(" KB available");
     xinim::i486::console::newline();
+
+    if (!xinim::i486::user_backing::initialize()) {
+        write_key_value("process images", "reservation failed");
+        halt_forever();
+    }
+    write_key_dec("process image capacity", xinim::i486::user_backing::capacity_images());
+    write_key_dec("process arena bytes", xinim::i486::user_backing::capacity_bytes());
 
     xinim::i486::ide::initialize();
     if (xinim::pci::PCI::initialize()) {

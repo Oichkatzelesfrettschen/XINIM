@@ -55,6 +55,7 @@ namespace xinim::i486::ring3 {
     constexpr uint32_t kMapAnonymous = 0x20U;
     constexpr uint32_t kMremapMayMove = 0x01U;
     constexpr uint32_t kErrnoPerm = static_cast<uint32_t>(-1);
+    constexpr uint32_t kErrnoSrch = static_cast<uint32_t>(-3);
     constexpr uint32_t kErrnoNoSys = static_cast<uint32_t>(-38);
     constexpr uint32_t kErrnoIntr = static_cast<uint32_t>(-4);
     constexpr uint32_t kErrnoNoEnt = static_cast<uint32_t>(-2);
@@ -105,6 +106,7 @@ namespace xinim::i486::ring3 {
     constexpr uint32_t kSigStop = 19U;
     constexpr uint32_t kSigTstp = 20U;
     constexpr uint32_t kSigTtin = 21U;
+    constexpr uint32_t kSigTtou = 22U;
     constexpr uint32_t kSigVtalrm = 26U;
     constexpr uint32_t kSigProf = 27U;
     constexpr uint32_t kMaxSignals = 32U;
@@ -316,6 +318,7 @@ namespace xinim::i486::ring3 {
         PipeIO = 2,
         SleepTick = 3,
         TcpConnect = 4,
+        ChildState = 5,
     };
 
     constexpr uint32_t kMaxGroups = 16U;
@@ -352,6 +355,8 @@ namespace xinim::i486::ring3 {
         uint64_t wake_tick;
         uint32_t ticks_remaining;
         uint32_t pgid;
+        uint32_t session_id;
+        uint64_t session_generation;
         uint64_t alarm_tick;
 
         // Interval timers (per POSIX setitimer/getitimer)
@@ -364,7 +369,8 @@ namespace xinim::i486::ring3 {
         IntervalTimer itimer_virtual; // ITIMER_VIRTUAL -> SIGVTALRM
         IntervalTimer itimer_prof;    // ITIMER_PROF -> SIGPROF
 
-        int ctty_slot;
+        bool has_controlling_terminal;
+        bool executed_since_fork;
         char cwd[256];
         char exe_path[128]; // path passed to most recent successful execve
         SignalState32 signals;
@@ -373,7 +379,7 @@ namespace xinim::i486::ring3 {
         UserMapping mappings[kMaxUserMappings];
         UserContext context;
         alignas(16) uint8_t kernel_stack[kKernelStackSize];
-        alignas(16) uint8_t address_space[elf32::kUserAddressSpaceSize];
+        uint8_t* address_space;
 #ifdef XINIM_ARCH_I686
         // 512-byte FXSAVE image; must be 16-byte aligned.  Saves x87+MMX+SSE state
         // on every context switch so processes do not corrupt each other's FPU regs.
@@ -442,8 +448,9 @@ namespace xinim::i486::ring3 {
     extern "C" void i486_load_idt(uint32_t descriptor) noexcept;
     extern "C" void i486_load_tss(uint16_t selector) noexcept;
     extern "C" void i486_resume_user_context(const UserContext *context) noexcept;
-    extern "C" void i486_switch_to_user_context(const UserContext *context,
-                                                uint32_t *saved_kernel_esp) noexcept;
+    extern "C" void i486_switch_process_context(const UserContext *context,
+                                                 uint32_t *saved_kernel_esp,
+                                                 uint32_t next_kernel_esp) noexcept;
     extern "C" void i486_resume_saved_kernel_stack(uint32_t saved_kernel_esp) noexcept;
     extern "C" void i486_syscall_entry() noexcept;
     extern "C" void i486_timer_irq_entry() noexcept;

@@ -4,8 +4,11 @@
 
 namespace xinim::i486::elf32 {
 
-inline constexpr uint32_t kUserVirtualBase = 0x00400000U;
-inline constexpr uint32_t kUserAddressSpaceSize = 0x00400000U; // 4 MB per process
+// Offsets below the base stay outside the user range, so syscall pointer
+// validation rejects NULL and small NULL-relative pointers with EFAULT.
+inline constexpr uint32_t kUserVirtualBase = 0x00010000U;
+// The image fills the rest of its 4 MiB segment window.
+inline constexpr uint32_t kUserAddressSpaceSize = 0x00400000U - kUserVirtualBase;
 
 struct UserImage {
     uint32_t entry_point;

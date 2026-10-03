@@ -1,93 +1,272 @@
-name: Conan + CMake Build
+name: x86 Build and QEMU
 
 on:
   push:
-    branches: ["master", "main"]
+    branches: [main]
   pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: x86-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  i486:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PYTHON: /usr/bin/python3
+      QEMU_REVISION: c3d48b7d1e89604920e5b81b91140c2ad39a1943
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install Clang 22 and build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
+          sudo apt-get update
+          sudo apt-get install -y clang-22 clang-tools-22 lld-22 llvm-22 \
+            libclang-rt-22-dev libc++-22-dev libc++abi-22-dev libc6-dev-i386 \
+            cmake ninja-build pkg-config python3-venv git curl \
+            xorriso grub-common grub-pc-bin mtools e2fsprogs \
+            libglib2.0-dev libpixman-1-dev libslirp-dev libfdt-dev zlib1g-dev \
+            flex bison doxygen
+          echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
+          clang-22 --version
+          dpkg-query -W clang-22 libclang-rt-22-dev libc++-22-dev cmake
+
+      - name: Restore pinned QEMU
+        id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/qemu-i486
+          key: qemu-ubuntu24.04-clang22-${{ env.QEMU_REVISION }}-i386-slirp
+
+      - name: Build QEMU 11.1.1
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          qemu_source="$RUNNER_TEMP/qemu-source"
+          git init "$qemu_source"
+          git -C "$qemu_source" remote add origin https://github.com/qemu/qemu.git
+          git -C "$qemu_source" fetch --depth 1 origin "$QEMU_REVISION"
+          git -C "$qemu_source" checkout --detach FETCH_HEAD
+          test "$(git -C "$qemu_source" rev-parse HEAD)" = "$QEMU_REVISION"
+          git -C "$qemu_source" submodule update --init --depth 1
+          mkdir "$qemu_source/build"
+          cd "$qemu_source/build"
+          ../configure --prefix="$RUNNER_TEMP/qemu-i486" \
+            --target-list=i386-softmmu --cc=clang-22 --cxx=clang++-22 \
+            --disable-docs --enable-slirp
+          ninja -j2
+          ninja install
+
+      - name: Select exact emulator and compiler lane
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "$RUNNER_TEMP/qemu-i486/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" --version
+          "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" -machine help \
+            | grep -F 'pc-i440fx-11.1'
+          "$RUNNER_TEMP/qemu-i486/bin/qemu-system-i386" -cpu help \
+            | grep -E '^[[:space:]]+486[[:space:]]'
+          clang --version
+          clang++ --version
+
+      - name: Configure and build the i486 image and native contracts
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --preset i486-standalone \
+            -DXINIM_ENABLE_WERROR=ON \
+            -DXINIM_GRUB_MKRESCUE_EXECUTABLE=/usr/bin/grub-mkrescue
+          cmake --build build/i486/Debug --target i486_boot_disk xinim_i486_image \
+            test_i486_dma_pages test_i486_elf32_loader test_i486_scheduler_wait \
+            test_i486_process_sessions \
+            test_i486_signal_dispatch test_i486_context_switch test_i486_ata_deadline \
+            test_i486_ext2_indirect test_i486_user_backing -j2
+          ninja -C build/i486/Debug -t deps > build/i486/Debug/analysis-dependencies.txt
+
+      - name: Package analysis inputs with paths and provenance
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$PYTHON" - <<'PY'
+          import json
+          from pathlib import Path
+          import subprocess
+          import tarfile
+
+          root = Path.cwd()
+          build = root / "build/i486/Debug"
+          manifest = {
+              "workspace": str(root),
+              "checkout": subprocess.check_output(["git", "rev-parse", "HEAD"], text=True).strip(),
+              "compiler": subprocess.check_output(["clang++", "--version"], text=True),
+          }
+          (build / "analysis-provenance.json").write_text(json.dumps(manifest, indent=2) + "\n")
+          inputs = [
+              build / "compile_commands.json",
+              build / "analysis-dependencies.txt",
+              build / "analysis-provenance.json",
+              build / "dietlibc-i486/tree/include",
+          ]
+          inputs.extend(sorted((build / "CMakeFiles").rglob("*.modmap")))
+          inputs.extend(sorted((build / "CMakeFiles").rglob("*.rsp")))
+          # Tar retains generated header symlinks and response-file directory structure.
+          with tarfile.open(build.parent / "analysis-inputs.tar.gz", "w:gz") as archive:
+              for path in inputs:
+                  archive.add(path, arcname=str(path.relative_to(build)))
+          PY
+
+      - name: Retain compile database and generated analysis inputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: i486-analysis-inputs
+          if-no-files-found: error
+          path: build/i486/analysis-inputs.tar.gz
+
+      - name: Run native contracts and bounded 486 QEMU matrix
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir build/i486/Debug \
+            -R '^(test_i486_|i486_|cpp23_c23_assembly_ownership)' \
+            -E '^i486_vbox' --output-on-failure --no-tests=error -j1
+
+      - name: Retain guest logs and CTest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: i486-qemu-results
+          path: |
+            build/i486/Debug/Testing/
+            build/i486/Debug/logs/
+          retention-days: 14
+
   x86_64-debug:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      PYTHON: /usr/bin/python3
+      QEMU_REVISION: c3d48b7d1e89604920e5b81b91140c2ad39a1943
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install build dependencies
+      - name: Install Clang 22 and x86_64 build dependencies
+        shell: bash
         run: |
+          set -euo pipefail
+          curl --fail --silent --show-error https://apt.llvm.org/llvm-snapshot.gpg.key \
+            | sudo gpg --dearmor -o /usr/share/keyrings/llvm-archive-keyring.gpg
+          echo 'deb [signed-by=/usr/share/keyrings/llvm-archive-keyring.gpg] https://apt.llvm.org/noble/ llvm-toolchain-noble-22 main' \
+            | sudo tee /etc/apt/sources.list.d/llvm-22.list
           sudo apt-get update
-          sudo apt-get install -y \
-            clang-21 \
-            lld-21 \
-            libc++-21-dev \
-            libc++abi-21-dev \
-            cmake \
-            ninja-build \
-            python3 \
-            python3-pip \
-            git \
-            xorriso \
-            grub-common \
-            grub-pc-bin \
-            mtools \
-            qemu-system-x86
-          python3 -m pip install "conan>=2.8,<3"
+          sudo apt-get install -y clang-22 clang-tools-22 lld-22 llvm-22 \
+            libclang-rt-22-dev libc++-22-dev libc++abi-22-dev libc6-dev-i386 \
+            cmake ninja-build pkg-config python3-venv git curl \
+            xorriso mtools e2fsprogs \
+            libglib2.0-dev libpixman-1-dev libslirp-dev libfdt-dev zlib1g-dev \
+            flex bison doxygen
+          echo /usr/lib/llvm-22/bin >> "$GITHUB_PATH"
+          clang-22 --version
+          dpkg-query -W clang-22 libclang-rt-22-dev libc++-22-dev cmake
 
-      - name: Configure Conan toolchain
+      - name: Restore pinned x86_64 QEMU
+        id: qemu-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/qemu-x86_64
+          key: qemu-ubuntu24.04-clang22-${{ env.QEMU_REVISION }}-x86_64-slirp
+
+      - name: Build QEMU 11.1.1 for x86_64
+        if: steps.qemu-cache.outputs.cache-hit != 'true'
+        shell: bash
         run: |
-          conan install . \
-            -pr:h=conan/profiles/clang-x86_64 \
-            -s build_type=Debug \
-            -o '&:lane=x86_64' \
-            -of build/x86_64/Debug \
-            --build=missing
+          set -euo pipefail
+          qemu_source="$RUNNER_TEMP/qemu-x86_64-source"
+          git init "$qemu_source"
+          git -C "$qemu_source" remote add origin https://github.com/qemu/qemu.git
+          git -C "$qemu_source" fetch --depth 1 origin "$QEMU_REVISION"
+          git -C "$qemu_source" checkout --detach FETCH_HEAD
+          test "$(git -C "$qemu_source" rev-parse HEAD)" = "$QEMU_REVISION"
+          git -C "$qemu_source" submodule update --init --depth 1
+          mkdir "$qemu_source/build"
+          cd "$qemu_source/build"
+          ../configure --prefix="$RUNNER_TEMP/qemu-x86_64" \
+            --target-list=x86_64-softmmu --cc=clang-22 --cxx=clang++-22 \
+            --disable-docs --enable-slirp
+          ninja -j2
+          ninja install
 
-      - name: Configure and build
+      - name: Select exact x86_64 emulator and compiler lane
+        shell: bash
         run: |
-          cmake --preset x86_64-debug
-          cmake --build --preset x86_64-debug
+          set -euo pipefail
+          echo "$RUNNER_TEMP/qemu-x86_64/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/qemu-x86_64/bin/qemu-system-x86_64" --version
+          "$RUNNER_TEMP/qemu-x86_64/bin/qemu-system-x86_64" -machine help \
+            | grep -F 'pc-q35-11.1'
+          "$RUNNER_TEMP/qemu-x86_64/bin/qemu-system-x86_64" -cpu help \
+            | grep -E '^[[:space:]]+qemu64[[:space:]]'
+          clang --version
+          clang++ --version
 
-      - name: Run tests
-        run: ctest --preset x86_64-debug
-
-  i486-debug:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Install 32-bit lane dependencies
+      - name: Configure and build the supported x86_64 boot boundary
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            clang-21 \
-            lld-21 \
-            libc++-21-dev \
-            libc++abi-21-dev \
-            libc6-dev-i386 \
-            lib32gcc-s1 \
-            cmake \
-            ninja-build \
-            python3 \
-            python3-pip \
-            git \
-            xorriso \
-            grub-common \
-            grub-pc-bin \
-            mtools \
-            qemu-system-x86
-          python3 -m pip install "conan>=2.8,<3"
+          set -euo pipefail
+          cmake -S . -B build/x86_64/Debug -G Ninja \
+            -DCMAKE_BUILD_TYPE=Debug -DXINIM_CPU_LANE=x86_64 \
+            -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ \
+            -DCMAKE_CXX_STANDARD=23 -DCMAKE_CXX_STANDARD_REQUIRED=ON \
+            -DCMAKE_CXX_EXTENSIONS=OFF \
+            -DXINIM_ENABLE_WERROR=ON -DXINIM_PYTHON3_EXECUTABLE="$PYTHON" \
+            -DXINIM_MKSH_ARCHIVE="$PWD/third_party/distfiles/mksh-R59c.tgz"
+          cmake --build build/x86_64/Debug \
+            --target test_bootfs_promote test_x86_64_userspace_abi \
+            xinim_assembly_abi_check xinim_x86_64_image -j2
 
-      - name: Configure Conan toolchain
+      - name: Run x86_64 native and assembly contracts
+        shell: bash
         run: |
-          conan install . \
-            -pr:h=conan/profiles/clang-x86_32 \
-            -s build_type=Debug \
-            -o '&:lane=i486' \
-            -of build/i486/Debug \
-            --build=missing
+          set -euo pipefail
+          ctest --test-dir build/x86_64/Debug \
+            -R '^(test_bootfs_promote|test_x86_64_userspace_abi|assembly_abi_verifier_self_test|assembly_abi_contract)$' \
+            --output-on-failure --no-tests=error
 
-      - name: Configure and build
+      - name: Run exact Q35 Ring 3 shell and runtime ownership gates
+        shell: bash
         run: |
-          cmake --preset i486-debug
-          cmake --build --preset i486-debug
+          set -euo pipefail
+          mkdir -p build/x86_64/Debug/logs
+          export XINIM_QEMU_COM1_LOG="$PWD/build/x86_64/Debug/logs/x86_64-shell-com1.log"
+          ctest --test-dir build/x86_64/Debug \
+            -R '^(x86_64_shell_test|x86_64_runtime_ownership)$' \
+            --output-on-failure --no-tests=error -j1
 
-      - name: Run tests
-        run: ctest --preset i486-debug
+      - name: Retain x86_64 guest logs and CTest results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: x86_64-qemu-results
+          path: |
+            build/x86_64/Debug/Testing/
+            build/x86_64/Debug/logs/
+            build/x86_64/Debug/CMakeCache.txt
+          retention-days: 14
+
+  clang-tidy:
+    needs: i486
+    uses: ./.github/workflows/analysis.yml

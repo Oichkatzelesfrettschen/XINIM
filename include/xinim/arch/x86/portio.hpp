@@ -13,19 +13,19 @@
 namespace xinim::arch::x86 {
 
 inline uint8_t inb(uint16_t port) noexcept {
-    uint8_t val;
+    uint8_t val = 0U;
     asm volatile("inb %1, %0" : "=a"(val) : "Nd"(port));
     return val;
 }
 
 inline uint16_t inw(uint16_t port) noexcept {
-    uint16_t val;
+    uint16_t val = 0U;
     asm volatile("inw %1, %0" : "=a"(val) : "Nd"(port));
     return val;
 }
 
 inline uint32_t inl(uint16_t port) noexcept {
-    uint32_t val;
+    uint32_t val = 0U;
     asm volatile("inl %1, %0" : "=a"(val) : "Nd"(port));
     return val;
 }

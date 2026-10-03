@@ -17,7 +17,7 @@ logs belong under the ignored `build/` tree unless a separate evidence intake
 records their provenance and explicitly admits them.
 
 1. QEMU i440FX PC machine
-   - URL: https://www.qemu.org/docs/master/system/i386/pc.html
+   - URL: <https://www.qemu.org/docs/master/system/i386/pc.html>
    - Cache: `data/external/qemu/qemu-master-i386-pc.html`
    - Why it matters: `pc` maps to the i440FX/PIIX legacy PC family. The
      documented device set includes the i440FX host bridge, PIIX3 PCI-to-ISA
@@ -25,14 +25,14 @@ records their provenance and explicitly admits them.
      interfaces with hard disk and CD-ROM support.
 
 2. QEMU invocation reference
-   - URL: https://www.qemu.org/docs/master/system/invocation.html
+   - URL: <https://www.qemu.org/docs/master/system/invocation.html>
    - Cache: `data/external/qemu/qemu-master-invocation.html`
    - Why it matters: anchors the exact launch contract: `-machine pc`,
      lane-specific `-cpu`, `-m`, `-serial`, `-drive`, `-boot`, `-d`, `-D`,
      optional `-S`, and optional `-gdb`/`-s`.
 
 3. QEMU disk image reference
-   - URL: https://www.qemu.org/docs/master/system/images.html
+   - URL: <https://www.qemu.org/docs/master/system/images.html>
    - Cache: `data/external/qemu/qemu-master-images.html`
    - Why it matters: confirms that `qcow2` is a primary QEMU disk format and
      that VMDK is a supported compatibility image format. The current XINIM
@@ -40,7 +40,7 @@ records their provenance and explicitly admits them.
      `qemu-img check`.
 
 4. QEMU network device reference
-   - URL: https://www.qemu.org/docs/master/system/devices/net.html
+   - URL: <https://www.qemu.org/docs/master/system/devices/net.html>
    - Cache: `data/external/qemu/qemu-master-net.html`
    - Why it matters: establishes the supported `-netdev` plus `-device` model
      split and the available emulated NIC path. For a BSD-licensed guest driver
@@ -48,7 +48,7 @@ records their provenance and explicitly admits them.
      from compatible code or clean-room register documentation.
 
 5. QEMU GDB usage
-   - URL: https://www.qemu.org/docs/master/system/gdb.html
+   - URL: <https://www.qemu.org/docs/master/system/gdb.html>
    - Cache: `data/external/qemu/qemu-master-gdb.html`
    - Why it matters: documents the `-s -S` debugging path and remote GDB stub
    behavior used by `scripts/qemu_x86_32_debug.py --gdb`.
@@ -127,6 +127,46 @@ The local primary-source checkout used for this contract is QEMU commit
 These QEMU files are behavioral evidence, not guest implementation sources.
 Do not copy QEMU implementation code into XINIM. Build C++23 guest drivers from
 the device specifications and validate them against the versioned model.
+
+## ATA Completion And Polling Time On 32-bit PC Machines
+
+The source checkout at `006a22cb26998998385b104db1ff9466ef2f3153` establishes
+the following device contract for the ISA and i440FX lanes:
+
+- `hw/ide/core.c`, `ide_sector_read()`, sets `BUSY_STAT` before submitting
+  an asynchronous block read. `ide_sector_read_cb()` clears that bit and
+  starts the PIO transfer after completion. Host I/O latency therefore affects
+  how long the guest observes busy status; a fixed guest instruction count
+  cannot express a command timeout.
+- `ide_ioport_write()` and `ide_bus_exec_cmd()` reject ordinary task-file
+  programming and commands while `BUSY_STAT` or `DRQ_STAT` remains set. A
+  timed-out command must retain ownership of the task file until reset or
+  device retirement; later requests cannot safely consume its delayed data.
+- `hw/timer/i8254.c`, `pit_get_count()` and `pit_load_count()`, model mode 2
+  as a periodic down counter. A programmed count of zero means 65536 ticks.
+  Channel 2 selection uses control byte `0xb4`; latch command `0x80` captures
+  its count for low-byte/high-byte reads from port `0x42`.
+- `hw/audio/pcspk.c`, `pcspk_io_write()`, maps port `0x61` bit 0 to the
+  channel 2 gate and bit 1 to speaker data. XINIM reserves channel 2 for ATA
+  polling, enables its gate, and clears speaker data. Channel 0 retains the
+  scheduler timer and receives neither count nor mode writes from ATA.
+
+`src/kernel/i486/pit_deadline.hpp` accumulates unsigned 16-bit count deltas
+at 1193182 Hz while interrupts are masked. Each ATA command shares a
+three-second observed timer budget across busy, data-request, and completion
+waits. Polls must sample within 65536 ticks (approximately 54.9 ms) to observe
+every elapsed tick. A longer host scheduling pause discards whole periods
+and conservatively extends the accumulated budget. The budget therefore
+measures observed device-clock time rather than a strict host-wall deadline.
+Each wait checks readiness before testing the budget.
+
+An expired budget retires the ATA device, clears its boot-storage
+registration, and rejects further requests before task-file access. Reboot
+reinitializes the device. Native `test_i486_ata_deadline` links the production
+driver to scripted port I/O and checks delayed completion, rollover, shared
+budgets, completion errors, and device retirement. The `i486_ata_latency_test`
+guest gate limits ATA reads to 16384 bytes per second on a disposable disk
+snapshot while retaining the exact CPU and machine checks.
 
 ## Driver And Subsystem Implications
 

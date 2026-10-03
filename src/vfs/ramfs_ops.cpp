@@ -34,10 +34,16 @@ static inline bool is_inline(const RawInode* n) {
 // ============================================================================
 
 static int ramfs_open(uint32_t ino, uint32_t flags, int* out_fd) {
-    if (!out_fd) return -IPC_EINVAL;
+    if (!out_fd) {
+        return -IPC_EINVAL;
+    }
     RawInode* inode = inode_get(ino);
-    if (!inode) return -IPC_ENOENT;
-    if (!vnode_acquire(ino)) return -IPC_ENFILE;
+    if (!inode) {
+        return -IPC_ENOENT;
+    }
+    if (!vnode_acquire(ino)) {
+        return -IPC_ENFILE;
+    }
 
     int fd = fd_allocate(ino, flags);
     if (fd < 0) {
@@ -66,14 +72,24 @@ static int ramfs_open(uint32_t ino, uint32_t flags, int* out_fd) {
 // ============================================================================
 
 static int ramfs_read(uint32_t ino, void* buf, uint32_t len, int64_t off) {
-    if (!buf || len == 0) return 0;
-    if (off < 0) return -IPC_EINVAL;
+    if (!buf || len == 0) {
+        return 0;
+    }
+    if (off < 0) {
+        return -IPC_EINVAL;
+    }
     RawInode* inode = inode_get(ino);
-    if (!inode) return -IPC_ENOENT;
-    if (inode->iflags & INODE_IS_DIR) return -IPC_EISDIR;
+    if (!inode) {
+        return -IPC_ENOENT;
+    }
+    if (inode->iflags & INODE_IS_DIR) {
+        return -IPC_EISDIR;
+    }
 
     uint64_t uoff = static_cast<uint64_t>(off);
-    if (uoff >= inode->size) return 0; // EOF
+    if (uoff >= inode->size) {
+        return 0; // EOF
+    }
 
     uint64_t avail = inode->size - uoff;
     uint32_t to_read = (len < avail) ? len : static_cast<uint32_t>(avail);
@@ -82,7 +98,9 @@ static int ramfs_read(uint32_t ino, void* buf, uint32_t len, int64_t off) {
         __builtin_memcpy(buf, inode->inline_data + uoff, to_read);
     } else {
         uint8_t* data = data_arena_ptr(static_cast<uint32_t>(inode->data_block_off));
-        if (!data) return -IPC_EIO;
+        if (!data) {
+            return -IPC_EIO;
+        }
         __builtin_memcpy(buf, data + uoff, to_read);
     }
     return static_cast<int>(to_read);
@@ -93,11 +111,19 @@ static int ramfs_read(uint32_t ino, void* buf, uint32_t len, int64_t off) {
 // ============================================================================
 
 static int ramfs_write(uint32_t ino, const void* buf, uint32_t len, int64_t off) {
-    if (!buf || len == 0) return 0;
-    if (off < 0) return -IPC_EINVAL;
+    if (!buf || len == 0) {
+        return 0;
+    }
+    if (off < 0) {
+        return -IPC_EINVAL;
+    }
     RawInode* inode = inode_get(ino);
-    if (!inode) return -IPC_ENOENT;
-    if (inode->iflags & INODE_IS_DIR) return -IPC_EISDIR;
+    if (!inode) {
+        return -IPC_ENOENT;
+    }
+    if (inode->iflags & INODE_IS_DIR) {
+        return -IPC_EISDIR;
+    }
 
     uint64_t uoff = static_cast<uint64_t>(off);
     uint64_t new_end = uoff + len;
@@ -111,26 +137,34 @@ static int ramfs_write(uint32_t ino, const void* buf, uint32_t len, int64_t off)
         }
         inode->iflags |= INODE_IS_INLINE;
         __builtin_memcpy(inode->inline_data + uoff, buf, len);
-        if (new_end > inode->size) inode->size = new_end;
+        if (new_end > inode->size) {
+            inode->size = new_end;
+        }
         return static_cast<int>(len);
     }
 
 arena_write:;
     // Large write -- use data arena
-    uint8_t* data;
+    uint8_t* data = nullptr;
     if (!(inode->iflags & INODE_IS_INLINE) && inode->size > 0) {
         // Already arena-backed
         data = data_arena_ptr(static_cast<uint32_t>(inode->data_block_off));
-        if (!data) return -IPC_EIO;
+        if (!data) {
+            return -IPC_EIO;
+        }
         // Check if write fits in existing allocation (arena_alloc rounds to 512)
         // For simplicity in v1.3.0 we allow writes within the allocated block only.
         // new_end must fit; if not, -EFBIG.
-        if (new_end > DATA_ARENA_SIZE) return -IPC_EFBIG;
+        if (new_end > DATA_ARENA_SIZE) {
+            return -IPC_EFBIG;
+        }
     } else {
         // Transition from inline or fresh file to arena storage
         uint32_t alloc_size = static_cast<uint32_t>(new_end);
         uint32_t off_in_arena = data_arena_alloc(alloc_size);
-        if (off_in_arena == DATA_ARENA_SIZE) return -IPC_ENOSPC;
+        if (off_in_arena == DATA_ARENA_SIZE) {
+            return -IPC_ENOSPC;
+        }
         data = data_arena_ptr(off_in_arena);
 
         // Copy existing inline data if any
@@ -143,7 +177,9 @@ arena_write:;
     }
 
     __builtin_memcpy(data + uoff, buf, len);
-    if (new_end > inode->size) inode->size = new_end;
+    if (new_end > inode->size) {
+        inode->size = new_end;
+    }
     return static_cast<int>(len);
 }
 
@@ -153,7 +189,9 @@ arena_write:;
 
 static int ramfs_close(int fd) {
     FdEntry* entry = fd_get(fd);
-    if (!entry) return -IPC_EBADF;
+    if (!entry) {
+        return -IPC_EBADF;
+    }
     uint32_t ino = entry->ino;
 
     int ret = fd_release(fd);
@@ -180,11 +218,17 @@ static int ramfs_close(int fd) {
 // ============================================================================
 
 static int ramfs_stat(uint32_t ino, KStat* out) {
-    if (!out) return -IPC_EINVAL;
+    if (!out) {
+        return -IPC_EINVAL;
+    }
     RawInode* inode = inode_get(ino);
-    if (!inode) return -IPC_ENOENT;
+    if (!inode) {
+        return -IPC_ENOENT;
+    }
     VnodeHandle* vnode = vnode_acquire(ino);
-    if (!vnode) return -IPC_ENFILE;
+    if (!vnode) {
+        return -IPC_ENFILE;
+    }
 
     out->st_dev    = 1; // ramfs device id
     out->st_ino    = ino;
@@ -209,16 +253,26 @@ static int ramfs_stat(uint32_t ino, KStat* out) {
 
 static int ramfs_mkdir(uint32_t parent_ino, const char* name,
                        uint8_t namelen, uint16_t mode) {
-    if (!name || namelen == 0 || namelen > 26) return -IPC_ENAMETOOLONG;
+    if (!name || namelen == 0 || namelen > 26) {
+        return -IPC_ENAMETOOLONG;
+    }
     RawInode* parent = inode_get(parent_ino);
-    if (!parent) return -IPC_ENOENT;
-    if (!(parent->iflags & INODE_IS_DIR)) return -IPC_ENOTDIR;
+    if (!parent) {
+        return -IPC_ENOENT;
+    }
+    if (!(parent->iflags & INODE_IS_DIR)) {
+        return -IPC_ENOTDIR;
+    }
 
     // Check if name already exists
-    if (dirent_lookup(parent_ino, name, namelen) != 0) return -IPC_EEXIST;
+    if (dirent_lookup(parent_ino, name, namelen) != 0) {
+        return -IPC_EEXIST;
+    }
 
     uint32_t new_ino = inode_alloc();
-    if (new_ino == 0) return -IPC_ENOSPC;
+    if (new_ino == 0) {
+        return -IPC_ENOSPC;
+    }
 
     // Allocate dirent block for new directory
     uint32_t dstart = dirent_block_alloc();
@@ -256,24 +310,40 @@ static int ramfs_mkdir(uint32_t parent_ino, const char* name,
 // ============================================================================
 
 static int ramfs_unlink(uint32_t parent_ino, const char* name, uint8_t namelen) {
-    if (!name || namelen == 0) return -IPC_EINVAL;
+    if (!name || namelen == 0) {
+        return -IPC_EINVAL;
+    }
     RawInode* parent = inode_get(parent_ino);
-    if (!parent) return -IPC_ENOENT;
-    if (!(parent->iflags & INODE_IS_DIR)) return -IPC_ENOTDIR;
+    if (!parent) {
+        return -IPC_ENOENT;
+    }
+    if (!(parent->iflags & INODE_IS_DIR)) {
+        return -IPC_ENOTDIR;
+    }
 
     uint32_t child_ino = dirent_lookup(parent_ino, name, namelen);
-    if (child_ino == 0) return -IPC_ENOENT;
+    if (child_ino == 0) {
+        return -IPC_ENOENT;
+    }
 
     RawInode* child = inode_get(child_ino);
-    if (!child) return -IPC_ENOENT;
+    if (!child) {
+        return -IPC_ENOENT;
+    }
 
     // Directories must be removed via a future rmdir; unlink is for files
-    if (child->iflags & INODE_IS_DIR) return -IPC_EISDIR;
+    if (child->iflags & INODE_IS_DIR) {
+        return -IPC_EISDIR;
+    }
 
     int ret = dirent_remove(parent_ino, name, namelen);
-    if (ret != 0) return -IPC_EIO;
+    if (ret != 0) {
+        return -IPC_EIO;
+    }
 
-    if (child->nlink > 0) child->nlink--;
+    if (child->nlink > 0) {
+        child->nlink--;
+    }
 
     // Free inode only if no open FDs hold it
     if (child->nlink == 0 && child->open_count == 0) {

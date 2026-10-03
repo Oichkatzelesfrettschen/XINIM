@@ -119,11 +119,15 @@ namespace xinim::boot {
         info.memory_map = g_memory_ranges;
         info.modules = g_boot_modules;
 
+        // Multiboot enters through an identity-mapped physical information address.
+        // NOLINTNEXTLINE(performance-no-int-to-ptr)
         const auto *header = reinterpret_cast<const MultibootInfoHeader *>(info_addr);
         uintptr_t cursor = info_addr + sizeof(MultibootInfoHeader);
         const uintptr_t end = info_addr + header->total_size;
 
         while (cursor + sizeof(MultibootTag) <= end) {
+            // The tag cursor walks the identity-mapped Multiboot information block.
+            // NOLINTNEXTLINE(performance-no-int-to-ptr)
             const auto *tag = reinterpret_cast<const MultibootTag *>(cursor);
             if (tag->type == kTagTypeEnd) {
                 break;
@@ -134,6 +138,8 @@ namespace xinim::boot {
 
             switch (tag->type) {
             case kTagTypeCmdline:
+                // The command line occupies bytes following the physical Multiboot tag.
+                // NOLINTNEXTLINE(performance-no-int-to-ptr)
                 info.cmdline = reinterpret_cast<const char *>(cursor + sizeof(MultibootTag));
                 break;
             case kTagTypeModule: {
@@ -142,7 +148,9 @@ namespace xinim::boot {
                 }
                 const auto *module_tag = reinterpret_cast<const MultibootTagModule *>(tag);
                 BootModule &module = g_boot_modules[info.modules_count];
+                // The bootloader supplies the module physical address in the tag ABI.
                 module.address =
+                    // NOLINTNEXTLINE(performance-no-int-to-ptr)
                     reinterpret_cast<const void *>(static_cast<uintptr_t>(module_tag->mod_start));
                 module.size = static_cast<uint64_t>(module_tag->mod_end - module_tag->mod_start);
                 module.string = module_tag->string;
@@ -162,6 +170,8 @@ namespace xinim::boot {
                      entry_addr + sizeof(MultibootMmapEntry) <= entries_end &&
                      count < kMaxMemoryRanges;
                      entry_addr += mmap_tag->entry_size) {
+                    // Memory-map entries occupy the physical Multiboot information block.
+                    // NOLINTNEXTLINE(performance-no-int-to-ptr)
                     const auto *entry = reinterpret_cast<const MultibootMmapEntry *>(entry_addr);
                     g_memory_ranges[count].base = entry->addr;
                     g_memory_ranges[count].length = entry->len;
@@ -174,7 +184,9 @@ namespace xinim::boot {
             }
             case kTagTypeFramebuffer: {
                 const auto *fb_tag = reinterpret_cast<const MultibootTagFramebuffer *>(tag);
+                // The framebuffer tag supplies the hardware physical address.
                 info.framebuffer.address =
+                    // NOLINTNEXTLINE(performance-no-int-to-ptr)
                     reinterpret_cast<void *>(static_cast<uintptr_t>(fb_tag->address));
                 info.framebuffer.width = fb_tag->width;
                 info.framebuffer.height = fb_tag->height;
@@ -191,6 +203,8 @@ namespace xinim::boot {
             }
             case kTagTypeAcpiOld:
             case kTagTypeAcpiNew:
+                // The ACPI payload occupies bytes following the physical Multiboot tag.
+                // NOLINTNEXTLINE(performance-no-int-to-ptr)
                 info.acpi_rsdp = reinterpret_cast<const void *>(cursor + sizeof(MultibootTag));
                 break;
             default:

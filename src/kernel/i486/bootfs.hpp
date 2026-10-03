@@ -115,6 +115,7 @@ namespace xinim::kernel::bootfs {
     [[nodiscard]] const char *directory_path_for_fd(int fd) noexcept;
 
     [[nodiscard]] int foreground_pgrp() noexcept;
+    void set_foreground_pgrp(int pgid) noexcept;
 
     // True when a pipe writer count reached 0 -- readers need to be woken
     [[nodiscard]] bool consume_pipe_eof_event() noexcept;

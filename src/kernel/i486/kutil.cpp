@@ -137,7 +137,7 @@ bool translate_user_region(Process* process,
                            uint32_t user_address,
                            uint32_t size,
                            uint8_t** out) noexcept {
-    if (process == nullptr || out == nullptr) {
+    if (process == nullptr || process->address_space == nullptr || out == nullptr) {
         return false;
     }
     if (user_address < elf32::kUserVirtualBase) {
@@ -239,9 +239,15 @@ bool resolve_path(const Process* process,
         return false;
     }
     uint32_t pos = 0U;
-    for (uint32_t i = 0U; i < cwd_len; ++i) output[pos++] = process->cwd[i];
-    if (needs_slash) output[pos++] = '/';
-    for (uint32_t i = 0U; i < input_len; ++i) output[pos++] = input[i];
+    for (uint32_t i = 0U; i < cwd_len; ++i) {
+        output[pos++] = process->cwd[i];
+    }
+    if (needs_slash) {
+        output[pos++] = '/';
+    }
+    for (uint32_t i = 0U; i < input_len; ++i) {
+        output[pos++] = input[i];
+    }
     output[pos] = '\0';
     return true;
 }

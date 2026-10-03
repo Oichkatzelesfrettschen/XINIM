@@ -8,7 +8,9 @@
 namespace xinim::kernel::recovery {
 
 int RecoveryDag::add_service(const char* name, RestartPolicy policy, uint8_t max_restarts) {
-    if (count_ >= MAX_SERVICES) return -1;
+    if (count_ >= MAX_SERVICES) {
+        return -1;
+    }
 
     int idx = static_cast<int>(count_);
     services_[idx].set_name(name);
@@ -23,20 +25,32 @@ int RecoveryDag::add_service(const char* name, RestartPolicy policy, uint8_t max
 }
 
 bool RecoveryDag::add_dependency(int dependent, int dependency) {
-    if (dependent < 0 || dependent >= static_cast<int>(count_)) return false;
-    if (dependency < 0 || dependency >= static_cast<int>(count_)) return false;
-    if (dependent == dependency) return false;
+    if (dependent < 0 || dependent >= static_cast<int>(count_)) {
+        return false;
+    }
+    if (dependency < 0 || dependency >= static_cast<int>(count_)) {
+        return false;
+    }
+    if (dependent == dependency) {
+        return false;
+    }
 
     ServiceNode& node = services_[dependent];
-    if (node.ndeps >= MAX_DEPS) return false;
+    if (node.ndeps >= MAX_DEPS) {
+        return false;
+    }
 
     // Check for duplicate
     for (uint8_t i = 0; i < node.ndeps; i++) {
-        if (node.deps[i] == static_cast<int16_t>(dependency)) return true; // already exists
+        if (node.deps[i] == static_cast<int16_t>(dependency)) {
+            return true; // already exists
+        }
     }
 
     // Check if adding this edge would create a cycle
-    if (would_create_cycle(dependent, dependency)) return false;
+    if (would_create_cycle(dependent, dependency)) {
+        return false;
+    }
 
     node.deps[node.ndeps++] = static_cast<int16_t>(dependency);
     return true;
@@ -79,7 +93,9 @@ void RecoveryDag::set_state(int idx, ServiceState state) {
 }
 
 int RecoveryDag::notify_crash(int idx, int restart_order[], int max_order) {
-    if (idx < 0 || idx >= static_cast<int>(count_)) return 0;
+    if (idx < 0 || idx >= static_cast<int>(count_)) {
+        return 0;
+    }
 
     ServiceNode& crashed = services_[idx];
     crashed.state = ServiceState::CRASHED;
@@ -187,7 +203,9 @@ int RecoveryDag::topo_sort_dependents(int root, int order[], int max_order) cons
         int node = bfs[bhead++];
         // Find services whose deps include 'node'
         for (size_t i = 0; i < count_; i++) {
-            if (affected[i]) continue;
+            if (affected[i]) {
+                continue;
+            }
             for (uint8_t j = 0; j < services_[i].ndeps; j++) {
                 if (services_[i].deps[j] == static_cast<int16_t>(node)) {
                     affected[i] = true;
@@ -204,7 +222,9 @@ int RecoveryDag::topo_sort_dependents(int root, int order[], int max_order) cons
 
     // Compute in-degrees only among affected services
     for (size_t i = 0; i < count_; i++) {
-        if (!affected[i]) continue;
+        if (!affected[i]) {
+            continue;
+        }
         for (uint8_t j = 0; j < services_[i].ndeps; j++) {
             int dep = services_[i].deps[j];
             if (dep >= 0 && dep < static_cast<int>(count_) && affected[dep]) {
@@ -229,7 +249,9 @@ int RecoveryDag::topo_sort_dependents(int root, int order[], int max_order) cons
 
         // Reduce in-degrees of dependents
         for (size_t i = 0; i < count_; i++) {
-            if (!affected[i]) continue;
+            if (!affected[i]) {
+                continue;
+            }
             for (uint8_t j = 0; j < services_[i].ndeps; j++) {
                 if (services_[i].deps[j] == static_cast<int16_t>(node)) {
                     in_deg[i]--;
@@ -252,7 +274,9 @@ bool RecoveryDag::would_create_cycle(int from, int to) const {
 
 bool RecoveryDag::can_reach(int start, int target) const {
     // DFS: can we reach 'target' from 'start' following dependency edges?
-    if (start == target) return true;
+    if (start == target) {
+        return true;
+    }
 
     bool visited[MAX_SERVICES] = {};
     int stack[MAX_SERVICES];
@@ -264,7 +288,9 @@ bool RecoveryDag::can_reach(int start, int target) const {
         int node = stack[--sp];
         for (uint8_t i = 0; i < services_[node].ndeps; i++) {
             int dep = services_[node].deps[i];
-            if (dep == target) return true;
+            if (dep == target) {
+                return true;
+            }
             if (dep >= 0 && dep < static_cast<int>(count_) && !visited[dep]) {
                 visited[dep] = true;
                 stack[sp++] = dep;

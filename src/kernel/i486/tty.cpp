@@ -68,7 +68,7 @@ void echo_char(char c) noexcept {
         output_char('\n');
         return;
     }
-    if (c == g_termios.c_cc[kVerase]) {
+    if (static_cast<uint8_t>(c) == g_termios.c_cc[kVerase]) {
         if ((g_termios.c_lflag & kEchoe) != 0U) {
             console::tty_write_char('\b');
             console::tty_write_char(' ');
@@ -76,7 +76,7 @@ void echo_char(char c) noexcept {
         }
         return;
     }
-    if (c == g_termios.c_cc[kVkill]) {
+    if (static_cast<uint8_t>(c) == g_termios.c_cc[kVkill]) {
         if ((g_termios.c_lflag & kEchok) != 0U) {
             output_char('\n');
         }

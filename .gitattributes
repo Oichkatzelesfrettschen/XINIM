@@ -24,3 +24,4 @@ tools/c86/fsck1.asm text diff
 *.vdi -text -diff
 *.raw -text -diff
 *.fd -text -diff
+third_party/distfiles/*.tgz -text -diff

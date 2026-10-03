@@ -25,13 +25,13 @@ inline void outl(uint16_t port, uint32_t value) noexcept {
     asm volatile("outl %0, %1" : : "a"(value), "Nd"(port));
 }
 inline uint8_t inb(uint16_t port) noexcept {
-    uint8_t v; asm volatile("inb %1, %0" : "=a"(v) : "Nd"(port)); return v;
+    uint8_t v = 0U; asm volatile("inb %1, %0" : "=a"(v) : "Nd"(port)); return v;
 }
 inline uint16_t inw(uint16_t port) noexcept {
-    uint16_t v; asm volatile("inw %1, %0" : "=a"(v) : "Nd"(port)); return v;
+    uint16_t v = 0U; asm volatile("inw %1, %0" : "=a"(v) : "Nd"(port)); return v;
 }
 inline uint32_t inl(uint16_t port) noexcept {
-    uint32_t v; asm volatile("inl %1, %0" : "=a"(v) : "Nd"(port)); return v;
+    uint32_t v = 0U; asm volatile("inl %1, %0" : "=a"(v) : "Nd"(port)); return v;
 }
 
 // VirtIO constants
@@ -101,6 +101,8 @@ struct Virtqueue {
 };
 
 constexpr uint32_t RX_BUF_SIZE = 1536U;
+constexpr uint32_t MAX_FRAME_SIZE = 1518U;
+constexpr uint32_t TX_BUF_SIZE = sizeof(VirtioNetHdr) + MAX_FRAME_SIZE;
 constexpr uint32_t MAX_QUEUE = 256U;
 
 uint16_t g_io_base = 0U;
@@ -112,6 +114,7 @@ bool g_ready = false;
 // RX buffers (pre-allocated)
 uint8_t* g_rx_buffers[MAX_QUEUE]{};
 dma::DmaBuffer g_rx_dma_buf{};
+dma::DmaBuffer g_tx_dma_buf{};
 
 uint32_t vring_size(uint32_t qsz) noexcept {
     // VirtIO spec: desc + avail + padding + used
@@ -125,11 +128,15 @@ uint32_t vring_size(uint32_t qsz) noexcept {
 bool setup_queue(uint16_t index, Virtqueue& vq) noexcept {
     outw(g_io_base + REG_QUEUE_SELECT, index);
     uint16_t qsz = inw(g_io_base + REG_QUEUE_SIZE);
-    if (qsz == 0U || qsz > MAX_QUEUE) return false;
+    if (qsz == 0U || qsz > MAX_QUEUE) {
+        return false;
+    }
 
     uint32_t total = vring_size(qsz);
     dma::DmaBuffer ring = dma::allocate(total, 4096U);
-    if (ring.address == nullptr) return false;
+    if (ring.address == nullptr) {
+        return false;
+    }
 
     vq.size = qsz;
     vq.desc = reinterpret_cast<VringDesc*>(ring.address);
@@ -150,7 +157,9 @@ bool setup_queue(uint16_t index, Virtqueue& vq) noexcept {
 void populate_rx_buffers() noexcept {
     // Allocate a block of RX buffers
     g_rx_dma_buf = dma::allocate(g_rx.size * RX_BUF_SIZE, 4096U);
-    if (g_rx_dma_buf.address == nullptr) return;
+    if (g_rx_dma_buf.address == nullptr) {
+        return;
+    }
 
     for (uint16_t i = 0U; i < g_rx.size; ++i) {
         g_rx_buffers[i] = g_rx_dma_buf.address + (i * RX_BUF_SIZE);
@@ -175,7 +184,9 @@ void populate_rx_buffers() noexcept {
 
 bool initialize() noexcept {
     const xinim::pci::PCIDevice* dev = xinim::pci::PCI::find_device(VIRTIO_VENDOR, VIRTIO_NET_LEGACY);
-    if (dev == nullptr) dev = xinim::pci::PCI::find_device(VIRTIO_VENDOR, VIRTIO_NET_MODERN);
+    if (dev == nullptr) {
+        dev = xinim::pci::PCI::find_device(VIRTIO_VENDOR, VIRTIO_NET_MODERN);
+    }
     if (dev == nullptr) {
         console::write_string("virtio-net: no PCI device found");
         console::newline();
@@ -216,7 +227,9 @@ bool initialize() noexcept {
         }
         console::write_string("virtio-net: MAC ");
         for (int i = 0; i < 6; ++i) {
-            if (i > 0) console::write_char(':');
+            if (i > 0) {
+                console::write_char(':');
+            }
             console::write_hex32(g_mac[i]);
         }
         console::newline();
@@ -230,6 +243,13 @@ bool initialize() noexcept {
     }
     if (!setup_queue(1U, g_tx)) {
         console::write_string("virtio-net: TX queue setup failed");
+        console::newline();
+        return false;
+    }
+
+    g_tx_dma_buf = dma::allocate(static_cast<uint32_t>(g_tx.size) * TX_BUF_SIZE, 4096U);
+    if (g_tx_dma_buf.address == nullptr) {
+        console::write_string("virtio-net: TX buffer allocation failed");
         console::newline();
         return false;
     }
@@ -255,26 +275,43 @@ bool initialize() noexcept {
 }
 
 bool send(const void* data, uint32_t length) noexcept {
-    if (!g_ready || data == nullptr || length == 0U) return false;
+    if (!g_ready || data == nullptr || length == 0U || length > MAX_FRAME_SIZE) {
+        return false;
+    }
 
-    // Allocate a TX buffer (header + frame)
     const uint32_t total = sizeof(VirtioNetHdr) + length;
-    dma::DmaBuffer buf = dma::allocate(total, 16U);
-    if (buf.address == nullptr) return false;
+    // Descriptor N owns TX buffer N. QEMU 11.1.1 hw/net/virtio-net.c
+    // virtio_net_flush_tx pops the avail ring in order and holds at most one
+    // async_tx element, which blocks further pops until virtio_net_tx_complete
+    // pushes it, so used entries return in submission order. In-flight
+    // descriptors are therefore exactly [last_used_idx, next_avail), and the
+    // next ring slot is free once fewer than size entries remain in flight.
+    while (g_tx.last_used_idx != g_tx.used->idx) {
+        const uint16_t used_slot = g_tx.last_used_idx % g_tx.size;
+        if (g_tx.used->ring[used_slot].id >= g_tx.size) {
+            return false;
+        }
+        ++g_tx.last_used_idx;
+    }
+    if (static_cast<uint16_t>(g_tx.next_avail - g_tx.last_used_idx) >= g_tx.size) {
+        return false;
+    }
+
+    const uint16_t desc_idx = g_tx.next_avail % g_tx.size;
+    uint8_t* tx_buffer = g_tx_dma_buf.address + static_cast<uint32_t>(desc_idx) * TX_BUF_SIZE;
 
     // Write virtio-net header (all zeros = no offload)
-    auto* hdr = reinterpret_cast<VirtioNetHdr*>(buf.address);
+    auto* hdr = reinterpret_cast<VirtioNetHdr*>(tx_buffer);
     *hdr = {};
 
     // Copy frame data after header
     const auto* src = static_cast<const uint8_t*>(data);
     for (uint32_t i = 0U; i < length; ++i) {
-        buf.address[sizeof(VirtioNetHdr) + i] = src[i];
+        tx_buffer[sizeof(VirtioNetHdr) + i] = src[i];
     }
 
     // Fill TX descriptor
-    uint16_t desc_idx = g_tx.next_avail % g_tx.size;
-    g_tx.desc[desc_idx].addr = reinterpret_cast<uint32_t>(buf.address);
+    g_tx.desc[desc_idx].addr = reinterpret_cast<uint32_t>(tx_buffer);
     g_tx.desc[desc_idx].len = total;
     g_tx.desc[desc_idx].flags = 0U;
     g_tx.desc[desc_idx].next = 0U;
@@ -291,24 +328,32 @@ bool send(const void* data, uint32_t length) noexcept {
 }
 
 bool recv(void* buffer, uint32_t buffer_size, uint32_t* out_length) noexcept {
-    if (!g_ready || buffer == nullptr || out_length == nullptr) return false;
+    if (!g_ready || buffer == nullptr || out_length == nullptr) {
+        return false;
+    }
 
     // Check if device has placed any frames in the used ring
-    if (g_rx.last_used_idx == g_rx.used->idx) return false;
+    if (g_rx.last_used_idx == g_rx.used->idx) {
+        return false;
+    }
 
     // Get the used element
     uint16_t used_slot = g_rx.last_used_idx % g_rx.size;
     uint32_t desc_id = g_rx.used->ring[used_slot].id;
     uint32_t frame_len = g_rx.used->ring[used_slot].len;
 
-    if (desc_id >= g_rx.size) return false;
+    if (desc_id >= g_rx.size) {
+        return false;
+    }
 
     // Copy frame data (skip VirtioNetHdr)
     const uint8_t* rx_buf = g_rx_buffers[desc_id];
     uint32_t payload_len = (frame_len > sizeof(VirtioNetHdr))
                                ? (frame_len - sizeof(VirtioNetHdr))
                                : 0U;
-    if (payload_len > buffer_size) payload_len = buffer_size;
+    if (payload_len > buffer_size) {
+        payload_len = buffer_size;
+    }
 
     auto* dst = static_cast<uint8_t*>(buffer);
     for (uint32_t i = 0U; i < payload_len; ++i) {
