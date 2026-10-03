@@ -17,6 +17,11 @@ tools/c86/bootblok.asm text diff
 tools/c86/fsck1.asm text diff
 *.s text diff
 
+# Windows batch files run under cmd.exe, which expects CRLF in the working tree;
+# the index stores LF like every other text file.
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
 # Retained QEMU disk evidence below the hosting size limit stays in ordinary
 # Git when explicitly admitted. Binary images must never enter text diffs.
 *.qcow2 -text -diff
